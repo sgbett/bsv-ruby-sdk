@@ -6,6 +6,9 @@ Gemfile.lock
 /.rspec_status
 /tmp/
 
+# Claude Code
+.claude/settings.local.json
+
 # IDE
 .idea/
 .vscode/
