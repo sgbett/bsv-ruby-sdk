@@ -1,8 +1,8 @@
 # BSV Ruby SDK
 
-Ruby implementation of the BSV Blockchain SDK.
+[![CI](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml)
 
-> **Status:** Early development — infrastructure only, no BSV functionality yet.
+Ruby implementation of the BSV Blockchain SDK.
 
 ## Installation
 
