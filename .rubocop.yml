@@ -38,6 +38,7 @@ Metrics/AbcSize:
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
+    - 'lib/bsv/wallet/**/*'
 
 Metrics/MethodLength:
   Exclude:
@@ -45,6 +46,7 @@ Metrics/MethodLength:
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
+    - 'lib/bsv/wallet/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
@@ -52,6 +54,7 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
+    - 'lib/bsv/wallet/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
@@ -59,6 +62,7 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
+    - 'lib/bsv/wallet/**/*'
 
 Metrics/ModuleLength:
   Exclude:
@@ -77,6 +81,8 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
+    - 'spec/bsv/wallet/**/*'
+    - 'spec/integration/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -84,3 +90,5 @@ RSpec/ExampleLength:
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
+    - 'spec/bsv/wallet/**/*'
+    - 'spec/integration/**/*'

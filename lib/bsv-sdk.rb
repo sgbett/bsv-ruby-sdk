@@ -7,4 +7,5 @@ module BSV
   autoload :Script,      'bsv/script'
   autoload :Transaction, 'bsv/transaction'
   autoload :Network,     'bsv/network'
+  autoload :Wallet,      'bsv/wallet'
 end

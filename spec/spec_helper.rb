@@ -2,6 +2,9 @@
 
 require 'bsv-sdk'
 
+# Load support files (test helpers, shared contexts, etc.)
+Dir[File.join(__dir__, 'support', '**', '*.rb')].sort.each { |f| require f }
+
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
@@ -13,6 +16,7 @@ RSpec.configure do |config|
 
   config.shared_context_metadata_behavior = :apply_to_host_groups
   config.disable_monkey_patching!
+  config.filter_run_excluding testnet: true
   config.order = :random
   Kernel.srand config.seed
 end
