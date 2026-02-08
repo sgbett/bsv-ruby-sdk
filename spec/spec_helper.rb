@@ -16,7 +16,9 @@ RSpec.configure do |config|
 
   config.shared_context_metadata_behavior = :apply_to_host_groups
   config.disable_monkey_patching!
-  config.filter_run_excluding testnet: true
+  config.define_derived_metadata(testnet: true) do |meta|
+    meta[:skip] = 'testnet tests excluded (run with: bundle exec rspec --tag testnet)' unless ENV['BSV_TESTNET_WIF']
+  end
   config.order = :random
   Kernel.srand config.seed
 end
