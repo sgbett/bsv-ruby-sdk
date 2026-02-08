@@ -37,6 +37,16 @@ Three top-level modules loaded via `autoload`:
 
 Build order follows the same dependency chain as the other SDKs: primitives → script → transaction → everything else.
 
+### Declarative vs Imperative Split
+
+The SDK is **declarative** — it defines what things *are*: data structures, serialisation formats, cryptographic algorithms, protocol rules. It answers questions like "what is a transaction?", "how do you derive an HD key?", "how is a script encoded?".
+
+Companion gems (e.g. `bsv-attest`, a future `bsv-wallet`) are **imperative** — they define what to *do*: workflows, use-cases, and orchestration. They answer questions like "attest a document", "set up a wallet from a mnemonic", "broadcast and track a payment".
+
+The SDK should be substantially complete before building new companion gems. Early gem development tends to collide with missing SDK primitives. When the SDK covers the declarative layer thoroughly, gems become thin orchestration layers that pick and choose the SDK capabilities they need. Every companion gem pulls in `bsv-sdk` as its core dependency.
+
+There will be grey areas — the existing `BSV::Wallet` and `BSV::Network` modules live in the SDK but lean imperative. The principle is directional, not absolute.
+
 ## Cryptography
 
 Use Ruby's stdlib `openssl` for all cryptography — no external gems. `OpenSSL::PKey::EC` supports secp256k1 natively, covering ECDSA, SHA-256, RIPEMD-160, AES, HMAC, and ECDH.
