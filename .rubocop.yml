@@ -35,21 +35,25 @@ Metrics/AbcSize:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
+    - 'lib/bsv/transaction/**/*'
 
 Metrics/MethodLength:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
+    - 'lib/bsv/transaction/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
+    - 'lib/bsv/transaction/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
+    - 'lib/bsv/transaction/**/*'
 
 Metrics/ModuleLength:
   Exclude:
@@ -58,6 +62,7 @@ Metrics/ModuleLength:
 Metrics/ClassLength:
   Exclude:
     - 'lib/bsv/script/script.rb'
+    - 'lib/bsv/transaction/transaction.rb'
 
 # Specs for low-level modules legitimately need multiple assertions
 # per example and longer examples for thorough test coverage.
@@ -65,8 +70,10 @@ RSpec/MultipleExpectations:
   Exclude:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
+    - 'spec/bsv/transaction/**/*'
 
 RSpec/ExampleLength:
   Exclude:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
+    - 'spec/bsv/transaction/**/*'
