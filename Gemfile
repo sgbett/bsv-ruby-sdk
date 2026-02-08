@@ -3,7 +3,7 @@
 source 'https://rubygems.org'
 
 gemspec name: 'bsv-sdk'
-# add more later: gemspec name: "bsv-wallet" etc.
+gemspec name: 'bsv-attest'
 
 group :development, :test do
   gem 'rake'
