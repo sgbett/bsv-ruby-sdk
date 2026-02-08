@@ -47,6 +47,7 @@ Metrics/MethodLength:
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet/**/*'
+    - 'spec/support/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
@@ -91,4 +92,9 @@ RSpec/ExampleLength:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/integration/**/*'
+
+# Integration tests use before(:context) which requires instance variables.
+RSpec/InstanceVariable:
+  Exclude:
     - 'spec/integration/**/*'
