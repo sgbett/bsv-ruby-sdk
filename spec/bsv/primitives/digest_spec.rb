@@ -69,4 +69,25 @@ RSpec.describe BSV::Primitives::Digest do
       expect(result.unpack1('H*')).to eq(expected)
     end
   end
+
+  describe '.pbkdf2_hmac_sha512' do
+    it 'derives key with BIP-39 defaults' do
+      password = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+      salt = 'mnemonicTREZOR'
+      result = described_class.pbkdf2_hmac_sha512(password, salt)
+      expected = 'c55257c360c07c72029aebc1b53c05ed0362ada38ead3e3e9efa3708e53495531f09a6987599d18264c1e1c92f2cf141630c7a3c4ab7c81b2f001698e7463b04'
+      expect(result.unpack1('H*')).to eq(expected)
+    end
+
+    it 'returns 64 bytes with ASCII-8BIT encoding' do
+      result = described_class.pbkdf2_hmac_sha512('password', 'salt')
+      expect(result.length).to eq(64)
+      expect(result.encoding).to eq(Encoding::ASCII_8BIT)
+    end
+
+    it 'accepts custom iterations and key length' do
+      result = described_class.pbkdf2_hmac_sha512('password', 'salt', iterations: 1, key_length: 32)
+      expect(result.length).to eq(32)
+    end
+  end
 end
