@@ -29,30 +29,44 @@ Naming/PredicateMethod:
   AllowedMethods:
     - verify
 
-# Cryptographic algorithms are inherently complex; splitting them
-# into tiny methods would harm readability and auditability.
+# Cryptographic and script-parsing code is inherently complex;
+# splitting into tiny methods would harm readability and auditability.
 Metrics/AbcSize:
   Exclude:
     - 'lib/bsv/primitives/**/*'
+    - 'lib/bsv/script/**/*'
 
 Metrics/MethodLength:
   Exclude:
     - 'lib/bsv/primitives/**/*'
+    - 'lib/bsv/script/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
     - 'lib/bsv/primitives/**/*'
+    - 'lib/bsv/script/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
     - 'lib/bsv/primitives/**/*'
+    - 'lib/bsv/script/**/*'
 
-# Crypto specs legitimately need multiple assertions per example
-# and longer examples for thorough test coverage.
+Metrics/ModuleLength:
+  Exclude:
+    - 'lib/bsv/script/opcodes.rb'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'lib/bsv/script/script.rb'
+
+# Specs for low-level modules legitimately need multiple assertions
+# per example and longer examples for thorough test coverage.
 RSpec/MultipleExpectations:
   Exclude:
     - 'spec/bsv/primitives/**/*'
+    - 'spec/bsv/script/**/*'
 
 RSpec/ExampleLength:
   Exclude:
     - 'spec/bsv/primitives/**/*'
+    - 'spec/bsv/script/**/*'
