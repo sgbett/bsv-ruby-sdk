@@ -34,6 +34,10 @@ module BSV
       def hmac_sha512(key, data)
         OpenSSL::HMAC.digest('SHA512', key, data)
       end
+
+      def pbkdf2_hmac_sha512(password, salt, iterations: 2048, key_length: 64)
+        OpenSSL::PKCS5.pbkdf2_hmac(password, salt, iterations, key_length, 'sha512')
+      end
     end
   end
 end

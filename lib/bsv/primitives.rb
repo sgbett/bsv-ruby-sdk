@@ -10,5 +10,6 @@ module BSV
     autoload :PublicKey,  'bsv/primitives/public_key'
     autoload :PrivateKey,  'bsv/primitives/private_key'
     autoload :ExtendedKey, 'bsv/primitives/extended_key'
+    autoload :Mnemonic,    'bsv/primitives/mnemonic'
   end
 end
