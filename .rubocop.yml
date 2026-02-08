@@ -16,6 +16,7 @@ Metrics/BlockLength:
 Naming/FileName:
   Exclude:
     - 'lib/bsv-sdk.rb'
+    - 'lib/bsv-attest.rb'
 
 # Cryptographic code uses standard short names (r, s, bn, etc.)
 Naming/MethodParameterName:
@@ -39,6 +40,8 @@ Metrics/AbcSize:
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet/**/*'
+    - 'lib/bsv/attest.rb'
+    - 'lib/bsv/attest/**/*'
 
 Metrics/MethodLength:
   Exclude:
@@ -48,6 +51,8 @@ Metrics/MethodLength:
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet/**/*'
     - 'spec/support/**/*'
+    - 'lib/bsv/attest.rb'
+    - 'lib/bsv/attest/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
@@ -56,6 +61,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet/**/*'
+    - 'lib/bsv/attest.rb'
+    - 'lib/bsv/attest/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
@@ -64,6 +71,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet/**/*'
+    - 'lib/bsv/attest.rb'
+    - 'lib/bsv/attest/**/*'
 
 Metrics/ModuleLength:
   Exclude:
@@ -83,6 +92,8 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/bsv/attest_spec.rb'
+    - 'spec/bsv/attest/**/*'
     - 'spec/integration/**/*'
 
 RSpec/ExampleLength:
@@ -92,6 +103,8 @@ RSpec/ExampleLength:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/bsv/attest_spec.rb'
+    - 'spec/bsv/attest/**/*'
     - 'spec/integration/**/*'
 
 # Integration tests use before(:context) which requires instance variables.
