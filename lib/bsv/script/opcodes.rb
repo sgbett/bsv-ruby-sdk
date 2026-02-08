@@ -137,9 +137,12 @@ module BSV
       OP_PUBKEY         = 0xfe
       OP_INVALIDOPCODE  = 0xff
 
-      # Reverse lookup: opcode byte → name string
+      # Reverse lookup: opcode byte → name string.
+      # Sorted so canonical names (OP_0, OP_1) win over aliases (OP_FALSE, OP_TRUE)
+      # regardless of Module#constants enumeration order.
       NAME = constants
              .select { |c| c.to_s.start_with?('OP_') }
+             .sort
              .each_with_object({}) { |c, h| h[const_get(c)] ||= c.to_s }
              .freeze
 
