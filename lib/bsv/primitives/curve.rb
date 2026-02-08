@@ -21,7 +21,14 @@ module BSV
       end
 
       def add_points(point_a, point_b)
-        point_a.add(point_b)
+        if point_a.respond_to?(:add)
+          point_a.add(point_b)
+        else
+          # Ruby 2.7 / OpenSSL < 3: use multi-scalar mul
+          # point_a.mul(bns, points) = bns[0]*point_a + bns[1]*points[0] + ...
+          one = OpenSSL::BN.new('1')
+          point_a.mul([one, one], [point_b])
+        end
       end
 
       def point_x(point)
