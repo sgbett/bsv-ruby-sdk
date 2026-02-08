@@ -78,10 +78,25 @@ Metrics/ModuleLength:
   Exclude:
     - 'lib/bsv/script/opcodes.rb'
 
+Metrics/ParameterLists:
+  Exclude:
+    - 'lib/bsv/primitives/**/*'
+    - 'lib/bsv/script/**/*'
+    - 'lib/bsv/transaction/**/*'
+
 Metrics/ClassLength:
   Exclude:
+    - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/script.rb'
     - 'lib/bsv/transaction/transaction.rb'
+
+Layout/LineLength:
+  Exclude:
+    - 'spec/bsv/primitives/**/*'
+
+RSpec/ContextWording:
+  Exclude:
+    - 'spec/bsv/primitives/**/*'
 
 # Specs for low-level modules legitimately need multiple assertions
 # per example and longer examples for thorough test coverage.
