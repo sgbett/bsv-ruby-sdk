@@ -23,6 +23,7 @@ Naming/MethodParameterName:
     - r
     - s
     - bn
+    - tx
 
 # verify() is the standard cryptographic API name
 Naming/PredicateMethod:
@@ -36,24 +37,28 @@ Metrics/AbcSize:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
+    - 'lib/bsv/network/**/*'
 
 Metrics/MethodLength:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
+    - 'lib/bsv/network/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
+    - 'lib/bsv/network/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
+    - 'lib/bsv/network/**/*'
 
 Metrics/ModuleLength:
   Exclude:
@@ -71,9 +76,11 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
+    - 'spec/bsv/network/**/*'
 
 RSpec/ExampleLength:
   Exclude:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
+    - 'spec/bsv/network/**/*'

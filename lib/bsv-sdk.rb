@@ -6,4 +6,5 @@ module BSV
   autoload :Primitives,  'bsv/primitives'
   autoload :Script,      'bsv/script'
   autoload :Transaction, 'bsv/transaction'
+  autoload :Network,     'bsv/network'
 end
