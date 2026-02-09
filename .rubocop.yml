@@ -111,6 +111,10 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/attest/**/*'
     - 'spec/integration/**/*'
 
+RSpec/MultipleMemoizedHelpers:
+  Exclude:
+    - 'spec/bsv/primitives/**/*'
+
 RSpec/ExampleLength:
   Exclude:
     - 'spec/bsv/primitives/**/*'
