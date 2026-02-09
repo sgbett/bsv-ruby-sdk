@@ -7,6 +7,7 @@ module BSV
     autoload :Base58,     'bsv/primitives/base58'
     autoload :Signature,  'bsv/primitives/signature'
     autoload :ECDSA,      'bsv/primitives/ecdsa'
+    autoload :ECIES,      'bsv/primitives/ecies'
     autoload :PublicKey,  'bsv/primitives/public_key'
     autoload :PrivateKey,  'bsv/primitives/private_key'
     autoload :ExtendedKey, 'bsv/primitives/extended_key'
