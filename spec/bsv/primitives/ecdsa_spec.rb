@@ -45,6 +45,70 @@ RSpec.describe BSV::Primitives::ECDSA do
     end
   end
 
+  describe '.sign_recoverable' do
+    it 'returns a [Signature, Integer] pair' do
+      hash = BSV::Primitives::Digest.sha256('hello')
+      result = described_class.sign_recoverable(hash, privkey_bn)
+
+      expect(result).to be_an(Array)
+      expect(result.length).to eq(2)
+      expect(result[0]).to be_a(BSV::Primitives::Signature)
+      expect(result[1]).to be_an(Integer)
+      expect(result[1]).to be_between(0, 3)
+    end
+
+    it 'produces the same signature as sign' do
+      hash = BSV::Primitives::Digest.sha256('hello')
+      sig = described_class.sign(hash, privkey_bn)
+      sig_r, _recovery_id = described_class.sign_recoverable(hash, privkey_bn)
+
+      expect(sig_r).to eq(sig)
+    end
+
+    it 'always produces low-S signatures' do
+      10.times do |i|
+        hash = BSV::Primitives::Digest.sha256("recoverable #{i}")
+        sig, _id = described_class.sign_recoverable(hash, privkey_bn)
+        expect(sig.low_s?).to be true
+      end
+    end
+  end
+
+  describe '.recover_public_key' do
+    it 'recovers the correct public key from a signature' do
+      hash = BSV::Primitives::Digest.sha256('hello recovery')
+      sig, recovery_id = described_class.sign_recoverable(hash, privkey_bn)
+
+      recovered = described_class.recover_public_key(hash, sig, recovery_id)
+      expected = BSV::Primitives::PublicKey.new(pubkey_point)
+
+      expect(recovered).to eq(expected)
+    end
+
+    it 'round-trips with multiple key/message combinations' do
+      keys = %w[
+        0000000000000000000000000000000000000000000000000000000000000001
+        eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694
+        cca9fbcc1b41e5a95d369eaa6ddcff73b61a4efaa279cfc6567e8daa39cbaf50
+      ]
+      messages = ['test', 'another message', 'hello world']
+
+      keys.each do |key_hex|
+        priv = OpenSSL::BN.new(key_hex, 16)
+        expected_pub = BSV::Primitives::PublicKey.new(BSV::Primitives::Curve.multiply_generator(priv))
+
+        messages.each do |msg|
+          hash = BSV::Primitives::Digest.sha256(msg)
+          sig, recovery_id = described_class.sign_recoverable(hash, priv)
+          recovered = described_class.recover_public_key(hash, sig, recovery_id)
+
+          expect(recovered).to eq(expected_pub),
+                               "failed for key=#{key_hex[0, 8]}..., msg=#{msg.inspect}"
+        end
+      end
+    end
+  end
+
   describe '.verify' do
     it 'verifies a valid signature' do
       hash = BSV::Primitives::Digest.sha256('hello world')

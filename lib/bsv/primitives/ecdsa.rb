@@ -10,23 +10,41 @@ module BSV
       module_function
 
       def sign(hash, private_key_bn)
-        k = nonce_rfc6979(private_key_bn, hash)
-        k_inv = k.mod_inverse(Curve::N)
+        sig, _recovery_id = sign_raw(hash, private_key_bn)
+        sig
+      end
 
-        # R = (k * G).x mod N
-        point = Curve.multiply_generator(k)
-        r = Curve.point_x(point) % Curve::N
-        raise 'calculated R is zero' if r.zero?
+      def sign_recoverable(hash, private_key_bn)
+        sign_raw(hash, private_key_bn)
+      end
 
-        # e = hash interpreted as big integer
+      def recover_public_key(hash, signature, recovery_id)
+        r = signature.r
+        s = signature.s
+        n = Curve::N
+
+        # Reconstruct R.x (may include overflow when recovery_id >= 2)
+        x = recovery_id >= 2 ? r + n : r
+
+        # Decompress R from x-coordinate and y-parity
+        prefix = (recovery_id & 1).odd? ? "\x03".b : "\x02".b
+        x_bytes = x.to_s(2)
+        x_bytes = ("\x00".b * (32 - x_bytes.length)) + x_bytes if x_bytes.length < 32
+        r_point = Curve.point_from_bytes(prefix + x_bytes)
+
+        # Q = r^(-1) * (s*R - e*G)
+        r_inv = r.mod_inverse(n)
         e = OpenSSL::BN.new(hash, 2)
+        u1 = ((n - e) * r_inv) % n
+        u2 = (s * r_inv) % n
 
-        # s = k^-1 * (e + d*r) mod N
-        s = (k_inv * ((e + (private_key_bn * r)) % Curve::N)) % Curve::N
-        raise 'calculated S is zero' if s.zero?
+        p1 = Curve.multiply_generator(u1)
+        p2 = Curve.multiply_point(r_point, u2)
+        q = Curve.add_points(p1, p2)
 
-        sig = Signature.new(r, s)
-        sig.to_low_s
+        raise ArgumentError, 'recovered point is at infinity' if q.infinity?
+
+        PublicKey.new(q)
       end
 
       def verify(hash, signature, public_key_point)
@@ -56,6 +74,32 @@ module BSV
 
       class << self
         private
+
+        def sign_raw(hash, private_key_bn)
+          k = nonce_rfc6979(private_key_bn, hash)
+          k_inv = k.mod_inverse(Curve::N)
+
+          r_point = Curve.multiply_generator(k)
+          r = Curve.point_x(r_point) % Curve::N
+          raise 'calculated R is zero' if r.zero?
+
+          e = OpenSSL::BN.new(hash, 2)
+          s = (k_inv * ((e + (private_key_bn * r)) % Curve::N)) % Curve::N
+          raise 'calculated S is zero' if s.zero?
+
+          # Recovery ID: bit 0 = R.y parity, bit 1 = R.x overflow (>= N)
+          r_y_odd = r_point.to_octet_string(:compressed).getbyte(0) == 0x03
+          r_overflow = Curve.point_x(r_point) >= Curve::N
+          recovery_id = (r_y_odd ? 1 : 0) + (r_overflow ? 2 : 0)
+
+          sig = Signature.new(r, s)
+          unless sig.low_s?
+            sig = sig.to_low_s
+            recovery_id ^= 1 # Flipping s negates R.y, toggling parity
+          end
+
+          [sig, recovery_id]
+        end
 
         # RFC 6979 Section 3.2 — deterministic k generation for secp256k1/SHA-256
         def nonce_rfc6979(privkey_bn, hash)
