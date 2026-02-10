@@ -70,6 +70,52 @@ module BSV
         new(buf)
       end
 
+      def self.p2pk_lock(pubkey_bytes)
+        raise ArgumentError, 'pubkey must be 33 or 65 bytes' unless [33, 65].include?(pubkey_bytes.bytesize)
+
+        buf = encode_push_data(pubkey_bytes)
+        buf << [Opcodes::OP_CHECKSIG].pack('C')
+        new(buf)
+      end
+
+      def self.p2pk_unlock(signature_der)
+        new(encode_push_data(signature_der))
+      end
+
+      def self.p2sh_lock(script_hash)
+        raise ArgumentError, 'script_hash must be 20 bytes' unless script_hash.bytesize == 20
+
+        buf = [Opcodes::OP_HASH160].pack('C')
+        buf << encode_push_data(script_hash)
+        buf << [Opcodes::OP_EQUAL].pack('C')
+        new(buf)
+      end
+
+      def self.p2sh_unlock(redeem_script, *push_items)
+        buf = ''.b
+        push_items.each { |item| buf << encode_push_data(item.b) }
+        buf << encode_push_data(redeem_script.to_binary)
+        new(buf)
+      end
+
+      def self.p2ms_lock(required, pubkeys)
+        n = pubkeys.length
+        raise ArgumentError, 'm must be between 1 and n' unless required.between?(1, n)
+        raise ArgumentError, 'n must be <= 16' unless n <= 16
+
+        buf = [Opcodes::OP_1 + required - 1].pack('C')
+        pubkeys.each { |pk| buf << encode_push_data(pk.b) }
+        buf << [Opcodes::OP_1 + n - 1].pack('C')
+        buf << [Opcodes::OP_CHECKMULTISIG].pack('C')
+        new(buf)
+      end
+
+      def self.p2ms_unlock(*signatures)
+        buf = [Opcodes::OP_0].pack('C')
+        signatures.each { |sig| buf << encode_push_data(sig.b) }
+        new(buf)
+      end
+
       # --- Serialisation ---
 
       def to_binary
