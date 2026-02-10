@@ -88,6 +88,100 @@ module BSV
         @bytes.bytesize
       end
 
+      # --- Type predicates ---
+
+      def p2pkh?
+        b = @bytes
+        b.bytesize == 25 &&
+          b.getbyte(0) == Opcodes::OP_DUP &&
+          b.getbyte(1) == Opcodes::OP_HASH160 &&
+          b.getbyte(2) == 0x14 &&
+          b.getbyte(23) == Opcodes::OP_EQUALVERIFY &&
+          b.getbyte(24) == Opcodes::OP_CHECKSIG
+      end
+
+      def p2sh?
+        b = @bytes
+        b.bytesize == 23 &&
+          b.getbyte(0) == Opcodes::OP_HASH160 &&
+          b.getbyte(1) == 0x14 &&
+          b.getbyte(22) == Opcodes::OP_EQUAL
+      end
+
+      def op_return?
+        b = @bytes
+        (b.bytesize.positive? && b.getbyte(0) == Opcodes::OP_RETURN) ||
+          (b.bytesize > 1 && b.getbyte(0) == Opcodes::OP_FALSE && b.getbyte(1) == Opcodes::OP_RETURN)
+      end
+
+      def p2pk?
+        c = chunks
+        return false unless c.length == 2 && c[0].data? && c[1].opcode == Opcodes::OP_CHECKSIG
+
+        pubkey = c[0].data
+        version = pubkey.getbyte(0)
+        ([0x02, 0x03].include?(version) && pubkey.bytesize == 33) ||
+          ([0x04, 0x06, 0x07].include?(version) && pubkey.bytesize == 65)
+      end
+
+      def multisig?
+        c = chunks
+        return false if c.length < 3
+        return false unless small_int_opcode?(c[0].opcode)
+        return false unless small_int_opcode?(c[-2].opcode) && c[-1].opcode == Opcodes::OP_CHECKMULTISIG
+
+        c[1..-3].all?(&:data?)
+      end
+
+      # --- Type classification ---
+
+      def type
+        if @bytes.empty? then 'empty'
+        elsif p2pkh? then 'pubkeyhash'
+        elsif p2pk? then 'pubkey'
+        elsif p2sh? then 'scripthash'
+        elsif op_return? then 'nulldata'
+        elsif multisig? then 'multisig'
+        else 'nonstandard'
+        end
+      end
+
+      # --- Data extraction ---
+
+      def pubkey_hash
+        return unless p2pkh?
+
+        @bytes.byteslice(3, 20)
+      end
+
+      def script_hash
+        return unless p2sh?
+
+        @bytes.byteslice(2, 20)
+      end
+
+      def op_return_data
+        return unless op_return?
+
+        start = @bytes.getbyte(0) == Opcodes::OP_RETURN ? 1 : 2
+        Script.new(@bytes.byteslice(start..)).chunks.select(&:data?).map(&:data)
+      end
+
+      MAINNET_P2SH_PREFIX = "\x05".b.freeze
+      TESTNET_P2SH_PREFIX = "\xc4".b.freeze
+
+      def addresses(network: :mainnet)
+        if p2pkh?
+          prefix = network == :testnet ? BSV::Primitives::PublicKey::TESTNET_PUBKEY_HASH : BSV::Primitives::PublicKey::MAINNET_PUBKEY_HASH
+          [BSV::Primitives::Base58.check_encode(prefix + pubkey_hash)]
+        elsif p2sh?
+          prefix = network == :testnet ? TESTNET_P2SH_PREFIX : MAINNET_P2SH_PREFIX
+          [BSV::Primitives::Base58.check_encode(prefix + script_hash)]
+        else
+          []
+        end
+      end
+
       # --- Chunk parsing (lazy) ---
 
       def chunks
@@ -125,6 +219,10 @@ module BSV
       end
 
       private
+
+      def small_int_opcode?(opcode)
+        opcode == Opcodes::OP_0 || opcode.between?(Opcodes::OP_1, Opcodes::OP_16)
+      end
 
       def parse_chunks
         result = []
