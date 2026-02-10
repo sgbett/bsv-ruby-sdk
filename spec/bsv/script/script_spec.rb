@@ -153,6 +153,224 @@ RSpec.describe BSV::Script::Script do
     end
   end
 
+  describe 'type predicates' do
+    let(:p2pkh_script) { described_class.p2pkh_lock(p2pkh_hash) }
+    let(:op_return_script) { described_class.op_return('hello'.b) }
+
+    describe '#p2pkh?' do
+      it 'returns true for a P2PKH locking script' do
+        expect(p2pkh_script).to be_p2pkh
+      end
+
+      it 'returns false for non-P2PKH scripts' do
+        expect(op_return_script).not_to be_p2pkh
+      end
+    end
+
+    describe '#p2sh?' do
+      it 'returns true for a P2SH script' do
+        script_hash = "\x9d\xe5\xae\xaf\xf9\xc4\x84\x31\xba\x4d\xd6\xe8\xaf\x73\xd5\x1f\x38\xe4\x51\xcb".b
+        script = described_class.builder
+                                .push_op(:OP_HASH160)
+                                .push_data(script_hash)
+                                .push_op(:OP_EQUAL)
+                                .build
+        expect(script).to be_p2sh
+      end
+
+      it 'returns false for P2PKH' do
+        expect(p2pkh_script).not_to be_p2sh
+      end
+    end
+
+    describe '#op_return?' do
+      it 'detects OP_FALSE OP_RETURN format' do
+        expect(op_return_script).to be_op_return
+      end
+
+      it 'detects bare OP_RETURN format' do
+        script = described_class.from_binary([BSV::Script::Opcodes::OP_RETURN].pack('C'))
+        expect(script).to be_op_return
+      end
+
+      it 'returns false for P2PKH' do
+        expect(p2pkh_script).not_to be_op_return
+      end
+    end
+
+    describe '#p2pk?' do
+      it 'returns true for compressed pubkey + OP_CHECKSIG' do
+        pubkey = "\x02".b + ("\xab".b * 32)
+        script = described_class.builder
+                                .push_data(pubkey)
+                                .push_op(:OP_CHECKSIG)
+                                .build
+        expect(script).to be_p2pk
+      end
+
+      it 'returns true for uncompressed pubkey + OP_CHECKSIG' do
+        pubkey = "\x04".b + ("\xab".b * 64)
+        script = described_class.builder
+                                .push_data(pubkey)
+                                .push_op(:OP_CHECKSIG)
+                                .build
+        expect(script).to be_p2pk
+      end
+
+      it 'returns false for P2PKH' do
+        expect(p2pkh_script).not_to be_p2pk
+      end
+    end
+
+    describe '#multisig?' do
+      it 'returns true for a 2-of-3 multisig script' do
+        key1 = "\x02".b + ("\x11".b * 32)
+        key2 = "\x03".b + ("\x22".b * 32)
+        key3 = "\x02".b + ("\x33".b * 32)
+        script = described_class.builder
+                                .push_op(:OP_2)
+                                .push_data(key1)
+                                .push_data(key2)
+                                .push_data(key3)
+                                .push_op(:OP_3)
+                                .push_op(:OP_CHECKMULTISIG)
+                                .build
+        expect(script).to be_multisig
+      end
+
+      it 'returns false for P2PKH' do
+        expect(p2pkh_script).not_to be_multisig
+      end
+    end
+  end
+
+  describe '#type' do
+    it 'returns "pubkeyhash" for P2PKH' do
+      expect(described_class.p2pkh_lock(p2pkh_hash).type).to eq('pubkeyhash')
+    end
+
+    it 'returns "pubkey" for P2PK' do
+      pubkey = "\x02".b + ("\xab".b * 32)
+      script = described_class.builder.push_data(pubkey).push_op(:OP_CHECKSIG).build
+      expect(script.type).to eq('pubkey')
+    end
+
+    it 'returns "scripthash" for P2SH' do
+      script = described_class.builder
+                              .push_op(:OP_HASH160)
+                              .push_data("\x00".b * 20)
+                              .push_op(:OP_EQUAL)
+                              .build
+      expect(script.type).to eq('scripthash')
+    end
+
+    it 'returns "nulldata" for OP_RETURN' do
+      expect(described_class.op_return('data'.b).type).to eq('nulldata')
+    end
+
+    it 'returns "multisig" for multisig' do
+      key = "\x02".b + ("\x11".b * 32)
+      script = described_class.builder
+                              .push_op(:OP_1)
+                              .push_data(key)
+                              .push_op(:OP_1)
+                              .push_op(:OP_CHECKMULTISIG)
+                              .build
+      expect(script.type).to eq('multisig')
+    end
+
+    it 'returns "empty" for empty script' do
+      expect(described_class.new.type).to eq('empty')
+    end
+
+    it 'returns "nonstandard" for unknown scripts' do
+      script = described_class.builder.push_op(:OP_DUP).push_op(:OP_DROP).build
+      expect(script.type).to eq('nonstandard')
+    end
+  end
+
+  describe 'data extraction' do
+    describe '#pubkey_hash' do
+      it 'extracts 20-byte hash from P2PKH' do
+        script = described_class.p2pkh_lock(p2pkh_hash)
+        expect(script.pubkey_hash).to eq(p2pkh_hash)
+      end
+
+      it 'returns nil for non-P2PKH' do
+        expect(described_class.op_return('data'.b).pubkey_hash).to be_nil
+      end
+    end
+
+    describe '#script_hash' do
+      it 'extracts 20-byte hash from P2SH' do
+        hash = "\x9d\xe5\xae\xaf\xf9\xc4\x84\x31\xba\x4d\xd6\xe8\xaf\x73\xd5\x1f\x38\xe4\x51\xcb".b
+        script = described_class.builder
+                                .push_op(:OP_HASH160)
+                                .push_data(hash)
+                                .push_op(:OP_EQUAL)
+                                .build
+        expect(script.script_hash).to eq(hash)
+      end
+
+      it 'returns nil for non-P2SH' do
+        expect(described_class.p2pkh_lock(p2pkh_hash).script_hash).to be_nil
+      end
+    end
+
+    describe '#op_return_data' do
+      it 'extracts data items from OP_RETURN' do
+        data1 = 'hello'.b
+        data2 = 'world'.b
+        script = described_class.op_return(data1, data2)
+        expect(script.op_return_data).to eq([data1, data2])
+      end
+
+      it 'returns nil for non-OP_RETURN' do
+        expect(described_class.p2pkh_lock(p2pkh_hash).op_return_data).to be_nil
+      end
+    end
+
+    describe '#addresses' do
+      it 'extracts mainnet address from P2PKH' do
+        key = BSV::Primitives::PrivateKey.generate
+        hash = key.public_key.hash160
+        script = described_class.p2pkh_lock(hash)
+
+        addresses = script.addresses
+        expect(addresses.length).to eq(1)
+        expect(addresses[0]).to eq(key.public_key.address)
+      end
+
+      it 'extracts testnet address from P2PKH' do
+        key = BSV::Primitives::PrivateKey.generate
+        hash = key.public_key.hash160
+        script = described_class.p2pkh_lock(hash)
+
+        addresses = script.addresses(network: :testnet)
+        expect(addresses.length).to eq(1)
+        expect(addresses[0]).to eq(key.public_key.address(network: :testnet))
+      end
+
+      it 'extracts address from P2SH' do
+        hash = "\x00".b * 20
+        script = described_class.builder
+                                .push_op(:OP_HASH160)
+                                .push_data(hash)
+                                .push_op(:OP_EQUAL)
+                                .build
+
+        addresses = script.addresses
+        expect(addresses.length).to eq(1)
+        expect(addresses[0]).to start_with('3')
+      end
+
+      it 'returns empty array for unknown types' do
+        script = described_class.builder.push_op(:OP_DUP).build
+        expect(script.addresses).to eq([])
+      end
+    end
+  end
+
   describe '#==' do
     it 'considers scripts with identical bytes equal' do
       a = described_class.from_hex(p2pkh_hex)
