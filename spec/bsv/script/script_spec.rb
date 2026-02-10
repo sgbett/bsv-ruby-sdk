@@ -128,6 +128,148 @@ RSpec.describe BSV::Script::Script do
     end
   end
 
+  describe '.p2pk_lock / .p2pk_unlock' do
+    it 'creates a P2PK locking script with compressed pubkey' do
+      pubkey = "\x02".b + ("\xab".b * 32)
+      script = described_class.p2pk_lock(pubkey)
+
+      expect(script).to be_p2pk
+      chunks = script.chunks
+      expect(chunks.length).to eq(2)
+      expect(chunks[0].data).to eq(pubkey)
+      expect(chunks[1].opcode).to eq(BSV::Script::Opcodes::OP_CHECKSIG)
+    end
+
+    it 'creates a P2PK locking script with uncompressed pubkey' do
+      pubkey = "\x04".b + ("\xab".b * 64)
+      script = described_class.p2pk_lock(pubkey)
+      expect(script).to be_p2pk
+    end
+
+    it 'raises on invalid pubkey length' do
+      expect { described_class.p2pk_lock("\x02".b * 20) }
+        .to raise_error(ArgumentError, /33 or 65 bytes/)
+    end
+
+    it 'creates a P2PK unlocking script' do
+      sig = "\x30".b + ("\x01".b * 70)
+      script = described_class.p2pk_unlock(sig)
+
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].data).to eq(sig)
+    end
+  end
+
+  describe '.p2sh_lock / .p2sh_unlock' do
+    let(:script_hash) { "\x9d\xe5\xae\xaf\xf9\xc4\x84\x31\xba\x4d\xd6\xe8\xaf\x73\xd5\x1f\x38\xe4\x51\xcb".b }
+
+    it 'creates a P2SH locking script' do
+      script = described_class.p2sh_lock(script_hash)
+
+      expect(script).to be_p2sh
+      expect(script.script_hash).to eq(script_hash)
+      chunks = script.chunks
+      expect(chunks.length).to eq(3)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_HASH160)
+      expect(chunks[1].data).to eq(script_hash)
+      expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_EQUAL)
+    end
+
+    it 'raises on invalid hash length' do
+      expect { described_class.p2sh_lock("\x00".b * 19) }
+        .to raise_error(ArgumentError, /20 bytes/)
+    end
+
+    it 'creates a P2SH unlocking script with push items and redeem script' do
+      sig1 = "\x30".b + ("\x01".b * 70)
+      sig2 = "\x30".b + ("\x02".b * 70)
+      redeem = described_class.p2pkh_lock("\x00".b * 20)
+
+      script = described_class.p2sh_unlock(redeem, sig1, sig2)
+      chunks = script.chunks
+
+      expect(chunks.length).to eq(3)
+      expect(chunks[0].data).to eq(sig1)
+      expect(chunks[1].data).to eq(sig2)
+      expect(chunks[2].data).to eq(redeem.to_binary)
+    end
+
+    it 'creates a P2SH unlocking script with no push items' do
+      redeem = described_class.p2pkh_lock("\x00".b * 20)
+      script = described_class.p2sh_unlock(redeem)
+
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].data).to eq(redeem.to_binary)
+    end
+  end
+
+  describe '.p2ms_lock / .p2ms_unlock' do
+    let(:key1) { "\x02".b + ("\x11".b * 32) }
+    let(:key2) { "\x03".b + ("\x22".b * 32) }
+    let(:key3) { "\x02".b + ("\x33".b * 32) }
+
+    it 'creates a 2-of-3 multisig locking script' do
+      script = described_class.p2ms_lock(2, [key1, key2, key3])
+
+      expect(script).to be_multisig
+      chunks = script.chunks
+      expect(chunks.length).to eq(6) # OP_2 key1 key2 key3 OP_3 OP_CHECKMULTISIG
+    end
+
+    it 'produces correct opcodes and data for 2-of-3' do
+      script = described_class.p2ms_lock(2, [key1, key2, key3])
+      chunks = script.chunks
+
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_2)
+      expect(chunks[1].data).to eq(key1)
+      expect(chunks[2].data).to eq(key2)
+      expect(chunks[3].data).to eq(key3)
+      expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_3)
+      expect(chunks[5].opcode).to eq(BSV::Script::Opcodes::OP_CHECKMULTISIG)
+    end
+
+    it 'creates a 1-of-1 multisig (edge case)' do
+      script = described_class.p2ms_lock(1, [key1])
+
+      expect(script).to be_multisig
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_1)
+      expect(chunks[-2].opcode).to eq(BSV::Script::Opcodes::OP_1)
+      expect(chunks[-1].opcode).to eq(BSV::Script::Opcodes::OP_CHECKMULTISIG)
+    end
+
+    it 'raises when m > n' do
+      expect { described_class.p2ms_lock(3, [key1, key2]) }
+        .to raise_error(ArgumentError, /m must be between 1 and n/)
+    end
+
+    it 'raises when m is 0' do
+      expect { described_class.p2ms_lock(0, [key1]) }
+        .to raise_error(ArgumentError, /m must be between 1 and n/)
+    end
+
+    it 'raises when n > 16' do
+      keys = 17.times.map { "\x02".b + ("\xaa".b * 32) }
+      expect { described_class.p2ms_lock(1, keys) }
+        .to raise_error(ArgumentError, /n must be <= 16/)
+    end
+
+    it 'creates a multisig unlocking script with OP_0 prefix' do
+      sig1 = "\x30".b + ("\x01".b * 70)
+      sig2 = "\x30".b + ("\x02".b * 70)
+      script = described_class.p2ms_unlock(sig1, sig2)
+
+      chunks = script.chunks
+      expect(chunks.length).to eq(3)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_0)
+      expect(chunks[0].data).to be_nil
+      expect(chunks[1].data).to eq(sig1)
+      expect(chunks[2].data).to eq(sig2)
+    end
+  end
+
   describe 'push data encoding' do
     it 'uses direct push for data <= 75 bytes' do
       data = 'x'.b * 75
