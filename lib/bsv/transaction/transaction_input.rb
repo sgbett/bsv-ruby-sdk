@@ -4,7 +4,7 @@ module BSV
   module Transaction
     class TransactionInput
       attr_reader :prev_tx_id, :prev_tx_out_index, :sequence
-      attr_accessor :unlocking_script, :source_satoshis, :source_locking_script
+      attr_accessor :unlocking_script, :source_satoshis, :source_locking_script, :source_transaction
 
       def initialize(prev_tx_id:, prev_tx_out_index:, unlocking_script: nil, sequence: 0xFFFFFFFF)
         @prev_tx_id = prev_tx_id.b
