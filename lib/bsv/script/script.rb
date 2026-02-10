@@ -40,6 +40,10 @@ module BSV
         script
       end
 
+      def self.builder
+        Builder.new
+      end
+
       # --- Templates ---
 
       def self.op_return(*data_items)
