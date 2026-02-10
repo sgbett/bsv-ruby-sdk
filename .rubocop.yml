@@ -121,6 +121,8 @@ RSpec/MultipleExpectations:
 RSpec/MultipleMemoizedHelpers:
   Exclude:
     - 'spec/bsv/primitives/**/*'
+    - 'spec/bsv/script/**/*'
+    - 'spec/bsv/transaction/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -132,6 +134,16 @@ RSpec/ExampleLength:
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/integration/**/*'
+
+# Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
+Naming/VariableNumber:
+  Exclude:
+    - 'spec/**/*'
+
+# P2PKH is a standard Bitcoin acronym, not camelCase.
+RSpec/SpecFilePathFormat:
+  Exclude:
+    - 'spec/bsv/transaction/p2pkh_spec.rb'
 
 # Integration tests use before(:context) which requires instance variables.
 RSpec/InstanceVariable:

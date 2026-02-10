@@ -206,32 +206,32 @@ RSpec.describe BSV::Script::Script do
   end
 
   describe '.p2ms_lock / .p2ms_unlock' do
-    let(:key1) { "\x02".b + ("\x11".b * 32) }
-    let(:key2) { "\x03".b + ("\x22".b * 32) }
-    let(:key3) { "\x02".b + ("\x33".b * 32) }
+    let(:alice_key) { "\x02".b + ("\x11".b * 32) }
+    let(:bob_key) { "\x03".b + ("\x22".b * 32) }
+    let(:carol_key) { "\x02".b + ("\x33".b * 32) }
 
     it 'creates a 2-of-3 multisig locking script' do
-      script = described_class.p2ms_lock(2, [key1, key2, key3])
+      script = described_class.p2ms_lock(2, [alice_key, bob_key, carol_key])
 
       expect(script).to be_multisig
       chunks = script.chunks
-      expect(chunks.length).to eq(6) # OP_2 key1 key2 key3 OP_3 OP_CHECKMULTISIG
+      expect(chunks.length).to eq(6) # OP_2 alice bob carol OP_3 OP_CHECKMULTISIG
     end
 
     it 'produces correct opcodes and data for 2-of-3' do
-      script = described_class.p2ms_lock(2, [key1, key2, key3])
+      script = described_class.p2ms_lock(2, [alice_key, bob_key, carol_key])
       chunks = script.chunks
 
       expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_2)
-      expect(chunks[1].data).to eq(key1)
-      expect(chunks[2].data).to eq(key2)
-      expect(chunks[3].data).to eq(key3)
+      expect(chunks[1].data).to eq(alice_key)
+      expect(chunks[2].data).to eq(bob_key)
+      expect(chunks[3].data).to eq(carol_key)
       expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_3)
       expect(chunks[5].opcode).to eq(BSV::Script::Opcodes::OP_CHECKMULTISIG)
     end
 
     it 'creates a 1-of-1 multisig (edge case)' do
-      script = described_class.p2ms_lock(1, [key1])
+      script = described_class.p2ms_lock(1, [alice_key])
 
       expect(script).to be_multisig
       chunks = script.chunks
@@ -241,12 +241,12 @@ RSpec.describe BSV::Script::Script do
     end
 
     it 'raises when m > n' do
-      expect { described_class.p2ms_lock(3, [key1, key2]) }
+      expect { described_class.p2ms_lock(3, [alice_key, bob_key]) }
         .to raise_error(ArgumentError, /m must be between 1 and n/)
     end
 
     it 'raises when m is 0' do
-      expect { described_class.p2ms_lock(0, [key1]) }
+      expect { described_class.p2ms_lock(0, [alice_key]) }
         .to raise_error(ArgumentError, /m must be between 1 and n/)
     end
 
