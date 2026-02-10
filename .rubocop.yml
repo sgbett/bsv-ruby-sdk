@@ -23,13 +23,17 @@ Naming/MethodParameterName:
   AllowedNames:
     - r
     - s
+    - z
     - bn
     - tx
+    - p1
+    - p2
 
-# verify() is the standard cryptographic API name
+# verify() and verify_proof() are standard cryptographic API names
 Naming/PredicateMethod:
   AllowedMethods:
     - verify
+    - verify_proof
 
 # Cryptographic and script-parsing code is inherently complex;
 # splitting into tiny methods would harm readability and auditability.
