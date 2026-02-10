@@ -76,6 +76,7 @@ Metrics/PerceivedComplexity:
 
 Metrics/ModuleLength:
   Exclude:
+    - 'lib/bsv/primitives/ecdsa.rb'
     - 'lib/bsv/script/opcodes.rb'
 
 Metrics/ParameterLists:
