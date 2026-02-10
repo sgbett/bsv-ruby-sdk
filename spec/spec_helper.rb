@@ -1,5 +1,14 @@
 # frozen_string_literal: true
 
+if ENV['COVERAGE']
+  require 'simplecov'
+  require 'simplecov-cobertura'
+  SimpleCov.start do
+    add_filter '/spec/'
+    formatter SimpleCov::Formatter::CoberturaFormatter
+  end
+end
+
 require 'bsv-sdk'
 
 # Load support files (test helpers, shared contexts, etc.)
