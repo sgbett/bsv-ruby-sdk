@@ -178,6 +178,138 @@ RSpec.describe BSV::Transaction::Transaction do
     end
   end
 
+  describe 'additional SIGHASH types' do
+    let(:source_script) { BSV::Script::Script.from_hex('76a914c0a3c167a28cabb9fbb495affa0761e6e74ac60d88ac') }
+    let(:zero_hash) { "\x00".b * 32 }
+
+    # Use vector 1 (1 input, 2 outputs) as the base transaction
+    let(:tx) do
+      t = described_class.from_hex(vector1_hex)
+      t.inputs[0].source_satoshis = 100_000_000
+      t.inputs[0].source_locking_script = source_script
+      t
+    end
+
+    # Extract the three hash fields from a 181-byte BIP-143 preimage:
+    #   bytes 0-3:   nVersion
+    #   bytes 4-35:  hashPrevouts
+    #   bytes 36-67: hashSequence
+    #   bytes 68+:   outpoint, scriptCode, value, nSequence...
+    # hashOutputs starts at offset (68 + 36 + varint+script + 8 + 4)
+    # Easier: compute known values from ALL|FORKID and compare structurally.
+    let(:all_preimage) { tx.sighash_preimage(0, BSV::Transaction::Sighash::ALL_FORK_ID) }
+    let(:known_hash_prevouts) { all_preimage.byteslice(4, 32) }
+    let(:known_hash_sequence) { all_preimage.byteslice(36, 32) }
+    # hashOutputs is 32 bytes before the final 8 bytes (nLockTime + sighashType)
+    let(:known_hash_outputs) { all_preimage.byteslice(-40, 32) }
+
+    def extract_hash_prevouts(preimage)
+      preimage.byteslice(4, 32)
+    end
+
+    def extract_hash_sequence(preimage)
+      preimage.byteslice(36, 32)
+    end
+
+    def extract_hash_outputs(preimage)
+      preimage.byteslice(-40, 32)
+    end
+
+    def extract_sighash_type(preimage)
+      preimage.byteslice(-4, 4).unpack1('V')
+    end
+
+    it 'NONE|FORKID zeroes hashSequence and hashOutputs' do
+      preimage = tx.sighash_preimage(0, BSV::Transaction::Sighash::NONE_FORK_ID)
+
+      expect(extract_hash_prevouts(preimage)).to eq(known_hash_prevouts)
+      expect(extract_hash_sequence(preimage)).to eq(zero_hash)
+      expect(extract_hash_outputs(preimage)).to eq(zero_hash)
+      expect(extract_sighash_type(preimage)).to eq(0x42)
+    end
+
+    it 'SINGLE|FORKID zeroes hashSequence and hashes only matching output' do
+      preimage = tx.sighash_preimage(0, BSV::Transaction::Sighash::SINGLE_FORK_ID)
+
+      expected_single_hash = BSV::Primitives::Digest.sha256d(tx.outputs[0].to_binary)
+
+      expect(extract_hash_prevouts(preimage)).to eq(known_hash_prevouts)
+      expect(extract_hash_sequence(preimage)).to eq(zero_hash)
+      expect(extract_hash_outputs(preimage)).to eq(expected_single_hash)
+      expect(extract_sighash_type(preimage)).to eq(0x43)
+    end
+
+    it 'ALL|FORKID|ANYONE_CAN_PAY zeroes hashPrevouts and hashSequence' do
+      preimage = tx.sighash_preimage(0, BSV::Transaction::Sighash::ALL_FORK_ID_ANYONE_CAN_PAY)
+
+      expect(extract_hash_prevouts(preimage)).to eq(zero_hash)
+      expect(extract_hash_sequence(preimage)).to eq(zero_hash)
+      expect(extract_hash_outputs(preimage)).to eq(known_hash_outputs)
+      expect(extract_sighash_type(preimage)).to eq(0xC1)
+    end
+
+    it 'NONE|FORKID|ANYONE_CAN_PAY zeroes all three hash fields' do
+      preimage = tx.sighash_preimage(0, BSV::Transaction::Sighash::NONE_FORK_ID_ANYONE_CAN_PAY)
+
+      expect(extract_hash_prevouts(preimage)).to eq(zero_hash)
+      expect(extract_hash_sequence(preimage)).to eq(zero_hash)
+      expect(extract_hash_outputs(preimage)).to eq(zero_hash)
+      expect(extract_sighash_type(preimage)).to eq(0xC2)
+    end
+
+    it 'SINGLE|FORKID|ANYONE_CAN_PAY zeroes hashPrevouts/hashSequence, hashes single output' do
+      preimage = tx.sighash_preimage(0, BSV::Transaction::Sighash::SINGLE_FORK_ID_ANYONE_CAN_PAY)
+
+      expected_single_hash = BSV::Primitives::Digest.sha256d(tx.outputs[0].to_binary)
+
+      expect(extract_hash_prevouts(preimage)).to eq(zero_hash)
+      expect(extract_hash_sequence(preimage)).to eq(zero_hash)
+      expect(extract_hash_outputs(preimage)).to eq(expected_single_hash)
+      expect(extract_sighash_type(preimage)).to eq(0xC3)
+    end
+
+    it 'SINGLE|FORKID with no matching output returns zero hashOutputs' do
+      # input_index 0 but no outputs
+      tx_no_outputs = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: "\x01".b * 32,
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = 100_000
+      input.source_locking_script = source_script
+      tx_no_outputs.add_input(input)
+
+      preimage = tx_no_outputs.sighash_preimage(0, BSV::Transaction::Sighash::SINGLE_FORK_ID)
+      expect(extract_hash_outputs(preimage)).to eq(zero_hash)
+    end
+
+    it 'produces different sighashes for each type' do
+      types = [
+        BSV::Transaction::Sighash::ALL_FORK_ID,
+        BSV::Transaction::Sighash::NONE_FORK_ID,
+        BSV::Transaction::Sighash::SINGLE_FORK_ID,
+        BSV::Transaction::Sighash::ALL_FORK_ID_ANYONE_CAN_PAY
+      ]
+
+      hashes = types.map { |t| tx.sighash(0, t) }
+      expect(hashes.uniq.length).to eq(types.length)
+    end
+  end
+
+  describe 'Sighash constants' do
+    it 'defines MASK as 0x1f' do
+      expect(BSV::Transaction::Sighash::MASK).to eq(0x1f)
+    end
+
+    it 'defines combined FORKID constants' do
+      expect(BSV::Transaction::Sighash::NONE_FORK_ID).to eq(0x42)
+      expect(BSV::Transaction::Sighash::SINGLE_FORK_ID).to eq(0x43)
+      expect(BSV::Transaction::Sighash::ALL_FORK_ID_ANYONE_CAN_PAY).to eq(0xC1)
+      expect(BSV::Transaction::Sighash::NONE_FORK_ID_ANYONE_CAN_PAY).to eq(0xC2)
+      expect(BSV::Transaction::Sighash::SINGLE_FORK_ID_ANYONE_CAN_PAY).to eq(0xC3)
+    end
+  end
+
   describe '#sign / #sign_all' do
     it 'signs a P2PKH input and produces a valid unlocking script' do
       private_key = BSV::Primitives::PrivateKey.generate

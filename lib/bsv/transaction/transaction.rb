@@ -120,15 +120,17 @@ module BSV
         raise ArgumentError, 'only SIGHASH_FORKID types are supported' unless sighash_type & Sighash::FORK_ID != 0
 
         input = @inputs[input_index]
+        base_type = sighash_type & Sighash::MASK
+        anyone = sighash_type.anybits?(Sighash::ANYONE_CAN_PAY)
 
         # 1. nVersion (4 LE)
         buf = [@version].pack('V')
 
-        # 2. hashPrevouts — SHA256d of all outpoints
-        buf << hash_prevouts
+        # 2. hashPrevouts
+        buf << hash_prevouts(anyone)
 
-        # 3. hashSequence — SHA256d of all sequences
-        buf << hash_sequence
+        # 3. hashSequence
+        buf << hash_sequence(anyone, base_type)
 
         # 4. outpoint of this input (32 + 4)
         buf << input.outpoint_binary
@@ -144,8 +146,8 @@ module BSV
         # 7. nSequence of this input (4 LE)
         buf << [input.sequence].pack('V')
 
-        # 8. hashOutputs — SHA256d of all outputs
-        buf << hash_outputs
+        # 8. hashOutputs
+        buf << hash_outputs(base_type, input_index)
 
         # 9. nLockTime (4 LE)
         buf << [@lock_time].pack('V')
@@ -197,19 +199,35 @@ module BSV
 
       private
 
-      def hash_prevouts
+      ZERO_HASH = "\x00".b * 32
+      private_constant :ZERO_HASH
+
+      def hash_prevouts(anyone_can_pay)
+        return ZERO_HASH if anyone_can_pay
+
         buf = @inputs.map(&:outpoint_binary).join
         BSV::Primitives::Digest.sha256d(buf)
       end
 
-      def hash_sequence
+      def hash_sequence(anyone_can_pay, base_type)
+        return ZERO_HASH if anyone_can_pay || base_type == Sighash::SINGLE || base_type == Sighash::NONE
+
         buf = @inputs.map { |i| [i.sequence].pack('V') }.join
         BSV::Primitives::Digest.sha256d(buf)
       end
 
-      def hash_outputs
-        buf = @outputs.map(&:to_binary).join
-        BSV::Primitives::Digest.sha256d(buf)
+      def hash_outputs(base_type, input_index)
+        case base_type
+        when Sighash::ALL
+          buf = @outputs.map(&:to_binary).join
+          BSV::Primitives::Digest.sha256d(buf)
+        when Sighash::SINGLE
+          return ZERO_HASH if input_index >= @outputs.length
+
+          BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary)
+        else # NONE
+          ZERO_HASH
+        end
       end
 
       def estimated_size
