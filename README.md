@@ -36,7 +36,7 @@ The BSV Blockchain Libraries Project aims to structure and maintain a middleware
 
 This Ruby SDK brings maximum compatibility with the official SDK family to the Ruby ecosystem. It was born from a practical need: building an attestation gem ([bsv-attest](https://rubygems.org/gems/bsv-attest)) required a complete, idiomatic Ruby implementation of BSV primitives, script handling, and transaction construction. Rather than wrapping FFI bindings or shelling out to other languages, the SDK implements everything in pure Ruby using only the standard library's OpenSSL bindings.
 
-<!-- TODO: Update bsv-attest link once gem documentation is published (see #XX) -->
+<!-- TODO: Update bsv-attest link once gem documentation is published (see #48) -->
 
 ## Getting Started
 
@@ -112,7 +112,7 @@ puts tx.to_hex
 
 ## Documentation
 
-<!-- TODO: Create SDK documentation (see #XX) -->
+<!-- TODO: Create SDK documentation (see #49) -->
 
 Documentation is forthcoming. In the meantime:
 
