@@ -6,12 +6,14 @@ module BSV
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
       attr_reader :version, :lock_time, :inputs, :outputs
+      attr_accessor :merkle_path
 
       def initialize(version: 1, lock_time: 0)
         @version = version
         @lock_time = lock_time
         @inputs = []
         @outputs = []
+        @merkle_path = nil
       end
 
       def add_input(input)
@@ -70,6 +72,36 @@ module BSV
 
       def self.from_hex(hex)
         from_binary([hex].pack('H*'))
+      end
+
+      def self.from_binary_with_offset(data, offset = 0)
+        start = offset
+
+        version = data.byteslice(offset, 4).unpack1('V')
+        offset += 4
+
+        tx = new(version: version)
+
+        input_count, vi_size = VarInt.decode(data, offset)
+        offset += vi_size
+        input_count.times do
+          input, consumed = TransactionInput.from_binary(data, offset)
+          tx.add_input(input)
+          offset += consumed
+        end
+
+        output_count, vi_size = VarInt.decode(data, offset)
+        offset += vi_size
+        output_count.times do
+          output, consumed = TransactionOutput.from_binary(data, offset)
+          tx.add_output(output)
+          offset += consumed
+        end
+
+        tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
+        offset += 4
+
+        [tx, offset - start]
       end
 
       # --- Transaction ID ---

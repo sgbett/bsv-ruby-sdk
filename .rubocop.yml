@@ -95,6 +95,7 @@ Metrics/ClassLength:
     - 'lib/bsv/script/script.rb'
     - 'lib/bsv/transaction/transaction.rb'
     - 'lib/bsv/transaction/merkle_path.rb'
+    - 'lib/bsv/transaction/beef.rb'
 
 Layout/LineLength:
   Exclude:
