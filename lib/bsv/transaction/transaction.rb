@@ -175,9 +175,15 @@ module BSV
         self
       end
 
-      def sign_all(private_key, sighash_type = Sighash::ALL_FORK_ID)
+      def sign_all(private_key = nil, sighash_type = Sighash::ALL_FORK_ID)
         @inputs.each_with_index do |input, index|
-          sign(index, private_key, sighash_type) unless input.unlocking_script
+          next if input.unlocking_script
+
+          if input.unlocking_script_template
+            input.unlocking_script = input.unlocking_script_template.sign(self, index)
+          elsif private_key
+            sign(index, private_key, sighash_type)
+          end
         end
         self
       end
@@ -233,9 +239,12 @@ module BSV
       def estimated_size
         size = 4 # version
         size += VarInt.encode(@inputs.length).bytesize
-        @inputs.each do |input|
+        @inputs.each_with_index do |input, index|
           size += if input.unlocking_script
                     input.to_binary.bytesize
+                  elsif input.unlocking_script_template
+                    script_len = input.unlocking_script_template.estimated_length(self, index)
+                    32 + 4 + VarInt.encode(script_len).bytesize + script_len + 4
                   else
                     UNSIGNED_P2PKH_INPUT_SIZE
                   end

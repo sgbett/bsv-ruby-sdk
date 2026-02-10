@@ -376,6 +376,121 @@ RSpec.describe BSV::Transaction::Transaction do
     end
   end
 
+  describe 'UnlockingScriptTemplate integration' do
+    let(:private_key) { BSV::Primitives::PrivateKey.generate }
+    let(:pubkey_hash) { private_key.public_key.hash160 }
+    let(:locking_script) { BSV::Script::Script.p2pkh_lock(pubkey_hash) }
+
+    def build_input(prev_byte: "\x01".b, satoshis: 100_000)
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: prev_byte * 32,
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = satoshis
+      input.source_locking_script = locking_script
+      input
+    end
+
+    it 'sign_all delegates to templates when present' do
+      template = BSV::Transaction::P2PKH.new(private_key)
+
+      tx = described_class.new
+      input = build_input
+      input.unlocking_script_template = template
+      tx.add_input(input)
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000, locking_script: locking_script
+                    ))
+
+      tx.sign_all
+
+      expect(tx.inputs[0].unlocking_script).not_to be_nil
+      expect(tx.inputs[0].unlocking_script.chunks.length).to eq(2)
+    end
+
+    it 'sign_all with templates produces same result as sign with private key' do
+      # Template-based
+      template_tx = described_class.new
+      input1 = build_input
+      input1.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+      template_tx.add_input(input1)
+      template_tx.add_output(BSV::Transaction::TransactionOutput.new(
+                               satoshis: 90_000, locking_script: locking_script
+                             ))
+      template_tx.sign_all
+
+      # Direct signing
+      direct_tx = described_class.new
+      input2 = build_input
+      direct_tx.add_input(input2)
+      direct_tx.add_output(BSV::Transaction::TransactionOutput.new(
+                             satoshis: 90_000, locking_script: locking_script
+                           ))
+      direct_tx.sign(0, private_key)
+
+      expect(template_tx.to_hex).to eq(direct_tx.to_hex)
+    end
+
+    it 'sign_all uses private_key fallback for inputs without templates' do
+      tx = described_class.new
+
+      # Input with template
+      input1 = build_input(prev_byte: "\x01".b)
+      input1.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+      tx.add_input(input1)
+
+      # Input without template
+      input2 = build_input(prev_byte: "\x02".b)
+      tx.add_input(input2)
+
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 190_000, locking_script: locking_script
+                    ))
+
+      tx.sign_all(private_key)
+
+      tx.inputs.each do |input|
+        expect(input.unlocking_script).not_to be_nil
+      end
+    end
+
+    it 'sign_all skips already-signed inputs' do
+      tx = described_class.new
+      input = build_input
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+      tx.add_input(input)
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000, locking_script: locking_script
+                    ))
+
+      # Sign once
+      tx.sign_all
+      first_script = tx.inputs[0].unlocking_script.to_hex
+
+      # Sign again — should not change
+      tx.sign_all
+      expect(tx.inputs[0].unlocking_script.to_hex).to eq(first_script)
+    end
+
+    it 'estimated_fee uses template estimated_length' do
+      tx = described_class.new
+      input = build_input
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+      tx.add_input(input)
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000,
+                      locking_script: BSV::Script::Script.p2pkh_lock("\x00".b * 20)
+                    ))
+
+      fee = tx.estimated_fee
+      # P2PKH template estimates 107 byte script
+      # Total: 4 + 1 + (32+4+1+107+4) + 1 + 34 + 4 = 192 bytes
+      # At 0.5 sat/byte = 96
+      expect(fee).to be > 0
+      expect(fee).to be < 200
+    end
+  end
+
   describe '#estimated_fee' do
     it 'estimates fee for unsigned inputs' do
       tx = described_class.new
