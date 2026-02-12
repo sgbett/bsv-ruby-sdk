@@ -116,7 +116,7 @@ module BSV
 
       # --- Sighash (BIP-143 with FORKID) ---
 
-      def sighash_preimage(input_index, sighash_type = Sighash::ALL_FORK_ID)
+      def sighash_preimage(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
         raise ArgumentError, 'only SIGHASH_FORKID types are supported' unless sighash_type & Sighash::FORK_ID != 0
 
         input = @inputs[input_index]
@@ -136,7 +136,7 @@ module BSV
         buf << input.outpoint_binary
 
         # 5. scriptCode of this input (varint + script)
-        script_bytes = input.source_locking_script.to_binary
+        script_bytes = (subscript || input.source_locking_script).to_binary
         buf << VarInt.encode(script_bytes.bytesize)
         buf << script_bytes
 
@@ -158,8 +158,8 @@ module BSV
         buf
       end
 
-      def sighash(input_index, sighash_type = Sighash::ALL_FORK_ID)
-        BSV::Primitives::Digest.sha256d(sighash_preimage(input_index, sighash_type))
+      def sighash(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
+        BSV::Primitives::Digest.sha256d(sighash_preimage(input_index, sighash_type, subscript: subscript))
       end
 
       # --- Signing ---

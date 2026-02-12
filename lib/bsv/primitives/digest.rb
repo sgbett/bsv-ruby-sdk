@@ -7,6 +7,10 @@ module BSV
     module Digest
       module_function
 
+      def sha1(data)
+        OpenSSL::Digest::SHA1.digest(data)
+      end
+
       def sha256(data)
         OpenSSL::Digest::SHA256.digest(data)
       end
