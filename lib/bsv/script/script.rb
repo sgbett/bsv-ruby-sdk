@@ -82,22 +82,6 @@ module BSV
         new(encode_push_data(signature_der))
       end
 
-      def self.p2sh_lock(script_hash)
-        raise ArgumentError, 'script_hash must be 20 bytes' unless script_hash.bytesize == 20
-
-        buf = [Opcodes::OP_HASH160].pack('C')
-        buf << encode_push_data(script_hash)
-        buf << [Opcodes::OP_EQUAL].pack('C')
-        new(buf)
-      end
-
-      def self.p2sh_unlock(redeem_script, *push_items)
-        buf = ''.b
-        push_items.each { |item| buf << encode_push_data(item.b) }
-        buf << encode_push_data(redeem_script.to_binary)
-        new(buf)
-      end
-
       def self.p2ms_lock(required, pubkeys)
         n = pubkeys.length
         raise ArgumentError, 'm must be between 1 and n' unless required.between?(1, n)
@@ -213,16 +197,10 @@ module BSV
         Script.new(@bytes.byteslice(start..)).chunks.select(&:data?).map(&:data)
       end
 
-      MAINNET_P2SH_PREFIX = "\x05".b.freeze
-      TESTNET_P2SH_PREFIX = "\xc4".b.freeze
-
       def addresses(network: :mainnet)
         if p2pkh?
           prefix = network == :testnet ? BSV::Primitives::PublicKey::TESTNET_PUBKEY_HASH : BSV::Primitives::PublicKey::MAINNET_PUBKEY_HASH
           [BSV::Primitives::Base58.check_encode(prefix + pubkey_hash)]
-        elsif p2sh?
-          prefix = network == :testnet ? TESTNET_P2SH_PREFIX : MAINNET_P2SH_PREFIX
-          [BSV::Primitives::Base58.check_encode(prefix + script_hash)]
         else
           []
         end

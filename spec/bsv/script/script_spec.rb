@@ -161,50 +161,6 @@ RSpec.describe BSV::Script::Script do
     end
   end
 
-  describe '.p2sh_lock / .p2sh_unlock' do
-    let(:script_hash) { "\x9d\xe5\xae\xaf\xf9\xc4\x84\x31\xba\x4d\xd6\xe8\xaf\x73\xd5\x1f\x38\xe4\x51\xcb".b }
-
-    it 'creates a P2SH locking script' do
-      script = described_class.p2sh_lock(script_hash)
-
-      expect(script).to be_p2sh
-      expect(script.script_hash).to eq(script_hash)
-      chunks = script.chunks
-      expect(chunks.length).to eq(3)
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_HASH160)
-      expect(chunks[1].data).to eq(script_hash)
-      expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_EQUAL)
-    end
-
-    it 'raises on invalid hash length' do
-      expect { described_class.p2sh_lock("\x00".b * 19) }
-        .to raise_error(ArgumentError, /20 bytes/)
-    end
-
-    it 'creates a P2SH unlocking script with push items and redeem script' do
-      sig1 = "\x30".b + ("\x01".b * 70)
-      sig2 = "\x30".b + ("\x02".b * 70)
-      redeem = described_class.p2pkh_lock("\x00".b * 20)
-
-      script = described_class.p2sh_unlock(redeem, sig1, sig2)
-      chunks = script.chunks
-
-      expect(chunks.length).to eq(3)
-      expect(chunks[0].data).to eq(sig1)
-      expect(chunks[1].data).to eq(sig2)
-      expect(chunks[2].data).to eq(redeem.to_binary)
-    end
-
-    it 'creates a P2SH unlocking script with no push items' do
-      redeem = described_class.p2pkh_lock("\x00".b * 20)
-      script = described_class.p2sh_unlock(redeem)
-
-      chunks = script.chunks
-      expect(chunks.length).to eq(1)
-      expect(chunks[0].data).to eq(redeem.to_binary)
-    end
-  end
-
   describe '.p2ms_lock / .p2ms_unlock' do
     let(:alice_key) { "\x02".b + ("\x11".b * 32) }
     let(:bob_key) { "\x03".b + ("\x22".b * 32) }
@@ -493,17 +449,14 @@ RSpec.describe BSV::Script::Script do
         expect(addresses[0]).to eq(key.public_key.address(network: :testnet))
       end
 
-      it 'extracts address from P2SH' do
+      it 'returns empty array for P2SH (no address encoding)' do
         hash = "\x00".b * 20
         script = described_class.builder
                                 .push_op(:OP_HASH160)
                                 .push_data(hash)
                                 .push_op(:OP_EQUAL)
                                 .build
-
-        addresses = script.addresses
-        expect(addresses.length).to eq(1)
-        expect(addresses[0]).to start_with('3')
+        expect(script.addresses).to eq([])
       end
 
       it 'returns empty array for unknown types' do
