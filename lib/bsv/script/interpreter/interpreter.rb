@@ -7,6 +7,8 @@ require_relative 'operations/data_push'
 require_relative 'operations/stack_ops'
 require_relative 'operations/flow_control'
 require_relative 'operations/bitwise'
+require_relative 'operations/arithmetic'
+require_relative 'operations/splice'
 
 module BSV
   module Script
@@ -15,6 +17,8 @@ module BSV
       include Operations::StackOps
       include Operations::FlowControl
       include Operations::Bitwise
+      include Operations::Arithmetic
+      include Operations::Splice
 
       attr_reader :dstack, :astack
 
@@ -155,6 +159,13 @@ module BSV
         when Opcodes::OP_2SWAP then op_2swap
         when Opcodes::OP_TUCK then op_tuck
 
+        # --- Splice ---
+        when Opcodes::OP_CAT then op_cat
+        when Opcodes::OP_SPLIT then op_split
+        when Opcodes::OP_NUM2BIN then op_num2bin
+        when Opcodes::OP_BIN2NUM then op_bin2num
+        when Opcodes::OP_SIZE then op_size
+
         # --- Bitwise ---
         when Opcodes::OP_EQUAL then op_equal
         when Opcodes::OP_EQUALVERIFY then op_equalverify
@@ -162,6 +173,35 @@ module BSV
         when Opcodes::OP_OR then op_or
         when Opcodes::OP_XOR then op_xor
         when Opcodes::OP_INVERT then op_invert
+
+        # --- Arithmetic ---
+        when Opcodes::OP_1ADD then op_1add
+        when Opcodes::OP_1SUB then op_1sub
+        when Opcodes::OP_2MUL, Opcodes::OP_2DIV
+          op_disabled(opcode)
+        when Opcodes::OP_NEGATE then op_negate
+        when Opcodes::OP_ABS then op_abs
+        when Opcodes::OP_NOT then op_not
+        when Opcodes::OP_0NOTEQUAL then op_0notequal
+        when Opcodes::OP_ADD then op_add
+        when Opcodes::OP_SUB then op_sub
+        when Opcodes::OP_MUL then op_mul
+        when Opcodes::OP_DIV then op_div
+        when Opcodes::OP_MOD then op_mod
+        when Opcodes::OP_LSHIFT then op_lshift
+        when Opcodes::OP_RSHIFT then op_rshift
+        when Opcodes::OP_BOOLAND then op_booland
+        when Opcodes::OP_BOOLOR then op_boolor
+        when Opcodes::OP_NUMEQUAL then op_numequal
+        when Opcodes::OP_NUMEQUALVERIFY then op_numequalverify
+        when Opcodes::OP_NUMNOTEQUAL then op_numnotequal
+        when Opcodes::OP_LESSTHAN then op_lessthan
+        when Opcodes::OP_GREATERTHAN then op_greaterthan
+        when Opcodes::OP_LESSTHANOREQUAL then op_lessthanorequal
+        when Opcodes::OP_GREATERTHANOREQUAL then op_greaterthanorequal
+        when Opcodes::OP_MIN then op_min
+        when Opcodes::OP_MAX then op_max
+        when Opcodes::OP_WITHIN then op_within
 
         else
           raise ScriptError.new(
