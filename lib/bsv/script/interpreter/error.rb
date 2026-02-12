@@ -31,6 +31,9 @@ module BSV
       INVALID_SIG_COUNT = :invalid_sig_count
       SIG_NULLFAIL = :sig_nullfail
       SIG_NULLDUMMY = :sig_nulldummy
+      SIG_DER = :sig_der
+      SIG_HIGH_S = :sig_high_s
+      PUBKEY_TYPE = :pubkey_type
       INVALID_SIGHASH_TYPE = :invalid_sighash_type
       EARLY_RETURN = :early_return
       IMPOSSIBLE_ENCODING = :impossible_encoding

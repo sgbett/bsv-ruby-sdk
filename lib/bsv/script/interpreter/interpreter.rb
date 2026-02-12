@@ -9,6 +9,7 @@ require_relative 'operations/flow_control'
 require_relative 'operations/bitwise'
 require_relative 'operations/arithmetic'
 require_relative 'operations/splice'
+require_relative 'operations/crypto'
 
 module BSV
   module Script
@@ -19,6 +20,7 @@ module BSV
       include Operations::Bitwise
       include Operations::Arithmetic
       include Operations::Splice
+      include Operations::Crypto
 
       attr_reader :dstack, :astack
 
@@ -53,9 +55,11 @@ module BSV
         scripts = [@unlock_script, @lock_script]
 
         scripts.each_with_index do |script, script_idx|
+          @current_script = script
           chunks = script.chunks
 
-          chunks.each do |chunk|
+          chunks.each_with_index do |chunk, chunk_idx|
+            @current_chunk_idx = chunk_idx
             execute_opcode(chunk)
             break if @early_return
           end
@@ -94,6 +98,8 @@ module BSV
         @else_stack = []
         @last_code_sep = 0
         @early_return = false
+        @current_script = nil
+        @current_chunk_idx = 0
       end
 
       def execute_opcode(chunk)
@@ -202,6 +208,18 @@ module BSV
         when Opcodes::OP_MIN then op_min
         when Opcodes::OP_MAX then op_max
         when Opcodes::OP_WITHIN then op_within
+
+        # --- Crypto ---
+        when Opcodes::OP_RIPEMD160 then op_ripemd160
+        when Opcodes::OP_SHA1 then op_sha1
+        when Opcodes::OP_SHA256 then op_sha256
+        when Opcodes::OP_HASH160 then op_hash160
+        when Opcodes::OP_HASH256 then op_hash256
+        when Opcodes::OP_CODESEPARATOR then op_codeseparator
+        when Opcodes::OP_CHECKSIG then op_checksig
+        when Opcodes::OP_CHECKSIGVERIFY then op_checksigverify
+        when Opcodes::OP_CHECKMULTISIG then op_checkmultisig
+        when Opcodes::OP_CHECKMULTISIGVERIFY then op_checkmultisigverify
 
         else
           raise ScriptError.new(
