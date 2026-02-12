@@ -47,6 +47,18 @@ The SDK should be substantially complete before building new companion gems. Ear
 
 There will be grey areas — the existing `BSV::Wallet` and `BSV::Network` modules live in the SDK but lean imperative. The principle is directional, not absolute.
 
+## Protocol Philosophy
+
+BSV preserves the original Bitcoin protocol design. The SDK reflects this: it implements what the BSV network supports today.
+
+**Recognise everything, construct only what's valid.** The SDK provides full parsing and detection of all script types (including legacy and historical outputs), but does not provide constructors for protocol features BSV has removed or never adopted. For example:
+
+- `p2sh?` detection and `script_hash` extraction are supported (read-only)
+- `p2sh_lock` / `p2sh_unlock` constructors are not provided (P2SH is not valid on BSV)
+- SegWit, Taproot (BIP-340), Replace-by-Fee, and bech32 addresses are not implemented
+
+When reference SDKs (Go, TS, Python) include features that conflict with this principle, this principle takes precedence.
+
 ## Cryptography
 
 Use Ruby's stdlib `openssl` for all cryptography — no external gems. `OpenSSL::PKey::EC` supports secp256k1 natively, covering ECDSA, SHA-256, RIPEMD-160, AES, HMAC, and ECDH.
