@@ -5,14 +5,25 @@ require_relative 'script_number'
 require_relative 'stack'
 require_relative 'operations/data_push'
 require_relative 'operations/stack_ops'
+require_relative 'operations/flow_control'
+require_relative 'operations/bitwise'
 
 module BSV
   module Script
     class Interpreter # rubocop:disable Metrics/ClassLength
       include Operations::DataPush
       include Operations::StackOps
+      include Operations::FlowControl
+      include Operations::Bitwise
 
       attr_reader :dstack, :astack
+
+      # Conditional opcodes must be processed even in non-executing branches
+      # to maintain correct nesting depth.
+      CONDITIONAL_OPCODES = [
+        Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_ELSE, Opcodes::OP_ENDIF,
+        Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
+      ].freeze
 
       # Evaluate unlock + lock scripts without transaction context.
       # Signature operations will always fail (no sighash available).
@@ -84,13 +95,10 @@ module BSV
       def execute_opcode(chunk)
         opcode = chunk.opcode
 
-        # Conditional execution check: if we're in a non-executing branch,
-        # only process conditional opcodes (IF/NOTIF/ELSE/ENDIF).
-        # This will be implemented in Phase 3 (flow control).
-        # For now, all opcodes execute unconditionally.
+        # In non-executing branch: only dispatch conditional opcodes (for nesting tracking).
+        # All other opcodes are skipped.
         unless branch_executing?
-          return if conditional_opcode?(opcode)
-
+          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode)
           return
         end
 
@@ -108,6 +116,23 @@ module BSV
           op_n(opcode)
         when 0x01..0x4b, Opcodes::OP_PUSHDATA1, Opcodes::OP_PUSHDATA2, Opcodes::OP_PUSHDATA4
           op_push_data(chunk)
+
+        # --- Flow control ---
+        when Opcodes::OP_NOP, Opcodes::OP_NOP1, Opcodes::OP_CHECKLOCKTIMEVERIFY,
+             Opcodes::OP_CHECKSEQUENCEVERIFY, Opcodes::OP_NOP4, Opcodes::OP_NOP5,
+             Opcodes::OP_NOP6, Opcodes::OP_NOP7, Opcodes::OP_NOP8, Opcodes::OP_NOP9,
+             Opcodes::OP_NOP10
+          op_nop
+        when Opcodes::OP_IF then op_if
+        when Opcodes::OP_NOTIF then op_notif
+        when Opcodes::OP_ELSE then op_else
+        when Opcodes::OP_ENDIF then op_endif
+        when Opcodes::OP_VERIFY then op_verify
+        when Opcodes::OP_RETURN then op_return
+        when Opcodes::OP_VER, Opcodes::OP_RESERVED, Opcodes::OP_RESERVED1, Opcodes::OP_RESERVED2
+          op_reserved(opcode)
+        when Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
+          op_ver_conditional(opcode)
 
         # --- Stack manipulation ---
         when Opcodes::OP_TOALTSTACK then op_toaltstack
@@ -130,6 +155,14 @@ module BSV
         when Opcodes::OP_2SWAP then op_2swap
         when Opcodes::OP_TUCK then op_tuck
 
+        # --- Bitwise ---
+        when Opcodes::OP_EQUAL then op_equal
+        when Opcodes::OP_EQUALVERIFY then op_equalverify
+        when Opcodes::OP_AND then op_and
+        when Opcodes::OP_OR then op_or
+        when Opcodes::OP_XOR then op_xor
+        when Opcodes::OP_INVERT then op_invert
+
         else
           raise ScriptError.new(
             ScriptErrorCode::INVALID_OPCODE,
@@ -139,16 +172,13 @@ module BSV
       end
 
       # Is the current conditional branch executing?
-      # True when not inside any conditional, or inside a true branch.
-      # Uses symbol :true (not boolean) because Phase 3 adds :false and :skip states.
+      # Checks ALL entries — a :false anywhere means we're not executing.
       def branch_executing?
-        @cond_stack.empty? || @cond_stack.last == :true # rubocop:disable Lint/BooleanSymbol
+        @cond_stack.none? { |v| v == :false } # rubocop:disable Lint/BooleanSymbol
       end
 
-      # Is this a conditional opcode that must be processed even in non-executing branches?
-      def conditional_opcode?(_opcode)
-        # Implemented in Phase 3 (flow control): OP_IF, OP_NOTIF, OP_ELSE, OP_ENDIF
-        false
+      def conditional_opcode?(opcode)
+        CONDITIONAL_OPCODES.include?(opcode)
       end
 
       # Verify final stack state: must have at least one truthy element on top.
