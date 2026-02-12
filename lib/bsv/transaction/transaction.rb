@@ -188,6 +188,19 @@ module BSV
         self
       end
 
+      # --- Script verification ---
+
+      def verify_input(index)
+        input = @inputs[index]
+        BSV::Script::Interpreter.verify(
+          tx: self,
+          input_index: index,
+          unlock_script: input.unlocking_script,
+          lock_script: input.source_locking_script,
+          satoshis: input.source_satoshis
+        )
+      end
+
       # --- Fee estimation ---
 
       def total_input_satoshis
