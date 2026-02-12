@@ -104,7 +104,7 @@ puts tx.to_hex
 - **Cryptographic Primitives** — ECDSA signing with RFC 6979 deterministic nonces, Schnorr signatures, ECIES encryption/decryption, Bitcoin Signed Messages. All built on Ruby's stdlib OpenSSL.
 - **Key Management** — BIP-32 HD key derivation, BIP-39 mnemonic generation (12/24-word phrases), WIF import/export, Base58Check encoding/decoding.
 - **Script Layer** — Complete opcode set, script parsing and serialisation, type detection and predicates (`p2pkh?`, `p2pk?`, `p2sh?`, `multisig?`, `op_return?`), data extraction (pubkey hashes, script hashes, addresses), and a fluent builder API.
-- **Script Templates** — Ready-made locking and unlocking script generators for P2PKH, P2PK, P2SH, P2MS (multisig), and OP_RETURN.
+- **Script Templates** — Ready-made locking and unlocking script generators for P2PKH, P2PK, P2MS (multisig), and OP_RETURN.
 - **Transaction Construction** — Input/output building, BIP-143 sighash computation (all SIGHASH types with FORKID), P2PKH signing, fee estimation.
 - **SPV Structures** — Merkle path construction and verification, BEEF (Background Evaluation Extended Format) serialisation and deserialisation.
 - **Network Integration** — ARC broadcaster for transaction submission, WhatsOnChain chain provider for UTXO queries and fee rates.
