@@ -2,7 +2,9 @@
 
 ## Context
 
-Issue #22, sub-task of HLR #8. Adds template constructors for P2PK, P2SH, and bare multisig (P2MS) script types. Currently only `p2pkh_lock`, `p2pkh_unlock`, and `op_return` exist.
+Issue #22, sub-task of HLR #8. Adds template constructors for P2PK and bare multisig (P2MS) script types. Currently only `p2pkh_lock`, `p2pkh_unlock`, and `op_return` exist.
+
+> **Note:** P2SH constructors (`p2sh_lock`, `p2sh_unlock`) were originally implemented in this task but later removed per #52 (Protocol Philosophy). P2SH is not valid on BSV. Detection (`p2sh?`, `script_hash`) is retained for parsing historical outputs.
 
 The "custom locking scripts" acceptance criterion is already met by the Builder API (#23).
 
