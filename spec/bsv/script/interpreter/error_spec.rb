@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::ScriptError do
+RSpec.describe BSV::Script::ScriptError do # rubocop:disable RSpec/SpecFilePathFormat
   it 'is a StandardError' do
     expect(described_class.ancestors).to include(StandardError)
   end
@@ -15,23 +15,23 @@ RSpec.describe BSV::Script::ScriptError do
     error = described_class.new(:invalid_stack_operation)
     expect(error.message).to eq('invalid stack operation')
   end
-end
 
-RSpec.describe BSV::Script::ScriptErrorCode do
-  it 'defines all expected error codes' do
-    codes = %i[
-      eval_false empty_stack verify_failed equalverify_failed
-      numequalverify_failed checksigverify_failed checkmultisigverify_failed
-      unbalanced_conditional disabled_opcode reserved_opcode
-      invalid_stack_operation malformed_push number_too_big divide_by_zero
-      invalid_input_length invalid_pubkey_count invalid_sig_count
-      sig_nullfail sig_nulldummy invalid_sighash_type early_return
-      invalid_opcode minimal_data
-    ]
+  describe BSV::Script::ScriptErrorCode do
+    it 'defines all expected error codes' do
+      codes = %i[
+        eval_false empty_stack verify_failed equalverify_failed
+        numequalverify_failed checksigverify_failed checkmultisigverify_failed
+        unbalanced_conditional disabled_opcode reserved_opcode
+        invalid_stack_operation malformed_push number_too_big divide_by_zero
+        invalid_input_length invalid_pubkey_count invalid_sig_count
+        sig_nullfail sig_nulldummy invalid_sighash_type early_return
+        invalid_opcode minimal_data
+      ]
 
-    codes.each do |code|
-      const_name = code.to_s.upcase.to_sym
-      expect(described_class.const_get(const_name)).to eq(code)
+      codes.each do |code|
+        const_name = code.to_s.upcase.to_sym
+        expect(described_class.const_get(const_name)).to eq(code)
+      end
     end
   end
 end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::ScriptNumber do
+RSpec.describe BSV::Script::ScriptNumber do # rubocop:disable RSpec/SpecFilePathFormat
   describe '.from_bytes / #to_bytes round-trip' do
     # Test vectors from Go SDK (number.go documentation)
     {
@@ -40,9 +40,9 @@ RSpec.describe BSV::Script::ScriptNumber do
   describe '.from_bytes with max_length' do
     it 'raises when bytes exceed max_length' do
       bytes = "\x01\x02\x03\x04\x05".b
-      expect {
+      expect do
         described_class.from_bytes(bytes, max_length: 4)
-      }.to raise_error(BSV::Script::ScriptError) { |e|
+      end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:number_too_big)
       }
     end
@@ -61,18 +61,18 @@ RSpec.describe BSV::Script::ScriptNumber do
     end
 
     it 'rejects negative zero (0x80)' do
-      expect {
+      expect do
         described_class.from_bytes("\x80".b, require_minimal: true)
-      }.to raise_error(BSV::Script::ScriptError) { |e|
+      end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:minimal_data)
       }
     end
 
     it 'rejects unnecessary zero padding' do
       # 127 should be [0x7f] not [0x7f 0x00]
-      expect {
+      expect do
         described_class.from_bytes("\x7f\x00".b, require_minimal: true)
-      }.to raise_error(BSV::Script::ScriptError) { |e|
+      end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:minimal_data)
       }
     end
@@ -109,9 +109,9 @@ RSpec.describe BSV::Script::ScriptNumber do
     end
 
     it 'raises on division by zero' do
-      expect {
+      expect do
         a / described_class.new(0)
-      }.to raise_error(BSV::Script::ScriptError) { |e|
+      end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:divide_by_zero)
       }
     end
@@ -123,9 +123,9 @@ RSpec.describe BSV::Script::ScriptNumber do
     end
 
     it 'raises on modulo by zero' do
-      expect {
+      expect do
         a % described_class.new(0)
-      }.to raise_error(BSV::Script::ScriptError) { |e|
+      end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:divide_by_zero)
       }
     end
@@ -145,7 +145,12 @@ RSpec.describe BSV::Script::ScriptNumber do
     it 'compares two ScriptNumbers' do
       expect(described_class.new(5)).to be > described_class.new(3)
       expect(described_class.new(3)).to be < described_class.new(5)
-      expect(described_class.new(5)).to eq(described_class.new(5))
+    end
+
+    it 'reports equal ScriptNumbers' do
+      a = described_class.new(5)
+      b = described_class.new(5)
+      expect(a).to eq(b)
     end
 
     it 'compares with integers' do
