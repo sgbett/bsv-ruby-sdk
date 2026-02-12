@@ -33,6 +33,7 @@ module BSV
       SIG_NULLDUMMY = :sig_nulldummy
       INVALID_SIGHASH_TYPE = :invalid_sighash_type
       EARLY_RETURN = :early_return
+      IMPOSSIBLE_ENCODING = :impossible_encoding
       INVALID_OPCODE = :invalid_opcode
       MINIMAL_DATA = :minimal_data
     end

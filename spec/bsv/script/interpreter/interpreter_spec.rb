@@ -40,7 +40,7 @@ RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathF
 
     it 'raises INVALID_OPCODE for unhandled opcodes' do
       expect do
-        evaluate('', 'OP_1 OP_1 OP_ADD')
+        evaluate('', 'OP_1 OP_1 OP_CHECKSIG')
       end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:invalid_opcode)
       }
