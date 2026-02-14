@@ -4,20 +4,54 @@ require 'openssl'
 
 module BSV
   module Primitives
+    # Deterministic ECDSA signing and verification on secp256k1.
+    #
+    # Implements RFC 6979 deterministic nonce generation to produce
+    # signatures that are fully reproducible from the same (key, hash)
+    # pair. All signatures are normalised to low-S form (BIP-62 rule 5).
+    #
+    # Typically used indirectly via {PrivateKey#sign} and {PublicKey#verify}
+    # rather than calling this module directly.
     module ECDSA
+      # Byte length of a secp256k1 scalar (256 bits).
       BYTE_LEN = 32 # secp256k1 order is 256 bits = 32 bytes
 
       module_function
 
+      # Sign a 32-byte message hash with a private key.
+      #
+      # @param hash [String] 32-byte message digest
+      # @param private_key_bn [OpenSSL::BN] the private key scalar
+      # @return [Signature] a low-S normalised signature
       def sign(hash, private_key_bn)
         sig, _recovery_id = sign_raw(hash, private_key_bn)
         sig
       end
 
+      # Sign a hash and return both the signature and recovery ID.
+      #
+      # The recovery ID (0-3) allows the public key to be recovered
+      # from the signature without knowing it in advance, as used by
+      # Bitcoin Signed Messages (BSM) and compact signature formats.
+      #
+      # @param hash [String] 32-byte message digest
+      # @param private_key_bn [OpenSSL::BN] the private key scalar
+      # @return [Array(Signature, Integer)] the signature and recovery ID
       def sign_recoverable(hash, private_key_bn)
         sign_raw(hash, private_key_bn)
       end
 
+      # Recover a public key from a signature and recovery ID.
+      #
+      # Given a message hash, signature, and the recovery ID produced
+      # during signing, reconstructs the public key that created the
+      # signature.
+      #
+      # @param hash [String] 32-byte message digest that was signed
+      # @param signature [Signature] the ECDSA signature
+      # @param recovery_id [Integer] recovery ID (0-3)
+      # @return [PublicKey] the recovered public key
+      # @raise [ArgumentError] if the recovered point is at infinity
       def recover_public_key(hash, signature, recovery_id)
         r = signature.r
         s = signature.s
@@ -47,6 +81,12 @@ module BSV
         PublicKey.new(q)
       end
 
+      # Verify an ECDSA signature against a message hash and public key.
+      #
+      # @param hash [String] 32-byte message digest
+      # @param signature [Signature] the signature to verify
+      # @param public_key_point [OpenSSL::PKey::EC::Point] the signer's public key point
+      # @return [Boolean] +true+ if the signature is valid
       def verify(hash, signature, public_key_point)
         r = signature.r
         s = signature.s

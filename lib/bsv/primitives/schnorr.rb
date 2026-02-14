@@ -4,12 +4,31 @@ require 'openssl'
 
 module BSV
   module Primitives
-    # BRC-94 Schnorr zero-knowledge proof protocol for verifiable
-    # revelation of shared secrets.
+    # BRC-94 Schnorr zero-knowledge proof protocol.
+    #
+    # Provides generation and verification of Schnorr proofs for verifiable
+    # revelation of ECDH shared secrets. Given two public keys A and B and
+    # a shared secret S = a*B (where a is A's private key), the prover can
+    # demonstrate knowledge of the discrete log relationship without
+    # revealing the private key.
+    #
+    # @see https://github.com/bitcoin-sv/BRCs/blob/master/peer-to-peer/0094.md BRC-94
     module Schnorr
+      # A Schnorr zero-knowledge proof consisting of a commitment point,
+      # blinded shared secret, and response scalar.
       class Proof
-        attr_reader :r, :s_prime, :z
+        # @return [PublicKey] the commitment point R
+        attr_reader :r
 
+        # @return [PublicKey] the blinded shared secret S'
+        attr_reader :s_prime
+
+        # @return [OpenSSL::BN] the response scalar z
+        attr_reader :z
+
+        # @param r [PublicKey] commitment point
+        # @param s_prime [PublicKey] blinded shared secret
+        # @param z [OpenSSL::BN] response scalar
         def initialize(r, s_prime, z)
           @r = r
           @s_prime = s_prime
@@ -19,6 +38,16 @@ module BSV
 
       module_function
 
+      # Generate a Schnorr proof of knowledge of a shared secret.
+      #
+      # Proves that the prover knows the private key +a+ such that
+      # +shared_secret = a * public_key_b+, without revealing +a+.
+      #
+      # @param private_key [PrivateKey] the prover's private key (a)
+      # @param public_key_a [PublicKey] the prover's public key (A = a*G)
+      # @param public_key_b [PublicKey] the counterparty's public key (B)
+      # @param shared_secret [PublicKey] the ECDH shared secret (S = a*B)
+      # @return [Proof] the Schnorr proof
       def generate_proof(private_key, public_key_a, public_key_b, shared_secret)
         nonce = PrivateKey.generate
         r_pub = nonce.public_key
@@ -31,6 +60,17 @@ module BSV
         Proof.new(r_pub, s_prime, z)
       end
 
+      # Verify a Schnorr proof of knowledge of a shared secret.
+      #
+      # Checks the two verification equations:
+      # 1. z*G == R + e*A
+      # 2. z*B == S' + e*S
+      #
+      # @param public_key_a [PublicKey] the prover's public key
+      # @param public_key_b [PublicKey] the counterparty's public key
+      # @param shared_secret [PublicKey] the claimed shared secret
+      # @param proof [Proof] the Schnorr proof to verify
+      # @return [Boolean] +true+ if the proof is valid
       def verify_proof(public_key_a, public_key_b, shared_secret, proof)
         e = compute_challenge(public_key_a, public_key_b, shared_secret, proof.s_prime, proof.r)
 

@@ -12,4 +12,6 @@ group :development, :test do
   gem 'rubocop-rspec'
   gem 'simplecov', require: false
   gem 'simplecov-cobertura', require: false
+  gem 'yard'
+  gem 'yard-markdown'
 end

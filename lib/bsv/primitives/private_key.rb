@@ -5,12 +5,30 @@ require 'securerandom'
 
 module BSV
   module Primitives
+    # A secp256k1 private key for signing transactions and deriving public keys.
+    #
+    # Can be created from random entropy, raw bytes, hex, or WIF (Wallet
+    # Import Format). Produces deterministic ECDSA signatures via {ECDSA}.
+    #
+    # @example Generate a new random key
+    #   key = BSV::Primitives::PrivateKey.generate
+    #   key.to_wif #=> "5J..."
+    #
+    # @example Import from WIF
+    #   key = BSV::Primitives::PrivateKey.from_wif('5HueCGU8rMjxEX...')
+    #   key.public_key.address #=> "1GAeh..."
     class PrivateKey
+      # WIF version prefix for mainnet private keys.
       MAINNET_PREFIX = "\x80".b
+
+      # WIF version prefix for testnet private keys.
       TESTNET_PREFIX = "\xef".b
 
+      # @return [OpenSSL::BN] the private key as a big number
       attr_reader :bn
 
+      # @param bn [OpenSSL::BN] the private key scalar (must be 1 < bn < N)
+      # @raise [ArgumentError] if bn is not an OpenSSL::BN or is out of range
       def initialize(bn)
         raise ArgumentError, 'private key must be an OpenSSL::BN' unless bn.is_a?(OpenSSL::BN)
         raise ArgumentError, 'private key out of range' if bn <= OpenSSL::BN.new('0') || bn >= Curve::N
@@ -18,6 +36,9 @@ module BSV
         @bn = bn
       end
 
+      # Generate a new random private key using secure random bytes.
+      #
+      # @return [PrivateKey] a cryptographically random private key
       def self.generate
         loop do
           bytes = SecureRandom.random_bytes(32)
@@ -26,14 +47,30 @@ module BSV
         end
       end
 
+      # Create a private key from raw 32-byte big-endian encoding.
+      #
+      # @param bytes [String] 32-byte binary string
+      # @return [PrivateKey]
       def self.from_bytes(bytes)
         new(OpenSSL::BN.new(bytes, 2))
       end
 
+      # Create a private key from a hex string.
+      #
+      # @param hex [String] 64-character hex-encoded private key
+      # @return [PrivateKey]
       def self.from_hex(hex)
         new(OpenSSL::BN.new(hex, 16))
       end
 
+      # Create a private key from Wallet Import Format (WIF).
+      #
+      # Supports both compressed and uncompressed WIF encodings,
+      # and both mainnet and testnet prefixes.
+      #
+      # @param wif_string [String] Base58Check-encoded WIF string
+      # @return [PrivateKey]
+      # @raise [ArgumentError] if the WIF prefix, length, or compression flag is invalid
       def self.from_wif(wif_string)
         data = Base58.check_decode(wif_string)
         prefix = data[0]
@@ -55,16 +92,27 @@ module BSV
         end
       end
 
+      # Serialise the private key as 32-byte big-endian binary.
+      #
+      # @return [String] 32-byte binary string (zero-padded)
       def to_bytes
         raw = @bn.to_s(2)
         # Pad to 32 bytes
         raw.length < 32 ? ("\x00".b * (32 - raw.length)) + raw : raw
       end
 
+      # Serialise the private key as a 64-character hex string.
+      #
+      # @return [String] hex-encoded private key
       def to_hex
         to_bytes.unpack1('H*')
       end
 
+      # Serialise the private key in Wallet Import Format (WIF).
+      #
+      # @param network [Symbol] +:mainnet+ or +:testnet+
+      # @param compressed [Boolean] whether to flag for compressed public key derivation
+      # @return [String] Base58Check-encoded WIF string
       def to_wif(network: :mainnet, compressed: true)
         prefix = network == :mainnet ? MAINNET_PREFIX : TESTNET_PREFIX
         payload = prefix + to_bytes
@@ -72,10 +120,17 @@ module BSV
         Base58.check_encode(payload)
       end
 
+      # Derive the corresponding public key.
+      #
+      # @return [PublicKey] the public key for this private key
       def public_key
         @public_key ||= PublicKey.new(Curve.multiply_generator(@bn))
       end
 
+      # Sign a 32-byte hash using deterministic ECDSA (RFC 6979).
+      #
+      # @param hash [String] 32-byte message digest to sign
+      # @return [Signature] the DER-encodable signature
       def sign(hash)
         ECDSA.sign(hash, @bn)
       end

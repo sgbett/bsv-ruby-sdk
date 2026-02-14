@@ -5,6 +5,12 @@ require_relative 'script_number'
 
 module BSV
   module Script
+    # Script execution stack providing push/pop/peek operations for bytes,
+    # integers ({ScriptNumber}), and booleans.
+    #
+    # Implements Forth-like stack manipulation operations (dup, drop, swap,
+    # rot, over, pick, roll, tuck) parameterised by count for the multi-element
+    # opcodes (OP_2DUP, OP_2SWAP, etc.).
     class Stack # rubocop:disable Metrics/ClassLength
       def initialize
         @items = []

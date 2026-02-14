@@ -13,6 +13,21 @@ require_relative 'operations/crypto'
 
 module BSV
   module Script
+    # Bitcoin script interpreter implementing the post-Genesis BSV script engine.
+    #
+    # Evaluates unlock + lock script pairs, supporting the full BSV opcode set
+    # including restored opcodes (OP_MUL, OP_LSHIFT, OP_CAT, etc.) and
+    # post-Genesis rules (OP_RETURN as early success, no script size limits).
+    #
+    # @example Evaluate scripts without transaction context
+    #   BSV::Script::Interpreter.evaluate(unlock_script, lock_script)
+    #
+    # @example Verify a transaction input
+    #   BSV::Script::Interpreter.verify(
+    #     tx: transaction, input_index: 0,
+    #     unlock_script: input.script, lock_script: prev_output.script,
+    #     satoshis: prev_output.satoshis
+    #   )
     class Interpreter # rubocop:disable Metrics/ClassLength
       include Operations::DataPush
       include Operations::StackOps
@@ -32,7 +47,13 @@ module BSV
       ].freeze
 
       # Evaluate unlock + lock scripts without transaction context.
+      #
       # Signature operations will always fail (no sighash available).
+      #
+      # @param unlock_script [Script] the unlocking script
+      # @param lock_script [Script] the locking script
+      # @return [Boolean] +true+ if execution succeeds
+      # @raise [ScriptError] if script execution fails
       def self.evaluate(unlock_script, lock_script)
         new(
           unlock_script: unlock_script,
@@ -41,6 +62,14 @@ module BSV
       end
 
       # Verify a transaction input by evaluating its scripts.
+      #
+      # @param tx [Transaction::Transaction] the transaction being verified
+      # @param input_index [Integer] the input index within the transaction
+      # @param unlock_script [Script] the input's unlocking script
+      # @param lock_script [Script] the previous output's locking script
+      # @param satoshis [Integer] the value of the previous output in satoshis
+      # @return [Boolean] +true+ if verification succeeds
+      # @raise [ScriptError] if script execution fails
       def self.verify(tx:, input_index:, unlock_script:, lock_script:, satoshis:)
         new(
           unlock_script: unlock_script,

@@ -2,10 +2,33 @@
 
 module BSV
   module Transaction
+    # A BRC-74 merkle path (BUMP — Bitcoin Unified Merkle Path).
+    #
+    # Encodes the proof that a transaction is included in a block by
+    # storing the minimum set of intermediate hashes needed to recompute
+    # the block's merkle root from a given transaction ID.
+    #
+    # @example Parse a BUMP from hex and compute the merkle root
+    #   mp = BSV::Transaction::MerklePath.from_hex(bump_hex)
+    #   root_hex = mp.compute_root_hex(txid_hex)
     class MerklePath
+      # A single leaf in one level of the merkle path.
+      #
+      # @!attribute [r] offset
+      #   @return [Integer] position index within the tree level
+      # @!attribute [r] hash
+      #   @return [String, nil] 32-byte hash (nil when duplicate)
+      # @!attribute [r] txid
+      #   @return [Boolean] whether this leaf is a transaction ID
+      # @!attribute [r] duplicate
+      #   @return [Boolean] whether this leaf duplicates its sibling
       class PathElement
         attr_reader :offset, :hash, :txid, :duplicate
 
+        # @param offset [Integer] position index within the tree level
+        # @param hash [String, nil] 32-byte hash (nil when duplicate)
+        # @param txid [Boolean] whether this leaf is a transaction ID
+        # @param duplicate [Boolean] whether this leaf duplicates its sibling
         def initialize(offset:, hash: nil, txid: false, duplicate: false)
           @offset = offset
           @hash = hash
@@ -14,8 +37,14 @@ module BSV
         end
       end
 
-      attr_reader :block_height, :path
+      # @return [Integer] the block height this merkle path belongs to
+      attr_reader :block_height
 
+      # @return [Array<Array<PathElement>>] tree levels, each an array of leaves
+      attr_reader :path
+
+      # @param block_height [Integer] the block height
+      # @param path [Array<Array<PathElement>>] tree levels
       def initialize(block_height:, path:)
         @block_height = block_height
         @path = path
@@ -23,6 +52,11 @@ module BSV
 
       # --- Binary serialisation (BRC-74) ---
 
+      # Deserialise a merkle path from BRC-74 binary format.
+      #
+      # @param data [String] binary data
+      # @param offset [Integer] byte offset to start reading from
+      # @return [Array(MerklePath, Integer)] the merkle path and bytes consumed
       def self.from_binary(data, offset = 0)
         start = offset
 
@@ -61,10 +95,17 @@ module BSV
         [new(block_height: block_height, path: path), offset - start]
       end
 
+      # Deserialise a merkle path from a BRC-74 hex string.
+      #
+      # @param hex [String] hex-encoded BUMP data
+      # @return [MerklePath] the parsed merkle path
       def self.from_hex(hex)
         from_binary([hex].pack('H*')).first
       end
 
+      # Serialise the merkle path to BRC-74 binary format.
+      #
+      # @return [String] binary BUMP data
       def to_binary
         buf = VarInt.encode(@block_height)
         buf << [@path.length].pack('C')
@@ -84,16 +125,29 @@ module BSV
         buf
       end
 
+      # Serialise the merkle path to a BRC-74 hex string.
+      #
+      # @return [String] hex-encoded BUMP data
       def to_hex
         to_binary.unpack1('H*')
       end
 
       # --- Merkle root computation ---
 
+      # Compute the parent hash of two sibling nodes.
+      #
+      # @param left [String] 32-byte left child hash
+      # @param right [String] 32-byte right child hash
+      # @return [String] 32-byte parent hash (double-SHA-256 of concatenation)
       def self.merkle_tree_parent(left, right)
         BSV::Primitives::Digest.sha256d(left + right)
       end
 
+      # Recompute the merkle root from this path and a transaction ID.
+      #
+      # @param txid [String, nil] 32-byte txid in internal byte order (auto-detected if nil)
+      # @return [String] 32-byte merkle root in internal byte order
+      # @raise [ArgumentError] if the txid is not found in the path
       def compute_root(txid = nil)
         txid ||= @path[0].find(&:hash)&.hash
         return txid if @path.length == 1 && @path[0].length == 1
@@ -123,6 +177,10 @@ module BSV
         working
       end
 
+      # Recompute the merkle root and return it as a hex string.
+      #
+      # @param txid_hex [String, nil] hex-encoded txid (display order)
+      # @return [String] hex-encoded merkle root (display order)
       def compute_root_hex(txid_hex = nil)
         txid = txid_hex ? [txid_hex].pack('H*').reverse : nil
         compute_root(txid).reverse.unpack1('H*')
@@ -130,6 +188,14 @@ module BSV
 
       # --- Combine ---
 
+      # Merge another merkle path into this one.
+      #
+      # Both paths must share the same block height and merkle root.
+      # After combining, this path contains the union of all leaves.
+      #
+      # @param other [MerklePath] the path to merge in
+      # @return [self] for chaining
+      # @raise [ArgumentError] if block heights or merkle roots differ
       def combine(other)
         raise ArgumentError, 'block heights differ' unless @block_height == other.block_height
 

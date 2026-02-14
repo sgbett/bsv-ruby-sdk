@@ -2,12 +2,40 @@
 
 module BSV
   module Transaction
+    # A Bitcoin transaction: a collection of inputs consuming previous outputs
+    # and producing new outputs.
+    #
+    # Supports construction, binary/hex serialisation, BIP-143 sighash
+    # computation (with FORKID), signing, script verification, and fee
+    # estimation.
+    #
+    # @example Build, sign, and serialise a transaction
+    #   tx = BSV::Transaction::Transaction.new
+    #   tx.add_input(input)
+    #   tx.add_output(output)
+    #   tx.sign(0, private_key)
+    #   tx.to_hex #=> "0100000001..."
     class Transaction
+      # Estimated size of an unsigned P2PKH input in bytes.
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
-      attr_reader :version, :lock_time, :inputs, :outputs
+      # @return [Integer] transaction version number
+      attr_reader :version
+
+      # @return [Integer] lock time (block height or Unix timestamp)
+      attr_reader :lock_time
+
+      # @return [Array<TransactionInput>] transaction inputs
+      attr_reader :inputs
+
+      # @return [Array<TransactionOutput>] transaction outputs
+      attr_reader :outputs
+
+      # @return [MerklePath, nil] BRC-74 merkle path (for BEEF serialisation)
       attr_accessor :merkle_path
 
+      # @param version [Integer] transaction version (default: 1)
+      # @param lock_time [Integer] lock time (default: 0)
       def initialize(version: 1, lock_time: 0)
         @version = version
         @lock_time = lock_time
@@ -16,11 +44,19 @@ module BSV
         @merkle_path = nil
       end
 
+      # Append a transaction input.
+      #
+      # @param input [TransactionInput] the input to add
+      # @return [self] for chaining
       def add_input(input)
         @inputs << input
         self
       end
 
+      # Append a transaction output.
+      #
+      # @param output [TransactionOutput] the output to add
+      # @return [self] for chaining
       def add_output(output)
         @outputs << output
         self
@@ -28,6 +64,9 @@ module BSV
 
       # --- Serialisation ---
 
+      # Serialise the transaction to its binary wire format.
+      #
+      # @return [String] raw transaction bytes
       def to_binary
         buf = [@version].pack('V')
         buf << VarInt.encode(@inputs.length)
@@ -38,10 +77,17 @@ module BSV
         buf
       end
 
+      # Serialise the transaction to a hex string.
+      #
+      # @return [String] hex-encoded transaction
       def to_hex
         to_binary.unpack1('H*')
       end
 
+      # Deserialise a transaction from binary data.
+      #
+      # @param data [String] raw binary transaction
+      # @return [Transaction] the parsed transaction
       def self.from_binary(data)
         offset = 0
 
@@ -70,10 +116,20 @@ module BSV
         tx
       end
 
+      # Deserialise a transaction from a hex string.
+      #
+      # @param hex [String] hex-encoded transaction
+      # @return [Transaction] the parsed transaction
       def self.from_hex(hex)
         from_binary([hex].pack('H*'))
       end
 
+      # Deserialise a transaction from binary data at a given offset,
+      # returning the transaction and the number of bytes consumed.
+      #
+      # @param data [String] binary data containing the transaction
+      # @param offset [Integer] byte offset to start reading from
+      # @return [Array(Transaction, Integer)] the transaction and bytes consumed
       def self.from_binary_with_offset(data, offset = 0)
         start = offset
 
@@ -106,16 +162,31 @@ module BSV
 
       # --- Transaction ID ---
 
+      # Compute the transaction ID (double-SHA-256 of the serialised tx, reversed).
+      #
+      # @return [String] 32-byte transaction ID in internal byte order
       def txid
         BSV::Primitives::Digest.sha256d(to_binary).reverse
       end
 
+      # The transaction ID as a hex string (display byte order).
+      #
+      # @return [String] hex-encoded transaction ID
       def txid_hex
         txid.unpack1('H*')
       end
 
       # --- Sighash (BIP-143 with FORKID) ---
 
+      # Build the BIP-143 sighash preimage for an input.
+      #
+      # Only SIGHASH_FORKID types are supported (BSV requirement).
+      #
+      # @param input_index [Integer] the input to compute the preimage for
+      # @param sighash_type [Integer] sighash flags (default: ALL|FORKID)
+      # @param subscript [Script::Script, nil] override locking script for the input
+      # @return [String] the raw preimage bytes (hash this to get the sighash)
+      # @raise [ArgumentError] if sighash_type does not include FORKID
       def sighash_preimage(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
         raise ArgumentError, 'only SIGHASH_FORKID types are supported' unless sighash_type & Sighash::FORK_ID != 0
 
@@ -158,12 +229,26 @@ module BSV
         buf
       end
 
+      # Compute the BIP-143 sighash digest for an input (double-SHA-256 of the preimage).
+      #
+      # @param input_index [Integer] the input to compute the sighash for
+      # @param sighash_type [Integer] sighash flags (default: ALL|FORKID)
+      # @param subscript [Script::Script, nil] override locking script for the input
+      # @return [String] 32-byte sighash digest
       def sighash(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
         BSV::Primitives::Digest.sha256d(sighash_preimage(input_index, sighash_type, subscript: subscript))
       end
 
       # --- Signing ---
 
+      # Sign a single input with a private key (P2PKH).
+      #
+      # Computes the sighash, signs it, and sets the unlocking script on the input.
+      #
+      # @param input_index [Integer] the input to sign
+      # @param private_key [Primitives::PrivateKey] the signing key
+      # @param sighash_type [Integer] sighash flags (default: ALL|FORKID)
+      # @return [self] for chaining
       def sign(input_index, private_key, sighash_type = Sighash::ALL_FORK_ID)
         hash = sighash(input_index, sighash_type)
         signature = private_key.sign(hash)
@@ -175,6 +260,15 @@ module BSV
         self
       end
 
+      # Sign all unsigned inputs.
+      #
+      # For each input without an unlocking script: if the input has an
+      # {UnlockingScriptTemplate}, delegates to it; otherwise falls back
+      # to P2PKH signing with the given private key.
+      #
+      # @param private_key [Primitives::PrivateKey, nil] fallback signing key
+      # @param sighash_type [Integer] sighash flags (default: ALL|FORKID)
+      # @return [self] for chaining
       def sign_all(private_key = nil, sighash_type = Sighash::ALL_FORK_ID)
         @inputs.each_with_index do |input, index|
           next if input.unlocking_script
@@ -190,6 +284,10 @@ module BSV
 
       # --- Script verification ---
 
+      # Verify the scripts of a single input using the interpreter.
+      #
+      # @param index [Integer] the input index to verify
+      # @return [Boolean] true if the scripts evaluate successfully
       def verify_input(index)
         input = @inputs[index]
         BSV::Script::Interpreter.verify(
@@ -203,14 +301,24 @@ module BSV
 
       # --- Fee estimation ---
 
+      # Sum of all input source satoshi values.
+      #
+      # @return [Integer] total input value in satoshis
       def total_input_satoshis
         @inputs.sum { |i| i.source_satoshis || 0 }
       end
 
+      # Sum of all output satoshi values.
+      #
+      # @return [Integer] total output value in satoshis
       def total_output_satoshis
         @outputs.sum(&:satoshis)
       end
 
+      # Estimate the mining fee based on the estimated transaction size.
+      #
+      # @param satoshis_per_byte [Numeric] fee rate (default: 0.5 sat/byte)
+      # @return [Integer] estimated fee in satoshis (rounded up)
       def estimated_fee(satoshis_per_byte: 0.5)
         size = estimated_size
         (size * satoshis_per_byte).ceil

@@ -1,0 +1,127 @@
+# Getting Started
+
+## Installation
+
+Add the gem to your `Gemfile`:
+
+```ruby
+gem 'bsv-sdk'
+```
+
+Then run:
+
+```bash
+bundle install
+```
+
+Or install directly:
+
+```bash
+gem install bsv-sdk
+```
+
+The SDK has **no external dependencies** — it uses only Ruby's standard library (`openssl`).
+
+## Quick Start
+
+```ruby
+require 'bsv-sdk'
+```
+
+The SDK is organised into three modules:
+
+| Module | Purpose |
+|--------|---------|
+| `BSV::Primitives` | Keys, signing, hashing, encryption, HD keys |
+| `BSV::Script` | Script parsing, construction, templates |
+| `BSV::Transaction` | Building, signing, serialisation, BEEF |
+
+## Generate a Key Pair
+
+```ruby
+# Generate a new random private key
+private_key = BSV::Primitives::PrivateKey.generate
+
+# Export as WIF (Wallet Import Format)
+wif = private_key.to_wif
+#=> "L2huFnhCerfX..."
+
+# Derive the public key and address
+public_key = private_key.public_key
+address = public_key.address
+#=> "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+```
+
+## Build a Simple Transaction
+
+This example builds a P2PKH transaction that spends one input and creates two outputs: an OP_RETURN data carrier and a change output.
+
+```ruby
+# Set up keys
+private_key = BSV::Primitives::PrivateKey.generate
+pubkey_hash = private_key.public_key.hash160
+locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
+
+# Create the transaction
+tx = BSV::Transaction::Transaction.new
+
+# Add an input (referencing a previous UTXO)
+input = BSV::Transaction::TransactionInput.new(
+  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(
+    'a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458'
+  ),
+  prev_tx_out_index: 0
+)
+input.source_satoshis = 1_000_000
+input.source_locking_script = locking_script
+tx.add_input(input)
+
+# Add an OP_RETURN output (data carrier, zero satoshis)
+tx.add_output(BSV::Transaction::TransactionOutput.new(
+  satoshis: 0,
+  locking_script: BSV::Script::Script.op_return('hello world'.b)
+))
+
+# Add a change output (send remaining funds back)
+fee = tx.estimated_fee
+tx.add_output(BSV::Transaction::TransactionOutput.new(
+  satoshis: 1_000_000 - fee,
+  locking_script: locking_script
+))
+
+# Sign the input
+tx.sign(0, private_key)
+
+# Serialise for broadcast
+hex = tx.to_hex
+txid = tx.txid_hex
+```
+
+## Using Templates for Signing
+
+For transactions with multiple inputs, use unlocking script templates. This lets `sign_all` handle each input automatically:
+
+```ruby
+tx = BSV::Transaction::Transaction.new
+
+# Create inputs with templates
+input = BSV::Transaction::TransactionInput.new(
+  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(utxo_txid),
+  prev_tx_out_index: 0
+)
+input.source_satoshis = 50_000
+input.source_locking_script = locking_script
+input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+tx.add_input(input)
+
+# Add outputs...
+
+# Sign all inputs at once
+tx.sign_all
+```
+
+## What's Next
+
+- **[Primitives Guide](primitives.md)** — key management, signing, encryption, HD keys
+- **[Script Guide](script.md)** — script construction, templates, detection
+- **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF

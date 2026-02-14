@@ -4,9 +4,27 @@ require 'openssl'
 
 module BSV
   module Primitives
+    # BIP-32 hierarchical deterministic (HD) extended key.
+    #
+    # Supports both private and public extended keys, serialised as
+    # Base58Check xprv/xpub strings. Provides child key derivation
+    # (normal and hardened), path-based derivation (+m/44'/0'/0'+),
+    # and neutering (private → public).
+    #
+    # @example Derive keys from a seed
+    #   seed = SecureRandom.random_bytes(32)
+    #   master = BSV::Primitives::ExtendedKey.from_seed(seed)
+    #   child  = master.derive_path("m/44'/0'/0'/0/0")
+    #   child.public_key.address #=> "1..."
+    #
+    # @example Parse an xpub string
+    #   xpub = BSV::Primitives::ExtendedKey.from_string('xpub6...')
+    #   xpub.public? #=> true
     class ExtendedKey
+      # Offset added to child indices for hardened derivation.
       HARDENED = 0x80000000
 
+      # Version bytes for extended key serialisation (BIP-32).
       VERSIONS = {
         mainnet_private: "\x04\x88\xAD\xE4".b,
         mainnet_public: "\x04\x88\xB2\x1E".b,
@@ -14,11 +32,36 @@ module BSV
         testnet_public: "\x04\x35\x87\xCF".b
       }.freeze
 
+      # Private extended key version bytes.
       PRIVATE_VERSIONS = [VERSIONS[:mainnet_private], VERSIONS[:testnet_private]].freeze
+
+      # Public extended key version bytes.
       PUBLIC_VERSIONS  = [VERSIONS[:mainnet_public], VERSIONS[:testnet_public]].freeze
 
-      attr_reader :key, :chain_code, :depth, :parent_fingerprint, :child_number, :version
+      # @return [String] raw key bytes (32-byte private or 33-byte compressed public)
+      attr_reader :key
 
+      # @return [String] 32-byte chain code for child derivation
+      attr_reader :chain_code
+
+      # @return [Integer] depth in the derivation tree (0 = master)
+      attr_reader :depth
+
+      # @return [String] 4-byte fingerprint of the parent key
+      attr_reader :parent_fingerprint
+
+      # @return [Integer] child number (index used to derive this key)
+      attr_reader :child_number
+
+      # @return [String] 4-byte version prefix
+      attr_reader :version
+
+      # @param key [String] raw key bytes
+      # @param chain_code [String] 32-byte chain code
+      # @param version [String] 4-byte version prefix
+      # @param depth [Integer] derivation depth
+      # @param parent_fingerprint [String] 4-byte parent fingerprint
+      # @param child_number [Integer] child index
       def initialize(key:, chain_code:, version:, depth: 0, parent_fingerprint: "\x00\x00\x00\x00".b,
                      child_number: 0)
         @key = key
@@ -29,6 +72,14 @@ module BSV
         @version = version
       end
 
+      # Derive a master extended key from a binary seed.
+      #
+      # Uses HMAC-SHA-512 with key +"Bitcoin seed"+ per BIP-32.
+      #
+      # @param seed [String] 16-64 byte seed (typically from {Mnemonic#to_seed})
+      # @param network [Symbol] +:mainnet+ or +:testnet+
+      # @return [ExtendedKey] the master private extended key
+      # @raise [ArgumentError] if the seed length is invalid or derives an invalid key
       def self.from_seed(seed, network: :mainnet)
         seed = seed.b
         raise ArgumentError, 'seed must be between 16 and 64 bytes' unless seed.length.between?(16, 64)
@@ -47,6 +98,11 @@ module BSV
         )
       end
 
+      # Parse an extended key from a Base58Check-encoded string (xprv/xpub).
+      #
+      # @param base58 [String] Base58Check-encoded extended key
+      # @return [ExtendedKey]
+      # @raise [ArgumentError] if the encoding, length, or version/key mismatch is invalid
       def self.from_string(base58)
         data = Base58.check_decode(base58)
         raise ArgumentError, "invalid extended key length: #{data.length}" unless data.length == 78
@@ -80,14 +136,28 @@ module BSV
         )
       end
 
+      # Whether this is a private extended key.
+      #
+      # @return [Boolean]
       def private?
         PRIVATE_VERSIONS.include?(@version)
       end
 
+      # Whether this is a public extended key.
+      #
+      # @return [Boolean]
       def public?
         PUBLIC_VERSIONS.include?(@version)
       end
 
+      # Derive a child key at the given index.
+      #
+      # Indices below {HARDENED} produce normal (public-derivable) children.
+      # Indices >= {HARDENED} produce hardened children (private key required).
+      #
+      # @param index [Integer] the child index (use +HARDENED + n+ for hardened)
+      # @return [ExtendedKey] the derived child key
+      # @raise [ArgumentError] if deriving hardened from a public key, or at max depth
       def child(index)
         raise ArgumentError, 'cannot derive child at depth 255' if @depth >= 255
 
@@ -132,6 +202,11 @@ module BSV
         )
       end
 
+      # Derive a child key from a BIP-32 path string.
+      #
+      # @param path [String] derivation path (e.g. +"m/44'/0'/0'/0/0"+)
+      # @return [ExtendedKey] the derived key
+      # @raise [ArgumentError] if the path does not start with +'m'+
       def derive_path(path)
         components = path.strip.split('/')
         raise ArgumentError, "path must start with 'm'" unless components.first == 'm'
@@ -144,6 +219,10 @@ module BSV
         end
       end
 
+      # Convert a private extended key to its public counterpart.
+      #
+      # @return [ExtendedKey] the public extended key (xpub)
+      # @raise [ArgumentError] if already a public key
       def neuter
         raise ArgumentError, 'already a public key' if public?
 
@@ -163,6 +242,9 @@ module BSV
         )
       end
 
+      # Serialise as a Base58Check-encoded string (xprv or xpub).
+      #
+      # @return [String] the Base58Check-encoded extended key
       def to_s
         key_data = private? ? "\x00".b + padded_key : @key
 
@@ -176,20 +258,33 @@ module BSV
         Base58.check_encode(payload)
       end
 
+      # Extract the {PrivateKey} from a private extended key.
+      #
+      # @return [PrivateKey]
+      # @raise [ArgumentError] if this is a public extended key
       def private_key
         raise ArgumentError, 'not a private extended key' unless private?
 
         PrivateKey.from_bytes(padded_key)
       end
 
+      # Extract the {PublicKey} from this extended key.
+      #
+      # @return [PublicKey]
       def public_key
         PublicKey.from_bytes(compressed_pubkey_bytes)
       end
 
+      # The 4-byte fingerprint of this key (first 4 bytes of identifier).
+      #
+      # @return [String] 4-byte fingerprint
       def fingerprint
         identifier[0, 4]
       end
 
+      # The 20-byte Hash160 identifier for this key.
+      #
+      # @return [String] 20-byte Hash160 of the compressed public key
       def identifier
         Digest.hash160(compressed_pubkey_bytes)
       end

@@ -2,15 +2,25 @@
 
 module BSV
   module Script
+    # Error raised during script execution.
+    #
+    # Carries a machine-readable error code from {ScriptErrorCode} alongside
+    # a human-readable message.
     class ScriptError < StandardError
+      # @return [Symbol] the error code from {ScriptErrorCode}
       attr_reader :code
 
+      # @param code [Symbol] error code from {ScriptErrorCode}
+      # @param message [String, nil] human-readable description (auto-generated from code if omitted)
       def initialize(code, message = nil)
         @code = code
         super(message || code.to_s.tr('_', ' '))
       end
     end
 
+    # Error codes for script execution failures.
+    #
+    # Each constant corresponds to a specific script validation rule.
     module ScriptErrorCode
       EVAL_FALSE = :eval_false
       EMPTY_STACK = :empty_stack

@@ -1,0 +1,7 @@
+--plugin markdown
+--markup markdown
+--output-dir doc
+lib/**/*.rb
+-
+CHANGELOG.md
+LICENCE

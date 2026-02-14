@@ -6,6 +6,11 @@ Gemfile.lock
 /.rspec_status
 /tmp/
 
+# Generated documentation
+docs/reference/
+doc/
+.yardoc/
+
 # Claude Code
 .claude/settings.local.json
 

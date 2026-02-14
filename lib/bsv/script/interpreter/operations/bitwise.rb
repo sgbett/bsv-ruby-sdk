@@ -4,6 +4,7 @@ module BSV
   module Script
     class Interpreter
       module Operations
+        # Bitwise and equality operations: EQUAL, AND, OR, XOR, INVERT.
         module Bitwise
           private
 

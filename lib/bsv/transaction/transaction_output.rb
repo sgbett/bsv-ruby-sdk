@@ -2,19 +2,38 @@
 
 module BSV
   module Transaction
+    # A transaction output specifying an amount and spending conditions.
+    #
+    # Each output locks a number of satoshis behind a locking script.
+    # Outputs are consumed by transaction inputs that provide matching
+    # unlocking scripts.
     class TransactionOutput
-      attr_reader :satoshis, :locking_script
+      # @return [Integer] the output value in satoshis
+      attr_reader :satoshis
 
+      # @return [Script::Script] the locking script (spending conditions)
+      attr_reader :locking_script
+
+      # @param satoshis [Integer] output value in satoshis
+      # @param locking_script [Script::Script] the locking script
       def initialize(satoshis:, locking_script:)
         @satoshis = satoshis
         @locking_script = locking_script
       end
 
+      # Serialise the output to its binary wire format.
+      #
+      # @return [String] binary output (8-byte LE satoshis + varint + script)
       def to_binary
         script_bytes = @locking_script.to_binary
         [satoshis].pack('Q<') + VarInt.encode(script_bytes.bytesize) + script_bytes
       end
 
+      # Deserialise a transaction output from binary data.
+      #
+      # @param data [String] binary data
+      # @param offset [Integer] byte offset to start reading from
+      # @return [Array(TransactionOutput, Integer)] the output and bytes consumed
       def self.from_binary(data, offset = 0)
         satoshis = data.byteslice(offset, 8).unpack1('Q<')
         offset += 8

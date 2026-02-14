@@ -112,16 +112,20 @@ puts tx.to_hex
 
 ## Documentation
 
-<!-- TODO: Create SDK documentation (see #49) -->
+Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgbett.github.io/bsv-ruby-sdk/)**.
 
-Documentation is forthcoming. In the meantime:
+**Guides:**
 
-- Browse the [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) for usage examples
-- Read the [CHANGELOG](CHANGELOG.md) for release history
-- Refer to the reference SDKs for architectural context:
-  [ts-sdk](https://github.com/bsv-blockchain/ts-sdk) |
-  [go-sdk](https://github.com/bsv-blockchain/go-sdk) |
-  [py-sdk](https://github.com/bsv-blockchain/py-sdk)
+- [Getting Started](https://sgbett.github.io/bsv-ruby-sdk/guides/getting-started/) — installation, first transaction
+- [Primitives](https://sgbett.github.io/bsv-ruby-sdk/guides/primitives/) — keys, signing, encryption, HD keys
+- [Script](https://sgbett.github.io/bsv-ruby-sdk/guides/script/) — construction, templates, detection
+- [Transaction](https://sgbett.github.io/bsv-ruby-sdk/guides/transaction/) — building, signing, BEEF
+
+**Additional resources:**
+
+- [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/) — auto-generated from YARD annotations
+- [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) — runnable usage examples
+- [CHANGELOG](CHANGELOG.md) — release history
 
 ## Contribution Guidelines
 

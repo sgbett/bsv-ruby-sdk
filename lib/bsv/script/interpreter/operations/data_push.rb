@@ -4,6 +4,7 @@ module BSV
   module Script
     class Interpreter
       module Operations
+        # Data push operations: OP_0, OP_1NEGATE, OP_1..OP_16, and raw data pushes.
         module DataPush
           private
 

@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 module BSV
+  # Transaction building, signing, serialisation, and verification.
+  #
+  # Provides the {Transaction::Transaction} class for constructing and signing
+  # transactions, {Transaction::Beef} for BEEF (BRC-62/95/96) serialisation,
+  # {Transaction::MerklePath} for BRC-74 merkle proofs, and
+  # {Transaction::Sighash} constants for BIP-143 sighash computation.
   module Transaction
     autoload :VarInt,            'bsv/transaction/var_int'
     autoload :TransactionOutput, 'bsv/transaction/transaction_output'

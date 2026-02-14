@@ -4,6 +4,7 @@ module BSV
   module Script
     class Interpreter
       module Operations
+        # Splice operations: CAT, SPLIT, SIZE, NUM2BIN, BIN2NUM.
         module Splice
           private
 
