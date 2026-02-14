@@ -50,4 +50,4 @@ nav:
       - Primitives: guides/primitives.md
       - Script: guides/script.md
       - Transaction: guides/transaction.md
-  - API Reference: reference/
+  - API Reference: reference/index.md
