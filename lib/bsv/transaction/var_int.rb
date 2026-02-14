@@ -2,9 +2,18 @@
 
 module BSV
   module Transaction
+    # Bitcoin variable-length integer encoding/decoding.
+    #
+    # VarInts encode unsigned integers compactly: values under 253 use a
+    # single byte; larger values use a marker byte followed by 2, 4, or 8
+    # bytes in little-endian order.
     module VarInt
       module_function
 
+      # Encode an integer as a Bitcoin VarInt.
+      #
+      # @param value [Integer] non-negative integer to encode
+      # @return [String] encoded binary bytes
       def encode(value)
         if value < 0xFD
           [value].pack('C')
@@ -17,6 +26,11 @@ module BSV
         end
       end
 
+      # Decode a Bitcoin VarInt from binary data at the given offset.
+      #
+      # @param data [String] binary data containing the VarInt
+      # @param offset [Integer] byte offset to start reading from
+      # @return [Array(Integer, Integer)] the decoded value and number of bytes consumed
       def decode(data, offset = 0)
         first = data.getbyte(offset)
 

@@ -2,20 +2,56 @@
 
 module BSV
   module Transaction
+    # Background Evaluation Extended Format (BEEF) for SPV-ready transaction
+    # bundles. Encodes one or more transactions together with their merkle
+    # proofs (BUMPs), enabling recipients to verify inclusion without
+    # querying a block explorer.
+    #
+    # Supports BRC-62 (V1), BRC-96 (V2), and BRC-95 (Atomic BEEF) formats.
+    #
+    # @example Parse a BEEF bundle and find a transaction
+    #   beef = BSV::Transaction::Beef.from_hex(beef_hex)
+    #   tx = beef.find_transaction(txid_bytes)
     class Beef
+      # @!group Version constants
+
       # Version magic bytes as LE uint32 (matching pack('V') / unpack1('V')).
       # Stream bytes: 01 00 BE EF / 02 00 BE EF / 01 01 01 01
       BEEF_V1     = 0xEFBE0001 # BRC-62
       BEEF_V2     = 0xEFBE0002 # BRC-96
       ATOMIC_BEEF = 0x01010101 # BRC-95
 
+      # @!endgroup
+
+      # @!group Transaction format flags
+
+      # Raw transaction without a merkle proof.
       FORMAT_RAW_TX             = 0
+      # Raw transaction with an associated BUMP index.
       FORMAT_RAW_TX_AND_BUMP    = 1
+      # Only the transaction ID (no raw data).
       FORMAT_TXID_ONLY          = 2
 
-      class BeefTx
-        attr_reader :format, :transaction, :known_txid, :bump_index
+      # @!endgroup
 
+      # A single entry in a BEEF bundle, wrapping a transaction with its format metadata.
+      class BeefTx
+        # @return [Integer] format flag (FORMAT_RAW_TX, FORMAT_RAW_TX_AND_BUMP, or FORMAT_TXID_ONLY)
+        attr_reader :format
+
+        # @return [Transaction, nil] the transaction (nil for TXID-only entries)
+        attr_reader :transaction
+
+        # @return [String, nil] 32-byte txid for TXID-only entries
+        attr_reader :known_txid
+
+        # @return [Integer, nil] index into the BEEF bumps array
+        attr_reader :bump_index
+
+        # @param format [Integer] format flag
+        # @param transaction [Transaction, nil] the transaction
+        # @param known_txid [String, nil] 32-byte txid for TXID-only entries
+        # @param bump_index [Integer, nil] index into the bumps array
         def initialize(format:, transaction: nil, known_txid: nil, bump_index: nil)
           @format = format
           @transaction = transaction
@@ -23,6 +59,9 @@ module BSV
           @bump_index = bump_index
         end
 
+        # The transaction ID for this entry.
+        #
+        # @return [String, nil] 32-byte txid in internal byte order
         def txid
           case @format
           when FORMAT_TXID_ONLY
@@ -33,8 +72,21 @@ module BSV
         end
       end
 
-      attr_reader :version, :bumps, :transactions, :subject_txid
+      # @return [Integer] BEEF version constant
+      attr_reader :version
 
+      # @return [Array<MerklePath>] merkle proofs (BUMPs) referenced by transactions
+      attr_reader :bumps
+
+      # @return [Array<BeefTx>] the transactions in dependency order
+      attr_reader :transactions
+
+      # @return [String, nil] 32-byte subject txid (Atomic BEEF only)
+      attr_reader :subject_txid
+
+      # @param version [Integer] BEEF version constant (default: BEEF_V2)
+      # @param bumps [Array<MerklePath>] merkle proofs
+      # @param transactions [Array<BeefTx>] transaction entries
       def initialize(version: BEEF_V2, bumps: [], transactions: [])
         @version = version
         @bumps = bumps
@@ -44,6 +96,13 @@ module BSV
 
       # --- Deserialisation ---
 
+      # Deserialise a BEEF bundle from binary data.
+      #
+      # Supports V1 (BRC-62), V2 (BRC-96), and Atomic (BRC-95) formats.
+      # After parsing, input source transactions are wired automatically.
+      #
+      # @param data [String] raw BEEF binary
+      # @return [Beef] the parsed BEEF bundle
       def self.from_binary(data)
         offset = 0
 
@@ -75,12 +134,19 @@ module BSV
         beef
       end
 
+      # Deserialise a BEEF bundle from a hex string.
+      #
+      # @param hex [String] hex-encoded BEEF data
+      # @return [Beef] the parsed BEEF bundle
       def self.from_hex(hex)
         from_binary([hex].pack('H*'))
       end
 
       # --- Serialisation (always V2) ---
 
+      # Serialise the BEEF bundle to V2 (BRC-96) binary format.
+      #
+      # @return [String] raw BEEF binary
       def to_binary
         bump_map = build_bump_map
         bumps_to_write = bump_map.values.sort_by { |entry| entry[:index] }.map { |entry| entry[:bump] }
@@ -111,10 +177,17 @@ module BSV
         buf
       end
 
+      # Serialise the BEEF bundle to a V2 hex string.
+      #
+      # @return [String] hex-encoded BEEF data
       def to_hex
         to_binary.unpack1('H*')
       end
 
+      # Serialise as Atomic BEEF (BRC-95), wrapping V2 data with a subject txid.
+      #
+      # @param subject_txid [String] 32-byte subject transaction ID
+      # @return [String] raw Atomic BEEF binary
       def to_atomic_binary(subject_txid)
         buf = [ATOMIC_BEEF].pack('V')
         buf << subject_txid
@@ -124,6 +197,10 @@ module BSV
 
       # --- Lookup ---
 
+      # Find a transaction in the bundle by its transaction ID.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [Transaction, nil] the matching transaction, or nil
       def find_transaction(txid)
         @transactions.each do |beef_tx|
           return beef_tx.transaction if beef_tx.transaction&.txid == txid
