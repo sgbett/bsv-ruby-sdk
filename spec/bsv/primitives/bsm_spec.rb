@@ -33,6 +33,24 @@ RSpec.describe BSV::Primitives::BSM do
         key_hex: 'c7726663147afd1add392d129086e57c0b05aa66a6ded564433c04bd55741434',
         message: '1',
         expected: 'IMcRFG1VNN9TDGXpCU+9CqKLNOuhwQiXI5hZpkTOuYHKBDOWayNuAABofYLqUHYTMiMf9mYFQ0sPgFJZz3F7ELQ='
+      },
+      {
+        key_hex: '0499f8239bfe10eb0f5e53d543635a423c96529dd85fa4bad42049a0b435ebdd',
+        message: "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af. " \
+                 "This time I'm writing a new message that is obnixiously long af.",
+        expected: 'HxRcFXQc7LHxFNpK5lzhR+LF5ixIvhB089bxYzTAV02yGHm/3ALxltz/W4lGp77Q5UTxdj+TU+96mdAcJ5b/fGs='
       }
     ]
   end

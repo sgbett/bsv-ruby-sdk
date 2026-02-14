@@ -345,15 +345,15 @@ module BSV
 
       def hash_outputs(base_type, input_index)
         case base_type
-        when Sighash::ALL
-          buf = @outputs.map(&:to_binary).join
-          BSV::Primitives::Digest.sha256d(buf)
+        when Sighash::NONE
+          ZERO_HASH
         when Sighash::SINGLE
           return ZERO_HASH if input_index >= @outputs.length
 
           BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary)
-        else # NONE
-          ZERO_HASH
+        else # ALL (and any non-standard base type per BIP-143)
+          buf = @outputs.map(&:to_binary).join
+          BSV::Primitives::Digest.sha256d(buf)
         end
       end
 
