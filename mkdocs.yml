@@ -1,0 +1,53 @@
+site_name: BSV Ruby SDK
+site_description: Ruby SDK for the BSV Blockchain
+site_url: https://sgbett.github.io/bsv-ruby-sdk/
+repo_url: https://github.com/sgbett/bsv-ruby-sdk
+repo_name: sgbett/bsv-ruby-sdk
+
+theme:
+  name: material
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+nav:
+  - Home: index.md
+  - Guides:
+      - Getting Started: guides/getting-started.md
+      - Primitives: guides/primitives.md
+      - Script: guides/script.md
+      - Transaction: guides/transaction.md
+  - API Reference: reference/
