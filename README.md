@@ -127,6 +127,10 @@ Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgb
 - [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) — runnable usage examples
 - [CHANGELOG](CHANGELOG.md) — release history
 
+**Protocol reference:**
+
+The [BSV Protocol Documentation](https://hub.bsvblockchain.org/bitcoin-protocol-documentation) on the BSV Hub is the canonical protocol reference — covering transaction format, script opcodes, sighash flags, BEEF/SPV structures, and BRC specifications. The project includes an [MCP](https://modelcontextprotocol.io/) configuration (`.mcp.json`) that connects [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to the hub's search endpoint, giving AI-assisted development sessions direct access to protocol specs during implementation.
+
 ## Contribution Guidelines
 
 Contributions are welcome — bug reports, feature requests, and pull requests.
