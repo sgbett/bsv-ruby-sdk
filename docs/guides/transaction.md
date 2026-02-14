@@ -1,0 +1,303 @@
+# Transaction
+
+The `BSV::Transaction` module handles building, signing, serialising, and verifying Bitcoin transactions.
+
+## Building a Transaction
+
+### Inputs
+
+Each input references a previous transaction output (UTXO) by its transaction ID and output index:
+
+```ruby
+input = BSV::Transaction::TransactionInput.new(
+  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(
+    'a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458'
+  ),
+  prev_tx_out_index: 0
+)
+
+# Required for sighash computation
+input.source_satoshis = 100_000
+input.source_locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
+```
+
+!!! note "Byte Order"
+    `txid_from_hex` converts a display-order hex txid to internal byte order
+    (reversed). This is needed because Bitcoin stores txids in little-endian
+    internally but displays them in big-endian.
+
+### Outputs
+
+Each output specifies a satoshi amount and a locking script:
+
+```ruby
+# Payment output
+output = BSV::Transaction::TransactionOutput.new(
+  satoshis: 50_000,
+  locking_script: BSV::Script::Script.p2pkh_lock(recipient_hash)
+)
+
+# Data output
+data_output = BSV::Transaction::TransactionOutput.new(
+  satoshis: 0,
+  locking_script: BSV::Script::Script.op_return('data'.b)
+)
+```
+
+### Assembling
+
+```ruby
+tx = BSV::Transaction::Transaction.new
+tx.add_input(input)
+tx.add_output(output)
+tx.add_output(data_output)
+```
+
+Both `add_input` and `add_output` return `self`, so calls can be chained.
+
+## Signing
+
+### Direct Signing
+
+Sign a specific input with a private key (P2PKH):
+
+```ruby
+tx.sign(0, private_key)
+```
+
+This computes the BIP-143 sighash, signs it, and sets the unlocking script on the input.
+
+### Template Signing
+
+For more flexible signing, attach unlocking script templates to inputs:
+
+```ruby
+input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+
+# Sign all unsigned inputs at once
+tx.sign_all
+```
+
+Templates are the recommended approach when building transactions with multiple inputs, potentially from different keys.
+
+### Custom Sighash Types
+
+The default sighash type is `ALL|FORKID`. Other types are available:
+
+```ruby
+# Sign with NONE|FORKID (outputs can be modified by others)
+template = BSV::Transaction::P2PKH.new(
+  private_key,
+  sighash_type: BSV::Transaction::Sighash::NONE_FORK_ID
+)
+
+# Available sighash types
+BSV::Transaction::Sighash::ALL_FORK_ID                    # 0x41
+BSV::Transaction::Sighash::NONE_FORK_ID                   # 0x42
+BSV::Transaction::Sighash::SINGLE_FORK_ID                 # 0x43
+BSV::Transaction::Sighash::ALL_FORK_ID_ANYONE_CAN_PAY     # 0xC1
+BSV::Transaction::Sighash::NONE_FORK_ID_ANYONE_CAN_PAY    # 0xC2
+BSV::Transaction::Sighash::SINGLE_FORK_ID_ANYONE_CAN_PAY  # 0xC3
+```
+
+All sighash types include the FORKID flag, as required by BSV.
+
+## Sighash Computation
+
+Access the raw sighash preimage and digest directly:
+
+```ruby
+# BIP-143 preimage (useful for debugging or external signers)
+preimage = tx.sighash_preimage(0)
+
+# Sighash digest (double-SHA-256 of the preimage)
+hash = tx.sighash(0)
+
+# With a custom subscript
+hash = tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID, subscript: custom_script)
+```
+
+## Serialisation
+
+### Binary and Hex
+
+```ruby
+hex = tx.to_hex        # hex-encoded raw transaction
+binary = tx.to_binary  # raw transaction bytes
+```
+
+### Parsing
+
+```ruby
+tx = BSV::Transaction::Transaction.from_hex('0100000001...')
+tx = BSV::Transaction::Transaction.from_binary(raw_bytes)
+
+# Parse with offset tracking (for embedded transactions)
+tx, bytes_consumed = BSV::Transaction::Transaction.from_binary_with_offset(data, offset)
+```
+
+### Transaction ID
+
+```ruby
+txid = tx.txid         # 32 bytes (internal byte order)
+txid = tx.txid_hex     # 64-char hex (display order)
+```
+
+## Fee Estimation
+
+The SDK estimates transaction size to calculate fees:
+
+```ruby
+# Total values
+tx.total_input_satoshis    # sum of all input source_satoshis
+tx.total_output_satoshis   # sum of all output satoshis
+
+# Estimated fee at the default rate (0.5 sat/byte)
+fee = tx.estimated_fee
+
+# Custom fee rate
+fee = tx.estimated_fee(satoshis_per_byte: 1.0)
+```
+
+Fee estimation accounts for:
+
+- Signed inputs: actual serialised size
+- Template inputs: `estimated_length` from the template
+- Unsigned inputs (no template): 148 bytes (standard P2PKH estimate)
+
+## Script Verification
+
+Verify that an input's unlocking script satisfies the locking script:
+
+```ruby
+valid = tx.verify_input(0)  #=> true or false
+```
+
+## BEEF (Background Evaluation Extended Format)
+
+BEEF bundles transactions with their merkle proofs for SPV verification. The SDK supports BRC-62 (V1), BRC-96 (V2), and BRC-95 (Atomic BEEF).
+
+### Parsing BEEF
+
+```ruby
+beef = BSV::Transaction::Beef.from_hex(beef_hex)
+
+# Structure
+beef.version         # version constant
+beef.bumps           # Array<MerklePath> — merkle proofs
+beef.transactions    # Array<BeefTx> — transaction entries
+
+# Find a specific transaction
+tx = beef.find_transaction(txid_bytes)
+```
+
+BEEF automatically wires source transactions: inputs that reference other transactions in the bundle will have their `source_transaction` set.
+
+### Transaction Entries
+
+Each entry in a BEEF bundle has a format:
+
+```ruby
+beef.transactions.each do |entry|
+  case entry.format
+  when BSV::Transaction::Beef::FORMAT_RAW_TX
+    # Full transaction, no merkle proof
+    entry.transaction
+  when BSV::Transaction::Beef::FORMAT_RAW_TX_AND_BUMP
+    # Full transaction with merkle proof
+    entry.transaction
+    entry.transaction.merkle_path  # the associated MerklePath
+  when BSV::Transaction::Beef::FORMAT_TXID_ONLY
+    # Just the txid (known to the recipient)
+    entry.known_txid
+  end
+end
+```
+
+### Serialising BEEF
+
+```ruby
+# Standard V2 format
+hex = beef.to_hex
+binary = beef.to_binary
+
+# Atomic BEEF (BRC-95) — wraps V2 with a subject txid
+atomic = beef.to_atomic_binary(subject_txid)
+```
+
+## Merkle Paths (BRC-74)
+
+Merkle paths (BUMPs) prove transaction inclusion in a block.
+
+### Parsing
+
+```ruby
+mp = BSV::Transaction::MerklePath.from_hex(bump_hex)
+
+mp.block_height  # the block height
+mp.path          # tree levels, each containing leaves
+```
+
+### Computing the Merkle Root
+
+```ruby
+# From a hex txid
+root_hex = mp.compute_root_hex(txid_hex)
+
+# Auto-detect from txid-flagged leaves
+root_hex = mp.compute_root_hex
+```
+
+### Combining Paths
+
+Merge two paths for the same block:
+
+```ruby
+mp1.combine(mp2)
+# mp1 now contains the union of both paths
+```
+
+## Complete Example
+
+Putting it all together — build, sign, and serialise a transaction:
+
+```ruby
+require 'bsv-sdk'
+
+# Keys
+sender = BSV::Primitives::PrivateKey.generate
+recipient = BSV::Primitives::PrivateKey.generate
+
+sender_lock = BSV::Script::Script.p2pkh_lock(sender.public_key.hash160)
+recipient_lock = BSV::Script::Script.p2pkh_lock(recipient.public_key.hash160)
+
+# Build
+tx = BSV::Transaction::Transaction.new
+
+input = BSV::Transaction::TransactionInput.new(
+  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(utxo_txid),
+  prev_tx_out_index: 0
+)
+input.source_satoshis = 1_000_000
+input.source_locking_script = sender_lock
+input.unlocking_script_template = BSV::Transaction::P2PKH.new(sender)
+tx.add_input(input)
+
+# Payment
+tx.add_output(BSV::Transaction::TransactionOutput.new(
+  satoshis: 500_000,
+  locking_script: recipient_lock
+))
+
+# Change
+fee = tx.estimated_fee
+tx.add_output(BSV::Transaction::TransactionOutput.new(
+  satoshis: 1_000_000 - 500_000 - fee,
+  locking_script: sender_lock
+))
+
+# Sign and serialise
+tx.sign_all
+puts tx.to_hex
+puts "txid: #{tx.txid_hex}"
+```
