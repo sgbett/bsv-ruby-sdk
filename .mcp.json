@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bsv-protocol-docs": {
+      "type": "http",
+      "url": "https://hub.bsvblockchain.org/bitcoin-protocol-documentation/~gitbook/mcp"
+    }
+  }
+}
