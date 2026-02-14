@@ -4,6 +4,7 @@ module BSV
   module Script
     class Interpreter
       module Operations
+        # Stack manipulation operations: DUP, DROP, SWAP, ROT, OVER, PICK, ROLL, etc.
         module StackOps
           private
 

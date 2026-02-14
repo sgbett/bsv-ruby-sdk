@@ -4,6 +4,8 @@ module BSV
   module Script
     class Interpreter
       module Operations
+        # Arithmetic and comparison operations including restored post-Genesis
+        # opcodes: MUL, DIV, MOD, LSHIFT, RSHIFT.
         module Arithmetic # rubocop:disable Metrics/ModuleLength
           private
 

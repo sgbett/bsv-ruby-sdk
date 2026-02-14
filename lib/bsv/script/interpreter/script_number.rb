@@ -4,13 +4,26 @@ require_relative 'error'
 
 module BSV
   module Script
+    # Bitcoin script number: arbitrary-precision integer with sign-magnitude
+    # little-endian byte encoding.
+    #
+    # Script numbers use a specialised encoding where the sign bit occupies
+    # the MSB of the last byte, and the magnitude is stored little-endian.
+    # This class handles encoding/decoding, minimal encoding validation,
+    # and arithmetic operations as required by the script interpreter.
     class ScriptNumber # rubocop:disable Metrics/ClassLength
       include Comparable
 
+      # Maximum byte length for script numbers (post-Genesis: 750 KB).
       MAX_BYTE_LENGTH = 750_000
+
+      # Minimum 32-bit signed integer value.
       INT32_MIN = -(2**31)
+
+      # Maximum 32-bit signed integer value.
       INT32_MAX = (2**31) - 1
 
+      # @return [Integer] the numeric value
       attr_reader :value
 
       def initialize(value)

@@ -2,6 +2,11 @@
 
 module BSV
   module Script
+    # All Bitcoin script opcodes as integer constants.
+    #
+    # Includes data push operations, flow control, stack manipulation,
+    # splice, bitwise, arithmetic, and cryptographic opcodes. Also
+    # provides {.name_for} for reverse lookup (opcode byte → name).
     module Opcodes
       # Push value
       OP_0              = 0x00
@@ -148,6 +153,10 @@ module BSV
 
       module_function
 
+      # Look up the canonical name for an opcode byte.
+      #
+      # @param opcode [Integer] the opcode byte value
+      # @return [String, nil] the opcode name (e.g. +"OP_DUP"+), or +nil+ if unknown
       def name_for(opcode)
         NAME[opcode]
       end
