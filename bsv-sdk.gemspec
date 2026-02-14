@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.description = 'A Ruby library for interacting with the BSV Blockchain — ' \
                      'keys, scripts, transactions, and more.'
   spec.homepage    = 'https://github.com/sgbett/bsv-ruby-sdk'
-  spec.license     = 'Open BSV'
+  spec.license     = 'LicenseRef-OpenBSV'
 
   spec.required_ruby_version = '>= 2.7'
 
