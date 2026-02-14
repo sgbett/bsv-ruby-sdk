@@ -92,6 +92,7 @@ This document outlines the core architectural principles that guide all design d
 - All cryptography through stdlib `OpenSSL` — no external gems
 - Maintain Ruby 2.7 compatibility (no pattern matching, `Hash#except`, `Data.define`, endless methods)
 - When reference SDKs disagree, prefer the Go SDK as canonical
+- When reference SDKs lack coverage or are ambiguous, consult the [BSV Hub protocol documentation](https://hub.bsvblockchain.org/bitcoin-protocol-documentation) as the canonical protocol reference
 
 ### 8. Declarative Core, Imperative Companions
 
