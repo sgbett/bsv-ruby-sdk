@@ -4,13 +4,35 @@ require 'openssl'
 
 module BSV
   module Primitives
+    # Elliptic Curve Integrated Encryption Scheme (ECIES) using the
+    # Electrum/BIE1 protocol.
+    #
+    # Provides authenticated encryption using an ephemeral ECDH shared secret.
+    # The sender generates a random key pair, derives a shared secret with the
+    # recipient's public key, then encrypts with AES-128-CBC and authenticates
+    # with HMAC-SHA-256 (encrypt-then-MAC).
+    #
+    # @example Encrypt and decrypt a message
+    #   alice = BSV::Primitives::PrivateKey.generate
+    #   bob   = BSV::Primitives::PrivateKey.generate
+    #
+    #   ciphertext = BSV::Primitives::ECIES.encrypt('hello', bob.public_key)
+    #   plaintext  = BSV::Primitives::ECIES.decrypt(ciphertext, bob)
     module ECIES
+      # BIE1 magic bytes identifying the Electrum ECIES format.
       MAGIC = 'BIE1'.b.freeze
 
+      # Raised when HMAC verification or AES decryption fails.
       class DecryptionError < StandardError; end
 
       module_function
 
+      # Encrypt a message for a recipient's public key.
+      #
+      # @param message [String] the plaintext message
+      # @param public_key [PublicKey] the recipient's public key
+      # @param private_key [PrivateKey, nil] optional ephemeral key (random if omitted)
+      # @return [String] encrypted payload: BIE1 magic + ephemeral pubkey + ciphertext + HMAC
       def encrypt(message, public_key, private_key: nil)
         message = message.b if message.encoding != Encoding::ASCII_8BIT
 
@@ -31,6 +53,15 @@ module BSV
         payload + mac
       end
 
+      # Decrypt an ECIES-encrypted message with a private key.
+      #
+      # Verifies the HMAC before attempting decryption (encrypt-then-MAC).
+      #
+      # @param data [String] the encrypted payload (BIE1 format)
+      # @param private_key [PrivateKey] the recipient's private key
+      # @return [String] the decrypted plaintext
+      # @raise [ArgumentError] if the data is too short or has invalid magic bytes
+      # @raise [DecryptionError] if HMAC verification or AES decryption fails
       def decrypt(data, private_key)
         data = data.b if data.encoding != Encoding::ASCII_8BIT
 

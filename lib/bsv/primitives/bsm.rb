@@ -2,11 +2,31 @@
 
 module BSV
   module Primitives
+    # Bitcoin Signed Messages (BSM).
+    #
+    # Signs and verifies messages using the standard Bitcoin message signing
+    # protocol. Messages are prefixed with +"Bitcoin Signed Message:\n"+,
+    # length-prefixed, and double-SHA-256 hashed before signing with
+    # recoverable ECDSA. Signatures are 65-byte compact format, base64-encoded.
+    #
+    # @example Sign and verify a message
+    #   key = BSV::Primitives::PrivateKey.generate
+    #   sig = BSV::Primitives::BSM.sign('hello', key)
+    #   BSV::Primitives::BSM.verify('hello', sig, key.public_key.address) #=> true
     module BSM
+      # The standard Bitcoin message signing prefix.
       MAGIC_PREFIX = "Bitcoin Signed Message:\n".b.freeze
 
       module_function
 
+      # Sign a message with a private key.
+      #
+      # Produces a 65-byte compact recoverable signature encoded as base64.
+      # The flag byte (31-34) indicates compressed P2PKH recovery per BIP-137.
+      #
+      # @param message [String] the message to sign
+      # @param private_key [PrivateKey] the signing key
+      # @return [String] base64-encoded compact signature
       def sign(message, private_key)
         hash = magic_hash(message)
         sig, recovery_id = ECDSA.sign_recoverable(hash, private_key.bn)
@@ -17,6 +37,16 @@ module BSV
         [compact].pack('m0')
       end
 
+      # Verify a signed message against a Bitcoin address.
+      #
+      # Recovers the public key from the compact signature and checks
+      # whether the derived address matches the expected address.
+      #
+      # @param message [String] the original message
+      # @param signature [String] base64-encoded compact signature
+      # @param address [String] the expected Bitcoin address
+      # @return [Boolean] +true+ if the signature is valid for the given address
+      # @raise [ArgumentError] if the signature encoding or flag byte is invalid
       def verify(message, signature, address)
         compact = decode_compact(signature)
         flag = compact.getbyte(0)
@@ -44,6 +74,10 @@ module BSV
         false
       end
 
+      # Compute the double-SHA-256 hash of a Bitcoin-prefixed message.
+      #
+      # @param message [String] the message to hash
+      # @return [String] 32-byte double-SHA-256 digest
       def magic_hash(message)
         message = message.encode('UTF-8') if message.encoding != Encoding::UTF_8
         msg_bytes = message.b
