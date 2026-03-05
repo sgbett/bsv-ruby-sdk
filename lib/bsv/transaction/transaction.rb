@@ -84,6 +84,40 @@ module BSV
         to_binary.unpack1('H*')
       end
 
+      # Serialise the transaction in Extended Format (BRC-30).
+      #
+      # EF embeds source satoshis and source locking scripts in each input,
+      # allowing ARC to validate sighashes without fetching parent transactions.
+      #
+      # @return [String] raw EF transaction bytes
+      # @raise [ArgumentError] if any input is missing source_satoshis or source_locking_script
+      def to_ef
+        buf = [@version].pack('V')
+        buf << "\x00\x00\x00\x00\x00\xEF".b
+        buf << VarInt.encode(@inputs.length)
+        @inputs.each do |input|
+          raise ArgumentError, 'inputs must have source_satoshis for EF' if input.source_satoshis.nil?
+          raise ArgumentError, 'inputs must have source_locking_script for EF' if input.source_locking_script.nil?
+
+          buf << input.to_binary
+          buf << [input.source_satoshis].pack('Q<')
+          lock_bytes = input.source_locking_script.to_binary
+          buf << VarInt.encode(lock_bytes.bytesize)
+          buf << lock_bytes
+        end
+        buf << VarInt.encode(@outputs.length)
+        @outputs.each { |o| buf << o.to_binary }
+        buf << [@lock_time].pack('V')
+        buf
+      end
+
+      # Serialise the transaction in Extended Format as a hex string.
+      #
+      # @return [String] hex-encoded EF transaction
+      def to_ef_hex
+        to_ef.unpack1('H*')
+      end
+
       # Deserialise a transaction from binary data.
       #
       # @param data [String] raw binary transaction
@@ -122,6 +156,62 @@ module BSV
       # @return [Transaction] the parsed transaction
       def self.from_hex(hex)
         from_binary([hex].pack('H*'))
+      end
+
+      # Deserialise a transaction from Extended Format (BRC-30) binary data.
+      #
+      # @param data [String] raw EF binary
+      # @return [Transaction] the parsed transaction with source data on inputs
+      # @raise [ArgumentError] if the EF marker is invalid
+      def self.from_ef(data)
+        offset = 0
+
+        version = data.byteslice(offset, 4).unpack1('V')
+        offset += 4
+
+        marker = data.byteslice(offset, 6)
+        raise ArgumentError, 'invalid EF marker' unless marker == "\x00\x00\x00\x00\x00\xEF".b
+
+        offset += 6
+
+        tx = new(version: version)
+
+        input_count, vi_size = VarInt.decode(data, offset)
+        offset += vi_size
+        input_count.times do
+          input, consumed = TransactionInput.from_binary(data, offset)
+          tx.add_input(input)
+          offset += consumed
+
+          input.source_satoshis = data.byteslice(offset, 8).unpack1('Q<')
+          offset += 8
+
+          lock_len, vi_size = VarInt.decode(data, offset)
+          offset += vi_size
+          if lock_len.positive?
+            input.source_locking_script = BSV::Script::Script.from_binary(data.byteslice(offset, lock_len))
+            offset += lock_len
+          end
+        end
+
+        output_count, vi_size = VarInt.decode(data, offset)
+        offset += vi_size
+        output_count.times do
+          output, consumed = TransactionOutput.from_binary(data, offset)
+          tx.add_output(output)
+          offset += consumed
+        end
+
+        tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
+        tx
+      end
+
+      # Deserialise a transaction from an Extended Format hex string.
+      #
+      # @param hex [String] hex-encoded EF transaction
+      # @return [Transaction] the parsed transaction with source data on inputs
+      def self.from_ef_hex(hex)
+        from_ef([hex].pack('H*'))
       end
 
       # Deserialise a transaction from binary data at a given offset,
