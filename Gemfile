@@ -8,8 +8,8 @@ gemspec name: 'bsv-attest'
 group :development, :test do
   gem 'rake'
   gem 'rspec'
-  gem 'rubocop'
-  gem 'rubocop-rspec'
+  gem 'rubocop', '~> 1.85'
+  gem 'rubocop-rspec', '~> 3.9'
   gem 'simplecov', require: false
   gem 'simplecov-cobertura', require: false
   gem 'yard'
