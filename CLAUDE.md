@@ -63,6 +63,16 @@ BSV preserves the original Bitcoin protocol design. The SDK reflects this: it im
 
 When reference SDKs (Go, TS, Python) include features that conflict with this principle, this principle takes precedence.
 
+### Script Parser vs Interpreter
+
+The script system has two distinct layers with different responsibilities:
+
+- **Parser** (`Script`, `Script.from_asm`, `Script.from_binary`, `chunks`, type detection) — structural analysis. Understands what a script *is*. Protocol-version-agnostic. This is where the "recognise everything" principle applies: any valid script (including historical pre-genesis constructs) should parse, serialise, and be identifiable.
+
+- **Interpreter** (`Interpreter.evaluate`, `Interpreter.verify`) — behavioural execution. Determines whether a script *succeeds* under current consensus rules. Always operates in post-genesis mode. Scripts that were valid pre-genesis but invalid post-genesis (e.g. multiple `OP_ELSE` per `OP_IF`) will correctly fail execution — this is consensus enforcement, not a recognition failure.
+
+A script being parseable but failing execution is not a bug — it's the distinction between these two layers working correctly.
+
 ## Cryptography
 
 Use Ruby's stdlib `openssl` for all cryptography — no external gems. `OpenSSL::PKey::EC` supports secp256k1 natively, covering ECDSA, SHA-256, RIPEMD-160, AES, HMAC, and ECDH.
