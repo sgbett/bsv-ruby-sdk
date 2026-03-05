@@ -34,7 +34,6 @@ RSpec.describe BSV::Primitives::ECDSA do
 
     # RFC 6979 exact-match vectors from Trezor/CoreBitcoin (via Go SDK).
     # Each vector checks the exact (r, s) output, not just validity.
-    # rubocop:disable RSpec/ExampleLength
     it 'produces exact DER signatures matching Trezor/CoreBitcoin vectors' do
       vectors = [
         {
@@ -73,7 +72,7 @@ RSpec.describe BSV::Primitives::ECDSA do
         {
           key: 'e91671c46231f833a6406ccbea0e3e392c76c167bac1cb013f6f1013980455c2',
           msg: "There is a computer disease that anybody who works with computers knows about. It's a very " \
-               "serious disease and it interferes completely with the work. The trouble with computers is " \
+               'serious disease and it interferes completely with the work. The trouble with computers is ' \
                "that you 'play' with them!",
           der: '3045022100b552edd27580141f3b2a5463048cb7cd3e047b97c9f98076c32dbdf85a68718b' \
                '0220279fa72dd19bfae05577e06c7c0c1900c371fcd5893f7e1d56a37d30174671f6'
@@ -86,10 +85,9 @@ RSpec.describe BSV::Primitives::ECDSA do
         sig = described_class.sign(hash, priv)
 
         expect(sig.to_hex).to eq(v[:der]),
-          "Vector #{i} (#{v[:msg][0, 20]}...): DER mismatch"
+                              "Vector #{i} (#{v[:msg][0, 20]}...): DER mismatch"
       end
     end
-    # rubocop:enable RSpec/ExampleLength
   end
 
   describe '.sign_recoverable' do

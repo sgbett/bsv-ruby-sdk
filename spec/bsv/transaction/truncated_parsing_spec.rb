@@ -4,7 +4,7 @@
 # with a descriptive message when given truncated input, rather than producing
 # NoMethodError or returning corrupt data.
 
-RSpec.describe 'truncated binary parsing' do
+RSpec.describe 'truncated binary parsing' do # rubocop:disable RSpec/DescribeClass
   describe BSV::Transaction::VarInt do
     it 'raises on empty data' do
       expect { described_class.decode(''.b) }.to raise_error(ArgumentError, /truncated varint/)
@@ -38,13 +38,13 @@ RSpec.describe 'truncated binary parsing' do
 
     it 'raises when script length exceeds remaining data' do
       # 32-byte txid + 4-byte index + varint(100) but no script data
-      data = ("\x00" * 36) + "\x64"
+      data = "#{"\x00" * 36}d"
       expect { described_class.from_binary(data.b) }.to raise_error(ArgumentError, /truncated input.*script/)
     end
 
     it 'raises when sequence bytes are missing' do
       # 32-byte txid + 4-byte index + varint(0) for empty script + NO sequence
-      data = ("\x00" * 36) + "\x00"
+      data = "#{"\x00" * 36}\u0000"
       expect { described_class.from_binary(data.b) }.to raise_error(ArgumentError, /truncated input.*sequence/)
     end
   end
@@ -60,7 +60,7 @@ RSpec.describe 'truncated binary parsing' do
 
     it 'raises when script length exceeds remaining data' do
       # 8-byte satoshis + varint(50) but no script data
-      data = ("\x00" * 8) + "\x32"
+      data = "#{"\x00" * 8}2"
       expect { described_class.from_binary(data.b) }.to raise_error(ArgumentError, /truncated output.*script/)
     end
   end
@@ -79,7 +79,7 @@ RSpec.describe 'truncated binary parsing' do
         # Build a valid tx body but truncate the lock_time
         # version(4) + 1 input (varint(1) + 36-byte outpoint + varint(0) script + 4-byte seq = 41)
         # + 0 outputs (varint(0) = 1) = 46 bytes, then only 2 bytes for lock_time
-        input_bin = ("\x00" * 36) + "\x00" + ("\xFF" * 4)
+        input_bin = "#{"\x00" * 36}\u0000#{"\xFF" * 4}"
         data = "\x01\x00\x00\x00".b + "\x01".b + input_bin.b + "\x00".b + "\x01\x00".b
         expect { described_class.from_binary(data) }.to raise_error(ArgumentError, /truncated transaction.*lock_time/)
       end
@@ -119,7 +119,7 @@ RSpec.describe 'truncated binary parsing' do
 
       it 'raises on truncated Atomic BEEF (missing subject txid)' do
         # Atomic BEEF version marker + only 10 bytes (need 36 more)
-        data = "\x01\x01\x01\x01" + ("\x00" * 10)
+        data = "\u0001\u0001\u0001\u0001#{"\x00" * 10}"
         expect { described_class.from_binary(data.b) }.to raise_error(ArgumentError, /truncated Atomic BEEF/)
       end
     end

@@ -104,7 +104,10 @@ module BSV
       # @param data [String] raw BEEF binary
       # @return [Beef] the parsed BEEF bundle
       def self.from_binary(data)
-        raise ArgumentError, "truncated BEEF: need at least 4 bytes for version, got #{data.bytesize}" if data.bytesize < 4
+        if data.bytesize < 4
+          raise ArgumentError,
+                "truncated BEEF: need at least 4 bytes for version, got #{data.bytesize}"
+        end
 
         offset = 0
 
@@ -114,7 +117,10 @@ module BSV
         beef = new(version: version)
 
         if version == ATOMIC_BEEF
-          raise ArgumentError, "truncated Atomic BEEF: need 36 bytes for subject txid + inner version at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 36
+          if data.bytesize < offset + 36
+            remaining = data.bytesize - offset
+            raise ArgumentError, "truncated Atomic BEEF: need 36 bytes at offset #{offset}, got #{remaining}"
+          end
 
           beef.instance_variable_set(:@subject_txid, data.byteslice(offset, 32))
           offset += 32

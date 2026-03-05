@@ -177,7 +177,7 @@ RSpec.describe 'Bitcoin Core script vectors' do
     expect(test_vectors.length).to be > 100
   end
 
-  it 'evaluates Bitcoin Core script vectors' do # rubocop:disable RSpec/ExampleLength
+  it 'evaluates Bitcoin Core script vectors' do
     pass_count = 0
     expected_fail_pass = 0
     known_fail_count = 0
@@ -232,13 +232,13 @@ RSpec.describe 'Bitcoin Core script vectors' do
     total = pass_count + expected_fail_pass + known_fail_count + unexpected_mismatches.length
 
     # Report known failures count for visibility
-    $stderr.puts "Script vectors: #{pass_count + expected_fail_pass} pass, " \
-                 "#{known_fail_count} known failures, " \
-                 "#{parse_error_count} parse errors, #{skipped_count} skipped"
+    warn "Script vectors: #{pass_count + expected_fail_pass} pass, " \
+         "#{known_fail_count} known failures, " \
+         "#{parse_error_count} parse errors, #{skipped_count} skipped"
 
     # Any vector NOT in the known-failures list is a hard failure
     expect(unexpected_mismatches).to eq([]),
-      "#{unexpected_mismatches.length} unexpected mismatches out of #{total} vectors:\n" \
-      "#{unexpected_mismatches.join("\n")}"
+                                     "#{unexpected_mismatches.length} unexpected mismatches out of #{total} vectors:\n" \
+                                     "#{unexpected_mismatches.join("\n")}"
   end
 end

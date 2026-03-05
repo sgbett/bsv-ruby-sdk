@@ -68,8 +68,6 @@ module BSV
       def ==(other)
         other.is_a?(Chunk) && @opcode == other.opcode && @data == other.data
       end
-
-      private
     end
   end
 end

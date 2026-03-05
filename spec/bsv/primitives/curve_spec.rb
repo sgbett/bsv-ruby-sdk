@@ -65,7 +65,7 @@ RSpec.describe BSV::Primitives::Curve do
       x = described_class.point_x(point)
       # BN#to_s(16) strips leading zeros, so we verify via raw bytes instead
       x_bytes = x.to_s(2)
-      x_padded = ("\x00" * (32 - x_bytes.bytesize) + x_bytes).b
+      x_padded = (("\x00" * (32 - x_bytes.bytesize)) + x_bytes).b
       expect(x_padded.bytesize).to eq(32)
       expect(x_padded.getbyte(0)).to eq(0)
       expect(x_padded.unpack1('H*')).to eq('00e3ae1974566ca06cc516d47e0fb165a674a3dabcfca15e722f0e3450f45889')
