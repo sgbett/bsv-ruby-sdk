@@ -62,9 +62,16 @@ module BSV
             raise ScriptError.new(ScriptErrorCode::VERIFY_FAILED, 'OP_VERIFY failed')
           end
 
-          # OP_RETURN: after-genesis early termination (success)
+          # OP_RETURN: after-genesis early termination.
+          # At top level (outside conditionals): immediate success.
+          # Inside a conditional: remaining opcodes are skipped but conditional
+          # balance is still checked at script end.
           def op_return
-            @early_return = true
+            if @cond_stack.empty?
+              @early_return = true
+            else
+              @after_op_return = true
+            end
           end
 
           # OP_NOP and OP_NOP1..OP_NOP10 (including CLTV/CSV treated as NOP)
