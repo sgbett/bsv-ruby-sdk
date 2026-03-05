@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'set'
+
 module BSV
   module Transaction
     # Background Evaluation Extended Format (BEEF) for SPV-ready transaction
@@ -344,6 +346,90 @@ module BSV
         @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: txid)
       end
 
+      # --- Validation ---
+
+      # Check structural validity of the BEEF bundle.
+      #
+      # A valid BEEF has every transaction either:
+      # - proven (has a BUMP / merkle_path), or
+      # - all its inputs reference transactions that are themselves valid
+      #   within this bundle.
+      #
+      # @param allow_txid_only [Boolean] whether TXID-only entries count as valid (default: false)
+      # @return [Boolean] true if structurally valid
+      def valid?(allow_txid_only: false)
+        known_txids = build_known_txids(allow_txid_only)
+
+        # TXID-only entries are invalid unless explicitly allowed
+        has_txid_only = @transactions.any? { |bt| bt.format == FORMAT_TXID_ONLY }
+        return false if has_txid_only && !allow_txid_only
+
+        pending = @transactions.select { |bt| bt.transaction && !known_txids.include?(bt.txid) }
+
+        # Iteratively resolve: if all inputs of a tx are known, it becomes known
+        changed = true
+        while changed
+          changed = false
+          pending.reject! do |bt|
+            all_inputs_known = bt.transaction.inputs.all? do |input|
+              known_txids.include?(input.prev_tx_id.reverse)
+            end
+            if all_inputs_known
+              known_txids.add(bt.txid)
+              changed = true
+            end
+            all_inputs_known
+          end
+        end
+
+        pending.empty?
+      end
+
+      # Sort transactions in topological (dependency) order in place.
+      #
+      # After sorting, every transaction's input ancestors appear before it
+      # in the array. This is required for correct BEEF serialisation.
+      #
+      # @return [self]
+      def sort_transactions!
+        return self if @transactions.length <= 1
+
+        txid_index = {}
+        @transactions.each_with_index { |bt, i| txid_index[bt.txid] = i }
+
+        # Build adjacency: for each tx, which other txs must come before it?
+        in_degree = Array.new(@transactions.length, 0)
+        dependents = Array.new(@transactions.length) { [] }
+
+        @transactions.each_with_index do |bt, i|
+          next unless bt.transaction
+
+          bt.transaction.inputs.each do |input|
+            dep_idx = txid_index[input.prev_tx_id.reverse]
+            next unless dep_idx
+
+            dependents[dep_idx] << i
+            in_degree[i] += 1
+          end
+        end
+
+        # Kahn's algorithm
+        queue = (0...@transactions.length).select { |i| in_degree[i].zero? }
+        sorted = []
+
+        until queue.empty?
+          idx = queue.shift
+          sorted << @transactions[idx]
+          dependents[idx].each do |dep|
+            in_degree[dep] -= 1
+            queue << dep if in_degree[dep].zero?
+          end
+        end
+
+        @transactions = sorted
+        self
+      end
+
       # --- Private class methods for deserialisation ---
 
       class << self
@@ -438,6 +524,20 @@ module BSV
       end
 
       private
+
+      # Build a set of txids that are "known" (proven or txid-only).
+      def build_known_txids(allow_txid_only)
+        known = Set.new
+        @transactions.each do |bt|
+          case bt.format
+          when FORMAT_RAW_TX_AND_BUMP
+            known.add(bt.txid)
+          when FORMAT_TXID_ONLY
+            known.add(bt.txid) if allow_txid_only
+          end
+        end
+        known
+      end
 
       def build_bump_map
         map = {}.compare_by_identity

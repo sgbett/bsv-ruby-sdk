@@ -380,6 +380,82 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  describe '#valid?' do
+    it 'returns true for a valid BEEF with complete ancestry' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.valid?).to be true
+    end
+
+    it 'returns true for V1 BEEF vector' do
+      beef = described_class.from_hex(brc62_hex)
+      expect(beef.valid?).to be true
+    end
+
+    it 'returns true for empty BEEF' do
+      beef = described_class.new
+      expect(beef.valid?).to be true
+    end
+
+    it 'returns false when an unproven transaction has missing ancestors' do
+      # Create a BEEF with a raw tx (no BUMP) whose input references a txid not in the bundle
+      beef = described_class.new
+      tx = BSV::Transaction::Transaction.from_hex(
+        '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
+        '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
+        '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
+      )
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      expect(beef.valid?).to be false
+    end
+
+    it 'returns false for TXID-only entries by default' do
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_txid: "\x01".b * 32
+      )
+      expect(beef.valid?).to be false
+    end
+
+    it 'returns true for TXID-only when allow_txid_only is true' do
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_txid: "\x01".b * 32
+      )
+      expect(beef.valid?(allow_txid_only: true)).to be true
+    end
+  end
+
+  describe '#sort_transactions!' do
+    it 'preserves dependency order for already-sorted BEEF' do
+      beef = described_class.from_hex(beef_set_hex)
+      original_txids = beef.transactions.map(&:txid)
+      beef.sort_transactions!
+      expect(beef.transactions.map(&:txid)).to eq(original_txids)
+    end
+
+    it 'sorts reversed transactions into correct order' do
+      beef = described_class.from_hex(beef_set_hex)
+      beef.transactions.reverse!
+      beef.sort_transactions!
+
+      # After sorting, the BEEF should still be valid
+      expect(beef.valid?).to be true
+
+      # And should serialise correctly
+      hex = beef.to_hex
+      parsed = described_class.from_hex(hex)
+      expect(parsed.transactions.length).to eq(beef.transactions.length)
+    end
+
+    it 'handles single transaction' do
+      beef = described_class.from_hex(brc62_hex)
+      beef.transactions.pop # keep only first tx
+      expect { beef.sort_transactions! }.not_to raise_error
+    end
+  end
+
   describe 'Transaction.from_binary_with_offset' do
     it 'returns correct bytes consumed' do
       hex = '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \
