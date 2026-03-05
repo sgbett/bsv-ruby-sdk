@@ -137,9 +137,10 @@ module BSV
         opcode = chunk.opcode
 
         # After OP_RETURN inside a conditional: only process flow control opcodes
-        # so that conditional balance is still checked at script end.
+        # and OP_RETURN itself (which may terminate at top level once conditionals
+        # are balanced), matching Go SDK's branchExecuting semantics.
         if @after_op_return
-          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode)
+          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode) || opcode == Opcodes::OP_RETURN
           return
         end
 
