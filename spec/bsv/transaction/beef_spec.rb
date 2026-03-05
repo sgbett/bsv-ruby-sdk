@@ -271,6 +271,115 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  describe '#merge_bump' do
+    it 'appends a new BUMP' do
+      beef = described_class.new
+      mp = described_class.from_hex(brc62_hex).bumps.first
+      idx = beef.merge_bump(mp)
+      expect(idx).to eq(0)
+      expect(beef.bumps.length).to eq(1)
+    end
+
+    it 'deduplicates BUMPs with same block height and root' do
+      source = described_class.from_hex(brc62_hex)
+      mp = source.bumps.first
+
+      beef = described_class.new
+      idx1 = beef.merge_bump(mp)
+      idx2 = beef.merge_bump(mp)
+      expect(idx1).to eq(idx2)
+      expect(beef.bumps.length).to eq(1)
+    end
+  end
+
+  describe '#merge_transaction' do
+    it 'adds a transaction and its ancestors' do
+      source = described_class.from_hex(beef_set_hex)
+      subject_tx = source.transactions.last.transaction
+
+      beef = described_class.new
+      beef.merge_transaction(subject_tx)
+
+      expect(beef.transactions).not_to be_empty
+      txids = beef.transactions.map(&:txid)
+      expect(txids).to include(subject_tx.txid)
+    end
+
+    it 'does not duplicate transactions' do
+      source = described_class.from_hex(beef_set_hex)
+      subject_tx = source.transactions.last.transaction
+
+      beef = described_class.new
+      beef.merge_transaction(subject_tx)
+      count_before = beef.transactions.length
+      beef.merge_transaction(subject_tx)
+      expect(beef.transactions.length).to eq(count_before)
+    end
+
+    it 'merges merkle paths for mined ancestors' do
+      source = described_class.from_hex(beef_set_hex)
+      subject_tx = source.transactions.last.transaction
+
+      beef = described_class.new
+      beef.merge_transaction(subject_tx)
+      expect(beef.bumps).not_to be_empty
+    end
+  end
+
+  describe '#merge' do
+    it 'merges two BEEF bundles' do
+      beef1 = described_class.from_hex(brc62_hex)
+      beef2 = described_class.from_hex(beef_set_hex)
+
+      count1 = beef1.transactions.length
+      count2 = beef2.transactions.length
+
+      beef1.merge(beef2)
+      expect(beef1.transactions.length).to eq(count1 + count2)
+    end
+
+    it 'deduplicates when merging identical bundles' do
+      beef1 = described_class.from_hex(beef_set_hex)
+      beef2 = described_class.from_hex(beef_set_hex)
+
+      beef1.merge(beef2)
+      # Should still have the same number of transactions
+      expect(beef1.transactions.length).to eq(3)
+    end
+
+    it 'produces valid serialisation after merge' do
+      beef1 = described_class.from_hex(brc62_hex)
+      beef2 = described_class.from_hex(beef_set_hex)
+      beef1.merge(beef2)
+
+      # Should serialise without error
+      hex = beef1.to_hex
+      expect(hex).to match(/\A[0-9a-f]+\z/)
+
+      # Should parse back
+      parsed = described_class.from_hex(hex)
+      expect(parsed.transactions.length).to eq(beef1.transactions.length)
+    end
+  end
+
+  describe '#make_txid_only' do
+    it 'converts a transaction to TXID-only format' do
+      beef = described_class.from_hex(beef_set_hex)
+      tx = beef.transactions.first.transaction
+      txid = tx.txid
+
+      beef.make_txid_only(txid)
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_TXID_ONLY)
+      expect(entry.known_txid).to eq(txid)
+    end
+
+    it 'returns nil for unknown txid' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.make_txid_only("\x00".b * 32)).to be_nil
+    end
+  end
+
   describe 'Transaction.from_binary_with_offset' do
     it 'returns correct bytes consumed' do
       hex = '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \

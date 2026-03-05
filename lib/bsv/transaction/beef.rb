@@ -217,6 +217,133 @@ module BSV
         nil
       end
 
+      # --- Merge operations ---
+
+      # Add or deduplicate a merkle path (BUMP) in this BEEF bundle.
+      #
+      # If an existing BUMP shares the same block_height and merkle root,
+      # it is combined (via MerklePath#combine) and the existing index is
+      # returned. Otherwise the BUMP is appended.
+      #
+      # @param merkle_path [MerklePath] the BUMP to merge
+      # @return [Integer] the index of the (possibly merged) BUMP
+      def merge_bump(merkle_path)
+        root = merkle_path.compute_root
+        @bumps.each_with_index do |existing, idx|
+          next unless existing.block_height == merkle_path.block_height
+
+          if existing.compute_root == root
+            existing.combine(merkle_path)
+            return idx
+          end
+        end
+
+        @bumps << merkle_path
+        @bumps.length - 1
+      end
+
+      # Add a transaction to this BEEF bundle.
+      #
+      # Recursively merges the transaction's ancestors (via source_transaction
+      # references on inputs) and their merkle paths. Duplicate transactions
+      # (same txid) are not re-added.
+      #
+      # @param tx [Transaction] the transaction to merge
+      # @return [BeefTx] the (possibly existing) BeefTx entry
+      def merge_transaction(tx)
+        txid = tx.txid
+
+        # Check for existing entry
+        existing = @transactions.find { |bt| bt.txid == txid }
+        return existing if existing
+
+        # Recursively merge ancestors first (dependency order)
+        tx.inputs.each do |input|
+          merge_transaction(input.source_transaction) if input.source_transaction
+        end
+
+        # Merge this transaction's BUMP if it has one
+        entry = if tx.merkle_path
+                  bump_idx = merge_bump(tx.merkle_path)
+                  BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_idx)
+                else
+                  BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+                end
+        @transactions << entry
+        entry
+      end
+
+      # Add a transaction from raw binary data.
+      #
+      # @param raw_bytes [String] raw transaction binary
+      # @param bump_index [Integer, nil] optional BUMP index
+      # @return [BeefTx] the new BeefTx entry
+      def merge_raw_tx(raw_bytes, bump_index: nil)
+        tx = Transaction.from_binary(raw_bytes)
+        existing = @transactions.find { |bt| bt.txid == tx.txid }
+        return existing if existing
+
+        entry = if bump_index
+                  tx.merkle_path = @bumps[bump_index] if bump_index < @bumps.length
+                  BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index)
+                else
+                  BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+                end
+        @transactions << entry
+        entry
+      end
+
+      # Merge all BUMPs and transactions from another BEEF bundle.
+      #
+      # BUMP indices are remapped during merge.
+      #
+      # @param other [Beef] the BEEF bundle to merge from
+      # @return [self]
+      def merge(other)
+        # Build index remap for BUMPs
+        bump_remap = {}
+        other.bumps.each_with_index do |bump, old_idx|
+          bump_remap[old_idx] = merge_bump(bump)
+        end
+
+        # Merge transactions with remapped BUMP indices
+        other.transactions.each do |beef_tx|
+          case beef_tx.format
+          when FORMAT_TXID_ONLY
+            next if @transactions.any? { |bt| bt.txid == beef_tx.known_txid }
+
+            @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: beef_tx.known_txid)
+          else
+            next if @transactions.any? { |bt| bt.txid == beef_tx.txid }
+
+            if beef_tx.format == FORMAT_RAW_TX_AND_BUMP && beef_tx.bump_index
+              new_idx = bump_remap[beef_tx.bump_index] || beef_tx.bump_index
+              beef_tx.transaction.merkle_path = @bumps[new_idx]
+              @transactions << BeefTx.new(
+                format: FORMAT_RAW_TX_AND_BUMP,
+                transaction: beef_tx.transaction,
+                bump_index: new_idx
+              )
+            else
+              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction)
+            end
+          end
+        end
+
+        self
+      end
+
+      # Convert a transaction entry to TXID-only format.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [BeefTx, nil] the converted entry, or nil if not found
+      def make_txid_only(txid)
+        idx = @transactions.index { |bt| bt.txid == txid }
+        return unless idx
+
+        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: txid)
+      end
+
       # --- Private class methods for deserialisation ---
 
       class << self
