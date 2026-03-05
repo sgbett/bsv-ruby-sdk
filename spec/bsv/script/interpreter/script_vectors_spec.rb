@@ -170,7 +170,7 @@ RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/Describe
       next false if v[0].is_a?(Array)
 
       # All elements should be strings
-      v[0..3].all? { |e| e.is_a?(String) }
+      v[0..3].all?(String)
     end
   end
 

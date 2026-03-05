@@ -208,15 +208,16 @@ RSpec.describe BSV::Script::Opcodes do # rubocop:disable RSpec/SpecFilePathForma
   end
 
   describe 'completeness' do
-    described_class.constants
-                   .select { |c| c.to_s.start_with?('OP_') }
-                   .reject { |c| %i[OP_FALSE OP_TRUE].include?(c) }
-                   .each do |name|
-                     hex = described_class.const_get(name).to_s(16).rjust(2, '0')
+    op_constants = described_class.constants
+                                  .select { |c| c.to_s.start_with?('OP_') }
+                                  .reject { |c| %i[OP_FALSE OP_TRUE].include?(c) }
 
-                     it "#{name} is a valid byte value (0x#{hex})" do
-                       expect(described_class.const_get(name)).to be_a(Integer).and be_between(0x00, 0xff)
-                     end
+    op_constants.each do |name|
+      hex = described_class.const_get(name).to_s(16).rjust(2, '0')
+
+      it "#{name} is a valid byte value (0x#{hex})" do
+        expect(described_class.const_get(name)).to be_a(Integer).and be_between(0x00, 0xff)
+      end
     end
   end
 end

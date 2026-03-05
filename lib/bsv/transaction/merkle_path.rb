@@ -208,7 +208,7 @@ module BSV
           @path << [] if h >= @path.length
           next if h >= other.path.length
 
-          existing = @path[h].each_with_object({}) { |e, m| m[e.offset] = e }
+          existing = @path[h].to_h { |e| [e.offset, e] }
           other.path[h].each do |elem|
             existing[elem.offset] ||= elem
           end
@@ -222,7 +222,7 @@ module BSV
 
       def build_indexed_path
         @path.map do |level|
-          level.each_with_object({}) { |elem, h| h[elem.offset] = elem }
+          level.to_h { |elem| [elem.offset, elem] }
         end
       end
 
