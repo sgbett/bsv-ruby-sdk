@@ -29,12 +29,24 @@ module BSV
 
       # Serialise this chunk back to raw script bytes.
       #
+      # Preserves the original push encoding (including non-minimal pushes)
+      # so that round-tripping through parse/serialise does not alter the
+      # script bytes. This is critical for sighash computation.
+      #
       # @return [String] binary script bytes for this chunk
       def to_binary
-        if @data
-          push_data_binary(@data)
+        return [@opcode].pack('C') unless @data
+
+        case @opcode
+        when Opcodes::OP_PUSHDATA1
+          [Opcodes::OP_PUSHDATA1, @data.bytesize].pack('CC') + @data
+        when Opcodes::OP_PUSHDATA2
+          [Opcodes::OP_PUSHDATA2].pack('C') + [@data.bytesize].pack('v') + @data
+        when Opcodes::OP_PUSHDATA4
+          [Opcodes::OP_PUSHDATA4].pack('C') + [@data.bytesize].pack('V') + @data
         else
-          [@opcode].pack('C')
+          # Direct push: opcode IS the length (0x01..0x4b)
+          [@opcode].pack('C') + @data
         end
       end
 
@@ -58,20 +70,6 @@ module BSV
       end
 
       private
-
-      def push_data_binary(data)
-        len = data.bytesize
-
-        if len <= 0x4b
-          [len].pack('C') + data
-        elsif len <= 0xff
-          [Opcodes::OP_PUSHDATA1, len].pack('CC') + data
-        elsif len <= 0xffff
-          [Opcodes::OP_PUSHDATA2, len].pack('Cv') + data
-        else
-          [Opcodes::OP_PUSHDATA4, len].pack('CV') + data
-        end
-      end
     end
   end
 end
