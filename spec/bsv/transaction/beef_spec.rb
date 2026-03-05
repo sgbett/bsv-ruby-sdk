@@ -222,6 +222,55 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  describe 'Transaction.from_beef / Transaction#to_beef' do
+    it 'round-trips Transaction.from_beef through the V2 vector' do
+      beef_data = [beef_set_hex].pack('H*')
+      tx = BSV::Transaction::Transaction.from_beef(beef_data)
+
+      expect(tx).to be_a(BSV::Transaction::Transaction)
+      # Subject tx is the last one in the bundle
+      beef = described_class.from_hex(beef_set_hex)
+      expected_txid = beef.transactions.last.transaction.txid
+      expect(tx.txid).to eq(expected_txid)
+    end
+
+    it 'round-trips via from_beef_hex' do
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      expect(tx).to be_a(BSV::Transaction::Transaction)
+    end
+
+    it 'wires source transactions on the returned transaction' do
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      wired = tx.inputs.select(&:source_transaction)
+      expect(wired).not_to be_empty
+    end
+
+    it 'builds a BEEF from a transaction with ancestry' do
+      # Parse the BEEF to get a transaction with wired sources
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+
+      # Rebuild BEEF from that transaction
+      beef_binary = tx.to_beef
+      expect(beef_binary.byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
+
+      # Parse the rebuilt BEEF
+      rebuilt = described_class.from_binary(beef_binary)
+      expect(rebuilt.transactions).not_to be_empty
+
+      # The subject tx should be present
+      found = rebuilt.find_transaction(tx.txid)
+      expect(found).not_to be_nil
+      expect(found.txid).to eq(tx.txid)
+    end
+
+    it 'to_beef_hex returns a hex string' do
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      hex = tx.to_beef_hex
+      expect(hex).to match(/\A[0-9a-f]+\z/)
+      expect([hex].pack('H*').byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
+    end
+  end
+
   describe 'Transaction.from_binary_with_offset' do
     it 'returns correct bytes consumed' do
       hex = '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \
