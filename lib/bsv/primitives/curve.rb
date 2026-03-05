@@ -65,9 +65,9 @@ module BSV
       # @param point [OpenSSL::PKey::EC::Point] the curve point
       # @return [OpenSSL::BN] the x-coordinate
       def point_x(point)
-        x_hex = point.to_bn(:uncompressed).to_s(16)
-        # Uncompressed format: 04 || X (64 hex) || Y (64 hex)
-        OpenSSL::BN.new(x_hex[2, 64], 16)
+        # Uncompressed octet string: 0x04 || X (32 bytes) || Y (32 bytes)
+        # Slicing raw bytes avoids BN#to_s(16) stripping leading zeros.
+        OpenSSL::BN.new(point.to_octet_string(:uncompressed)[1, 32], 2)
       end
 
       # Reconstruct a curve point from its byte representation.

@@ -58,6 +58,18 @@ RSpec.describe BSV::Primitives::Curve do
       expected = '79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798'
       expect(x.to_s(16)).to eq(expected)
     end
+
+    it 'handles x-coordinates with leading zero bytes' do
+      # 153*G has x = 00e3ae... (leading zero byte)
+      point = described_class.multiply_generator(OpenSSL::BN.new('153'))
+      x = described_class.point_x(point)
+      # BN#to_s(16) strips leading zeros, so we verify via raw bytes instead
+      x_bytes = x.to_s(2)
+      x_padded = ("\x00" * (32 - x_bytes.bytesize) + x_bytes).b
+      expect(x_padded.bytesize).to eq(32)
+      expect(x_padded.getbyte(0)).to eq(0)
+      expect(x_padded.unpack1('H*')).to eq('00e3ae1974566ca06cc516d47e0fb165a674a3dabcfca15e722f0e3450f45889')
+    end
   end
 
   describe '.point_from_bytes' do
