@@ -44,6 +44,20 @@ RSpec.describe BSV::Primitives::Signature do
       expect { described_class.from_der("\x30\x07\x02\x02\x00\x01\x02\x01\x01".b) }
         .to raise_error(ArgumentError, /excessive padding/)
     end
+
+    it 'accepts valid zero-padded R when high bit is set' do
+      # R = 0x0080 is valid: the 0x00 prefix is required because 0x80 has high bit set
+      der = "\x30\x07\x02\x02\x00\x80\x02\x01\x01".b
+      sig = described_class.from_der(der)
+      expect(sig.r).to eq(OpenSSL::BN.new('128'))
+      expect(sig.to_der).to eq(der)
+    end
+
+    it 'raises on excessive padding in S' do
+      # S = 0x0001 is invalid: 0x01 has high bit clear, so the 0x00 prefix is excessive
+      expect { described_class.from_der("\x30\x07\x02\x01\x01\x02\x02\x00\x01".b) }
+        .to raise_error(ArgumentError, /excessive padding/)
+    end
   end
 
   describe '.from_hex / #to_hex' do
