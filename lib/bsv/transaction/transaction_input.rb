@@ -61,6 +61,8 @@ module BSV
       # @param offset [Integer] byte offset to start reading from
       # @return [Array(TransactionInput, Integer)] the input and bytes consumed
       def self.from_binary(data, offset = 0)
+        raise ArgumentError, "truncated input: need 36 bytes for outpoint at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 36
+
         prev_tx_id = data.byteslice(offset, 32)
         prev_tx_out_index = data.byteslice(offset + 32, 4).unpack1('V')
         offset += 36
@@ -68,8 +70,12 @@ module BSV
         script_len, vi_size = VarInt.decode(data, offset)
         offset += vi_size
 
+        raise ArgumentError, "truncated input: need #{script_len} bytes for script at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + script_len
+
         unlocking_script = (BSV::Script::Script.from_binary(data.byteslice(offset, script_len)) if script_len.positive?)
         offset += script_len
+
+        raise ArgumentError, "truncated input: need 4 bytes for sequence at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 4
 
         sequence = data.byteslice(offset, 4).unpack1('V')
 

@@ -123,6 +123,8 @@ module BSV
       # @param data [String] raw binary transaction
       # @return [Transaction] the parsed transaction
       def self.from_binary(data)
+        raise ArgumentError, "truncated transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
+
         offset = 0
 
         version = data.byteslice(offset, 4).unpack1('V')
@@ -146,6 +148,8 @@ module BSV
           offset += consumed
         end
 
+        raise ArgumentError, "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 4
+
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
         tx
       end
@@ -164,6 +168,8 @@ module BSV
       # @return [Transaction] the parsed transaction with source data on inputs
       # @raise [ArgumentError] if the EF marker is invalid
       def self.from_ef(data)
+        raise ArgumentError, "truncated EF transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
+
         offset = 0
 
         version = data.byteslice(offset, 4).unpack1('V')
@@ -182,6 +188,8 @@ module BSV
           input, consumed = TransactionInput.from_binary(data, offset)
           tx.add_input(input)
           offset += consumed
+
+          raise ArgumentError, "truncated EF input: need 8 bytes for source_satoshis at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 8
 
           input.source_satoshis = data.byteslice(offset, 8).unpack1('Q<')
           offset += 8
@@ -202,6 +210,8 @@ module BSV
           offset += consumed
         end
 
+        raise ArgumentError, "truncated EF transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 4
+
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
         tx
       end
@@ -221,6 +231,8 @@ module BSV
       # @param offset [Integer] byte offset to start reading from
       # @return [Array(Transaction, Integer)] the transaction and bytes consumed
       def self.from_binary_with_offset(data, offset = 0)
+        raise ArgumentError, "truncated transaction: need at least 10 bytes at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 10
+
         start = offset
 
         version = data.byteslice(offset, 4).unpack1('V')
@@ -243,6 +255,8 @@ module BSV
           tx.add_output(output)
           offset += consumed
         end
+
+        raise ArgumentError, "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 4
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
         offset += 4
