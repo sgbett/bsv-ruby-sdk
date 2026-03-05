@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::Interpreter do
   def evaluate(unlock_asm, lock_asm)
     unlock = unlock_asm.empty? ? BSV::Script::Script.new : BSV::Script::Script.from_asm(unlock_asm)
     lock = lock_asm.empty? ? BSV::Script::Script.new : BSV::Script::Script.from_asm(lock_asm)
@@ -8,7 +8,7 @@ RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathF
   end
 
   # Build a signed P2PKH transaction
-  def build_p2pkh_tx # rubocop:disable Metrics/MethodLength
+  def build_p2pkh_tx
     priv = BSV::Primitives::PrivateKey.generate
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pkh_lock(pub.hash160)
@@ -31,7 +31,7 @@ RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathF
   end
 
   # Build a signed P2PK transaction
-  def build_p2pk_tx # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+  def build_p2pk_tx
     priv = BSV::Primitives::PrivateKey.generate
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pk_lock(pub.compressed)
@@ -58,7 +58,7 @@ RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathF
   end
 
   # Build a signed 2-of-3 multisig transaction
-  def build_multisig_tx # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+  def build_multisig_tx
     keys = Array.new(3) { BSV::Primitives::PrivateKey.generate }
     pubkeys = keys.map { |k| k.public_key.compressed }
     lock_script = BSV::Script::Script.p2ms_lock(2, pubkeys)

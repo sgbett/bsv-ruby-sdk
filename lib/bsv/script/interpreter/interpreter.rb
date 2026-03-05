@@ -28,7 +28,7 @@ module BSV
     #     unlock_script: input.script, lock_script: prev_output.script,
     #     satoshis: prev_output.satoshis
     #   )
-    class Interpreter # rubocop:disable Metrics/ClassLength
+    class Interpreter
       include Operations::DataPush
       include Operations::StackOps
       include Operations::FlowControl
@@ -80,7 +80,7 @@ module BSV
         ).execute
       end
 
-      def execute # rubocop:disable Naming/PredicateMethod
+      def execute
         scripts = [@unlock_script, @lock_script]
 
         scripts.each_with_index do |script, script_idx|
@@ -261,7 +261,7 @@ module BSV
       # Is the current conditional branch executing?
       # Checks ALL entries — a :false anywhere means we're not executing.
       def branch_executing?
-        @cond_stack.none? { |v| v == :false } # rubocop:disable Lint/BooleanSymbol
+        @cond_stack.none? { |v| v == :false }
       end
 
       def conditional_opcode?(opcode)

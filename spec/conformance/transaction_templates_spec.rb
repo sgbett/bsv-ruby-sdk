@@ -11,7 +11,6 @@ require 'spec_helper'
 # Source: https://hub.bsvblockchain.org/bsv-academy/bsv-academy/introduction-to-bitcoin-script/chapter-4-simple-scripts/03-pay-to-public-key-hash-p2pkh
 # Source: https://hub.bsvblockchain.org/bsv-academy/bsv-academy/introduction-to-bitcoin-script/chapter-4-simple-scripts/01-pay-to-public-key-p2pk
 
-# rubocop:disable RSpec/SpecFilePathFormat
 RSpec.describe BSV::Script::Script do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:public_key) { private_key.public_key }
@@ -84,7 +83,7 @@ RSpec.describe BSV::Script::Script do
 
   # Protocol docs: Multi-signature locking script (example: 2-of-3)
   #   OP_2 <pubKey1> <pubKey2> <pubKey3> OP_3 OP_CHECKMULTISIG
-  describe 'P2MS (bare multisig) locking script' do # rubocop:disable RSpec/MultipleMemoizedHelpers
+  describe 'P2MS (bare multisig) locking script' do
     subject(:script) { described_class.p2ms_lock(2, ms_pubkeys) }
 
     let(:ms_keys) { Array.new(3) { BSV::Primitives::PrivateKey.generate.public_key } }
@@ -165,4 +164,3 @@ RSpec.describe BSV::Script::Script do
     end
   end
 end
-# rubocop:enable RSpec/SpecFilePathFormat

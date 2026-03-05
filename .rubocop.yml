@@ -29,11 +29,13 @@ Naming/MethodParameterName:
     - p1
     - p2
 
-# verify() and verify_proof() are standard cryptographic API names
+# verify(), verify_proof(), and cast_bool() are standard cryptographic/protocol API names.
 Naming/PredicateMethod:
   AllowedMethods:
     - verify
     - verify_proof
+    - cast_bool
+    - execute
 
 # Cryptographic and script-parsing code is inherently complex;
 # splitting into tiny methods would harm readability and auditability.
@@ -46,6 +48,7 @@ Metrics/AbcSize:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'spec/**/*'
 
 Metrics/MethodLength:
   Exclude:
@@ -54,9 +57,9 @@ Metrics/MethodLength:
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet/**/*'
-    - 'spec/support/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
@@ -67,6 +70,7 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
@@ -77,11 +81,22 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'spec/**/*'
 
 Metrics/ModuleLength:
   Exclude:
     - 'lib/bsv/primitives/ecdsa.rb'
     - 'lib/bsv/script/opcodes.rb'
+    - 'lib/bsv/script/interpreter/operations/**/*'
+    - 'spec/**/*'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'lib/bsv/primitives/**/*'
+    - 'lib/bsv/script/**/*'
+    - 'lib/bsv/transaction/transaction.rb'
+    - 'lib/bsv/transaction/merkle_path.rb'
+    - 'lib/bsv/transaction/beef.rb'
 
 Metrics/ParameterLists:
   Exclude:
@@ -89,17 +104,15 @@ Metrics/ParameterLists:
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
 
-Metrics/ClassLength:
+# The interpreter condition stack uses :true/:false symbols intentionally
+# (matching the Go SDK pattern) to distinguish from boolean values.
+Lint/BooleanSymbol:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/script.rb'
-    - 'lib/bsv/transaction/transaction.rb'
-    - 'lib/bsv/transaction/merkle_path.rb'
-    - 'lib/bsv/transaction/beef.rb'
+    - 'lib/bsv/script/interpreter/**/*'
 
 Layout/LineLength:
   Exclude:
-    - 'spec/bsv/primitives/**/*'
+    - 'spec/**/*'
 
 RSpec/ContextWording:
   Exclude:
@@ -117,12 +130,14 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/integration/**/*'
+    - 'spec/conformance/**/*'
 
 RSpec/MultipleMemoizedHelpers:
   Exclude:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
+    - 'spec/conformance/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -134,18 +149,48 @@ RSpec/ExampleLength:
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/integration/**/*'
+    - 'spec/conformance/**/*'
 
 # Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
 Naming/VariableNumber:
   Exclude:
     - 'spec/**/*'
 
-# P2PKH is a standard Bitcoin acronym, not camelCase.
+# Interpreter sub-specs and conformance specs legitimately describe parent
+# classes or use string descriptions for cross-cutting vector suites.
 RSpec/SpecFilePathFormat:
   Exclude:
     - 'spec/bsv/transaction/p2pkh_spec.rb'
+    - 'spec/bsv/script/interpreter/**/*'
+    - 'spec/conformance/**/*'
+
+# Vector and conformance specs use string describes for cross-cutting test suites.
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/bsv/transaction/tx_vectors_spec.rb'
+    - 'spec/bsv/transaction/sighash_vectors_spec.rb'
+    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+    - 'spec/integration/**/*'
+
+# Vector specs define constants at spec scope for shared test infrastructure.
+Lint/ConstantDefinitionInBlock:
+  Exclude:
+    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+
+RSpec/LeakyConstantDeclaration:
+  Exclude:
+    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+
+# Dynamic test generation produces describe blocks populated at runtime.
+RSpec/EmptyExampleGroup:
+  Exclude:
+    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
 
 # Integration tests use before(:context) which requires instance variables.
+RSpec/BeforeAfterAll:
+  Exclude:
+    - 'spec/integration/**/*'
+
 RSpec/InstanceVariable:
   Exclude:
     - 'spec/integration/**/*'

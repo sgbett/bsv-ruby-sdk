@@ -6,7 +6,7 @@
 # Each vector: [raw_tx_hex, script_hex, input_index, hash_type, expected_sighash_hex]
 # All vectors use SIGHASH_FORKID (BIP-143).
 
-RSpec.describe 'Sighash vectors (TS SDK)' do # rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Sighash vectors (TS SDK)' do
   let(:vectors) do
     JSON.parse(File.read(File.expand_path('../../fixtures/sighash_vectors.json', __dir__)))
   end

@@ -11,7 +11,7 @@ module BSV
     # the MSB of the last byte, and the magnitude is stored little-endian.
     # This class handles encoding/decoding, minimal encoding validation,
     # and arithmetic operations as required by the script interpreter.
-    class ScriptNumber # rubocop:disable Metrics/ClassLength
+    class ScriptNumber
       include Comparable
 
       # Maximum byte length for script numbers (post-Genesis: 750 KB).

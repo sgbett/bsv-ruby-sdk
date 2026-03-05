@@ -11,9 +11,9 @@ module BSV
           # OP_IF: conditional execution
           def op_if
             if branch_executing?
-              @cond_stack.push(@dstack.pop_bool ? :true : :false) # rubocop:disable Lint/BooleanSymbol
+              @cond_stack.push(@dstack.pop_bool ? :true : :false)
             else
-              @cond_stack.push(:false) # rubocop:disable Lint/BooleanSymbol
+              @cond_stack.push(:false)
             end
             @else_stack.push(false)
           end
@@ -21,9 +21,9 @@ module BSV
           # OP_NOTIF: inverse conditional execution
           def op_notif
             if branch_executing?
-              @cond_stack.push(@dstack.pop_bool ? :false : :true) # rubocop:disable Lint/BooleanSymbol
+              @cond_stack.push(@dstack.pop_bool ? :false : :true)
             else
-              @cond_stack.push(:false) # rubocop:disable Lint/BooleanSymbol
+              @cond_stack.push(:false)
             end
             @else_stack.push(false)
           end
@@ -38,8 +38,8 @@ module BSV
             raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'duplicate OP_ELSE') if @else_stack.pop
 
             case @cond_stack.last
-            when :true  then @cond_stack[-1] = :false # rubocop:disable Lint/BooleanSymbol
-            when :false then @cond_stack[-1] = :true  # rubocop:disable Lint/BooleanSymbol
+            when :true  then @cond_stack[-1] = :false
+            when :false then @cond_stack[-1] = :true
             end
 
             @else_stack.push(true)

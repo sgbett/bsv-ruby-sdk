@@ -11,7 +11,7 @@ module BSV
     # Implements Forth-like stack manipulation operations (dup, drop, swap,
     # rot, over, pick, roll, tuck) parameterised by count for the multi-element
     # opcodes (OP_2DUP, OP_2SWAP, etc.).
-    class Stack # rubocop:disable Metrics/ClassLength
+    class Stack
       def initialize
         @items = []
       end
@@ -168,7 +168,7 @@ module BSV
       # --- Boolean conversion ---
 
       # Bitcoin consensus boolean: false if empty, all-zero, or negative zero (0x80 last byte).
-      def self.cast_bool(bytes) # rubocop:disable Naming/PredicateMethod
+      def self.cast_bool(bytes)
         return false if bytes.nil? || bytes.empty?
 
         bytes.each_byte.with_index do |byte, i|

@@ -9,7 +9,7 @@ require 'spec_helper'
 #
 # Source: https://hub.bsvblockchain.org/bitcoin-protocol-documentation/transaction-lifecycle/opcodes-used-in-script
 
-RSpec.describe BSV::Script::Opcodes do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::Opcodes do
   # Protocol docs: "An empty array of bytes is pushed onto the stack"
   # Also aliased as OP_FALSE
   describe 'constants: push value' do

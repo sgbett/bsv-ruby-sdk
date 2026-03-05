@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::Interpreter do
   def build_interpreter
     empty = BSV::Script::Script.new
     described_class.send(:new, unlock_script: empty, lock_script: empty)

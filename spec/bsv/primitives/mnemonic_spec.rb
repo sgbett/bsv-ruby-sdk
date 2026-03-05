@@ -2,7 +2,7 @@
 
 # Official BIP-39 test vectors from trezor/python-mnemonic
 # All use passphrase "TREZOR" for seed derivation
-module MnemonicTestVectors # rubocop:disable Metrics/ModuleLength
+module MnemonicTestVectors
   VECTORS = [
     {
       entropy: '00000000000000000000000000000000',

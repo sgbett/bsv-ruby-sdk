@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::ScriptError do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::ScriptError do
   it 'is a StandardError' do
     expect(described_class.ancestors).to include(StandardError)
   end

@@ -14,7 +14,7 @@ require 'spec_helper'
 #
 # Each test group consumes a UTXO. Change returns to the same address,
 # so the wallet stays funded across runs.
-RSpec.describe 'Testnet integration', :testnet do # rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Testnet integration', :testnet do
   def arc_url
     ENV.fetch('BSV_TESTNET_ARC_URL', 'https://testnet.arc.gorillapool.io')
   end
@@ -27,7 +27,7 @@ RSpec.describe 'Testnet integration', :testnet do # rubocop:disable RSpec/Descri
     0.5
   end
 
-  before(:context) do # rubocop:disable RSpec/BeforeAfterAll
+  before(:context) do
     wif = ENV.fetch('BSV_TESTNET_WIF', nil)
     skip 'BSV_TESTNET_WIF not set — skipping testnet integration tests' unless wif
 

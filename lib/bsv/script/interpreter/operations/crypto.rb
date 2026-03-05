@@ -5,7 +5,7 @@ module BSV
     class Interpreter
       module Operations
         # Cryptographic operations: hash functions, CHECKSIG, and CHECKMULTISIG.
-        module Crypto # rubocop:disable Metrics/ModuleLength
+        module Crypto
           private
 
           # --- Hash operations ---

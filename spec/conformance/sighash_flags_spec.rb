@@ -10,7 +10,7 @@ require 'spec_helper'
 # Source: https://hub.bsvblockchain.org/bsv-skills-center/important-concepts/details/sighash-flags
 # Source: https://hub.bsvblockchain.org/bsv-academy/bsv-academy/bitcoin-primitives-digital-signatures/bsv-and-digital-signatures/ecdsa-secp256k1-for-bitcoin-transaction
 
-RSpec.describe BSV::Transaction::Sighash do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Transaction::Sighash do
   # Protocol docs: "Currently all BitcoinSV transactions require an
   # additional SIGHASH flag called SIGHASH_FORKID which is 0x40"
   describe 'base flags' do

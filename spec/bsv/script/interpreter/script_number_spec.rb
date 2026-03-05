@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::ScriptNumber do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::ScriptNumber do
   describe '.from_bytes / #to_bytes round-trip' do
     # Test vectors from Go SDK (number.go documentation)
     {

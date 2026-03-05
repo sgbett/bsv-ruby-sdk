@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::Interpreter do
   def build_interpreter
     empty = BSV::Script::Script.new
     described_class.send(:new, unlock_script: empty, lock_script: empty)
@@ -13,7 +13,7 @@ RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathF
   end
 
   # Build a signed P2PKH transaction for signature verification tests
-  def build_p2pkh_tx # rubocop:disable Metrics/MethodLength
+  def build_p2pkh_tx
     priv = BSV::Primitives::PrivateKey.generate
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pkh_lock(pub.hash160)
@@ -36,7 +36,7 @@ RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathF
   end
 
   # Build a signed P2PK transaction
-  def build_p2pk_tx # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+  def build_p2pk_tx
     priv = BSV::Primitives::PrivateKey.generate
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pk_lock(pub.compressed)

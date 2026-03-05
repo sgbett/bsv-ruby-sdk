@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::Stack do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::Stack do
   subject(:stack) { described_class.new }
 
   describe 'push/pop bytes' do

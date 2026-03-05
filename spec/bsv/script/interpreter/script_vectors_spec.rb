@@ -12,11 +12,7 @@
 
 require 'json'
 
-RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/DescribeClass
-  # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
-
-  # rubocop:disable Lint/ConstantDefinitionInBlock, RSpec/LeakyConstantDeclaration
-
+RSpec.describe 'Bitcoin Core script vectors' do
   # Build a reverse mapping: name (without OP_ prefix) → opcode byte
   OPCODE_MAP = {}.tap do |h|
     BSV::Script::Opcodes.constants.select { |c| c.to_s.start_with?('OP_') }.each do |c|
@@ -28,7 +24,7 @@ RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/Describe
   end.freeze
 
   # Encode a Ruby integer as a Bitcoin script number (CScriptNum).
-  def self.encode_script_number(num) # rubocop:disable Metrics/MethodLength
+  def self.encode_script_number(num)
     return ''.b if num == 0
 
     negative = num < 0
@@ -50,7 +46,7 @@ RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/Describe
   end
 
   # Encode data as a minimal push in script binary.
-  def self.encode_push(data) # rubocop:disable Metrics/MethodLength
+  def self.encode_push(data)
     len = data.bytesize
     if len == 0
       [BSV::Script::Opcodes::OP_0].pack('C')
@@ -71,7 +67,7 @@ RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/Describe
 
   # Parse Bitcoin Core test assembly format into raw script binary.
   # Returns [binary_string, true] on success or [error_msg, false] on failure.
-  def self.parse_bitcoin_asm(asm_str) # rubocop:disable Metrics/MethodLength
+  def self.parse_bitcoin_asm(asm_str)
     return [''.b, true] if asm_str.nil? || asm_str.strip.empty?
 
     buf = ''.b
@@ -148,14 +144,10 @@ RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/Describe
     [e.message, false]
   end
 
-  # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
-
   # Flags that indicate features BSV doesn't support or the interpreter can't toggle
   UNSUPPORTED_FLAGS = %w[
     WITNESS TAPROOT DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM DISCOURAGE_UPGRADABLE_NOPS
   ].freeze
-
-  # rubocop:enable Lint/ConstantDefinitionInBlock, RSpec/LeakyConstantDeclaration
 
   let(:all_vectors) do
     JSON.parse(File.read(File.expand_path('../../../fixtures/script_tests.json', __dir__)))
@@ -179,7 +171,7 @@ RSpec.describe 'Bitcoin Core script vectors' do # rubocop:disable RSpec/Describe
     expect(test_vectors.length).to be > 100
   end
 
-  describe 'script evaluation' do # rubocop:disable RSpec/EmptyExampleGroup
+  describe 'script evaluation' do
     # We define examples dynamically below
   end
 

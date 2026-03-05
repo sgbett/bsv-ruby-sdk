@@ -6,7 +6,7 @@
 # Each vector: [[[prevout_hash, prevout_index, scriptPubKey], ...], serialised_tx_hex, flags]
 # We test round-trip: from_hex(hex).to_hex == hex
 
-RSpec.describe 'Transaction serialisation vectors (TS SDK)' do # rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Transaction serialisation vectors (TS SDK)' do
   let(:vectors) do
     JSON.parse(File.read(File.expand_path('../../fixtures/tx_vectors.json', __dir__)))
   end

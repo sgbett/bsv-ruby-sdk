@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe BSV::Script::Interpreter do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe BSV::Script::Interpreter do
   def evaluate(unlock_asm, lock_asm)
     unlock = unlock_asm.empty? ? BSV::Script::Script.new : BSV::Script::Script.from_asm(unlock_asm)
     lock = lock_asm.empty? ? BSV::Script::Script.new : BSV::Script::Script.from_asm(lock_asm)
