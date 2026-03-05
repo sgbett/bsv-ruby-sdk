@@ -62,4 +62,41 @@ RSpec.describe BSV::Transaction::VarInt do
       end
     end
   end
+
+  describe 'boundary transitions' do
+    # Verify exact encoded sizes and correct prefix selection at boundaries
+    {
+      # value => [expected_size, description]
+      0 => [1, '1-byte minimum'],
+      0xFC => [1, '1-byte maximum (252)'],
+      0xFD => [3, '3-byte minimum (253)'],
+      0xFFFF => [3, '3-byte maximum (65535)'],
+      0x10000 => [5, '5-byte minimum (65536)'],
+      0xFFFFFFFF => [5, '5-byte maximum (4294967295)'],
+      0x100000000 => [9, '9-byte minimum (4294967296)']
+    }.each do |value, (expected_size, description)|
+      it "encodes #{description} as #{expected_size} byte(s) and round-trips" do
+        encoded = described_class.encode(value)
+        expect(encoded.bytesize).to eq(expected_size)
+        decoded, consumed = described_class.decode(encoded)
+        expect(decoded).to eq(value)
+        expect(consumed).to eq(expected_size)
+      end
+    end
+
+    it 'selects correct prefix at 1-byte/3-byte boundary' do
+      expect(described_class.encode(252).getbyte(0)).to eq(0xFC)  # direct
+      expect(described_class.encode(253).getbyte(0)).to eq(0xFD)  # prefix
+    end
+
+    it 'selects correct prefix at 3-byte/5-byte boundary' do
+      expect(described_class.encode(0xFFFF).getbyte(0)).to eq(0xFD)   # 3-byte
+      expect(described_class.encode(0x10000).getbyte(0)).to eq(0xFE)  # 5-byte
+    end
+
+    it 'selects correct prefix at 5-byte/9-byte boundary' do
+      expect(described_class.encode(0xFFFFFFFF).getbyte(0)).to eq(0xFE)   # 5-byte
+      expect(described_class.encode(0x100000000).getbyte(0)).to eq(0xFF)  # 9-byte
+    end
+  end
 end

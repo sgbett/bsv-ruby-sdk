@@ -114,6 +114,20 @@ RSpec.describe BSV::Script::Interpreter do
       # Invalid opcodes after OP_RETURN are never reached
       expect(evaluate('OP_1', 'OP_RETURN OP_RESERVED')).to be true
     end
+
+    it 'raises on unbalanced conditional after OP_RETURN' do
+      # IF 5 RETURN — missing ENDIF, conditional balance must be checked
+      expect do
+        evaluate('OP_1', 'OP_IF OP_5 OP_RETURN')
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:unbalanced_conditional)
+      }
+    end
+
+    it 'succeeds when conditionals are balanced before OP_RETURN' do
+      # IF 1 ENDIF RETURN — balanced, then early return
+      expect(evaluate('OP_1', 'OP_1 OP_IF OP_RETURN OP_ENDIF')).to be true
+    end
   end
 
   describe 'OP_NOP' do

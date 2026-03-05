@@ -514,6 +514,99 @@ RSpec.describe BSV::Transaction::Transaction do
     end
   end
 
+  describe '#estimated_fee with multiple inputs and outputs' do
+    it 'estimates fee for a transaction with multiple inputs' do
+      tx = described_class.new
+      pubkey_hash = "\x00".b * 20
+
+      3.times do |i|
+        input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x00".b * 32,
+          prev_tx_out_index: i
+        )
+        input.source_satoshis = 50_000
+        tx.add_input(input)
+      end
+
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 140_000,
+                      locking_script: BSV::Script::Script.p2pkh_lock(pubkey_hash)
+                    ))
+
+      fee = tx.estimated_fee
+      # 3 unsigned inputs (~148 each) + 1 output (~34) + overhead (~10) ≈ 488 bytes * 0.5
+      expect(fee).to be > 200
+      expect(fee).to be < 500
+    end
+
+    it 'estimates fee for a transaction with an OP_RETURN output' do
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: "\x00".b * 32,
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = 100_000
+      tx.add_input(input)
+
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 0,
+                      locking_script: BSV::Script::Script.op_return('hello world')
+                    ))
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000,
+                      locking_script: BSV::Script::Script.p2pkh_lock("\x00".b * 20)
+                    ))
+
+      fee = tx.estimated_fee
+      expect(fee).to be > 0
+      expect(fee).to be < 300
+    end
+
+    it 'scales fee with satoshis_per_byte rate' do
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: "\x00".b * 32,
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = 100_000
+      tx.add_input(input)
+
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000,
+                      locking_script: BSV::Script::Script.p2pkh_lock("\x00".b * 20)
+                    ))
+
+      fee_half = tx.estimated_fee(satoshis_per_byte: 0.5)
+      fee_one = tx.estimated_fee(satoshis_per_byte: 1.0)
+      fee_two = tx.estimated_fee(satoshis_per_byte: 2.0)
+
+      expect(fee_one).to be >= fee_half * 2
+      expect(fee_two).to eq(fee_one * 2)
+    end
+
+    it 'produces an estimate within 5% of actual signed size' do
+      private_key = BSV::Primitives::PrivateKey.generate
+      pubkey_hash = private_key.public_key.hash160
+      locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
+
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: BSV::Primitives::Digest.sha256d('utxo'),
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = 100_000
+      input.source_locking_script = locking_script
+      tx.add_input(input)
+      tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 90_000, locking_script: locking_script))
+
+      estimated = tx.estimated_fee(satoshis_per_byte: 1.0)
+      tx.sign(0, private_key)
+      actual_size = tx.to_binary.bytesize
+
+      expect(estimated).to be_within(actual_size * 0.05).of(actual_size)
+    end
+  end
+
   describe '#total_input_satoshis / #total_output_satoshis' do
     it 'sums input and output values' do
       tx = described_class.new
@@ -533,6 +626,23 @@ RSpec.describe BSV::Transaction::Transaction do
 
       expect(tx.total_input_satoshis).to eq(100_000)
       expect(tx.total_output_satoshis).to eq(90_000)
+    end
+
+    it 'raises when any input has nil source_satoshis' do
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: "\x00".b * 32,
+        prev_tx_out_index: 0
+      )
+      # source_satoshis intentionally not set
+      tx.add_input(input)
+
+      expect { tx.total_input_satoshis }.to raise_error(ArgumentError, /input 0 has nil source_satoshis/)
+    end
+
+    it 'returns 0 for a transaction with no inputs' do
+      tx = described_class.new
+      expect(tx.total_input_satoshis).to eq(0)
     end
   end
 

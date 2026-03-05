@@ -25,6 +25,30 @@ RSpec.describe BSV::Script::Chunk do
       expected = "\x4c\x64".b + data # 0x4c, length=100, data
       expect(chunk.to_binary).to eq(expected)
     end
+
+    it 'preserves non-minimal OP_PUSHDATA1 for short data' do
+      # 3 bytes of data using OP_PUSHDATA1 instead of the minimal direct push
+      data = "\x01\x02\x03".b
+      chunk = described_class.new(opcode: BSV::Script::Opcodes::OP_PUSHDATA1, data: data)
+      expected = "\x4c\x03\x01\x02\x03".b
+      expect(chunk.to_binary).to eq(expected)
+    end
+
+    it 'preserves non-minimal OP_PUSHDATA2 for short data' do
+      data = "\xab".b
+      chunk = described_class.new(opcode: BSV::Script::Opcodes::OP_PUSHDATA2, data: data)
+      expected = "\x4d\x01\x00\xab".b
+      expect(chunk.to_binary).to eq(expected)
+    end
+  end
+
+  describe 'round-trip preservation' do
+    it 'preserves non-minimal push encoding through parse/serialise' do
+      # OP_PUSHDATA1 followed by length=1, data=0xff — non-minimal encoding
+      script_bin = "\x4c\x01\xff".b
+      script = BSV::Script::Script.new(script_bin)
+      expect(script.to_binary).to eq(script_bin)
+    end
   end
 
   describe '#to_asm' do

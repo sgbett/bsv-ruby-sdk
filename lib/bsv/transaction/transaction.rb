@@ -123,6 +123,8 @@ module BSV
       # @param data [String] raw binary transaction
       # @return [Transaction] the parsed transaction
       def self.from_binary(data)
+        raise ArgumentError, "truncated transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
+
         offset = 0
 
         version = data.byteslice(offset, 4).unpack1('V')
@@ -144,6 +146,11 @@ module BSV
           output, consumed = TransactionOutput.from_binary(data, offset)
           tx.add_output(output)
           offset += consumed
+        end
+
+        if data.bytesize < offset + 4
+          raise ArgumentError,
+                "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
@@ -164,6 +171,11 @@ module BSV
       # @return [Transaction] the parsed transaction with source data on inputs
       # @raise [ArgumentError] if the EF marker is invalid
       def self.from_ef(data)
+        if data.bytesize < 10
+          raise ArgumentError,
+                "truncated EF transaction: need at least 10 bytes, got #{data.bytesize}"
+        end
+
         offset = 0
 
         version = data.byteslice(offset, 4).unpack1('V')
@@ -183,6 +195,12 @@ module BSV
           tx.add_input(input)
           offset += consumed
 
+          if data.bytesize < offset + 8
+            remaining = data.bytesize - offset
+            raise ArgumentError,
+                  "truncated EF input: need 8 bytes for source_satoshis at offset #{offset}, got #{remaining}"
+          end
+
           input.source_satoshis = data.byteslice(offset, 8).unpack1('Q<')
           offset += 8
 
@@ -200,6 +218,12 @@ module BSV
           output, consumed = TransactionOutput.from_binary(data, offset)
           tx.add_output(output)
           offset += consumed
+        end
+
+        if data.bytesize < offset + 4
+          remaining = data.bytesize - offset
+          raise ArgumentError,
+                "truncated EF transaction: need 4 bytes for lock_time at offset #{offset}, got #{remaining}"
         end
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
@@ -221,6 +245,11 @@ module BSV
       # @param offset [Integer] byte offset to start reading from
       # @return [Array(Transaction, Integer)] the transaction and bytes consumed
       def self.from_binary_with_offset(data, offset = 0)
+        if data.bytesize < offset + 10
+          raise ArgumentError,
+                "truncated transaction: need at least 10 bytes at offset #{offset}, got #{data.bytesize - offset}"
+        end
+
         start = offset
 
         version = data.byteslice(offset, 4).unpack1('V')
@@ -242,6 +271,11 @@ module BSV
           output, consumed = TransactionOutput.from_binary(data, offset)
           tx.add_output(output)
           offset += consumed
+        end
+
+        if data.bytesize < offset + 4
+          raise ArgumentError,
+                "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
@@ -395,7 +429,13 @@ module BSV
       #
       # @return [Integer] total input value in satoshis
       def total_input_satoshis
-        @inputs.sum { |i| i.source_satoshis || 0 }
+        @inputs.each_with_index do |input, idx|
+          if input.source_satoshis.nil?
+            raise ArgumentError,
+                  "input #{idx} has nil source_satoshis — set it before computing totals"
+          end
+        end
+        @inputs.sum(&:source_satoshis)
       end
 
       # Sum of all output satoshi values.

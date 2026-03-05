@@ -101,6 +101,48 @@ RSpec.describe BSV::Primitives::Schnorr do
     end
   end
 
+  # Fixed-nonce vectors for cross-SDK interoperability. The challenge computation
+  # (SHA256 of compressed points) and verification equations match the Go SDK.
+  # These proofs were generated with known nonces so the output is deterministic.
+  describe 'cross-SDK interoperability vectors' do
+    it 'verifies a proof generated with known keys and nonce (vector 1)' do
+      pub_a = BSV::Primitives::PublicKey.from_bytes(['02bb50e2d89a4ed70663d080659fe0ad4b9bc3e06c17a227433966cb59ceee020d'].pack('H*'))
+      pub_b = BSV::Primitives::PublicKey.from_bytes(['0297855f402631f09e602e5ccadc219503f07cdd4c73b2215b5418f52a7fdbfcd9'].pack('H*'))
+      shared = BSV::Primitives::PublicKey.from_bytes(['032a15f55ab4d9474165e927d1b3c8e9dc0df2de76c09e4ef8072087c829af171d'].pack('H*'))
+      r = BSV::Primitives::PublicKey.from_bytes(['026a04ab98d9e4774ad806e302dddeb63bea16b5cb5f223ee77478e861bb583eb3'].pack('H*'))
+      s_prime = BSV::Primitives::PublicKey.from_bytes(['03b5eff34e21bd26e97aa1a7f18d65db160695d1820dfe023706051041137c30d7'].pack('H*'))
+      z = OpenSSL::BN.new('b5099ccc04e4e054b9dca7ff6373809bcd2e1b4b1d7c7da1cfccde988a18881a', 16)
+
+      proof = BSV::Primitives::Schnorr::Proof.new(r, s_prime, z)
+      expect(described_class.verify_proof(pub_a, pub_b, shared, proof)).to be true
+    end
+
+    it 'verifies a proof with minimal private keys (vector 2)' do
+      # key_c = 1, key_d = 2 (leading zero bytes)
+      pub_c = BSV::Primitives::PublicKey.from_bytes(['0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'].pack('H*'))
+      pub_d = BSV::Primitives::PublicKey.from_bytes(['02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5'].pack('H*'))
+      shared = BSV::Primitives::PublicKey.from_bytes(['02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5'].pack('H*'))
+      r = BSV::Primitives::PublicKey.from_bytes(['0268680737c76dabb801cb2204f57dbe4e4579e4f710cd67dc1b4227592c81e9b5'].pack('H*'))
+      s_prime = BSV::Primitives::PublicKey.from_bytes(['02d6db78f56b8e36a5e1ae8aeddd657e5fc1e04b625876f76fb82a19495dfe5fde'].pack('H*'))
+      z = OpenSSL::BN.new('5880696de16902557ba5824cef3f058afe704c1f8dc01e5be7bad452f837e96a', 16)
+
+      proof = BSV::Primitives::Schnorr::Proof.new(r, s_prime, z)
+      expect(described_class.verify_proof(pub_c, pub_d, shared, proof)).to be true
+    end
+
+    it 'rejects a cross-SDK vector with tampered z' do
+      pub_a = BSV::Primitives::PublicKey.from_bytes(['02bb50e2d89a4ed70663d080659fe0ad4b9bc3e06c17a227433966cb59ceee020d'].pack('H*'))
+      pub_b = BSV::Primitives::PublicKey.from_bytes(['0297855f402631f09e602e5ccadc219503f07cdd4c73b2215b5418f52a7fdbfcd9'].pack('H*'))
+      shared = BSV::Primitives::PublicKey.from_bytes(['032a15f55ab4d9474165e927d1b3c8e9dc0df2de76c09e4ef8072087c829af171d'].pack('H*'))
+      r = BSV::Primitives::PublicKey.from_bytes(['026a04ab98d9e4774ad806e302dddeb63bea16b5cb5f223ee77478e861bb583eb3'].pack('H*'))
+      s_prime = BSV::Primitives::PublicKey.from_bytes(['03b5eff34e21bd26e97aa1a7f18d65db160695d1820dfe023706051041137c30d7'].pack('H*'))
+      z = OpenSSL::BN.new('b5099ccc04e4e054b9dca7ff6373809bcd2e1b4b1d7c7da1cfccde988a18881b', 16) # +1
+
+      proof = BSV::Primitives::Schnorr::Proof.new(r, s_prime, z)
+      expect(described_class.verify_proof(pub_a, pub_b, shared, proof)).to be false
+    end
+  end
+
   describe 'edge cases' do
     it 'fails verification when proof is generated with wrong private key' do
       wrong_key = BSV::Primitives::PrivateKey.generate

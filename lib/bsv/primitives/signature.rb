@@ -50,7 +50,7 @@ module BSV
 
         r_bytes = bytes[4, r_len]
         raise ArgumentError, 'R has negative flag' if r_bytes[0] & 0x80 != 0
-        raise ArgumentError, 'R has excessive padding' if r_len > 1 && r_bytes[0].zero? && r_bytes[1].nobits?(0x80)
+        raise ArgumentError, 'R has excessive padding' if r_len > 1 && r_bytes[0].zero? && (r_bytes[1] & 0x80).zero? # rubocop:disable Style/BitwisePredicate
 
         # Parse S
         s_offset = 4 + r_len
@@ -62,7 +62,7 @@ module BSV
 
         s_bytes = bytes[s_offset + 2, s_len]
         raise ArgumentError, 'S has negative flag' if s_bytes[0] & 0x80 != 0
-        raise ArgumentError, 'S has excessive padding' if s_len > 1 && s_bytes[0].zero? && s_bytes[1].nobits?(0x80)
+        raise ArgumentError, 'S has excessive padding' if s_len > 1 && s_bytes[0].zero? && (s_bytes[1] & 0x80).zero? # rubocop:disable Style/BitwisePredicate
 
         raise ArgumentError, 'trailing bytes' unless s_offset + 2 + s_len == bytes.length
 

@@ -166,22 +166,24 @@ RSpec.describe 'Bitcoin Core script vectors' do
     end
   end
 
+  let(:known_failures) do
+    JSON.parse(
+      File.read(File.expand_path('../../../fixtures/script_vectors_known_failures.json', __dir__))
+    )
+  end
+
   it 'loads the fixture file with test vectors' do
     expect(all_vectors).to be_an(Array)
     expect(test_vectors.length).to be > 100
   end
 
-  describe 'script evaluation' do
-    # We define examples dynamically below
-  end
-
   it 'evaluates Bitcoin Core script vectors' do
     pass_count = 0
     expected_fail_pass = 0
-    mismatch_count = 0
+    known_fail_count = 0
+    unexpected_mismatches = []
     parse_error_count = 0
     skipped_count = 0
-    mismatches = []
 
     test_vectors.each_with_index do |vec, idx|
       sig_asm = vec[0]
@@ -191,13 +193,11 @@ RSpec.describe 'Bitcoin Core script vectors' do
       comment = vec[4] || ''
       flags = flags_str.split(',')
 
-      # Skip vectors with unsupported flags
       if flags.any? { |f| UNSUPPORTED_FLAGS.include?(f) }
         skipped_count += 1
         next
       end
 
-      # Parse scripts
       sig_bin, sig_ok = self.class.parse_bitcoin_asm(sig_asm)
       pub_bin, pub_ok = self.class.parse_bitcoin_asm(pubkey_asm)
 
@@ -209,7 +209,6 @@ RSpec.describe 'Bitcoin Core script vectors' do
       unlock = BSV::Script::Script.new(sig_bin)
       lock = BSV::Script::Script.new(pub_bin)
 
-      # Run interpreter
       begin
         result = BSV::Script::Interpreter.evaluate(unlock, lock)
         actual_ok = result ? true : false
@@ -220,31 +219,26 @@ RSpec.describe 'Bitcoin Core script vectors' do
       expected_ok = (expected == 'OK')
 
       if actual_ok == expected_ok
-        if expected_ok
-          pass_count += 1
-        else
-          expected_fail_pass += 1
-        end
+        expected_ok ? pass_count += 1 : expected_fail_pass += 1
+      elsif known_failures.key?(idx.to_s)
+        known_fail_count += 1
       else
-        mismatch_count += 1
-        if mismatches.length < 20
-          direction = expected_ok ? 'should pass but failed' : 'should fail but passed'
-          mismatches << "[#{idx}] #{direction}: sig=#{sig_asm.inspect[0, 40]} pub=#{pubkey_asm.inspect[0, 40]} " \
-                        "flags=#{flags_str} #{comment}"
-        end
+        direction = expected_ok ? 'should pass but failed' : 'should fail but passed'
+        unexpected_mismatches << "[#{idx}] #{direction}: sig=#{sig_asm.inspect[0, 40]} " \
+                                 "pub=#{pubkey_asm.inspect[0, 40]} flags=#{flags_str} #{comment}"
       end
     end
 
-    total = pass_count + expected_fail_pass + mismatch_count
-    total > 0 ? ((pass_count + expected_fail_pass) * 100.0 / total).round(1) : 0
+    total = pass_count + expected_fail_pass + known_fail_count + unexpected_mismatches.length
 
-    # Report results — mismatches are pending interpreter gaps, not hard failures
-    if mismatch_count > 0
-      pending "#{mismatch_count} of #{total} vectors have mismatches " \
-              "(#{pass_count} pass-pass, #{expected_fail_pass} fail-fail, " \
-              "#{parse_error_count} parse errors, #{skipped_count} skipped):\n" \
-              "#{mismatches.join("\n")}"
-      raise "#{mismatch_count} mismatches" # ensures pending status
-    end
+    # Report known failures count for visibility
+    warn "Script vectors: #{pass_count + expected_fail_pass} pass, " \
+         "#{known_fail_count} known failures, " \
+         "#{parse_error_count} parse errors, #{skipped_count} skipped"
+
+    # Any vector NOT in the known-failures list is a hard failure
+    expect(unexpected_mismatches).to eq([]),
+                                     "#{unexpected_mismatches.length} unexpected mismatches out of #{total} vectors:\n" \
+                                     "#{unexpected_mismatches.join("\n")}"
   end
 end

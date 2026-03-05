@@ -106,6 +106,7 @@ module BSV
           # Reset state for next script
           @last_code_sep = 0
           @early_return = false
+          @after_op_return = false
         end
 
         check_final_stack
@@ -127,12 +128,21 @@ module BSV
         @else_stack = []
         @last_code_sep = 0
         @early_return = false
+        @after_op_return = false
         @current_script = nil
         @current_chunk_idx = 0
       end
 
       def execute_opcode(chunk)
         opcode = chunk.opcode
+
+        # After OP_RETURN inside a conditional: only process flow control opcodes
+        # and OP_RETURN itself (which may terminate at top level once conditionals
+        # are balanced), matching Go SDK's branchExecuting semantics.
+        if @after_op_return
+          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode) || opcode == Opcodes::OP_RETURN
+          return
+        end
 
         # In non-executing branch: only dispatch conditional opcodes (for nesting tracking).
         # All other opcodes are skipped.
