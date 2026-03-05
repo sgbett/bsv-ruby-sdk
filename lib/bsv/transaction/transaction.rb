@@ -409,7 +409,10 @@ module BSV
       #
       # @return [Integer] total input value in satoshis
       def total_input_satoshis
-        @inputs.sum { |i| i.source_satoshis || 0 }
+        @inputs.each_with_index do |input, idx|
+          raise ArgumentError, "input #{idx} has nil source_satoshis — set it before computing totals" if input.source_satoshis.nil?
+        end
+        @inputs.sum(&:source_satoshis)
       end
 
       # Sum of all output satoshi values.
