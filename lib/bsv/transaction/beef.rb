@@ -219,6 +219,50 @@ module BSV
         nil
       end
 
+      # Find the merkle path (BUMP) for a transaction by its txid.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [MerklePath, nil] the merkle path, or nil if not found
+      def find_bump(txid)
+        bt = @transactions.find { |entry| entry.txid == txid && entry.format == FORMAT_RAW_TX_AND_BUMP }
+        return unless bt
+
+        bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index])
+      end
+
+      # Find a transaction with all source_transactions wired for signing.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [Transaction, nil] the transaction with wired inputs, or nil
+      def find_transaction_for_signing(txid)
+        tx = find_transaction(txid)
+        return unless tx
+
+        wire_inputs(tx)
+        tx
+      end
+
+      # Find a transaction and recursively wire its ancestry (source transactions
+      # and merkle paths) for atomic proof validation.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [Transaction, nil] the transaction with full proof tree, or nil
+      def find_atomic_transaction(txid)
+        tx = find_transaction(txid)
+        return unless tx
+
+        wire_ancestry(tx)
+        tx
+      end
+
+      # Serialise as Atomic BEEF (BRC-95) hex string.
+      #
+      # @param subject_txid [String] 32-byte subject transaction ID
+      # @return [String] hex-encoded Atomic BEEF
+      def to_atomic_hex(subject_txid)
+        to_atomic_binary(subject_txid).unpack1('H*')
+      end
+
       # --- Merge operations ---
 
       # Add or deduplicate a merkle path (BUMP) in this BEEF bundle.
@@ -537,6 +581,28 @@ module BSV
           end
         end
         known
+      end
+
+      # Wire source_transaction references on a transaction's inputs.
+      def wire_inputs(tx)
+        tx.inputs.each do |input|
+          next if input.source_transaction
+
+          source = find_transaction(input.prev_tx_id.reverse)
+          input.source_transaction = source if source
+        end
+      end
+
+      # Recursively wire source_transactions and merkle_paths.
+      def wire_ancestry(tx)
+        wire_inputs(tx)
+        tx.inputs.each do |input|
+          next unless input.source_transaction
+
+          source = input.source_transaction
+          source.merkle_path ||= find_bump(source.txid)
+          wire_ancestry(source)
+        end
       end
 
       def build_bump_map

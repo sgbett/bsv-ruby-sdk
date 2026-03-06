@@ -271,6 +271,67 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  describe '#find_bump' do
+    it 'returns the merkle path for a mined transaction' do
+      beef = described_class.from_hex(beef_set_hex)
+      mined = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      mp = beef.find_bump(mined.txid)
+      expect(mp).to be_a(BSV::Transaction::MerklePath)
+    end
+
+    it 'returns nil for unknown txid' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.find_bump("\x00".b * 32)).to be_nil
+    end
+
+    it 'returns nil for unproven transaction' do
+      beef = described_class.from_hex(beef_set_hex)
+      raw_only = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX }
+      if raw_only
+        expect(beef.find_bump(raw_only.txid)).to be_nil
+      else
+        # All txs in this vector have BUMPs - skip
+        skip 'no unproven transactions in this vector'
+      end
+    end
+  end
+
+  describe '#find_transaction_for_signing' do
+    it 'returns a transaction with wired inputs' do
+      beef = described_class.from_hex(beef_set_hex)
+      last_tx = beef.transactions.last.transaction
+      found = beef.find_transaction_for_signing(last_tx.txid)
+      expect(found).to be_a(BSV::Transaction::Transaction)
+      expect(found.txid).to eq(last_tx.txid)
+    end
+
+    it 'returns nil for unknown txid' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.find_transaction_for_signing("\x00".b * 32)).to be_nil
+    end
+  end
+
+  describe '#find_atomic_transaction' do
+    it 'returns a transaction with recursive proof tree' do
+      beef = described_class.from_hex(beef_set_hex)
+      last_tx = beef.transactions.last.transaction
+      found = beef.find_atomic_transaction(last_tx.txid)
+      expect(found).to be_a(BSV::Transaction::Transaction)
+      expect(found.txid).to eq(last_tx.txid)
+    end
+  end
+
+  describe '#to_atomic_hex' do
+    it 'returns a hex-encoded Atomic BEEF' do
+      beef = described_class.from_hex(beef_set_hex)
+      txid = beef.transactions.last.txid
+      hex = beef.to_atomic_hex(txid)
+      expect(hex).to match(/\A[0-9a-f]+\z/)
+      parsed = described_class.from_binary([hex].pack('H*'))
+      expect(parsed.subject_txid).to eq(txid)
+    end
+  end
+
   describe '#merge_bump' do
     it 'appends a new BUMP' do
       beef = described_class.new
