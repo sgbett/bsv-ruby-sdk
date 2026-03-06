@@ -284,6 +284,76 @@ module BSV
         [tx, offset - start]
       end
 
+      # --- BEEF convenience methods ---
+
+      # Serialise this transaction (with its ancestry chain and merkle proofs)
+      # into a BEEF V2 binary bundle.
+      #
+      # Walks the `source_transaction` references on inputs to collect ancestors.
+      # Transactions with a `merkle_path` are treated as proven leaves — their
+      # ancestors are not traversed further.
+      #
+      # @return [String] raw BEEF V2 binary
+      def to_beef
+        beef = Beef.new
+        bump_map = {}
+        ancestors = collect_ancestors
+
+        ancestors.each do |tx|
+          # Collect BUMPs
+          if tx.merkle_path
+            height = tx.merkle_path.block_height
+            unless bump_map.key?(height)
+              bump_map[height] = beef.bumps.length
+              beef.bumps << tx.merkle_path
+            end
+          end
+
+          # Add transaction in dependency order
+          entry = if tx.merkle_path
+                    Beef::BeefTx.new(
+                      format: Beef::FORMAT_RAW_TX_AND_BUMP,
+                      transaction: tx,
+                      bump_index: bump_map[tx.merkle_path.block_height]
+                    )
+                  else
+                    Beef::BeefTx.new(
+                      format: Beef::FORMAT_RAW_TX,
+                      transaction: tx
+                    )
+                  end
+          beef.transactions << entry
+        end
+
+        beef.to_binary
+      end
+
+      # Serialise this transaction to a BEEF V2 hex string.
+      #
+      # @return [String] hex-encoded BEEF
+      def to_beef_hex
+        to_beef.unpack1('H*')
+      end
+
+      # Parse a BEEF binary bundle and return the subject transaction
+      # (the last transaction in the bundle).
+      #
+      # @param data [String] raw BEEF binary
+      # @return [Transaction] the subject transaction with ancestry wired
+      def self.from_beef(data)
+        beef = Beef.from_binary(data)
+        last_tx_entry = beef.transactions.reverse.find(&:transaction)
+        last_tx_entry&.transaction
+      end
+
+      # Parse a BEEF hex string and return the subject transaction.
+      #
+      # @param hex [String] hex-encoded BEEF
+      # @return [Transaction] the subject transaction with ancestry wired
+      def self.from_beef_hex(hex)
+        from_beef([hex].pack('H*'))
+      end
+
       # --- Transaction ID ---
 
       # Compute the transaction ID (double-SHA-256 of the serialised tx, reversed).
@@ -485,6 +555,32 @@ module BSV
           buf = @outputs.map(&:to_binary).join
           BSV::Primitives::Digest.sha256d(buf)
         end
+      end
+
+      # Collect this transaction and all its ancestors in dependency order
+      # (ancestors first, self last). Stops recursion at transactions with
+      # a merkle_path (proven leaves). Deduplicates by txid.
+      def collect_ancestors
+        seen = {}
+        result = []
+        collect_ancestors_recursive(self, seen, result)
+        result
+      end
+
+      def collect_ancestors_recursive(tx, seen, result)
+        txid = tx.txid
+        return if seen.key?(txid)
+
+        unless tx.merkle_path
+          tx.inputs.each do |input|
+            next unless input.source_transaction
+
+            collect_ancestors_recursive(input.source_transaction, seen, result)
+          end
+        end
+
+        seen[txid] = true
+        result << tx
       end
 
       def estimated_size

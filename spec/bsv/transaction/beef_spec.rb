@@ -222,6 +222,301 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  describe 'Transaction.from_beef / Transaction#to_beef' do
+    it 'round-trips Transaction.from_beef through the V2 vector' do
+      beef_data = [beef_set_hex].pack('H*')
+      tx = BSV::Transaction::Transaction.from_beef(beef_data)
+
+      expect(tx).to be_a(BSV::Transaction::Transaction)
+      # Subject tx is the last one in the bundle
+      beef = described_class.from_hex(beef_set_hex)
+      expected_txid = beef.transactions.last.transaction.txid
+      expect(tx.txid).to eq(expected_txid)
+    end
+
+    it 'round-trips via from_beef_hex' do
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      expect(tx).to be_a(BSV::Transaction::Transaction)
+    end
+
+    it 'wires source transactions on the returned transaction' do
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      wired = tx.inputs.select(&:source_transaction)
+      expect(wired).not_to be_empty
+    end
+
+    it 'builds a BEEF from a transaction with ancestry' do
+      # Parse the BEEF to get a transaction with wired sources
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+
+      # Rebuild BEEF from that transaction
+      beef_binary = tx.to_beef
+      expect(beef_binary.byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
+
+      # Parse the rebuilt BEEF
+      rebuilt = described_class.from_binary(beef_binary)
+      expect(rebuilt.transactions).not_to be_empty
+
+      # The subject tx should be present
+      found = rebuilt.find_transaction(tx.txid)
+      expect(found).not_to be_nil
+      expect(found.txid).to eq(tx.txid)
+    end
+
+    it 'to_beef_hex returns a hex string' do
+      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      hex = tx.to_beef_hex
+      expect(hex).to match(/\A[0-9a-f]+\z/)
+      expect([hex].pack('H*').byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
+    end
+  end
+
+  describe '#find_bump' do
+    it 'returns the merkle path for a mined transaction' do
+      beef = described_class.from_hex(beef_set_hex)
+      mined = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      mp = beef.find_bump(mined.txid)
+      expect(mp).to be_a(BSV::Transaction::MerklePath)
+    end
+
+    it 'returns nil for unknown txid' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.find_bump("\x00".b * 32)).to be_nil
+    end
+
+    it 'returns nil for unproven transaction' do
+      beef = described_class.from_hex(beef_set_hex)
+      raw_only = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX }
+      if raw_only
+        expect(beef.find_bump(raw_only.txid)).to be_nil
+      else
+        # All txs in this vector have BUMPs - skip
+        skip 'no unproven transactions in this vector'
+      end
+    end
+  end
+
+  describe '#find_transaction_for_signing' do
+    it 'returns a transaction with wired inputs' do
+      beef = described_class.from_hex(beef_set_hex)
+      last_tx = beef.transactions.last.transaction
+      found = beef.find_transaction_for_signing(last_tx.txid)
+      expect(found).to be_a(BSV::Transaction::Transaction)
+      expect(found.txid).to eq(last_tx.txid)
+    end
+
+    it 'returns nil for unknown txid' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.find_transaction_for_signing("\x00".b * 32)).to be_nil
+    end
+  end
+
+  describe '#find_atomic_transaction' do
+    it 'returns a transaction with recursive proof tree' do
+      beef = described_class.from_hex(beef_set_hex)
+      last_tx = beef.transactions.last.transaction
+      found = beef.find_atomic_transaction(last_tx.txid)
+      expect(found).to be_a(BSV::Transaction::Transaction)
+      expect(found.txid).to eq(last_tx.txid)
+    end
+  end
+
+  describe '#to_atomic_hex' do
+    it 'returns a hex-encoded Atomic BEEF' do
+      beef = described_class.from_hex(beef_set_hex)
+      txid = beef.transactions.last.txid
+      hex = beef.to_atomic_hex(txid)
+      expect(hex).to match(/\A[0-9a-f]+\z/)
+      parsed = described_class.from_binary([hex].pack('H*'))
+      expect(parsed.subject_txid).to eq(txid)
+    end
+  end
+
+  describe '#merge_bump' do
+    it 'appends a new BUMP' do
+      beef = described_class.new
+      mp = described_class.from_hex(brc62_hex).bumps.first
+      idx = beef.merge_bump(mp)
+      expect(idx).to eq(0)
+      expect(beef.bumps.length).to eq(1)
+    end
+
+    it 'deduplicates BUMPs with same block height and root' do
+      source = described_class.from_hex(brc62_hex)
+      mp = source.bumps.first
+
+      beef = described_class.new
+      idx1 = beef.merge_bump(mp)
+      idx2 = beef.merge_bump(mp)
+      expect(idx1).to eq(idx2)
+      expect(beef.bumps.length).to eq(1)
+    end
+  end
+
+  describe '#merge_transaction' do
+    it 'adds a transaction and its ancestors' do
+      source = described_class.from_hex(beef_set_hex)
+      subject_tx = source.transactions.last.transaction
+
+      beef = described_class.new
+      beef.merge_transaction(subject_tx)
+
+      expect(beef.transactions).not_to be_empty
+      txids = beef.transactions.map(&:txid)
+      expect(txids).to include(subject_tx.txid)
+    end
+
+    it 'does not duplicate transactions' do
+      source = described_class.from_hex(beef_set_hex)
+      subject_tx = source.transactions.last.transaction
+
+      beef = described_class.new
+      beef.merge_transaction(subject_tx)
+      count_before = beef.transactions.length
+      beef.merge_transaction(subject_tx)
+      expect(beef.transactions.length).to eq(count_before)
+    end
+
+    it 'merges merkle paths for mined ancestors' do
+      source = described_class.from_hex(beef_set_hex)
+      subject_tx = source.transactions.last.transaction
+
+      beef = described_class.new
+      beef.merge_transaction(subject_tx)
+      expect(beef.bumps).not_to be_empty
+    end
+  end
+
+  describe '#merge' do
+    it 'merges two BEEF bundles' do
+      beef1 = described_class.from_hex(brc62_hex)
+      beef2 = described_class.from_hex(beef_set_hex)
+
+      count1 = beef1.transactions.length
+      count2 = beef2.transactions.length
+
+      beef1.merge(beef2)
+      expect(beef1.transactions.length).to eq(count1 + count2)
+    end
+
+    it 'deduplicates when merging identical bundles' do
+      beef1 = described_class.from_hex(beef_set_hex)
+      beef2 = described_class.from_hex(beef_set_hex)
+
+      beef1.merge(beef2)
+      # Should still have the same number of transactions
+      expect(beef1.transactions.length).to eq(3)
+    end
+
+    it 'produces valid serialisation after merge' do
+      beef1 = described_class.from_hex(brc62_hex)
+      beef2 = described_class.from_hex(beef_set_hex)
+      beef1.merge(beef2)
+
+      # Should serialise without error
+      hex = beef1.to_hex
+      expect(hex).to match(/\A[0-9a-f]+\z/)
+
+      # Should parse back
+      parsed = described_class.from_hex(hex)
+      expect(parsed.transactions.length).to eq(beef1.transactions.length)
+    end
+  end
+
+  describe '#make_txid_only' do
+    it 'converts a transaction to TXID-only format' do
+      beef = described_class.from_hex(beef_set_hex)
+      tx = beef.transactions.first.transaction
+      txid = tx.txid
+
+      beef.make_txid_only(txid)
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_TXID_ONLY)
+      expect(entry.known_txid).to eq(txid)
+    end
+
+    it 'returns nil for unknown txid' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.make_txid_only("\x00".b * 32)).to be_nil
+    end
+  end
+
+  describe '#valid?' do
+    it 'returns true for a valid BEEF with complete ancestry' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.valid?).to be true
+    end
+
+    it 'returns true for V1 BEEF vector' do
+      beef = described_class.from_hex(brc62_hex)
+      expect(beef.valid?).to be true
+    end
+
+    it 'returns true for empty BEEF' do
+      beef = described_class.new
+      expect(beef.valid?).to be true
+    end
+
+    it 'returns false when an unproven transaction has missing ancestors' do
+      # Create a BEEF with a raw tx (no BUMP) whose input references a txid not in the bundle
+      beef = described_class.new
+      tx = BSV::Transaction::Transaction.from_hex(
+        '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
+        '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
+        '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
+      )
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      expect(beef.valid?).to be false
+    end
+
+    it 'returns false for TXID-only entries by default' do
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_txid: "\x01".b * 32
+      )
+      expect(beef.valid?).to be false
+    end
+
+    it 'returns true for TXID-only when allow_txid_only is true' do
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_txid: "\x01".b * 32
+      )
+      expect(beef.valid?(allow_txid_only: true)).to be true
+    end
+  end
+
+  describe '#sort_transactions!' do
+    it 'preserves dependency order for already-sorted BEEF' do
+      beef = described_class.from_hex(beef_set_hex)
+      original_txids = beef.transactions.map(&:txid)
+      beef.sort_transactions!
+      expect(beef.transactions.map(&:txid)).to eq(original_txids)
+    end
+
+    it 'sorts reversed transactions into correct order' do
+      beef = described_class.from_hex(beef_set_hex)
+      beef.transactions.reverse!
+      beef.sort_transactions!
+
+      # After sorting, the BEEF should still be valid
+      expect(beef.valid?).to be true
+
+      # And should serialise correctly
+      hex = beef.to_hex
+      parsed = described_class.from_hex(hex)
+      expect(parsed.transactions.length).to eq(beef.transactions.length)
+    end
+
+    it 'handles single transaction' do
+      beef = described_class.from_hex(brc62_hex)
+      beef.transactions.pop # keep only first tx
+      expect { beef.sort_transactions! }.not_to raise_error
+    end
+  end
+
   describe 'Transaction.from_binary_with_offset' do
     it 'returns correct bytes consumed' do
       hex = '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \

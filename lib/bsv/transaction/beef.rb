@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'set'
+
 module BSV
   module Transaction
     # Background Evaluation Extended Format (BEEF) for SPV-ready transaction
@@ -217,6 +219,261 @@ module BSV
         nil
       end
 
+      # Find the merkle path (BUMP) for a transaction by its txid.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [MerklePath, nil] the merkle path, or nil if not found
+      def find_bump(txid)
+        bt = @transactions.find { |entry| entry.txid == txid && entry.format == FORMAT_RAW_TX_AND_BUMP }
+        return unless bt
+
+        bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index])
+      end
+
+      # Find a transaction with all source_transactions wired for signing.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [Transaction, nil] the transaction with wired inputs, or nil
+      def find_transaction_for_signing(txid)
+        tx = find_transaction(txid)
+        return unless tx
+
+        wire_inputs(tx)
+        tx
+      end
+
+      # Find a transaction and recursively wire its ancestry (source transactions
+      # and merkle paths) for atomic proof validation.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [Transaction, nil] the transaction with full proof tree, or nil
+      def find_atomic_transaction(txid)
+        tx = find_transaction(txid)
+        return unless tx
+
+        wire_ancestry(tx)
+        tx
+      end
+
+      # Serialise as Atomic BEEF (BRC-95) hex string.
+      #
+      # @param subject_txid [String] 32-byte subject transaction ID
+      # @return [String] hex-encoded Atomic BEEF
+      def to_atomic_hex(subject_txid)
+        to_atomic_binary(subject_txid).unpack1('H*')
+      end
+
+      # --- Merge operations ---
+
+      # Add or deduplicate a merkle path (BUMP) in this BEEF bundle.
+      #
+      # If an existing BUMP shares the same block_height and merkle root,
+      # it is combined (via MerklePath#combine) and the existing index is
+      # returned. Otherwise the BUMP is appended.
+      #
+      # @param merkle_path [MerklePath] the BUMP to merge
+      # @return [Integer] the index of the (possibly merged) BUMP
+      def merge_bump(merkle_path)
+        root = merkle_path.compute_root
+        @bumps.each_with_index do |existing, idx|
+          next unless existing.block_height == merkle_path.block_height
+
+          if existing.compute_root == root
+            existing.combine(merkle_path)
+            return idx
+          end
+        end
+
+        @bumps << merkle_path
+        @bumps.length - 1
+      end
+
+      # Add a transaction to this BEEF bundle.
+      #
+      # Recursively merges the transaction's ancestors (via source_transaction
+      # references on inputs) and their merkle paths. Duplicate transactions
+      # (same txid) are not re-added.
+      #
+      # @param tx [Transaction] the transaction to merge
+      # @return [BeefTx] the (possibly existing) BeefTx entry
+      def merge_transaction(tx)
+        txid = tx.txid
+
+        # Check for existing entry
+        existing = @transactions.find { |bt| bt.txid == txid }
+        return existing if existing
+
+        # Recursively merge ancestors first (dependency order)
+        tx.inputs.each do |input|
+          merge_transaction(input.source_transaction) if input.source_transaction
+        end
+
+        # Merge this transaction's BUMP if it has one
+        entry = if tx.merkle_path
+                  bump_idx = merge_bump(tx.merkle_path)
+                  BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_idx)
+                else
+                  BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+                end
+        @transactions << entry
+        entry
+      end
+
+      # Add a transaction from raw binary data.
+      #
+      # @param raw_bytes [String] raw transaction binary
+      # @param bump_index [Integer, nil] optional BUMP index
+      # @return [BeefTx] the new BeefTx entry
+      def merge_raw_tx(raw_bytes, bump_index: nil)
+        tx = Transaction.from_binary(raw_bytes)
+        existing = @transactions.find { |bt| bt.txid == tx.txid }
+        return existing if existing
+
+        entry = if bump_index
+                  tx.merkle_path = @bumps[bump_index] if bump_index < @bumps.length
+                  BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index)
+                else
+                  BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+                end
+        @transactions << entry
+        entry
+      end
+
+      # Merge all BUMPs and transactions from another BEEF bundle.
+      #
+      # BUMP indices are remapped during merge.
+      #
+      # @param other [Beef] the BEEF bundle to merge from
+      # @return [self]
+      def merge(other)
+        # Build index remap for BUMPs
+        bump_remap = {}
+        other.bumps.each_with_index do |bump, old_idx|
+          bump_remap[old_idx] = merge_bump(bump)
+        end
+
+        # Merge transactions with remapped BUMP indices
+        other.transactions.each do |beef_tx|
+          case beef_tx.format
+          when FORMAT_TXID_ONLY
+            next if @transactions.any? { |bt| bt.txid == beef_tx.known_txid }
+
+            @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: beef_tx.known_txid)
+          else
+            next if @transactions.any? { |bt| bt.txid == beef_tx.txid }
+
+            if beef_tx.format == FORMAT_RAW_TX_AND_BUMP && beef_tx.bump_index
+              new_idx = bump_remap[beef_tx.bump_index] || beef_tx.bump_index
+              beef_tx.transaction.merkle_path = @bumps[new_idx]
+              @transactions << BeefTx.new(
+                format: FORMAT_RAW_TX_AND_BUMP,
+                transaction: beef_tx.transaction,
+                bump_index: new_idx
+              )
+            else
+              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction)
+            end
+          end
+        end
+
+        self
+      end
+
+      # Convert a transaction entry to TXID-only format.
+      #
+      # @param txid [String] 32-byte txid in internal byte order
+      # @return [BeefTx, nil] the converted entry, or nil if not found
+      def make_txid_only(txid)
+        idx = @transactions.index { |bt| bt.txid == txid }
+        return unless idx
+
+        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: txid)
+      end
+
+      # --- Validation ---
+
+      # Check structural validity of the BEEF bundle.
+      #
+      # A valid BEEF has every transaction either:
+      # - proven (has a BUMP / merkle_path), or
+      # - all its inputs reference transactions that are themselves valid
+      #   within this bundle.
+      #
+      # @param allow_txid_only [Boolean] whether TXID-only entries count as valid (default: false)
+      # @return [Boolean] true if structurally valid
+      def valid?(allow_txid_only: false)
+        known_txids = build_known_txids(allow_txid_only)
+
+        # TXID-only entries are invalid unless explicitly allowed
+        has_txid_only = @transactions.any? { |bt| bt.format == FORMAT_TXID_ONLY }
+        return false if has_txid_only && !allow_txid_only
+
+        pending = @transactions.select { |bt| bt.transaction && !known_txids.include?(bt.txid) }
+
+        # Iteratively resolve: if all inputs of a tx are known, it becomes known
+        changed = true
+        while changed
+          changed = false
+          pending.reject! do |bt|
+            all_inputs_known = bt.transaction.inputs.all? do |input|
+              known_txids.include?(input.prev_tx_id.reverse)
+            end
+            if all_inputs_known
+              known_txids.add(bt.txid)
+              changed = true
+            end
+            all_inputs_known
+          end
+        end
+
+        pending.empty?
+      end
+
+      # Sort transactions in topological (dependency) order in place.
+      #
+      # After sorting, every transaction's input ancestors appear before it
+      # in the array. This is required for correct BEEF serialisation.
+      #
+      # @return [self]
+      def sort_transactions!
+        return self if @transactions.length <= 1
+
+        txid_index = {}
+        @transactions.each_with_index { |bt, i| txid_index[bt.txid] = i }
+
+        # Build adjacency: for each tx, which other txs must come before it?
+        in_degree = Array.new(@transactions.length, 0)
+        dependents = Array.new(@transactions.length) { [] }
+
+        @transactions.each_with_index do |bt, i|
+          next unless bt.transaction
+
+          bt.transaction.inputs.each do |input|
+            dep_idx = txid_index[input.prev_tx_id.reverse]
+            next unless dep_idx
+
+            dependents[dep_idx] << i
+            in_degree[i] += 1
+          end
+        end
+
+        # Kahn's algorithm
+        queue = (0...@transactions.length).select { |i| in_degree[i].zero? }
+        sorted = []
+
+        until queue.empty?
+          idx = queue.shift
+          sorted << @transactions[idx]
+          dependents[idx].each do |dep|
+            in_degree[dep] -= 1
+            queue << dep if in_degree[dep].zero?
+          end
+        end
+
+        @transactions = sorted
+        self
+      end
+
       # --- Private class methods for deserialisation ---
 
       class << self
@@ -311,6 +568,42 @@ module BSV
       end
 
       private
+
+      # Build a set of txids that are "known" (proven or txid-only).
+      def build_known_txids(allow_txid_only)
+        known = Set.new
+        @transactions.each do |bt|
+          case bt.format
+          when FORMAT_RAW_TX_AND_BUMP
+            known.add(bt.txid)
+          when FORMAT_TXID_ONLY
+            known.add(bt.txid) if allow_txid_only
+          end
+        end
+        known
+      end
+
+      # Wire source_transaction references on a transaction's inputs.
+      def wire_inputs(tx)
+        tx.inputs.each do |input|
+          next if input.source_transaction
+
+          source = find_transaction(input.prev_tx_id.reverse)
+          input.source_transaction = source if source
+        end
+      end
+
+      # Recursively wire source_transactions and merkle_paths.
+      def wire_ancestry(tx)
+        wire_inputs(tx)
+        tx.inputs.each do |input|
+          next unless input.source_transaction
+
+          source = input.source_transaction
+          source.merkle_path ||= find_bump(source.txid)
+          wire_ancestry(source)
+        end
+      end
 
       def build_bump_map
         map = {}.compare_by_identity
