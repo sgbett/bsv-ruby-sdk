@@ -13,6 +13,7 @@ module BSV
     autoload :TransactionInput,  'bsv/transaction/transaction_input'
     autoload :Sighash,           'bsv/transaction/sighash'
     autoload :MerklePath,        'bsv/transaction/merkle_path'
+    autoload :ChainTracker,              'bsv/transaction/chain_tracker'
     autoload :Beef,                      'bsv/transaction/beef'
     autoload :UnlockingScriptTemplate,   'bsv/transaction/unlocking_script_template'
     autoload :P2PKH,                     'bsv/transaction/p2pkh'
