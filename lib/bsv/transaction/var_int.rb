@@ -32,10 +32,7 @@ module BSV
       # @param offset [Integer] byte offset to start reading from
       # @return [Array(Integer, Integer)] the decoded value and number of bytes consumed
       def decode(data, offset = 0)
-        if offset >= data.bytesize
-          raise ArgumentError,
-                "truncated varint: need 1 byte at offset #{offset}, got end of data"
-        end
+        raise ArgumentError, "truncated varint: need 1 byte at offset #{offset}, got end of data" if offset >= data.bytesize
 
         first = data.getbyte(offset)
 
@@ -43,24 +40,15 @@ module BSV
         when 0..0xFC
           [first, 1]
         when 0xFD
-          if data.bytesize < offset + 3
-            raise ArgumentError,
-                  "truncated varint: need 3 bytes at offset #{offset}, got #{data.bytesize - offset}"
-          end
+          raise ArgumentError, "truncated varint: need 3 bytes at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 3
 
           [data.byteslice(offset + 1, 2).unpack1('v'), 3]
         when 0xFE
-          if data.bytesize < offset + 5
-            raise ArgumentError,
-                  "truncated varint: need 5 bytes at offset #{offset}, got #{data.bytesize - offset}"
-          end
+          raise ArgumentError, "truncated varint: need 5 bytes at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 5
 
           [data.byteslice(offset + 1, 4).unpack1('V'), 5]
         when 0xFF
-          if data.bytesize < offset + 9
-            raise ArgumentError,
-                  "truncated varint: need 9 bytes at offset #{offset}, got #{data.bytesize - offset}"
-          end
+          raise ArgumentError, "truncated varint: need 9 bytes at offset #{offset}, got #{data.bytesize - offset}" if data.bytesize < offset + 9
 
           [data.byteslice(offset + 1, 8).unpack1('Q<'), 9]
         end

@@ -90,8 +90,7 @@ module BSV
                                              OpenSSL::ASN1::Integer.new(1),
                                              OpenSSL::ASN1::OctetString.new(private_bytes),
                                              OpenSSL::ASN1::ObjectId.new('secp256k1', 0, :EXPLICIT),
-                                             OpenSSL::ASN1::BitString.new(pub_point.to_octet_string(:compressed), 1,
-                                                                          :EXPLICIT)
+                                             OpenSSL::ASN1::BitString.new(pub_point.to_octet_string(:compressed), 1, :EXPLICIT)
                                            ])
         OpenSSL::PKey::EC.new(asn1.to_der)
       end

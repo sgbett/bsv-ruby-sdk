@@ -55,9 +55,7 @@ module BSV
           def pop_equal_length_pair
             a = @dstack.pop_bytes
             b = @dstack.pop_bytes
-            if a.bytesize != b.bytesize
-              raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'byte arrays are not the same length')
-            end
+            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'byte arrays are not the same length') if a.bytesize != b.bytesize
 
             [a, b]
           end

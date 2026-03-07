@@ -62,8 +62,7 @@ module BSV
       # @param depth [Integer] derivation depth
       # @param parent_fingerprint [String] 4-byte parent fingerprint
       # @param child_number [Integer] child index
-      def initialize(key:, chain_code:, version:, depth: 0, parent_fingerprint: "\x00\x00\x00\x00".b,
-                     child_number: 0)
+      def initialize(key:, chain_code:, version:, depth: 0, parent_fingerprint: "\x00\x00\x00\x00".b, child_number: 0)
         @key = key
         @chain_code = chain_code
         @depth = depth

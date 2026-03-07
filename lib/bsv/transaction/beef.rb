@@ -106,10 +106,7 @@ module BSV
       # @param data [String] raw BEEF binary
       # @return [Beef] the parsed BEEF bundle
       def self.from_binary(data)
-        if data.bytesize < 4
-          raise ArgumentError,
-                "truncated BEEF: need at least 4 bytes for version, got #{data.bytesize}"
-        end
+        raise ArgumentError, "truncated BEEF: need at least 4 bytes for version, got #{data.bytesize}" if data.bytesize < 4
 
         offset = 0
 

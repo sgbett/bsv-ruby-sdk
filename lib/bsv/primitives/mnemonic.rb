@@ -42,9 +42,7 @@ module BSV
       # @return [Mnemonic] a new mnemonic with valid checksum
       # @raise [ArgumentError] if strength is not a valid value
       def self.generate(strength: 128)
-        unless VALID_STRENGTHS.include?(strength)
-          raise ArgumentError, "invalid strength: #{strength}. Must be one of #{VALID_STRENGTHS.join(', ')}"
-        end
+        raise ArgumentError, "invalid strength: #{strength}. Must be one of #{VALID_STRENGTHS.join(', ')}" unless VALID_STRENGTHS.include?(strength)
 
         entropy = SecureRandom.random_bytes(strength / 8)
         from_entropy(entropy)

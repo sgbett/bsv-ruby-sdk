@@ -74,9 +74,7 @@ module BSV
       def self.from_wif(wif_string)
         data = Base58.check_decode(wif_string)
         prefix = data[0]
-        unless [MAINNET_PREFIX, TESTNET_PREFIX].include?(prefix)
-          raise ArgumentError, "unknown WIF network prefix: 0x#{prefix.unpack1('H*')}"
-        end
+        raise ArgumentError, "unknown WIF network prefix: 0x#{prefix.unpack1('H*')}" unless [MAINNET_PREFIX, TESTNET_PREFIX].include?(prefix)
 
         case data.length
         when 33

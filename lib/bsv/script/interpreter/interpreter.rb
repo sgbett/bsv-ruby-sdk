@@ -96,9 +96,7 @@ module BSV
           break if @early_return && script_idx == 1
 
           # Between scripts: verify conditionals balanced
-          unless @cond_stack.empty?
-            raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'unbalanced conditional')
-          end
+          raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'unbalanced conditional') unless @cond_stack.empty?
 
           # Clear alt stack between scripts
           @astack.clear

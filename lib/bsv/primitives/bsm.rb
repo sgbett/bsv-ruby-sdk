@@ -97,10 +97,7 @@ module BSV
 
         def decode_compact(signature)
           compact = signature.unpack1('m0')
-          unless compact.bytesize == 65
-            raise ArgumentError,
-                  "invalid signature length: #{compact.bytesize} (expected 65)"
-          end
+          raise ArgumentError, "invalid signature length: #{compact.bytesize} (expected 65)" unless compact.bytesize == 65
 
           compact
         rescue ArgumentError => e
@@ -112,8 +109,7 @@ module BSV
         def validate_flag!(flag)
           return if flag.between?(27, 34)
 
-          raise ArgumentError,
-                "flag byte #{flag} out of range (expected 27-34)"
+          raise ArgumentError, "flag byte #{flag} out of range (expected 27-34)"
         end
 
         def encode_varint(len)

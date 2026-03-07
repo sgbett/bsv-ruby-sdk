@@ -52,9 +52,7 @@ module BSV
             result = verify_checksig(full_sig, pubkey_bytes)
 
             # NULLFAIL: non-empty signature that failed verification
-            unless result
-              raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification')
-            end
+            raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification') unless result
 
             @dstack.push_bool(true)
           end
@@ -85,18 +83,14 @@ module BSV
 
             # Dummy element (off-by-one bug compatibility)
             dummy = @dstack.pop_bytes
-            unless dummy.empty?
-              raise ScriptError.new(ScriptErrorCode::SIG_NULLDUMMY, 'CHECKMULTISIG dummy element must be empty')
-            end
+            raise ScriptError.new(ScriptErrorCode::SIG_NULLDUMMY, 'CHECKMULTISIG dummy element must be empty') unless dummy.empty?
 
             success = multisig_match?(signatures, pubkeys)
 
             # NULLFAIL: if failed, all signatures must be empty
             unless success
               signatures.each do |sig|
-                unless sig.empty?
-                  raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification')
-                end
+                raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification') unless sig.empty?
               end
             end
 

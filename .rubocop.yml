@@ -111,6 +111,7 @@ Lint/BooleanSymbol:
     - 'lib/bsv/script/interpreter/**/*'
 
 Layout/LineLength:
+  Max: 150
   Exclude:
     - 'spec/**/*'
 

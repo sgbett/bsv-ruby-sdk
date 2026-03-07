@@ -149,8 +149,7 @@ module BSV
         end
 
         if data.bytesize < offset + 4
-          raise ArgumentError,
-                "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}"
+          raise ArgumentError, "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
@@ -171,10 +170,7 @@ module BSV
       # @return [Transaction] the parsed transaction with source data on inputs
       # @raise [ArgumentError] if the EF marker is invalid
       def self.from_ef(data)
-        if data.bytesize < 10
-          raise ArgumentError,
-                "truncated EF transaction: need at least 10 bytes, got #{data.bytesize}"
-        end
+        raise ArgumentError, "truncated EF transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
 
         offset = 0
 
@@ -197,8 +193,7 @@ module BSV
 
           if data.bytesize < offset + 8
             remaining = data.bytesize - offset
-            raise ArgumentError,
-                  "truncated EF input: need 8 bytes for source_satoshis at offset #{offset}, got #{remaining}"
+            raise ArgumentError, "truncated EF input: need 8 bytes for source_satoshis at offset #{offset}, got #{remaining}"
           end
 
           input.source_satoshis = data.byteslice(offset, 8).unpack1('Q<')
@@ -222,8 +217,7 @@ module BSV
 
         if data.bytesize < offset + 4
           remaining = data.bytesize - offset
-          raise ArgumentError,
-                "truncated EF transaction: need 4 bytes for lock_time at offset #{offset}, got #{remaining}"
+          raise ArgumentError, "truncated EF transaction: need 4 bytes for lock_time at offset #{offset}, got #{remaining}"
         end
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
@@ -246,8 +240,7 @@ module BSV
       # @return [Array(Transaction, Integer)] the transaction and bytes consumed
       def self.from_binary_with_offset(data, offset = 0)
         if data.bytesize < offset + 10
-          raise ArgumentError,
-                "truncated transaction: need at least 10 bytes at offset #{offset}, got #{data.bytesize - offset}"
+          raise ArgumentError, "truncated transaction: need at least 10 bytes at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         start = offset
@@ -274,8 +267,7 @@ module BSV
         end
 
         if data.bytesize < offset + 4
-          raise ArgumentError,
-                "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}"
+          raise ArgumentError, "truncated transaction: need 4 bytes for lock_time at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         tx.instance_variable_set(:@lock_time, data.byteslice(offset, 4).unpack1('V'))
@@ -557,10 +549,7 @@ module BSV
       # @return [Integer] total input value in satoshis
       def total_input_satoshis
         @inputs.each_with_index do |input, idx|
-          if input.source_satoshis.nil?
-            raise ArgumentError,
-                  "input #{idx} has nil source_satoshis — set it before computing totals"
-          end
+          raise ArgumentError, "input #{idx} has nil source_satoshis — set it before computing totals" if input.source_satoshis.nil?
         end
         @inputs.sum(&:source_satoshis)
       end
@@ -627,18 +616,9 @@ module BSV
 
       def verify_input_requirements(tx, input, index)
         tx_id = tx.txid_hex
-        if input.unlocking_script.nil?
-          raise ArgumentError,
-                "input #{index} of transaction #{tx_id} has no unlocking script"
-        end
-        if input.source_locking_script.nil?
-          raise ArgumentError,
-                "input #{index} of transaction #{tx_id} has no source locking script"
-        end
-        return unless input.source_satoshis.nil?
-
-        raise ArgumentError,
-              "input #{index} of transaction #{tx_id} has no source satoshis"
+        raise ArgumentError, "input #{index} of transaction #{tx_id} has no unlocking script" if input.unlocking_script.nil?
+        raise ArgumentError, "input #{index} of transaction #{tx_id} has no source locking script" if input.source_locking_script.nil?
+        raise ArgumentError, "input #{index} of transaction #{tx_id} has no source satoshis" if input.source_satoshis.nil?
       end
 
       def verify_fee(fee_model)
@@ -647,8 +627,7 @@ module BSV
         return if actual_fee >= required_fee
 
         raise VerificationError.new(:insufficient_fee,
-                                    "insufficient fee: transaction pays #{actual_fee} sat " \
-                                    "but fee model requires #{required_fee} sat")
+                                    "insufficient fee: transaction pays #{actual_fee} sat but fee model requires #{required_fee} sat")
       end
 
       def verify_output_constraint(tx)
@@ -657,8 +636,7 @@ module BSV
         return if output_total <= input_total
 
         raise VerificationError.new(:output_overflow,
-                                    "outputs (#{output_total}) exceed inputs (#{input_total}) " \
-                                    "for transaction #{tx.txid_hex}")
+                                    "outputs (#{output_total}) exceed inputs (#{input_total}) for transaction #{tx.txid_hex}")
       end
 
       ZERO_HASH = "\x00".b * 32

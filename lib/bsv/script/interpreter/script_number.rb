@@ -44,10 +44,7 @@ module BSV
         return new(0) if bytes.empty?
 
         if bytes.bytesize > max_length
-          raise ScriptError.new(
-            ScriptErrorCode::NUMBER_TOO_BIG,
-            "script number overflow: #{bytes.bytesize} > #{max_length}"
-          )
+          raise ScriptError.new ScriptErrorCode::NUMBER_TOO_BIG, "script number overflow: #{bytes.bytesize} > #{max_length}"
         end
 
         check_minimal_encoding!(bytes) if require_minimal
@@ -202,9 +199,7 @@ module BSV
         return if msb.anybits?(0x7f)
 
         # Single byte that is pure sign/zero (0x00 or 0x80) — not minimal
-        if bytes.bytesize == 1
-          raise ScriptError.new(ScriptErrorCode::MINIMAL_DATA, 'non-minimal script number encoding')
-        end
+        raise ScriptError.new(ScriptErrorCode::MINIMAL_DATA, 'non-minimal script number encoding') if bytes.bytesize == 1
 
         # Padding is justified if second-to-last byte has high bit set
         return if bytes.getbyte(bytes.bytesize - 2) & 0x80 != 0

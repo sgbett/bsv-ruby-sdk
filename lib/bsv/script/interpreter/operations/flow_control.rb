@@ -30,9 +30,7 @@ module BSV
 
           # OP_ELSE: toggle conditional branch (only one ELSE per IF after genesis)
           def op_else
-            if @cond_stack.empty?
-              raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'OP_ELSE without matching OP_IF')
-            end
+            raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'OP_ELSE without matching OP_IF') if @cond_stack.empty?
 
             # After genesis: only one ELSE per IF
             raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'duplicate OP_ELSE') if @else_stack.pop
@@ -47,9 +45,7 @@ module BSV
 
           # OP_ENDIF: close conditional block
           def op_endif
-            if @cond_stack.empty?
-              raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'OP_ENDIF without matching OP_IF')
-            end
+            raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'OP_ENDIF without matching OP_IF') if @cond_stack.empty?
 
             @cond_stack.pop
             @else_stack.pop

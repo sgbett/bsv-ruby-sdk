@@ -52,9 +52,8 @@ module BSV
         offset += vi_size
 
         if data.bytesize < offset + script_len
-          remaining = data.bytesize - offset
           raise ArgumentError,
-                "truncated output: need #{script_len} bytes for script at offset #{offset}, got #{remaining}"
+                "truncated output: need #{script_len} bytes for script at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         script_bytes = data.byteslice(offset, script_len)

@@ -3,8 +3,7 @@
 module BSV
   module Network
     class BroadcastResponse
-      attr_reader :txid, :tx_status, :message, :extra_info,
-                  :block_hash, :block_height, :timestamp, :competing_txs
+      attr_reader :txid, :tx_status, :message, :extra_info, :block_hash, :block_height, :timestamp, :competing_txs
 
       def initialize(attrs = {})
         @txid = attrs[:txid]

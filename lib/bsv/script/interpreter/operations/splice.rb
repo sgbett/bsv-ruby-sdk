@@ -44,9 +44,7 @@ module BSV
             size = @dstack.pop_int.to_i32
             data = @dstack.pop_bytes
 
-            if size.negative?
-              raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'OP_NUM2BIN: size is negative')
-            end
+            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'OP_NUM2BIN: size is negative') if size.negative?
 
             minimal = ScriptNumber.minimally_encode(data)
 

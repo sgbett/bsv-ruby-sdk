@@ -74,9 +74,8 @@ module BSV
         offset += vi_size
 
         if data.bytesize < offset + script_len
-          remaining = data.bytesize - offset
           raise ArgumentError,
-                "truncated input: need #{script_len} bytes for script at offset #{offset}, got #{remaining}"
+                "truncated input: need #{script_len} bytes for script at offset #{offset}, got #{data.bytesize - offset}"
         end
 
         unlocking_script = (BSV::Script::Script.from_binary(data.byteslice(offset, script_len)) if script_len.positive?)
