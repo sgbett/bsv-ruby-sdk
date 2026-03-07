@@ -391,22 +391,26 @@ module BSV
           pos += 1
 
           if opcode.positive? && opcode <= 0x4b
+            raise ArgumentError, "truncated script: need #{opcode} data bytes at offset #{pos}" if pos + opcode > raw.bytesize
             data = raw.byteslice(pos, opcode)
             pos += opcode
             result << Chunk.new(opcode: opcode, data: data)
           elsif opcode == Opcodes::OP_PUSHDATA1
+            raise ArgumentError, "truncated script: OP_PUSHDATA1 missing length byte at offset #{pos}" if pos >= raw.bytesize
             len = raw.getbyte(pos)
             pos += 1
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
           elsif opcode == Opcodes::OP_PUSHDATA2
+            raise ArgumentError, "truncated script: OP_PUSHDATA2 needs 2 length bytes at offset #{pos}" if pos + 2 > raw.bytesize
             len = raw.byteslice(pos, 2).unpack1('v')
             pos += 2
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
           elsif opcode == Opcodes::OP_PUSHDATA4
+            raise ArgumentError, "truncated script: OP_PUSHDATA4 needs 4 length bytes at offset #{pos}" if pos + 4 > raw.bytesize
             len = raw.byteslice(pos, 4).unpack1('V')
             pos += 4
             data = raw.byteslice(pos, len)

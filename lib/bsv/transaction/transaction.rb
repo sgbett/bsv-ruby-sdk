@@ -296,25 +296,15 @@ module BSV
       # @return [String] raw BEEF V2 binary
       def to_beef
         beef = Beef.new
-        bump_map = {}
         ancestors = collect_ancestors
 
         ancestors.each do |tx|
-          # Collect BUMPs
-          if tx.merkle_path
-            height = tx.merkle_path.block_height
-            unless bump_map.key?(height)
-              bump_map[height] = beef.bumps.length
-              beef.bumps << tx.merkle_path
-            end
-          end
-
-          # Add transaction in dependency order
           entry = if tx.merkle_path
+                    bump_idx = beef.merge_bump(tx.merkle_path)
                     Beef::BeefTx.new(
                       format: Beef::FORMAT_RAW_TX_AND_BUMP,
                       transaction: tx,
-                      bump_index: bump_map[tx.merkle_path.block_height]
+                      bump_index: bump_idx
                     )
                   else
                     Beef::BeefTx.new(
@@ -356,9 +346,13 @@ module BSV
 
       # --- Transaction ID ---
 
-      # Compute the transaction ID (double-SHA-256 of the serialised tx, reversed).
+      # Compute the transaction ID (double-SHA-256 of the serialised tx, byte-reversed).
       #
-      # @return [String] 32-byte transaction ID in internal byte order
+      # Returns display byte order (reversed from the natural hash).
+      # Compare with {TransactionInput#prev_tx_id} which stores wire byte
+      # order (natural hash). Use +.reverse+ to convert between the two.
+      #
+      # @return [String] 32-byte transaction ID in display byte order
       def txid
         BSV::Primitives::Digest.sha256d(to_binary).reverse
       end
