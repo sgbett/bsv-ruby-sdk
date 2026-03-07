@@ -99,4 +99,20 @@ RSpec.describe BSV::Primitives::PublicKey do
       expect(pk1).to eq(pk2)
     end
   end
+
+  describe '#derive_shared_secret' do
+    it 'returns a PublicKey' do
+      alice = BSV::Primitives::PrivateKey.generate
+      shared = alice.public_key.derive_shared_secret(alice)
+      expect(shared).to be_a(described_class)
+    end
+
+    it 'matches PrivateKey#derive_shared_secret' do
+      alice = BSV::Primitives::PrivateKey.generate
+      bob = BSV::Primitives::PrivateKey.generate
+      from_priv = alice.derive_shared_secret(bob.public_key)
+      from_pub = bob.public_key.derive_shared_secret(alice)
+      expect(from_priv).to eq(from_pub)
+    end
+  end
 end

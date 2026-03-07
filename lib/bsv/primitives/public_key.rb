@@ -99,6 +99,20 @@ module BSV
         Base58.check_encode(prefix + hash160)
       end
 
+      # Derive an ECDH shared secret with another party's private key.
+      #
+      # Computes the shared point by multiplying this public key by the
+      # given private key's scalar. The result is commutative:
+      #   alice_pub.derive_shared_secret(bob_priv) ==
+      #     bob_pub.derive_shared_secret(alice_priv)
+      #
+      # @param private_key [PrivateKey] the other party's private key
+      # @return [PublicKey] the shared secret as a public key (curve point)
+      def derive_shared_secret(private_key)
+        shared_point = Curve.multiply_point(@point, private_key.bn)
+        PublicKey.new(shared_point)
+      end
+
       # Verify an ECDSA signature against a message hash.
       #
       # @param hash [String] 32-byte message digest

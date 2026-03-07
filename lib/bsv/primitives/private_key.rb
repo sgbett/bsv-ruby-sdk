@@ -127,6 +127,20 @@ module BSV
         @public_key ||= PublicKey.new(Curve.multiply_generator(@bn))
       end
 
+      # Derive an ECDH shared secret with another party's public key.
+      #
+      # Computes the shared point by multiplying the given public key by
+      # this private key's scalar. The result is commutative:
+      #   alice_priv.derive_shared_secret(bob_pub) ==
+      #     bob_priv.derive_shared_secret(alice_pub)
+      #
+      # @param public_key [PublicKey] the other party's public key
+      # @return [PublicKey] the shared secret as a public key (curve point)
+      def derive_shared_secret(public_key)
+        shared_point = Curve.multiply_point(public_key.point, @bn)
+        PublicKey.new(shared_point)
+      end
+
       # Sign a 32-byte hash using deterministic ECDSA (RFC 6979).
       #
       # @param hash [String] 32-byte message digest to sign
