@@ -357,8 +357,6 @@ RSpec.describe BSV::Script::Interpreter do
 
       # Tamper with the signature's sighash byte: replace FORKID (0x41) with non-FORKID (0x01)
       unlock_script = tx.inputs[0].unlocking_script
-      raw = unlock_script.to_binary.dup
-      # The last byte of the first push (DER sig) is the sighash type
       sig_chunk = unlock_script.chunks[0]
       tampered_sig = sig_chunk.data.dup
       tampered_sig[-1] = "\x01".b # ALL without FORKID
