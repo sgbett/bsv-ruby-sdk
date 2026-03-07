@@ -106,6 +106,9 @@ module BSV
       #   alice_pub.derive_shared_secret(bob_priv) ==
       #     bob_pub.derive_shared_secret(alice_priv)
       #
+      # This is the foundational primitive for BRC-42 key derivation,
+      # BRC-77/78 messaging, and ECIES encryption.
+      #
       # @param private_key [PrivateKey] the other party's private key
       # @return [PublicKey] the shared secret as a public key (curve point)
       def derive_shared_secret(private_key)
