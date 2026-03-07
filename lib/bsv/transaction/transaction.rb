@@ -524,6 +524,31 @@ module BSV
         (size * satoshis_per_byte).ceil
       end
 
+      # Estimate the serialised transaction size in bytes.
+      #
+      # Uses actual unlocking script size for signed inputs and template
+      # estimated length for unsigned inputs.
+      #
+      # @return [Integer] estimated size in bytes
+      def estimated_size
+        size = 4 # version
+        size += VarInt.encode(@inputs.length).bytesize
+        @inputs.each_with_index do |input, index|
+          size += if input.unlocking_script
+                    input.to_binary.bytesize
+                  elsif input.unlocking_script_template
+                    script_len = input.unlocking_script_template.estimated_length(self, index)
+                    32 + 4 + VarInt.encode(script_len).bytesize + script_len + 4
+                  else
+                    UNSIGNED_P2PKH_INPUT_SIZE
+                  end
+        end
+        size += VarInt.encode(@outputs.length).bytesize
+        @outputs.each { |o| size += o.to_binary.bytesize }
+        size += 4 # lock_time
+        size
+      end
+
       private
 
       ZERO_HASH = "\x00".b * 32
@@ -581,25 +606,6 @@ module BSV
 
         seen[txid] = true
         result << tx
-      end
-
-      def estimated_size
-        size = 4 # version
-        size += VarInt.encode(@inputs.length).bytesize
-        @inputs.each_with_index do |input, index|
-          size += if input.unlocking_script
-                    input.to_binary.bytesize
-                  elsif input.unlocking_script_template
-                    script_len = input.unlocking_script_template.estimated_length(self, index)
-                    32 + 4 + VarInt.encode(script_len).bytesize + script_len + 4
-                  else
-                    UNSIGNED_P2PKH_INPUT_SIZE
-                  end
-        end
-        size += VarInt.encode(@outputs.length).bytesize
-        @outputs.each { |o| size += o.to_binary.bytesize }
-        size += 4 # lock_time
-        size
       end
     end
   end
