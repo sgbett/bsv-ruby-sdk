@@ -63,7 +63,7 @@ module BSV
 
         # The transaction ID for this entry.
         #
-        # @return [String, nil] 32-byte txid in internal byte order
+        # @return [String, nil] 32-byte txid in display byte order
         def txid
           case @format
           when FORMAT_TXID_ONLY
@@ -210,7 +210,7 @@ module BSV
 
       # Find a transaction in the bundle by its transaction ID.
       #
-      # @param txid [String] 32-byte txid in internal byte order
+      # @param txid [String] 32-byte txid in display byte order
       # @return [Transaction, nil] the matching transaction, or nil
       def find_transaction(txid)
         @transactions.each do |beef_tx|
@@ -221,7 +221,7 @@ module BSV
 
       # Find the merkle path (BUMP) for a transaction by its txid.
       #
-      # @param txid [String] 32-byte txid in internal byte order
+      # @param txid [String] 32-byte txid in display byte order
       # @return [MerklePath, nil] the merkle path, or nil if not found
       def find_bump(txid)
         bt = @transactions.find { |entry| entry.txid == txid && entry.format == FORMAT_RAW_TX_AND_BUMP }
@@ -232,7 +232,7 @@ module BSV
 
       # Find a transaction with all source_transactions wired for signing.
       #
-      # @param txid [String] 32-byte txid in internal byte order
+      # @param txid [String] 32-byte txid in display byte order
       # @return [Transaction, nil] the transaction with wired inputs, or nil
       def find_transaction_for_signing(txid)
         tx = find_transaction(txid)
@@ -245,7 +245,7 @@ module BSV
       # Find a transaction and recursively wire its ancestry (source transactions
       # and merkle paths) for atomic proof validation.
       #
-      # @param txid [String] 32-byte txid in internal byte order
+      # @param txid [String] 32-byte txid in display byte order
       # @return [Transaction, nil] the transaction with full proof tree, or nil
       def find_atomic_transaction(txid)
         tx = find_transaction(txid)
@@ -381,7 +381,7 @@ module BSV
 
       # Convert a transaction entry to TXID-only format.
       #
-      # @param txid [String] 32-byte txid in internal byte order
+      # @param txid [String] 32-byte txid in display byte order
       # @return [BeefTx, nil] the converted entry, or nil if not found
       def make_txid_only(txid)
         idx = @transactions.index { |bt| bt.txid == txid }
@@ -557,7 +557,7 @@ module BSV
 
             # Wire inputs to ancestors already in the map (BEEF is dependency-ordered)
             beef_tx.transaction.inputs.each do |input|
-              # prev_tx_id is internal byte order; txid keys are display order (reversed)
+              # prev_tx_id is wire byte order; txid keys are display byte order (reversed)
               source = tx_map[input.prev_tx_id.reverse]
               input.source_transaction = source if source
             end

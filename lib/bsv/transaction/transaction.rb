@@ -346,9 +346,13 @@ module BSV
 
       # --- Transaction ID ---
 
-      # Compute the transaction ID (double-SHA-256 of the serialised tx, reversed).
+      # Compute the transaction ID (double-SHA-256 of the serialised tx, byte-reversed).
       #
-      # @return [String] 32-byte transaction ID in internal byte order
+      # Returns display byte order (reversed from the natural hash).
+      # Compare with {TransactionInput#prev_tx_id} which stores wire byte
+      # order (natural hash). Use +.reverse+ to convert between the two.
+      #
+      # @return [String] 32-byte transaction ID in display byte order
       def txid
         BSV::Primitives::Digest.sha256d(to_binary).reverse
       end
