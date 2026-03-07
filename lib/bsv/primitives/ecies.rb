@@ -39,7 +39,7 @@ module BSV
         ephemeral = private_key || PrivateKey.generate
         ephemeral_pub = ephemeral.public_key
 
-        iv, key_e, key_m = derive_keys(public_key.point, ephemeral.bn)
+        iv, key_e, key_m = derive_keys(ephemeral, public_key)
 
         cipher = OpenSSL::Cipher.new('aes-128-cbc')
         cipher.encrypt
@@ -76,7 +76,7 @@ module BSV
 
         ephemeral_pub = PublicKey.from_bytes(ephemeral_pub_bytes)
 
-        iv, key_e, key_m = derive_keys(ephemeral_pub.point, private_key.bn)
+        iv, key_e, key_m = derive_keys(private_key, ephemeral_pub)
 
         # Verify HMAC before decryption (encrypt-then-MAC)
         payload = data[0...-32]
@@ -111,9 +111,9 @@ module BSV
           end
         end
 
-        def derive_keys(point, scalar_bn)
-          shared_point = Curve.multiply_point(point, scalar_bn)
-          ecdh_key = shared_point.to_octet_string(:compressed)
+        def derive_keys(private_key, public_key)
+          shared = private_key.derive_shared_secret(public_key)
+          ecdh_key = shared.compressed
           derived = Digest.sha512(ecdh_key)
 
           iv    = derived[0, 16]
