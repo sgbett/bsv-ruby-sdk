@@ -21,5 +21,6 @@ module BSV
     autoload :Mnemonic,     'bsv/primitives/mnemonic'
     autoload :SymmetricKey,     'bsv/primitives/symmetric_key'
     autoload :SignedMessage,    'bsv/primitives/signed_message'
+    autoload :EncryptedMessage, 'bsv/primitives/encrypted_message'
   end
 end
