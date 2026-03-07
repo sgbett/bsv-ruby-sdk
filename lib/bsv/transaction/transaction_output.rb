@@ -9,16 +9,21 @@ module BSV
     # unlocking scripts.
     class TransactionOutput
       # @return [Integer] the output value in satoshis
-      attr_reader :satoshis
+      attr_accessor :satoshis
 
       # @return [Script::Script] the locking script (spending conditions)
       attr_reader :locking_script
 
+      # @return [Boolean] whether this output receives change
+      attr_accessor :change
+
       # @param satoshis [Integer] output value in satoshis
       # @param locking_script [Script::Script] the locking script
-      def initialize(satoshis:, locking_script:)
+      # @param change [Boolean] whether this is a change output (default: false)
+      def initialize(satoshis:, locking_script:, change: false)
         @satoshis = satoshis
         @locking_script = locking_script
+        @change = change
       end
 
       # Serialise the output to its binary wire format.

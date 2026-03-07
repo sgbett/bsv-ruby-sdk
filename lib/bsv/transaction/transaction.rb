@@ -549,6 +549,23 @@ module BSV
         size
       end
 
+      # Compute the fee and distribute change across change outputs.
+      #
+      # Accepts a {FeeModel} instance, a numeric fee in satoshis, or nil
+      # (defaults to {FeeModels::SatoshisPerKilobyte} at 50 sat/kB).
+      #
+      # After computing the fee, distributes remaining satoshis equally
+      # across outputs marked as change. If insufficient change, removes
+      # all change outputs (excess goes to miners).
+      #
+      # @param model_or_fee [FeeModel, Integer, nil] fee model, fixed fee, or nil for default
+      # @return [self] for chaining
+      def fee(model_or_fee = nil)
+        fee_sats = compute_fee_sats(model_or_fee)
+        distribute_change(fee_sats)
+        self
+      end
+
       private
 
       ZERO_HASH = "\x00".b * 32
@@ -606,6 +623,38 @@ module BSV
 
         seen[txid] = true
         result << tx
+      end
+
+      def compute_fee_sats(model_or_fee)
+        case model_or_fee
+        when nil
+          FeeModels::SatoshisPerKilobyte.new.compute_fee(self)
+        when FeeModel
+          model_or_fee.compute_fee(self)
+        when Numeric
+          model_or_fee.ceil
+        else
+          raise ArgumentError, "expected FeeModel, Numeric, or nil; got #{model_or_fee.class}"
+        end
+      end
+
+      def distribute_change(fee_sats)
+        change_outputs = @outputs.select(&:change)
+        return if change_outputs.empty?
+
+        input_sats = @inputs.sum { |i| i.source_satoshis || 0 }
+        non_change_sats = @outputs.reject(&:change).sum(&:satoshis)
+        available = input_sats - non_change_sats - fee_sats
+
+        if available <= change_outputs.length
+          @outputs.reject!(&:change)
+        else
+          per_output = available / change_outputs.length
+          remainder = available % change_outputs.length
+          change_outputs.each_with_index do |output, i|
+            output.satoshis = per_output + (i < remainder ? 1 : 0)
+          end
+        end
       end
     end
   end
