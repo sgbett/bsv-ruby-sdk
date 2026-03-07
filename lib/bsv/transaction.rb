@@ -15,6 +15,7 @@ module BSV
     autoload :MerklePath,        'bsv/transaction/merkle_path'
     autoload :FeeModel,                  'bsv/transaction/fee_model'
     autoload :FeeModels,                 'bsv/transaction/fee_models'
+    autoload :VerificationError, 'bsv/transaction/verification_error'
     autoload :ChainTracker,              'bsv/transaction/chain_tracker'
     autoload :ChainTrackers,             'bsv/transaction/chain_trackers'
     autoload :Beef,                      'bsv/transaction/beef'

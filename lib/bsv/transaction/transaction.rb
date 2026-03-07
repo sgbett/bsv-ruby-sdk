@@ -513,7 +513,7 @@ module BSV
       # @return [true] on successful verification
       # @raise [ArgumentError] if a source transaction or unlocking script is missing
       # @raise [BSV::Script::ScriptError] if script execution fails
-      # @raise [RuntimeError] for merkle path failures, fee validation, or output overflow
+      # @raise [VerificationError] for merkle path failures, fee validation, or output overflow
       def verify(chain_tracker:, fee_model: nil)
         verified = {}
         queue = [self]
@@ -525,7 +525,10 @@ module BSV
 
           # Merkle path short-circuit: proven transaction needs no input verification
           if tx.merkle_path
-            raise "invalid merkle proof for transaction #{tx_id}" unless tx.merkle_path.verify(tx_id, chain_tracker)
+            unless tx.merkle_path.verify(tx_id, chain_tracker)
+              raise VerificationError.new(:invalid_merkle_proof,
+                                          "invalid merkle proof for transaction #{tx_id}")
+            end
 
             verified[tx_id] = true
             next
@@ -649,17 +652,19 @@ module BSV
         actual_fee = total_input_satoshis - total_output_satoshis
         return if actual_fee >= required_fee
 
-        raise "insufficient fee: transaction pays #{actual_fee} sat " \
-              "but fee model requires #{required_fee} sat"
+        raise VerificationError.new(:insufficient_fee,
+                                    "insufficient fee: transaction pays #{actual_fee} sat " \
+                                    "but fee model requires #{required_fee} sat")
       end
 
       def verify_output_constraint(tx)
-        input_total = tx.inputs.sum { |i| i.source_satoshis || 0 }
+        input_total = tx.total_input_satoshis
         output_total = tx.total_output_satoshis
         return if output_total <= input_total
 
-        raise "outputs (#{output_total}) exceed inputs (#{input_total}) " \
-              "for transaction #{tx.txid_hex}"
+        raise VerificationError.new(:output_overflow,
+                                    "outputs (#{output_total}) exceed inputs (#{input_total}) " \
+                                    "for transaction #{tx.txid_hex}")
       end
 
       ZERO_HASH = "\x00".b * 32

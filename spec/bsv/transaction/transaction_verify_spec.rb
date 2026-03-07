@@ -74,7 +74,7 @@ RSpec.describe BSV::Transaction::Transaction do
         tx = build_spending_tx(source_tx)
 
         expect { tx.verify(chain_tracker: chain_tracker) }
-          .to raise_error(RuntimeError, /invalid merkle proof/)
+          .to raise_error(BSV::Transaction::VerificationError, /invalid merkle proof/)
       end
 
       it 'skips input verification for proven transactions' do
@@ -205,7 +205,7 @@ RSpec.describe BSV::Transaction::Transaction do
         allow(fee_model).to receive(:compute_fee).and_return(100)
 
         expect { tx.verify(chain_tracker: chain_tracker, fee_model: fee_model) }
-          .to raise_error(RuntimeError, /insufficient fee/)
+          .to raise_error(BSV::Transaction::VerificationError, /insufficient fee/)
       end
 
       it 'skips fee validation when fee_model is nil' do
@@ -233,7 +233,7 @@ RSpec.describe BSV::Transaction::Transaction do
         allow(fee_model).to receive(:compute_fee).and_return(50)
 
         expect { child.verify(chain_tracker: chain_tracker, fee_model: fee_model) }
-          .to raise_error(RuntimeError, /insufficient fee/)
+          .to raise_error(BSV::Transaction::VerificationError, /insufficient fee/)
       end
     end
 
@@ -259,7 +259,7 @@ RSpec.describe BSV::Transaction::Transaction do
                       ))
 
         expect { tx.verify(chain_tracker: chain_tracker) }
-          .to raise_error(RuntimeError, /outputs.*exceed inputs/)
+          .to raise_error(BSV::Transaction::VerificationError, /outputs.*exceed inputs/)
       end
     end
 

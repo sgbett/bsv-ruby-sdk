@@ -91,7 +91,7 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
       tx = build_spending_tx(source_tx)
 
       expect { tx.verify(chain_tracker: chain_tracker) }
-        .to raise_error(/invalid merkle proof/)
+        .to raise_error(BSV::Transaction::VerificationError, /invalid merkle proof/)
     end
 
     # TS/Go: fee validation only on root transaction, not ancestors
@@ -111,7 +111,7 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
 
       # Child's fee (1 sat) is below model requirement (50 sat)
       expect { child.verify(chain_tracker: chain_tracker, fee_model: fee_model) }
-        .to raise_error(/insufficient fee/)
+        .to raise_error(BSV::Transaction::VerificationError, /insufficient fee/)
     end
 
     # TS/Python: verify outputs ≤ inputs
@@ -137,7 +137,7 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
                     ))
 
       expect { tx.verify(chain_tracker: chain_tracker) }
-        .to raise_error(/outputs.*exceed inputs/)
+        .to raise_error(BSV::Transaction::VerificationError, /outputs.*exceed inputs/)
     end
 
     # All three SDKs: deduplication of verified transactions
