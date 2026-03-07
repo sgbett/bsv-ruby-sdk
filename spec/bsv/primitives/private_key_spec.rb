@@ -122,4 +122,29 @@ RSpec.describe BSV::Primitives::PrivateKey do
         .to raise_error(ArgumentError, /out of range/)
     end
   end
+
+  describe '#derive_shared_secret' do
+    it 'returns a PublicKey' do
+      alice = described_class.generate
+      bob = described_class.generate
+      shared = alice.derive_shared_secret(bob.public_key)
+      expect(shared).to be_a(BSV::Primitives::PublicKey)
+    end
+
+    it 'is commutative' do
+      alice = described_class.generate
+      bob = described_class.generate
+      shared_ab = alice.derive_shared_secret(bob.public_key)
+      shared_ba = bob.derive_shared_secret(alice.public_key)
+      expect(shared_ab).to eq(shared_ba)
+    end
+
+    it 'produces deterministic output' do
+      alice = described_class.from_hex(known_hex)
+      bob = described_class.generate
+      s1 = alice.derive_shared_secret(bob.public_key)
+      s2 = alice.derive_shared_secret(bob.public_key)
+      expect(s1).to eq(s2)
+    end
+  end
 end
