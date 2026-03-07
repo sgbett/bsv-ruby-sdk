@@ -146,4 +146,37 @@ RSpec.describe BSV::Transaction::MerklePath do
       expect { mp1.combine(mp2) }.to raise_error(ArgumentError, /block heights/)
     end
   end
+
+  describe '#verify' do
+    let(:mp) { described_class.from_hex(brc74_hex) }
+    let(:txid_hex) { mp.path[0][0].hash.reverse.unpack1('H*') }
+
+    it 'returns true when chain tracker confirms the root' do
+      tracker = instance_double(BSV::Transaction::ChainTracker)
+      allow(tracker).to receive(:valid_root_for_height?)
+        .with(expected_root_hex, 813_706)
+        .and_return(true)
+
+      expect(mp.verify(txid_hex, tracker)).to be true
+    end
+
+    it 'returns false when chain tracker rejects the root' do
+      tracker = instance_double(BSV::Transaction::ChainTracker)
+      allow(tracker).to receive(:valid_root_for_height?)
+        .with(expected_root_hex, 813_706)
+        .and_return(false)
+
+      expect(mp.verify(txid_hex, tracker)).to be false
+    end
+
+    it 'passes the correct root and height to the chain tracker' do
+      tracker = instance_double(BSV::Transaction::ChainTracker)
+      allow(tracker).to receive(:valid_root_for_height?).and_return(true)
+
+      mp.verify(txid_hex, tracker)
+
+      expect(tracker).to have_received(:valid_root_for_height?)
+        .with(expected_root_hex, 813_706)
+    end
+  end
 end
