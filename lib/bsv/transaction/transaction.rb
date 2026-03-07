@@ -524,6 +524,48 @@ module BSV
         (size * satoshis_per_byte).ceil
       end
 
+      # Estimate the serialised transaction size in bytes.
+      #
+      # Uses actual unlocking script size for signed inputs and template
+      # estimated length for unsigned inputs.
+      #
+      # @return [Integer] estimated size in bytes
+      def estimated_size
+        size = 4 # version
+        size += VarInt.encode(@inputs.length).bytesize
+        @inputs.each_with_index do |input, index|
+          size += if input.unlocking_script
+                    input.to_binary.bytesize
+                  elsif input.unlocking_script_template
+                    script_len = input.unlocking_script_template.estimated_length(self, index)
+                    32 + 4 + VarInt.encode(script_len).bytesize + script_len + 4
+                  else
+                    UNSIGNED_P2PKH_INPUT_SIZE
+                  end
+        end
+        size += VarInt.encode(@outputs.length).bytesize
+        @outputs.each { |o| size += o.to_binary.bytesize }
+        size += 4 # lock_time
+        size
+      end
+
+      # Compute the fee and distribute change across change outputs.
+      #
+      # Accepts a {FeeModel} instance, a numeric fee in satoshis, or nil
+      # (defaults to {FeeModels::SatoshisPerKilobyte} at 50 sat/kB).
+      #
+      # After computing the fee, distributes remaining satoshis equally
+      # across outputs marked as change. If insufficient change, removes
+      # all change outputs (excess goes to miners).
+      #
+      # @param model_or_fee [FeeModel, Integer, nil] fee model, fixed fee, or nil for default
+      # @return [self] for chaining
+      def fee(model_or_fee = nil)
+        fee_sats = compute_fee_sats(model_or_fee)
+        distribute_change(fee_sats)
+        self
+      end
+
       private
 
       ZERO_HASH = "\x00".b * 32
@@ -583,23 +625,36 @@ module BSV
         result << tx
       end
 
-      def estimated_size
-        size = 4 # version
-        size += VarInt.encode(@inputs.length).bytesize
-        @inputs.each_with_index do |input, index|
-          size += if input.unlocking_script
-                    input.to_binary.bytesize
-                  elsif input.unlocking_script_template
-                    script_len = input.unlocking_script_template.estimated_length(self, index)
-                    32 + 4 + VarInt.encode(script_len).bytesize + script_len + 4
-                  else
-                    UNSIGNED_P2PKH_INPUT_SIZE
-                  end
+      def compute_fee_sats(model_or_fee)
+        case model_or_fee
+        when nil
+          FeeModels::SatoshisPerKilobyte.new.compute_fee(self)
+        when FeeModel
+          model_or_fee.compute_fee(self)
+        when Numeric
+          model_or_fee.ceil
+        else
+          raise ArgumentError, "expected FeeModel, Numeric, or nil; got #{model_or_fee.class}"
         end
-        size += VarInt.encode(@outputs.length).bytesize
-        @outputs.each { |o| size += o.to_binary.bytesize }
-        size += 4 # lock_time
-        size
+      end
+
+      def distribute_change(fee_sats)
+        change_outputs = @outputs.select(&:change)
+        return if change_outputs.empty?
+
+        input_sats = total_input_satoshis
+        non_change_sats = @outputs.reject(&:change).sum(&:satoshis)
+        available = input_sats - non_change_sats - fee_sats
+
+        if available <= change_outputs.length
+          @outputs.reject!(&:change)
+        else
+          per_output = available / change_outputs.length
+          remainder = available % change_outputs.length
+          change_outputs.each_with_index do |output, i|
+            output.satoshis = per_output + (i < remainder ? 1 : 0)
+          end
+        end
       end
     end
   end
