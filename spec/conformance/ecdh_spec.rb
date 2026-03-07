@@ -88,9 +88,7 @@ RSpec.describe BSV::Primitives::PrivateKey do
       expect(shared).to eq(shared_reverse)
 
       # Verify it's a specific, reproducible point (not random)
-      hex = shared.to_hex
-      expect(hex).to eq(shared.to_hex) # same on second call
-      expect(hex.length).to eq(66) # compressed public key hex
+      expect(shared.to_hex).to eq('021fd616a15d864cf7824c3125bfdfa1b97eaf6310fa1f074b0a1bce8083505fe4')
     end
 
     # TS SDK: ECDH.test.ts lines 29-37 — twist attack prevention
