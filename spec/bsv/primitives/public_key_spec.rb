@@ -115,4 +115,28 @@ RSpec.describe BSV::Primitives::PublicKey do
       expect(from_priv).to eq(from_pub)
     end
   end
+
+  describe '#derive_child' do
+    it 'returns a PublicKey' do
+      alice = BSV::Primitives::PrivateKey.generate
+      bob = BSV::Primitives::PrivateKey.generate
+      child = alice.public_key.derive_child(bob, 'invoice-1')
+      expect(child).to be_a(described_class)
+    end
+
+    it 'derives a key different from the parent' do
+      alice = BSV::Primitives::PrivateKey.generate
+      bob = BSV::Primitives::PrivateKey.generate
+      child = alice.public_key.derive_child(bob, 'invoice-1')
+      expect(child.to_hex).not_to eq(alice.public_key.to_hex)
+    end
+
+    it 'matches PrivateKey#derive_child public key' do
+      alice = BSV::Primitives::PrivateKey.generate
+      bob = BSV::Primitives::PrivateKey.generate
+      from_priv = alice.derive_child(bob.public_key, 'invoice-1').public_key
+      from_pub = alice.public_key.derive_child(bob, 'invoice-1')
+      expect(from_priv).to eq(from_pub)
+    end
+  end
 end
