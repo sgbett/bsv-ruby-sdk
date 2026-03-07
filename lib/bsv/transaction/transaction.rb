@@ -493,6 +493,69 @@ module BSV
         )
       end
 
+      # --- SPV verification ---
+
+      # Perform full SPV verification of this transaction and its ancestry.
+      #
+      # Uses a queue-based approach (matching TS/Go SDKs) to walk the
+      # transaction ancestry chain:
+      #
+      # 1. If a transaction has a merkle path that validates against the chain
+      #    tracker, it is marked verified (inputs are not re-checked).
+      # 2. Otherwise, each input's scripts are executed via the interpreter,
+      #    and source transactions are enqueued for verification.
+      # 3. Optionally validates that the root transaction's fee meets the
+      #    provided fee model.
+      # 4. Checks that total outputs do not exceed total inputs.
+      #
+      # @param chain_tracker [ChainTracker] chain tracker for merkle root validation
+      # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
+      # @return [true] on successful verification
+      # @raise [ArgumentError] if a source transaction or unlocking script is missing
+      # @raise [BSV::Script::ScriptError] if script execution fails
+      # @raise [VerificationError] for merkle path failures, fee validation, or output overflow
+      def verify(chain_tracker:, fee_model: nil)
+        verified = {}
+        queue = [self]
+
+        until queue.empty?
+          tx = queue.shift
+          tx_id = tx.txid_hex
+          next if verified[tx_id]
+
+          # Merkle path short-circuit: proven transaction needs no input verification
+          if tx.merkle_path
+            unless tx.merkle_path.verify(tx_id, chain_tracker)
+              raise VerificationError.new(:invalid_merkle_proof,
+                                          "invalid merkle proof for transaction #{tx_id}")
+            end
+
+            verified[tx_id] = true
+            next
+          end
+
+          # Fee validation (root transaction only)
+          verify_fee(fee_model) if tx.equal?(self) && fee_model
+
+          # Verify each input
+          tx.inputs.each_with_index do |input, index|
+            verify_input_requirements(tx, input, index)
+            tx.verify_input(index)
+
+            # Enqueue source transaction for verification if not yet verified
+            source_tx = input.source_transaction
+            queue << source_tx if source_tx && !verified[source_tx.txid_hex]
+          end
+
+          # Output ≤ input check
+          verify_output_constraint(tx)
+
+          verified[tx_id] = true
+        end
+
+        true
+      end
+
       # --- Fee estimation ---
 
       # Sum of all input source satoshi values.
@@ -567,6 +630,42 @@ module BSV
       end
 
       private
+
+      def verify_input_requirements(tx, input, index)
+        tx_id = tx.txid_hex
+        if input.unlocking_script.nil?
+          raise ArgumentError,
+                "input #{index} of transaction #{tx_id} has no unlocking script"
+        end
+        if input.source_locking_script.nil?
+          raise ArgumentError,
+                "input #{index} of transaction #{tx_id} has no source locking script"
+        end
+        return unless input.source_satoshis.nil?
+
+        raise ArgumentError,
+              "input #{index} of transaction #{tx_id} has no source satoshis"
+      end
+
+      def verify_fee(fee_model)
+        required_fee = fee_model.compute_fee(self)
+        actual_fee = total_input_satoshis - total_output_satoshis
+        return if actual_fee >= required_fee
+
+        raise VerificationError.new(:insufficient_fee,
+                                    "insufficient fee: transaction pays #{actual_fee} sat " \
+                                    "but fee model requires #{required_fee} sat")
+      end
+
+      def verify_output_constraint(tx)
+        input_total = tx.total_input_satoshis
+        output_total = tx.total_output_satoshis
+        return if output_total <= input_total
+
+        raise VerificationError.new(:output_overflow,
+                                    "outputs (#{output_total}) exceed inputs (#{input_total}) " \
+                                    "for transaction #{tx.txid_hex}")
+      end
 
       ZERO_HASH = "\x00".b * 32
       private_constant :ZERO_HASH
