@@ -186,6 +186,21 @@ module BSV
         compute_root(txid).reverse.unpack1('H*')
       end
 
+      # --- Verification ---
+
+      # Verify that this merkle path is valid for a given transaction.
+      #
+      # Computes the merkle root from the path and txid, then checks it
+      # against the blockchain via the provided chain tracker.
+      #
+      # @param txid_hex [String] hex-encoded transaction ID (display order)
+      # @param chain_tracker [ChainTracker] chain tracker to verify the root against
+      # @return [Boolean] true if the computed root matches the block at this height
+      def verify(txid_hex, chain_tracker)
+        root_hex = compute_root_hex(txid_hex)
+        chain_tracker.valid_root_for_height?(root_hex, @block_height)
+      end
+
       # --- Combine ---
 
       # Merge another merkle path into this one.
