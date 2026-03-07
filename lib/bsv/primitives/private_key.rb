@@ -158,8 +158,7 @@ module BSV
         shared = derive_shared_secret(public_key)
         hmac = Digest.hmac_sha256(shared.compressed, invoice_number.encode('UTF-8'))
         hmac_bn = OpenSSL::BN.new(hmac.unpack1('H*'), 16)
-        child_bn = (@bn + hmac_bn).to_i % Curve::N.to_i
-        PrivateKey.new(OpenSSL::BN.new(child_bn.to_s))
+        PrivateKey.new(@bn.mod_add(hmac_bn, Curve::N))
       end
 
       # Sign a 32-byte hash using deterministic ECDSA (RFC 6979).
