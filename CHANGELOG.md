@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-03-07
+
+### Fixed
+
+- Truncated OP_PUSHDATA1/2/4 scripts now raise `ArgumentError` instead of crashing with `TypeError`
+- `Transaction#to_beef` uses `merge_bump` to correctly handle multiple ancestors at the same block height
+- `PrivateKey#derive_child` uses `BN.mod_add` instead of Integer roundtrip for modular addition
+- Fixed txid byte-order documentation (display order, not internal order)
+
+### Testing
+
+- FORKID enforcement spec verifying interpreter rejects signatures without SIGHASH_FORKID
+- ExtendedKey fingerprint chain integrity across 3-generation derivation
+- Mnemonic entropy round-trip across all 5 valid entropy lengths
+- BEEF spec for multiple ancestors at the same block height
+
 ## [0.2.0] - 2026-03-07
 
 ### Added
