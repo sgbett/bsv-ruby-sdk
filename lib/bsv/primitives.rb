@@ -19,6 +19,7 @@ module BSV
     autoload :PrivateKey,   'bsv/primitives/private_key'
     autoload :ExtendedKey,  'bsv/primitives/extended_key'
     autoload :Mnemonic,     'bsv/primitives/mnemonic'
-    autoload :SymmetricKey, 'bsv/primitives/symmetric_key'
+    autoload :SymmetricKey,     'bsv/primitives/symmetric_key'
+    autoload :SignedMessage,    'bsv/primitives/signed_message'
   end
 end
