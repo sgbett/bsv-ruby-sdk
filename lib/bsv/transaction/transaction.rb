@@ -642,7 +642,7 @@ module BSV
         change_outputs = @outputs.select(&:change)
         return if change_outputs.empty?
 
-        input_sats = @inputs.sum { |i| i.source_satoshis || 0 }
+        input_sats = total_input_satoshis
         non_change_sats = @outputs.reject(&:change).sum(&:satoshis)
         available = input_sats - non_change_sats - fee_sats
 
