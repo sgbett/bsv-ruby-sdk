@@ -83,7 +83,8 @@ module BSV
         cipher.iv = iv
         cipher.auth_data = ''.b
 
-        ciphertext = cipher.update(plaintext.b) + cipher.final
+        plaintext_bytes = plaintext.b
+        ciphertext = plaintext_bytes.empty? ? cipher.final : cipher.update(plaintext_bytes) + cipher.final
         tag = cipher.auth_tag(TAG_SIZE)
 
         iv + ciphertext + tag

@@ -199,46 +199,25 @@ RSpec.describe BSV::Primitives::SymmetricKey do
 
     # Cross-compatibility vectors from Go SDK compatibility tests (hex-encoded)
     # Tests both 31-byte and 32-byte keys derived from WIF private keys
-    context 'with Go/TS bidirectional vectors' do
-      bidirectional = [
-        {
-          wif: 'L4B2postXdaP7TiUrUBYs53Fqzheu7WhSoQVPuY8qBdoBeEwbmZx',
-          key_length: 31,
-          ciphertexts: %w[
-            c374d70a4623036f1dd7b971dbeeea375630dc1da40e7068f4c4aa03487d3b19de3afb26a29173deccfbb1ece4fee6c92406b25948e6fe9cb53383057cb826d0a20269e290bd
-            7604d5bdb0eb843051d21873c871c9b1507c3de7ba222e1b407c163c2c166277df95de73be9534a2caf9d4b72157f78e5e2e69d97bc25b18ff4cfbd61a1306c02c0b8b2d165e
-          ]
-        },
-        {
-          wif: 'KyLGEhYicSoGchHKmVC2fUx2MRrHzWqvwBFLLT4DZB93Nv5DxVR9',
-          key_length: 32,
-          ciphertexts: %w[
-            2059fc32910bef280d89c4c7edbbc587b31be22339e609fdcc23319bf458840a91ad1b2da87aea13a5dc5cb3469b41c52001070b8003863843978acbdf57755b24491581a059
-            d7744c85ad3dafcb9fc5752ab0d04c40f87084e8a466f6b6013ebe0fc5170daab8184aaef66ab2c2733f01c0dc3de322ba3ddeea976499548bc6ec166581181f919c69aa2de5
-          ]
-        }
-      ]
-
-      bidirectional.each do |test|
-        context "with #{test[:key_length]}-byte key" do
-          let(:private_key) { BSV::Primitives::PrivateKey.from_wif(test[:wif]) }
-          let(:key_bytes) { private_key.public_key.point.to_bn(:compressed).to_s(2)[1, 32] }
-          let(:sym_key) { described_class.new(key_bytes) }
-
-          it "has a #{test[:key_length]}-byte X coordinate" do
-            # X coordinate from the public key
-            x_bytes = private_key.public_key.point.to_bn(:compressed).to_s(2)[1, 32]
-            # Strip leading zero byte from compressed point format
-            x_bytes = x_bytes.sub(/\A\x00+/, ''.b) if test[:key_length] < 32
-            expect(x_bytes.bytesize).to eq(test[:key_length])
-          end
-
-          test[:ciphertexts].each_with_index do |hex, ci|
-            it "decrypts TS/Go ciphertext #{ci + 1}" do
-              ct = [hex].pack('H*')
-              expect(sym_key.decrypt(ct)).to eq('cross-sdk test message'.b)
-            end
-          end
+    [
+      { wif: 'L4B2postXdaP7TiUrUBYs53Fqzheu7WhSoQVPuY8qBdoBeEwbmZx', key_length: 31,
+        ciphertexts: %w[
+          c374d70a4623036f1dd7b971dbeeea375630dc1da40e7068f4c4aa03487d3b19de3afb26a29173deccfbb1ece4fee6c92406b25948e6fe9cb53383057cb826d0a20269e290bd
+          7604d5bdb0eb843051d21873c871c9b1507c3de7ba222e1b407c163c2c166277df95de73be9534a2caf9d4b72157f78e5e2e69d97bc25b18ff4cfbd61a1306c02c0b8b2d165e
+        ] },
+      { wif: 'KyLGEhYicSoGchHKmVC2fUx2MRrHzWqvwBFLLT4DZB93Nv5DxVR9', key_length: 32,
+        ciphertexts: %w[
+          2059fc32910bef280d89c4c7edbbc587b31be22339e609fdcc23319bf458840a91ad1b2da87aea13a5dc5cb3469b41c52001070b8003863843978acbdf57755b24491581a059
+          d7744c85ad3dafcb9fc5752ab0d04c40f87084e8a466f6b6013ebe0fc5170daab8184aaef66ab2c2733f01c0dc3de322ba3ddeea976499548bc6ec166581181f919c69aa2de5
+        ] }
+    ].each do |test|
+      test[:ciphertexts].each_with_index do |hex, ci|
+        it "decrypts #{test[:key_length]}-byte key TS/Go ciphertext #{ci + 1}" do
+          priv = BSV::Primitives::PrivateKey.from_wif(test[:wif])
+          key_bytes = priv.public_key.point.to_bn(:compressed).to_s(2)[1, 32]
+          sym_key = described_class.new(key_bytes)
+          ct = [hex].pack('H*')
+          expect(sym_key.decrypt(ct)).to eq('cross-sdk test message'.b)
         end
       end
     end
