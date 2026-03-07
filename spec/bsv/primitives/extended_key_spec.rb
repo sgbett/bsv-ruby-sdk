@@ -373,6 +373,15 @@ RSpec.describe BSV::Primitives::ExtendedKey do
       expect(child.parent_fingerprint).to eq(master.fingerprint)
     end
 
+    it 'preserves fingerprint chain across three generations' do
+      child = master.child(described_class::HARDENED)
+      grandchild = child.child(1)
+
+      expect(child.parent_fingerprint).to eq(master.fingerprint)
+      expect(grandchild.parent_fingerprint).to eq(child.fingerprint)
+      expect(grandchild.parent_fingerprint).not_to eq(master.fingerprint)
+    end
+
     it 'is 4 bytes' do
       expect(master.fingerprint.length).to eq(4)
     end

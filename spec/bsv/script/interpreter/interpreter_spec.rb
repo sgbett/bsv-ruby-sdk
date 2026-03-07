@@ -348,4 +348,29 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('OP_3 OP_4', 'OP_ADD OP_7 OP_EQUAL')).to be true
     end
   end
+
+  describe 'FORKID enforcement' do
+    it 'rejects signatures without FORKID in sighash type' do
+      result = build_p2pkh_tx
+      tx = result[:tx]
+      lock_script = result[:lock_script]
+
+      # Tamper with the signature's sighash byte: replace FORKID (0x41) with non-FORKID (0x01)
+      unlock_script = tx.inputs[0].unlocking_script
+      raw = unlock_script.to_binary.dup
+      # The last byte of the first push (DER sig) is the sighash type
+      sig_chunk = unlock_script.chunks[0]
+      tampered_sig = sig_chunk.data.dup
+      tampered_sig[-1] = "\x01".b # ALL without FORKID
+      tampered_unlock = BSV::Script::Script.builder
+                                           .push_data(tampered_sig)
+                                           .push_data(unlock_script.chunks[1].data)
+                                           .build
+
+      expect do
+        described_class.verify(tx: tx, input_index: 0, unlock_script: tampered_unlock,
+                               lock_script: lock_script, satoshis: 100_000)
+      end.to raise_error(BSV::Script::ScriptError, /FORKID/)
+    end
+  end
 end

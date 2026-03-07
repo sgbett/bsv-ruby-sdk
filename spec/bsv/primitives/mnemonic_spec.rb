@@ -186,6 +186,14 @@ RSpec.describe BSV::Primitives::Mnemonic do
         expect { described_class.from_entropy("\x00" * len) }.not_to raise_error
       end
     end
+
+    it 'round-trips entropy through mnemonic and back' do
+      [16, 20, 24, 28, 32].each do |len|
+        entropy = SecureRandom.random_bytes(len)
+        mnemonic = described_class.from_entropy(entropy)
+        expect(mnemonic.to_entropy).to eq(entropy)
+      end
+    end
   end
 
   describe '.from_phrase' do
