@@ -114,7 +114,7 @@ module BSV
         decipher.auth_tag = tag
         decipher.auth_data = ''.b
 
-        decipher.update(ciphertext) + decipher.final
+        ciphertext.empty? ? decipher.final : decipher.update(ciphertext) + decipher.final
       end
 
       # Return the raw key bytes.
