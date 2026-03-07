@@ -45,6 +45,27 @@ module BSV
         new(SecureRandom.random_bytes(KEY_SIZE))
       end
 
+      # Derive a symmetric key from an ECDH shared secret.
+      #
+      # Computes the shared point between the two parties and uses the
+      # X-coordinate as the key material. The X-coordinate may be 31 or
+      # 32 bytes; shorter values are left-zero-padded automatically.
+      #
+      # @example Alice and Bob derive the same key
+      #   alice_key = SymmetricKey.from_ecdh(alice_priv, bob_pub)
+      #   bob_key   = SymmetricKey.from_ecdh(bob_priv, alice_pub)
+      #   alice_key.to_bytes == bob_key.to_bytes #=> true
+      #
+      # @param private_key [PrivateKey] one party's private key
+      # @param public_key [PublicKey] the other party's public key
+      # @return [SymmetricKey]
+      def self.from_ecdh(private_key, public_key)
+        shared = private_key.derive_shared_secret(public_key)
+        # X-coordinate = bytes 1..32 of the compressed point (skip the 02/03 prefix)
+        x_bytes = shared.compressed.byteslice(1, 32)
+        new(x_bytes)
+      end
+
       # Encrypt a message with AES-256-GCM.
       #
       # Generates a random 32-byte IV per call. Returns the concatenation

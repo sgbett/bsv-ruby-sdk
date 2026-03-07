@@ -127,6 +127,37 @@ RSpec.describe BSV::Primitives::SymmetricKey do
     end
   end
 
+  describe '.from_ecdh' do
+    let(:alice_priv) { BSV::Primitives::PrivateKey.generate }
+    let(:bob_priv) { BSV::Primitives::PrivateKey.generate }
+
+    it 'derives the same key for both parties' do
+      alice_key = described_class.from_ecdh(alice_priv, bob_priv.public_key)
+      bob_key = described_class.from_ecdh(bob_priv, alice_priv.public_key)
+      expect(alice_key.to_bytes).to eq(bob_key.to_bytes)
+    end
+
+    it 'round-trips encryption between parties' do
+      alice_key = described_class.from_ecdh(alice_priv, bob_priv.public_key)
+      bob_key = described_class.from_ecdh(bob_priv, alice_priv.public_key)
+
+      encrypted = alice_key.encrypt('secret message')
+      expect(bob_key.decrypt(encrypted)).to eq('secret message'.b)
+    end
+
+    it 'produces different keys for different key pairs' do
+      carol_priv = BSV::Primitives::PrivateKey.generate
+      key_ab = described_class.from_ecdh(alice_priv, bob_priv.public_key)
+      key_ac = described_class.from_ecdh(alice_priv, carol_priv.public_key)
+      expect(key_ab.to_bytes).not_to eq(key_ac.to_bytes)
+    end
+
+    it 'produces a 32-byte key' do
+      key = described_class.from_ecdh(alice_priv, bob_priv.public_key)
+      expect(key.to_bytes.bytesize).to eq(32)
+    end
+  end
+
   describe 'cross-SDK test vectors (Go SDK)' do
     # From go-sdk/primitives/ec/testdata/SymmetricKey.vectors.json
     # Key and ciphertext are base64-encoded binary. Plaintext is a literal string.
