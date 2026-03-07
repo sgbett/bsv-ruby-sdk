@@ -296,25 +296,15 @@ module BSV
       # @return [String] raw BEEF V2 binary
       def to_beef
         beef = Beef.new
-        bump_map = {}
         ancestors = collect_ancestors
 
         ancestors.each do |tx|
-          # Collect BUMPs
-          if tx.merkle_path
-            height = tx.merkle_path.block_height
-            unless bump_map.key?(height)
-              bump_map[height] = beef.bumps.length
-              beef.bumps << tx.merkle_path
-            end
-          end
-
-          # Add transaction in dependency order
           entry = if tx.merkle_path
+                    bump_idx = beef.merge_bump(tx.merkle_path)
                     Beef::BeefTx.new(
                       format: Beef::FORMAT_RAW_TX_AND_BUMP,
                       transaction: tx,
-                      bump_index: bump_map[tx.merkle_path.block_height]
+                      bump_index: bump_idx
                     )
                   else
                     Beef::BeefTx.new(

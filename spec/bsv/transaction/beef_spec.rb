@@ -269,6 +269,64 @@ RSpec.describe BSV::Transaction::Beef do
       expect(hex).to match(/\A[0-9a-f]+\z/)
       expect([hex].pack('H*').byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
     end
+
+    it 'handles multiple ancestors at the same block height via merge_bump' do
+      # Build two ancestor transactions with different merkle paths at the same height
+      priv = BSV::Primitives::PrivateKey.generate
+      lock = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+      pe = BSV::Transaction::MerklePath::PathElement
+
+      ancestor_a = BSV::Transaction::Transaction.new
+      ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 5000, locking_script: lock))
+      txid_a_hex = ancestor_a.txid.unpack1('H*')
+      ancestor_a.merkle_path = BSV::Transaction::MerklePath.new(
+        block_height: 800_000,
+        path: [[pe.new(offset: 0, hash: txid_a_hex, txid: true),
+                pe.new(offset: 1, hash: 'aa' * 32)]]
+      )
+
+      ancestor_b = BSV::Transaction::Transaction.new(version: 2)
+      ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 3000, locking_script: lock))
+      txid_b_hex = ancestor_b.txid.unpack1('H*')
+      ancestor_b.merkle_path = BSV::Transaction::MerklePath.new(
+        block_height: 800_000,
+        path: [[pe.new(offset: 2, hash: txid_b_hex, txid: true),
+                pe.new(offset: 3, hash: 'bb' * 32)]]
+      )
+
+      # Build a child spending both
+      child = BSV::Transaction::Transaction.new
+      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.txid, prev_tx_out_index: 0)
+      input_a.source_transaction = ancestor_a
+      input_a.source_satoshis = 5000
+      input_a.source_locking_script = lock
+      child.add_input(input_a)
+
+      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.txid, prev_tx_out_index: 0)
+      input_b.source_transaction = ancestor_b
+      input_b.source_satoshis = 3000
+      input_b.source_locking_script = lock
+      child.add_input(input_b)
+
+      child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 7000, locking_script: lock))
+
+      # to_beef builds the Beef object internally; test via merge_transaction which
+      # uses the same merge_bump approach
+      beef = described_class.new
+      beef.merge_transaction(child)
+
+      # Both ancestors should be present and proven
+      proven = beef.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      expect(proven.length).to eq(2)
+
+      # Two separate BUMPs (different merkle roots at same height).
+      # The old code would have stored only 1 BUMP, silently dropping the second.
+      expect(beef.bumps.length).to eq(2)
+
+      # Each proven tx should reference a different bump_index
+      indices = proven.map(&:bump_index)
+      expect(indices.uniq.length).to eq(2)
+    end
   end
 
   describe '#find_bump' do
