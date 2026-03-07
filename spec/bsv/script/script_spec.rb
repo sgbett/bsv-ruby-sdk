@@ -479,4 +479,36 @@ RSpec.describe BSV::Script::Script do
       expect(a).not_to eq(b)
     end
   end
+
+  describe 'truncated script parsing' do
+    it 'raises on truncated direct push with missing data bytes' do
+      expect { described_class.new("\x05".b).chunks }.to raise_error(ArgumentError, /truncated script/)
+    end
+
+    it 'raises on OP_PUSHDATA1 with missing length byte' do
+      expect { described_class.new("\x4c".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA1/)
+    end
+
+    it 'raises on OP_PUSHDATA2 with missing length bytes' do
+      expect { described_class.new("\x4d".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA2/)
+    end
+
+    it 'raises on OP_PUSHDATA2 with partial length' do
+      expect { described_class.new("\x4d\x01".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA2/)
+    end
+
+    it 'raises on OP_PUSHDATA4 with missing length bytes' do
+      expect { described_class.new("\x4e".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA4/)
+    end
+
+    it 'raises on OP_PUSHDATA4 with partial length' do
+      expect { described_class.new("\x4e\x01\x00".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA4/)
+    end
+
+    it 'parses a valid OP_PUSHDATA1 script correctly' do
+      script = described_class.new("\x4c\x03abc".b)
+      expect(script.chunks.length).to eq(1)
+      expect(script.chunks[0].data).to eq('abc'.b)
+    end
+  end
 end
