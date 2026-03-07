@@ -116,6 +116,25 @@ module BSV
         PublicKey.new(shared_point)
       end
 
+      # Derive a child public key using BRC-42 key derivation.
+      #
+      # Computes HMAC-SHA256(key: ECDH_shared_secret, msg: invoice_number)
+      # and adds the corresponding curve point to this public key. The result
+      # matches the public key of {PrivateKey#derive_child} with the same
+      # inputs, enabling public-key-only derivation.
+      #
+      # @param private_key [PrivateKey] the counterparty's private key
+      # @param invoice_number [String] the invoice number (UTF-8)
+      # @return [PublicKey] the derived child public key
+      def derive_child(private_key, invoice_number)
+        shared = derive_shared_secret(private_key)
+        hmac = Digest.hmac_sha256(shared.compressed, invoice_number.encode('UTF-8'))
+        hmac_bn = OpenSSL::BN.new(hmac.unpack1('H*'), 16)
+        hmac_point = Curve.multiply_generator(hmac_bn)
+        child_point = Curve.add_points(@point, hmac_point)
+        PublicKey.new(child_point)
+      end
+
       # Verify an ECDSA signature against a message hash.
       #
       # @param hash [String] 32-byte message digest
