@@ -361,9 +361,9 @@ module BSV
         drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
         return false unless drop_start&.positive?
 
-        # All chunks before first drop must be data pushes or OP_0
+        # All chunks before first drop must be data pushes or minimal push opcodes
         field_chunks = c[0...drop_start]
-        return false unless field_chunks.all? { |ch| ch.data? || ch.opcode == Opcodes::OP_0 }
+        return false unless field_chunks.all? { |ch| ch.data? || minimal_push_opcode?(ch.opcode) }
 
         # Count fields and verify the drop sequence
         num_fields = field_chunks.length
@@ -436,7 +436,8 @@ module BSV
       # Classify the script as a standard type.
       #
       # @return [String] one of +"empty"+, +"pubkeyhash"+, +"pubkey"+,
-      #   +"scripthash"+, +"nulldata"+, +"multisig"+, or +"nonstandard"+
+      #   +"scripthash"+, +"nulldata"+, +"multisig"+, +"pushdrop"+,
+      #   +"rpuzzle"+, or +"nonstandard"+
       def type
         if @bytes.empty? then 'empty'
         elsif p2pkh? then 'pubkeyhash'
@@ -511,7 +512,7 @@ module BSV
 
         c = chunks
         drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
-        c[0...drop_start].map { |ch| ch.data? ? ch.data : ''.b }
+        c[0...drop_start].map { |ch| decode_minimal_push(ch) }
       end
 
       # Extract the underlying lock script from a PushDrop script.
@@ -610,6 +611,23 @@ module BSV
 
       def small_int_opcode?(opcode)
         opcode == Opcodes::OP_0 || opcode.between?(Opcodes::OP_1, Opcodes::OP_16)
+      end
+
+      def minimal_push_opcode?(opcode)
+        opcode == Opcodes::OP_0 ||
+          opcode == Opcodes::OP_1NEGATE ||
+          opcode.between?(Opcodes::OP_1, Opcodes::OP_16)
+      end
+
+      def decode_minimal_push(chunk)
+        return chunk.data if chunk.data?
+
+        case chunk.opcode
+        when Opcodes::OP_0 then ''.b
+        when Opcodes::OP_1NEGATE then "\x81".b
+        when Opcodes::OP_1..Opcodes::OP_16
+          [chunk.opcode - 0x50].pack('C')
+        end
       end
 
       def parse_chunks

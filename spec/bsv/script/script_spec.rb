@@ -610,6 +610,16 @@ RSpec.describe BSV::Script::Script do
       expect(described_class.op_return('data'.b)).not_to be_pushdrop
     end
 
+    it 'returns true when fields are minimally encoded as OP_N' do
+      script = described_class.pushdrop_lock(["\x05".b], lock_script)
+      expect(script).to be_pushdrop
+    end
+
+    it 'returns true when field is OP_1NEGATE' do
+      script = described_class.pushdrop_lock(["\x81".b], lock_script)
+      expect(script).to be_pushdrop
+    end
+
     it 'returns false for empty script' do
       expect(described_class.new).not_to be_pushdrop
     end
@@ -631,6 +641,20 @@ RSpec.describe BSV::Script::Script do
       extracted = script.pushdrop_fields
       expect(extracted.length).to eq(1)
       expect(extracted[0]).to eq(''.b)
+    end
+
+    it 'round-trips minimally-encoded OP_N fields' do
+      fields = ["\x05".b, "\x10".b, "\x01".b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      expect(script.pushdrop_fields).to eq(fields)
+    end
+
+    it 'round-trips OP_1NEGATE field' do
+      fields = ["\x81".b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      expect(script.pushdrop_fields).to eq(fields)
     end
 
     it 'returns nil for non-PushDrop scripts' do
