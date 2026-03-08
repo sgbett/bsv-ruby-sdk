@@ -227,6 +227,9 @@ module BSV
         hash256: Opcodes::OP_HASH256
       }.freeze
 
+      # Reverse lookup: opcode → hash type symbol (excludes :raw).
+      RPUZZLE_OP_TO_TYPE = RPUZZLE_HASH_OPS.reject { |k, _| k == :raw }.invert.freeze
+
       # The fixed opcode prefix shared by all RPuzzle locking scripts.
       # OP_OVER OP_3 OP_SPLIT OP_NIP OP_1 OP_SPLIT OP_SWAP OP_SPLIT OP_DROP
       RPUZZLE_PREFIX = [
@@ -496,12 +499,7 @@ module BSV
       def rpuzzle_hash_type
         return unless rpuzzle?
 
-        if chunks.length == 12
-          :raw
-        else
-          RPUZZLE_HASH_OPS.each { |type, op| return type if op == chunks[9].opcode }
-          nil
-        end
+        chunks.length == 12 ? :raw : RPUZZLE_OP_TO_TYPE[chunks[9].opcode]
       end
 
       # Extract the embedded data fields from a PushDrop script.
