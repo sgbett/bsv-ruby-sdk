@@ -466,6 +466,202 @@ RSpec.describe BSV::Script::Script do
     end
   end
 
+  describe '.pushdrop_lock / .pushdrop_unlock' do
+    let(:lock_script) { described_class.p2pkh_lock(p2pkh_hash) }
+
+    it 'creates a PushDrop script with a single field' do
+      field = 'hello'.b
+      script = described_class.pushdrop_lock([field], lock_script)
+
+      chunks = script.chunks
+      # field + OP_DROP + 5 P2PKH chunks = 7
+      expect(chunks.length).to eq(7)
+      expect(chunks[0].data).to eq(field)
+      expect(chunks[1].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
+      expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_DUP)
+    end
+
+    it 'creates a PushDrop script with two fields (one OP_2DROP)' do
+      fields = ['field1'.b, 'field2'.b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      chunks = script.chunks
+      # 2 fields + OP_2DROP + 5 P2PKH chunks = 8
+      expect(chunks.length).to eq(8)
+      expect(chunks[0].data).to eq('field1'.b)
+      expect(chunks[1].data).to eq('field2'.b)
+      expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+    end
+
+    it 'creates a PushDrop script with three fields (OP_2DROP + OP_DROP)' do
+      fields = ['a'.b, 'b'.b, 'c'.b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      chunks = script.chunks
+      # 3 fields + OP_2DROP + OP_DROP + 5 P2PKH chunks = 10
+      expect(chunks.length).to eq(10)
+      expect(chunks[3].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+      expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
+    end
+
+    it 'creates a PushDrop script with four fields (two OP_2DROPs)' do
+      fields = ['a'.b, 'b'.b, 'c'.b, 'd'.b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      chunks = script.chunks
+      # 4 fields + 2*OP_2DROP + 5 P2PKH chunks = 11
+      expect(chunks.length).to eq(11)
+      expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+      expect(chunks[5].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+    end
+
+    it 'encodes empty data as OP_0' do
+      script = described_class.pushdrop_lock([''.b], lock_script)
+
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_0)
+      expect(chunks[0].data).to be_nil
+    end
+
+    it 'encodes single-byte values 1-16 as OP_N' do
+      script = described_class.pushdrop_lock(["\x05".b], lock_script)
+
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_5)
+      expect(chunks[0].data).to be_nil
+    end
+
+    it 'encodes zero byte as OP_0' do
+      script = described_class.pushdrop_lock(["\x00".b], lock_script)
+
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_0)
+    end
+
+    it 'encodes 0x81 as OP_1NEGATE' do
+      script = described_class.pushdrop_lock(["\x81".b], lock_script)
+
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_1NEGATE)
+    end
+
+    it 'handles large data fields with OP_PUSHDATA1' do
+      large_field = "\xff".b * 200
+      script = described_class.pushdrop_lock([large_field], lock_script)
+
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA1)
+      expect(chunks[0].data).to eq(large_field)
+    end
+
+    it 'handles large data fields with OP_PUSHDATA2' do
+      large_field = "\xff".b * 400
+      script = described_class.pushdrop_lock([large_field], lock_script)
+
+      chunks = script.chunks
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA2)
+      expect(chunks[0].data).to eq(large_field)
+    end
+
+    it 'round-trips through binary serialisation' do
+      fields = ['token_id'.b, 'metadata'.b, "\x42".b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      parsed = described_class.from_binary(script.to_binary)
+      expect(parsed.to_hex).to eq(script.to_hex)
+      expect(parsed).to be_pushdrop
+    end
+
+    it 'raises on empty fields array' do
+      expect { described_class.pushdrop_lock([], lock_script) }
+        .to raise_error(ArgumentError, /fields must not be empty/)
+    end
+
+    it 'raises when lock_script is not a Script' do
+      expect { described_class.pushdrop_lock(['data'.b], 'not a script') }
+        .to raise_error(ArgumentError, /lock_script must be a Script/)
+    end
+
+    it 'returns the unlock_script unchanged from pushdrop_unlock' do
+      unlock = described_class.p2pkh_unlock("\x30".b + ("\x01".b * 70), "\x02".b + ("\xab".b * 32))
+      result = described_class.pushdrop_unlock(unlock)
+      expect(result).to equal(unlock)
+    end
+  end
+
+  describe '#pushdrop?' do
+    let(:lock_script) { described_class.p2pkh_lock(p2pkh_hash) }
+
+    it 'returns true for a PushDrop script' do
+      script = described_class.pushdrop_lock(['data'.b], lock_script)
+      expect(script).to be_pushdrop
+    end
+
+    it 'returns true for multi-field PushDrop' do
+      script = described_class.pushdrop_lock(['a'.b, 'b'.b, 'c'.b, 'd'.b, 'e'.b], lock_script)
+      expect(script).to be_pushdrop
+    end
+
+    it 'returns false for P2PKH' do
+      expect(lock_script).not_to be_pushdrop
+    end
+
+    it 'returns false for OP_RETURN' do
+      expect(described_class.op_return('data'.b)).not_to be_pushdrop
+    end
+
+    it 'returns false for empty script' do
+      expect(described_class.new).not_to be_pushdrop
+    end
+  end
+
+  describe '#pushdrop_fields' do
+    let(:lock_script) { described_class.p2pkh_lock(p2pkh_hash) }
+
+    it 'extracts fields from a PushDrop script' do
+      fields = ['token_id'.b, 'metadata'.b]
+      script = described_class.pushdrop_lock(fields, lock_script)
+
+      expect(script.pushdrop_fields).to eq(fields)
+    end
+
+    it 'returns empty binary for OP_0-encoded fields' do
+      script = described_class.pushdrop_lock([''.b], lock_script)
+
+      extracted = script.pushdrop_fields
+      expect(extracted.length).to eq(1)
+      expect(extracted[0]).to eq(''.b)
+    end
+
+    it 'returns nil for non-PushDrop scripts' do
+      expect(described_class.p2pkh_lock(p2pkh_hash).pushdrop_fields).to be_nil
+    end
+  end
+
+  describe '#pushdrop_lock_script' do
+    let(:lock_script) { described_class.p2pkh_lock(p2pkh_hash) }
+
+    it 'extracts the underlying lock script' do
+      script = described_class.pushdrop_lock(['data'.b], lock_script)
+
+      extracted = script.pushdrop_lock_script
+      expect(extracted.to_hex).to eq(lock_script.to_hex)
+      expect(extracted).to be_p2pkh
+    end
+
+    it 'returns nil for non-PushDrop scripts' do
+      expect(lock_script.pushdrop_lock_script).to be_nil
+    end
+  end
+
+  describe '#type (pushdrop)' do
+    it 'returns "pushdrop" for PushDrop scripts' do
+      lock_script = described_class.p2pkh_lock(p2pkh_hash)
+      script = described_class.pushdrop_lock(['data'.b], lock_script)
+      expect(script.type).to eq('pushdrop')
+    end
+  end
+
   describe '#==' do
     it 'considers scripts with identical bytes equal' do
       a = described_class.from_hex(p2pkh_hex)
