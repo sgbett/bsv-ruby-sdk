@@ -177,6 +177,100 @@ module BSV
         new(buf)
       end
 
+      # Construct a PushDrop locking script.
+      #
+      # Pushes arbitrary data fields onto the stack, then drops them all
+      # before the locking condition executes. Used for token protocols
+      # where data must be embedded in spendable outputs.
+      #
+      # Structure: +[field0] [field1] ... [fieldN] [OP_2DROP...] [OP_DROP?] [lock_script]+
+      #
+      # @param fields [Array<String>] data payloads to embed (binary strings)
+      # @param lock_script [Script] the underlying locking condition (e.g. P2PKH)
+      # @return [Script]
+      # @raise [ArgumentError] if fields is empty or lock_script is not a Script
+      def self.pushdrop_lock(fields, lock_script)
+        raise ArgumentError, 'fields must not be empty' if fields.empty?
+        raise ArgumentError, 'lock_script must be a Script' unless lock_script.is_a?(Script)
+
+        chunks = fields.map { |f| encode_minimally(f.b) }
+
+        remaining = fields.length
+        while remaining > 1
+          chunks << Chunk.new(opcode: Opcodes::OP_2DROP)
+          remaining -= 2
+        end
+        chunks << Chunk.new(opcode: Opcodes::OP_DROP) if remaining == 1
+
+        chunks.concat(lock_script.chunks)
+        from_chunks(chunks)
+      end
+
+      # Construct a PushDrop unlocking script.
+      #
+      # Pass-through wrapper — the data fields are dropped during execution,
+      # so the unlocking script just needs to satisfy the underlying lock.
+      #
+      # @param unlock_script [Script] unlocking script for the underlying condition
+      # @return [Script]
+      def self.pushdrop_unlock(unlock_script)
+        unlock_script
+      end
+
+      # Hash type to opcode mapping for RPuzzle scripts.
+      RPUZZLE_HASH_OPS = {
+        raw: nil,
+        sha1: Opcodes::OP_SHA1,
+        ripemd160: Opcodes::OP_RIPEMD160,
+        sha256: Opcodes::OP_SHA256,
+        hash160: Opcodes::OP_HASH160,
+        hash256: Opcodes::OP_HASH256
+      }.freeze
+
+      # Reverse lookup: opcode → hash type symbol (excludes :raw).
+      RPUZZLE_OP_TO_TYPE = RPUZZLE_HASH_OPS.reject { |k, _| k == :raw }.invert.freeze
+
+      # The fixed opcode prefix shared by all RPuzzle locking scripts.
+      # OP_OVER OP_3 OP_SPLIT OP_NIP OP_1 OP_SPLIT OP_SWAP OP_SPLIT OP_DROP
+      RPUZZLE_PREFIX = [
+        Opcodes::OP_OVER, Opcodes::OP_3, Opcodes::OP_SPLIT,
+        Opcodes::OP_NIP, Opcodes::OP_1, Opcodes::OP_SPLIT,
+        Opcodes::OP_SWAP, Opcodes::OP_SPLIT, Opcodes::OP_DROP
+      ].freeze
+
+      # Construct an RPuzzle locking script.
+      #
+      # RPuzzle enables hash-puzzle-based spending where the spender proves
+      # knowledge of the ECDSA K-value (nonce) that produced a signature's
+      # R component.
+      #
+      # @param hash_value [String] the R-value or hash of R-value to lock against
+      # @param hash_type [Symbol] one of +:raw+, +:sha1+, +:ripemd160+,
+      #   +:sha256+, +:hash160+, +:hash256+
+      # @return [Script]
+      # @raise [ArgumentError] if hash_type is invalid
+      def self.rpuzzle_lock(hash_value, hash_type: :hash160)
+        raise ArgumentError, "unknown hash_type: #{hash_type}" unless RPUZZLE_HASH_OPS.key?(hash_type)
+
+        buf = RPUZZLE_PREFIX.pack('C*')
+        hash_op = RPUZZLE_HASH_OPS[hash_type]
+        buf << [hash_op].pack('C') if hash_op
+        buf << encode_push_data(hash_value.b)
+        buf << [Opcodes::OP_EQUALVERIFY, Opcodes::OP_CHECKSIG].pack('CC')
+        new(buf)
+      end
+
+      # Construct an RPuzzle unlocking script.
+      #
+      # Same wire format as P2PKH: signature + public key.
+      #
+      # @param signature_der [String] DER-encoded signature with sighash byte
+      # @param pubkey_bytes [String] compressed or uncompressed public key bytes
+      # @return [Script]
+      def self.rpuzzle_unlock(signature_der, pubkey_bytes)
+        p2pkh_unlock(signature_der, pubkey_bytes)
+      end
+
       # --- Serialisation ---
 
       # @return [String] a copy of the raw script bytes
@@ -256,6 +350,76 @@ module BSV
           ([0x04, 0x06, 0x07].include?(version) && pubkey.bytesize == 65)
       end
 
+      # Whether this is a PushDrop script.
+      #
+      # Detects scripts with one or more data pushes followed by a
+      # OP_DROP/OP_2DROP chain and a recognisable locking condition.
+      #
+      # @return [Boolean]
+      def pushdrop?
+        c = chunks
+        return false if c.length < 3
+
+        # Find the first DROP/2DROP — everything before is data fields
+        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
+        return false unless drop_start&.positive?
+
+        # All chunks before first drop must be data pushes or minimal push opcodes
+        field_chunks = c[0...drop_start]
+        return false unless field_chunks.all? { |ch| ch.data? || minimal_push_opcode?(ch.opcode) }
+
+        # Count fields and verify the drop sequence
+        num_fields = field_chunks.length
+        expected_drops = []
+        remaining = num_fields
+        while remaining > 1
+          expected_drops << Opcodes::OP_2DROP
+          remaining -= 2
+        end
+        expected_drops << Opcodes::OP_DROP if remaining == 1
+
+        drop_end = drop_start + expected_drops.length
+        return false if drop_end > c.length
+
+        actual_drops = c[drop_start...drop_end].map(&:opcode)
+        return false unless actual_drops == expected_drops
+
+        # Must have at least one chunk after the drops (the lock script)
+        drop_end < c.length
+      end
+
+      # Whether this is an RPuzzle script.
+      #
+      # Detects the fixed R-value extraction prefix followed by an optional
+      # hash opcode, a data push, OP_EQUALVERIFY, and OP_CHECKSIG.
+      #
+      # @return [Boolean]
+      def rpuzzle?
+        c = chunks
+        # Minimum: 9 prefix + hash_data + OP_EQUALVERIFY + OP_CHECKSIG = 12
+        # With hash op: 13
+        return false unless c.length >= 12
+
+        # Verify the 9-opcode prefix
+        RPUZZLE_PREFIX.each_with_index do |op, i|
+          return false unless c[i].opcode == op
+        end
+
+        # After prefix: optional hash op, then data push, OP_EQUALVERIFY, OP_CHECKSIG
+        return false unless c[-1].opcode == Opcodes::OP_CHECKSIG
+        return false unless c[-2].opcode == Opcodes::OP_EQUALVERIFY
+        return false unless c[-3].data?
+
+        # Either exactly 12 chunks (raw) or 13 chunks (with hash op)
+        if c.length == 12
+          true
+        elsif c.length == 13
+          RPUZZLE_HASH_OPS.values.compact.include?(c[9].opcode)
+        else
+          false
+        end
+      end
+
       # Whether this is a bare multisig script.
       #
       # Pattern: +OP_M <pubkey1> ... <pubkeyN> OP_N OP_CHECKMULTISIG+
@@ -275,7 +439,8 @@ module BSV
       # Classify the script as a standard type.
       #
       # @return [String] one of +"empty"+, +"pubkeyhash"+, +"pubkey"+,
-      #   +"scripthash"+, +"nulldata"+, +"multisig"+, or +"nonstandard"+
+      #   +"scripthash"+, +"nulldata"+, +"multisig"+, +"pushdrop"+,
+      #   +"rpuzzle"+, or +"nonstandard"+
       def type
         if @bytes.empty? then 'empty'
         elsif p2pkh? then 'pubkeyhash'
@@ -283,6 +448,8 @@ module BSV
         elsif p2sh? then 'scripthash'
         elsif op_return? then 'nulldata'
         elsif multisig? then 'multisig'
+        elsif pushdrop? then 'pushdrop'
+        elsif rpuzzle? then 'rpuzzle'
         else 'nonstandard'
         end
       end
@@ -315,6 +482,49 @@ module BSV
 
         start = @bytes.getbyte(0) == Opcodes::OP_RETURN ? 1 : 2
         Script.new(@bytes.byteslice(start..)).chunks.select(&:data?).map(&:data)
+      end
+
+      # Extract the hash value from an RPuzzle script.
+      #
+      # @return [String, nil] the locked hash/R-value, or +nil+ if not RPuzzle
+      def rpuzzle_hash
+        return unless rpuzzle?
+
+        chunks[-3].data
+      end
+
+      # Detect the hash type used in an RPuzzle script.
+      #
+      # @return [Symbol, nil] the hash type (e.g. +:hash160+, +:raw+), or +nil+ if not RPuzzle
+      def rpuzzle_hash_type
+        return unless rpuzzle?
+
+        chunks.length == 12 ? :raw : RPUZZLE_OP_TO_TYPE[chunks[9].opcode]
+      end
+
+      # Extract the embedded data fields from a PushDrop script.
+      #
+      # @return [Array<String>, nil] array of field data, or +nil+ if not PushDrop
+      def pushdrop_fields
+        return unless pushdrop?
+
+        c = chunks
+        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
+        c[0...drop_start].map { |ch| decode_minimal_push(ch) }
+      end
+
+      # Extract the underlying lock script from a PushDrop script.
+      #
+      # @return [Script, nil] the lock script portion, or +nil+ if not PushDrop
+      def pushdrop_lock_script
+        return unless pushdrop?
+
+        c = chunks
+        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
+        num_fields = drop_start
+        num_drops = (num_fields / 2) + (num_fields.odd? ? 1 : 0)
+        lock_start = drop_start + num_drops
+        self.class.from_chunks(c[lock_start..])
       end
 
       # Derive Bitcoin addresses from this script.
@@ -366,6 +576,26 @@ module BSV
           end
         end
 
+        def encode_minimally(data)
+          len = data.bytesize
+
+          if len.zero? || (len == 1 && data.getbyte(0).zero?)
+            Chunk.new(opcode: Opcodes::OP_0)
+          elsif len == 1 && data.getbyte(0).between?(1, 16)
+            Chunk.new(opcode: 0x50 + data.getbyte(0))
+          elsif len == 1 && data.getbyte(0) == 0x81
+            Chunk.new(opcode: Opcodes::OP_1NEGATE)
+          elsif len <= 0x4b
+            Chunk.new(opcode: len, data: data)
+          elsif len <= 0xff
+            Chunk.new(opcode: Opcodes::OP_PUSHDATA1, data: data)
+          elsif len <= 0xffff
+            Chunk.new(opcode: Opcodes::OP_PUSHDATA2, data: data)
+          else
+            Chunk.new(opcode: Opcodes::OP_PUSHDATA4, data: data)
+          end
+        end
+
         def resolve_opcode(token)
           return nil unless token.start_with?('OP_')
 
@@ -379,6 +609,23 @@ module BSV
 
       def small_int_opcode?(opcode)
         opcode == Opcodes::OP_0 || opcode.between?(Opcodes::OP_1, Opcodes::OP_16)
+      end
+
+      def minimal_push_opcode?(opcode)
+        opcode == Opcodes::OP_0 ||
+          opcode == Opcodes::OP_1NEGATE ||
+          opcode.between?(Opcodes::OP_1, Opcodes::OP_16)
+      end
+
+      def decode_minimal_push(chunk)
+        return chunk.data if chunk.data?
+
+        case chunk.opcode
+        when Opcodes::OP_0 then ''.b
+        when Opcodes::OP_1NEGATE then "\x81".b
+        when Opcodes::OP_1..Opcodes::OP_16
+          [chunk.opcode - 0x50].pack('C')
+        end
       end
 
       def parse_chunks
