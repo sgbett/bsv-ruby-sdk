@@ -217,6 +217,57 @@ module BSV
         unlock_script
       end
 
+      # Hash type to opcode mapping for RPuzzle scripts.
+      RPUZZLE_HASH_OPS = {
+        raw: nil,
+        sha1: Opcodes::OP_SHA1,
+        ripemd160: Opcodes::OP_RIPEMD160,
+        sha256: Opcodes::OP_SHA256,
+        hash160: Opcodes::OP_HASH160,
+        hash256: Opcodes::OP_HASH256
+      }.freeze
+
+      # The fixed opcode prefix shared by all RPuzzle locking scripts.
+      # OP_OVER OP_3 OP_SPLIT OP_NIP OP_1 OP_SPLIT OP_SWAP OP_SPLIT OP_DROP
+      RPUZZLE_PREFIX = [
+        Opcodes::OP_OVER, Opcodes::OP_3, Opcodes::OP_SPLIT,
+        Opcodes::OP_NIP, Opcodes::OP_1, Opcodes::OP_SPLIT,
+        Opcodes::OP_SWAP, Opcodes::OP_SPLIT, Opcodes::OP_DROP
+      ].freeze
+
+      # Construct an RPuzzle locking script.
+      #
+      # RPuzzle enables hash-puzzle-based spending where the spender proves
+      # knowledge of the ECDSA K-value (nonce) that produced a signature's
+      # R component.
+      #
+      # @param hash_value [String] the R-value or hash of R-value to lock against
+      # @param hash_type [Symbol] one of +:raw+, +:sha1+, +:ripemd160+,
+      #   +:sha256+, +:hash160+, +:hash256+
+      # @return [Script]
+      # @raise [ArgumentError] if hash_type is invalid
+      def self.rpuzzle_lock(hash_value, hash_type: :hash160)
+        raise ArgumentError, "unknown hash_type: #{hash_type}" unless RPUZZLE_HASH_OPS.key?(hash_type)
+
+        buf = RPUZZLE_PREFIX.pack('C*')
+        hash_op = RPUZZLE_HASH_OPS[hash_type]
+        buf << [hash_op].pack('C') if hash_op
+        buf << encode_push_data(hash_value.b)
+        buf << [Opcodes::OP_EQUALVERIFY, Opcodes::OP_CHECKSIG].pack('CC')
+        new(buf)
+      end
+
+      # Construct an RPuzzle unlocking script.
+      #
+      # Same wire format as P2PKH: signature + public key.
+      #
+      # @param signature_der [String] DER-encoded signature with sighash byte
+      # @param pubkey_bytes [String] compressed or uncompressed public key bytes
+      # @return [Script]
+      def self.rpuzzle_unlock(signature_der, pubkey_bytes)
+        p2pkh_unlock(signature_der, pubkey_bytes)
+      end
+
       # --- Serialisation ---
 
       # @return [String] a copy of the raw script bytes
@@ -334,6 +385,38 @@ module BSV
         drop_end < c.length
       end
 
+      # Whether this is an RPuzzle script.
+      #
+      # Detects the fixed R-value extraction prefix followed by an optional
+      # hash opcode, a data push, OP_EQUALVERIFY, and OP_CHECKSIG.
+      #
+      # @return [Boolean]
+      def rpuzzle?
+        c = chunks
+        # Minimum: 9 prefix + hash_data + OP_EQUALVERIFY + OP_CHECKSIG = 12
+        # With hash op: 13
+        return false unless c.length >= 12
+
+        # Verify the 9-opcode prefix
+        RPUZZLE_PREFIX.each_with_index do |op, i|
+          return false unless c[i].opcode == op
+        end
+
+        # After prefix: optional hash op, then data push, OP_EQUALVERIFY, OP_CHECKSIG
+        return false unless c[-1].opcode == Opcodes::OP_CHECKSIG
+        return false unless c[-2].opcode == Opcodes::OP_EQUALVERIFY
+        return false unless c[-3].data?
+
+        # Either exactly 12 chunks (raw) or 13 chunks (with hash op)
+        if c.length == 12
+          true
+        elsif c.length == 13
+          RPUZZLE_HASH_OPS.values.compact.include?(c[9].opcode)
+        else
+          false
+        end
+      end
+
       # Whether this is a bare multisig script.
       #
       # Pattern: +OP_M <pubkey1> ... <pubkeyN> OP_N OP_CHECKMULTISIG+
@@ -362,6 +445,7 @@ module BSV
         elsif op_return? then 'nulldata'
         elsif multisig? then 'multisig'
         elsif pushdrop? then 'pushdrop'
+        elsif rpuzzle? then 'rpuzzle'
         else 'nonstandard'
         end
       end
@@ -394,6 +478,29 @@ module BSV
 
         start = @bytes.getbyte(0) == Opcodes::OP_RETURN ? 1 : 2
         Script.new(@bytes.byteslice(start..)).chunks.select(&:data?).map(&:data)
+      end
+
+      # Extract the hash value from an RPuzzle script.
+      #
+      # @return [String, nil] the locked hash/R-value, or +nil+ if not RPuzzle
+      def rpuzzle_hash
+        return unless rpuzzle?
+
+        chunks[-3].data
+      end
+
+      # Detect the hash type used in an RPuzzle script.
+      #
+      # @return [Symbol, nil] the hash type (e.g. +:hash160+, +:raw+), or +nil+ if not RPuzzle
+      def rpuzzle_hash_type
+        return unless rpuzzle?
+
+        if chunks.length == 12
+          :raw
+        else
+          RPUZZLE_HASH_OPS.each { |type, op| return type if op == chunks[9].opcode }
+          nil
+        end
       end
 
       # Extract the embedded data fields from a PushDrop script.
