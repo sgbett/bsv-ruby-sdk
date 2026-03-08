@@ -177,6 +177,46 @@ module BSV
         new(buf)
       end
 
+      # Construct a PushDrop locking script.
+      #
+      # Pushes arbitrary data fields onto the stack, then drops them all
+      # before the locking condition executes. Used for token protocols
+      # where data must be embedded in spendable outputs.
+      #
+      # Structure: +[field0] [field1] ... [fieldN] [OP_2DROP...] [OP_DROP?] [lock_script]+
+      #
+      # @param fields [Array<String>] data payloads to embed (binary strings)
+      # @param lock_script [Script] the underlying locking condition (e.g. P2PKH)
+      # @return [Script]
+      # @raise [ArgumentError] if fields is empty or lock_script is not a Script
+      def self.pushdrop_lock(fields, lock_script)
+        raise ArgumentError, 'fields must not be empty' if fields.empty?
+        raise ArgumentError, 'lock_script must be a Script' unless lock_script.is_a?(Script)
+
+        chunks = fields.map { |f| encode_minimally(f.b) }
+
+        remaining = fields.length
+        while remaining > 1
+          chunks << Chunk.new(opcode: Opcodes::OP_2DROP)
+          remaining -= 2
+        end
+        chunks << Chunk.new(opcode: Opcodes::OP_DROP) if remaining == 1
+
+        chunks.concat(lock_script.chunks)
+        from_chunks(chunks)
+      end
+
+      # Construct a PushDrop unlocking script.
+      #
+      # Pass-through wrapper — the data fields are dropped during execution,
+      # so the unlocking script just needs to satisfy the underlying lock.
+      #
+      # @param unlock_script [Script] unlocking script for the underlying condition
+      # @return [Script]
+      def self.pushdrop_unlock(unlock_script)
+        unlock_script
+      end
+
       # --- Serialisation ---
 
       # @return [String] a copy of the raw script bytes
@@ -256,6 +296,44 @@ module BSV
           ([0x04, 0x06, 0x07].include?(version) && pubkey.bytesize == 65)
       end
 
+      # Whether this is a PushDrop script.
+      #
+      # Detects scripts with one or more data pushes followed by a
+      # OP_DROP/OP_2DROP chain and a recognisable locking condition.
+      #
+      # @return [Boolean]
+      def pushdrop?
+        c = chunks
+        return false if c.length < 3
+
+        # Find the first DROP/2DROP — everything before is data fields
+        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
+        return false unless drop_start&.positive?
+
+        # All chunks before first drop must be data pushes or OP_0
+        field_chunks = c[0...drop_start]
+        return false unless field_chunks.all? { |ch| ch.data? || ch.opcode == Opcodes::OP_0 }
+
+        # Count fields and verify the drop sequence
+        num_fields = field_chunks.length
+        expected_drops = []
+        remaining = num_fields
+        while remaining > 1
+          expected_drops << Opcodes::OP_2DROP
+          remaining -= 2
+        end
+        expected_drops << Opcodes::OP_DROP if remaining == 1
+
+        drop_end = drop_start + expected_drops.length
+        return false if drop_end > c.length
+
+        actual_drops = c[drop_start...drop_end].map(&:opcode)
+        return false unless actual_drops == expected_drops
+
+        # Must have at least one chunk after the drops (the lock script)
+        drop_end < c.length
+      end
+
       # Whether this is a bare multisig script.
       #
       # Pattern: +OP_M <pubkey1> ... <pubkeyN> OP_N OP_CHECKMULTISIG+
@@ -283,6 +361,7 @@ module BSV
         elsif p2sh? then 'scripthash'
         elsif op_return? then 'nulldata'
         elsif multisig? then 'multisig'
+        elsif pushdrop? then 'pushdrop'
         else 'nonstandard'
         end
       end
@@ -315,6 +394,31 @@ module BSV
 
         start = @bytes.getbyte(0) == Opcodes::OP_RETURN ? 1 : 2
         Script.new(@bytes.byteslice(start..)).chunks.select(&:data?).map(&:data)
+      end
+
+      # Extract the embedded data fields from a PushDrop script.
+      #
+      # @return [Array<String>, nil] array of field data, or +nil+ if not PushDrop
+      def pushdrop_fields
+        return unless pushdrop?
+
+        c = chunks
+        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
+        c[0...drop_start].map { |ch| ch.data? ? ch.data : ''.b }
+      end
+
+      # Extract the underlying lock script from a PushDrop script.
+      #
+      # @return [Script, nil] the lock script portion, or +nil+ if not PushDrop
+      def pushdrop_lock_script
+        return unless pushdrop?
+
+        c = chunks
+        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
+        num_fields = drop_start
+        num_drops = (num_fields / 2) + (num_fields.odd? ? 1 : 0)
+        lock_start = drop_start + num_drops
+        self.class.from_chunks(c[lock_start..])
       end
 
       # Derive Bitcoin addresses from this script.
@@ -363,6 +467,26 @@ module BSV
             [Opcodes::OP_PUSHDATA2, len].pack('Cv') + data
           else
             [Opcodes::OP_PUSHDATA4, len].pack('CV') + data
+          end
+        end
+
+        def encode_minimally(data)
+          len = data.bytesize
+
+          if len.zero? || (len == 1 && data.getbyte(0).zero?)
+            Chunk.new(opcode: Opcodes::OP_0)
+          elsif len == 1 && data.getbyte(0).between?(1, 16)
+            Chunk.new(opcode: 0x50 + data.getbyte(0))
+          elsif len == 1 && data.getbyte(0) == 0x81
+            Chunk.new(opcode: Opcodes::OP_1NEGATE)
+          elsif len <= 0x4b
+            Chunk.new(opcode: len, data: data)
+          elsif len <= 0xff
+            Chunk.new(opcode: Opcodes::OP_PUSHDATA1, data: data)
+          elsif len <= 0xffff
+            Chunk.new(opcode: Opcodes::OP_PUSHDATA2, data: data)
+          else
+            Chunk.new(opcode: Opcodes::OP_PUSHDATA4, data: data)
           end
         end
 
