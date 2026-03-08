@@ -662,6 +662,192 @@ RSpec.describe BSV::Script::Script do
     end
   end
 
+  describe '.rpuzzle_lock / .rpuzzle_unlock' do
+    let(:hash160_value) { "\xab".b * 20 }
+    let(:sha256_value) { "\xcd".b * 32 }
+    let(:raw_r_value) { "\xef".b * 32 }
+
+    let(:prefix_opcodes) do
+      [
+        BSV::Script::Opcodes::OP_OVER, BSV::Script::Opcodes::OP_3,
+        BSV::Script::Opcodes::OP_SPLIT, BSV::Script::Opcodes::OP_NIP,
+        BSV::Script::Opcodes::OP_1, BSV::Script::Opcodes::OP_SPLIT,
+        BSV::Script::Opcodes::OP_SWAP, BSV::Script::Opcodes::OP_SPLIT,
+        BSV::Script::Opcodes::OP_DROP
+      ]
+    end
+
+    it 'creates a hash160 RPuzzle lock (default)' do
+      script = described_class.rpuzzle_lock(hash160_value)
+
+      chunks = script.chunks
+      # 9 prefix + OP_HASH160 + hash + OP_EQUALVERIFY + OP_CHECKSIG = 13
+      expect(chunks.length).to eq(13)
+      prefix_opcodes.each_with_index do |op, i|
+        expect(chunks[i].opcode).to eq(op)
+      end
+      expect(chunks[9].opcode).to eq(BSV::Script::Opcodes::OP_HASH160)
+      expect(chunks[10].data).to eq(hash160_value)
+      expect(chunks[11].opcode).to eq(BSV::Script::Opcodes::OP_EQUALVERIFY)
+      expect(chunks[12].opcode).to eq(BSV::Script::Opcodes::OP_CHECKSIG)
+    end
+
+    it 'creates a sha256 RPuzzle lock' do
+      script = described_class.rpuzzle_lock(sha256_value, hash_type: :sha256)
+
+      chunks = script.chunks
+      expect(chunks.length).to eq(13)
+      expect(chunks[9].opcode).to eq(BSV::Script::Opcodes::OP_SHA256)
+      expect(chunks[10].data).to eq(sha256_value)
+    end
+
+    it 'creates a ripemd160 RPuzzle lock' do
+      hash = "\xbb".b * 20
+      script = described_class.rpuzzle_lock(hash, hash_type: :ripemd160)
+
+      chunks = script.chunks
+      expect(chunks[9].opcode).to eq(BSV::Script::Opcodes::OP_RIPEMD160)
+      expect(chunks[10].data).to eq(hash)
+    end
+
+    it 'creates a sha1 RPuzzle lock' do
+      hash = "\xcc".b * 20
+      script = described_class.rpuzzle_lock(hash, hash_type: :sha1)
+
+      chunks = script.chunks
+      expect(chunks[9].opcode).to eq(BSV::Script::Opcodes::OP_SHA1)
+      expect(chunks[10].data).to eq(hash)
+    end
+
+    it 'creates a hash256 RPuzzle lock' do
+      hash = "\xdd".b * 32
+      script = described_class.rpuzzle_lock(hash, hash_type: :hash256)
+
+      chunks = script.chunks
+      expect(chunks[9].opcode).to eq(BSV::Script::Opcodes::OP_HASH256)
+      expect(chunks[10].data).to eq(hash)
+    end
+
+    it 'creates a raw RPuzzle lock (no hash op)' do
+      script = described_class.rpuzzle_lock(raw_r_value, hash_type: :raw)
+
+      chunks = script.chunks
+      # 9 prefix + r_value + OP_EQUALVERIFY + OP_CHECKSIG = 12 (no hash op)
+      expect(chunks.length).to eq(12)
+      expect(chunks[9].data).to eq(raw_r_value)
+      expect(chunks[10].opcode).to eq(BSV::Script::Opcodes::OP_EQUALVERIFY)
+      expect(chunks[11].opcode).to eq(BSV::Script::Opcodes::OP_CHECKSIG)
+    end
+
+    it 'raises on unknown hash type' do
+      expect { described_class.rpuzzle_lock("\x00".b * 20, hash_type: :md5) }
+        .to raise_error(ArgumentError, /unknown hash_type/)
+    end
+
+    it 'round-trips through binary serialisation' do
+      script = described_class.rpuzzle_lock(hash160_value)
+
+      parsed = described_class.from_binary(script.to_binary)
+      expect(parsed.to_hex).to eq(script.to_hex)
+      expect(parsed).to be_rpuzzle
+    end
+
+    it 'creates an RPuzzle unlock script (same as P2PKH)' do
+      sig = "\x30".b + ("\x01".b * 70)
+      pubkey = "\x02".b + ("\xab".b * 32)
+      script = described_class.rpuzzle_unlock(sig, pubkey)
+
+      chunks = script.chunks
+      expect(chunks.length).to eq(2)
+      expect(chunks[0].data).to eq(sig)
+      expect(chunks[1].data).to eq(pubkey)
+    end
+  end
+
+  describe '#rpuzzle?' do
+    it 'returns true for a hash160 RPuzzle' do
+      script = described_class.rpuzzle_lock("\xab".b * 20)
+      expect(script).to be_rpuzzle
+    end
+
+    it 'returns true for a raw RPuzzle' do
+      script = described_class.rpuzzle_lock("\xef".b * 32, hash_type: :raw)
+      expect(script).to be_rpuzzle
+    end
+
+    it 'returns true for all hash type variants' do
+      %i[sha1 sha256 ripemd160 hash160 hash256].each do |ht|
+        script = described_class.rpuzzle_lock("\xab".b * 20, hash_type: ht)
+        expect(script).to be_rpuzzle
+      end
+    end
+
+    it 'returns false for P2PKH' do
+      expect(described_class.p2pkh_lock(p2pkh_hash)).not_to be_rpuzzle
+    end
+
+    it 'returns false for OP_RETURN' do
+      expect(described_class.op_return('data'.b)).not_to be_rpuzzle
+    end
+
+    it 'returns false for empty script' do
+      expect(described_class.new).not_to be_rpuzzle
+    end
+  end
+
+  describe '#rpuzzle_hash' do
+    it 'extracts the hash from a hash160 RPuzzle' do
+      hash = "\xab".b * 20
+      script = described_class.rpuzzle_lock(hash)
+      expect(script.rpuzzle_hash).to eq(hash)
+    end
+
+    it 'extracts the R-value from a raw RPuzzle' do
+      r_value = "\xef".b * 32
+      script = described_class.rpuzzle_lock(r_value, hash_type: :raw)
+      expect(script.rpuzzle_hash).to eq(r_value)
+    end
+
+    it 'returns nil for non-RPuzzle scripts' do
+      expect(described_class.p2pkh_lock(p2pkh_hash).rpuzzle_hash).to be_nil
+    end
+  end
+
+  describe '#rpuzzle_hash_type' do
+    it 'returns :hash160 for default RPuzzle' do
+      script = described_class.rpuzzle_lock("\xab".b * 20)
+      expect(script.rpuzzle_hash_type).to eq(:hash160)
+    end
+
+    it 'returns :raw for raw RPuzzle' do
+      script = described_class.rpuzzle_lock("\xef".b * 32, hash_type: :raw)
+      expect(script.rpuzzle_hash_type).to eq(:raw)
+    end
+
+    it 'returns correct type for each variant' do
+      %i[sha1 sha256 ripemd160 hash160 hash256].each do |ht|
+        script = described_class.rpuzzle_lock("\xab".b * 20, hash_type: ht)
+        expect(script.rpuzzle_hash_type).to eq(ht)
+      end
+    end
+
+    it 'returns nil for non-RPuzzle scripts' do
+      expect(described_class.p2pkh_lock(p2pkh_hash).rpuzzle_hash_type).to be_nil
+    end
+  end
+
+  describe '#type (rpuzzle)' do
+    it 'returns "rpuzzle" for RPuzzle scripts' do
+      script = described_class.rpuzzle_lock("\xab".b * 20)
+      expect(script.type).to eq('rpuzzle')
+    end
+
+    it 'returns "rpuzzle" for raw RPuzzle scripts' do
+      script = described_class.rpuzzle_lock("\xef".b * 32, hash_type: :raw)
+      expect(script.type).to eq('rpuzzle')
+    end
+  end
+
   describe '#==' do
     it 'considers scripts with identical bytes equal' do
       a = described_class.from_hex(p2pkh_hex)
