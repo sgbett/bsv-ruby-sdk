@@ -600,15 +600,35 @@ module BSV
       # Accepts a {FeeModel} instance, a numeric fee in satoshis, or nil
       # (defaults to {FeeModels::SatoshisPerKilobyte} at 50 sat/kB).
       #
-      # After computing the fee, distributes remaining satoshis equally
-      # across outputs marked as change. If insufficient change, removes
-      # all change outputs (excess goes to miners).
+      # After computing the fee, distributes remaining satoshis across outputs
+      # marked as change. The distribution strategy is controlled by the
+      # +change_distribution:+ keyword argument:
+      #
+      # - +:equal+ (default) — divides change equally across all change outputs,
+      #   matching TS SDK default behaviour.
+      # - +:random+ — Benford-inspired distribution that biases amounts towards
+      #   the lower end of the available range, improving privacy by producing
+      #   varied change amounts.
+      #
+      # If insufficient change remains, all change outputs are removed.
+      #
+      # An optional +rng:+ keyword argument may be supplied to inject a seeded
+      # {Random} instance for deterministic testing. Defaults to
+      # {Random}.
       #
       # @param model_or_fee [FeeModel, Integer, nil] fee model, fixed fee, or nil for default
+      # @param change_distribution [Symbol] +:equal+ or +:random+ (default: +:equal+)
+      # @param rng [Random, nil] injectable RNG for deterministic testing; defaults to +Random+
       # @return [self] for chaining
-      def fee(model_or_fee = nil)
+      # @raise [ArgumentError] if +change_distribution+ is not +:random+ or +:equal+
+      def fee(model_or_fee = nil, change_distribution: :equal, rng: nil)
+        unless %i[random equal].include?(change_distribution)
+          raise ArgumentError, "invalid change_distribution #{change_distribution.inspect}; expected :random or :equal"
+        end
+
+        rng ||= Random
         fee_sats = compute_fee_sats(model_or_fee)
-        distribute_change(fee_sats)
+        distribute_change(fee_sats, change_distribution, rng)
         self
       end
 
@@ -709,7 +729,7 @@ module BSV
         end
       end
 
-      def distribute_change(fee_sats)
+      def distribute_change(fee_sats, change_distribution, rng)
         change_outputs = @outputs.select(&:change)
         return if change_outputs.empty?
 
@@ -719,13 +739,83 @@ module BSV
 
         if available <= change_outputs.length
           @outputs.reject!(&:change)
-        else
-          per_output = available / change_outputs.length
-          remainder = available % change_outputs.length
-          change_outputs.each_with_index do |output, i|
-            output.satoshis = per_output + (i < remainder ? 1 : 0)
-          end
+          return
         end
+
+        if change_distribution == :random
+          distribute_random_change(available, change_outputs, rng)
+        else
+          distribute_equal_change(available, change_outputs)
+        end
+      end
+
+      def distribute_equal_change(available, change_outputs)
+        per_output = available / change_outputs.length
+        remainder = available % change_outputs.length
+        change_outputs.each_with_index do |output, i|
+          output.satoshis = per_output + (i < remainder ? 1 : 0)
+        end
+      end
+
+      # Distribute change using a Benford-inspired algorithm that biases amounts
+      # towards the lower end of the available range.
+      #
+      # Algorithm:
+      # 1. Reserve 1 satoshi per change output as a minimum guarantee.
+      # 2. For each output except the last, take a Benford-scaled portion of the
+      #    remaining pool and add it to that output's base amount.
+      # 3. The last change output receives only its 1 sat base.
+      # 4. Any remainder (from floor rounding) is assigned to the last transaction
+      #    output, matching TS SDK behaviour.
+      #
+      # @param available [Integer] total satoshis to distribute
+      # @param change_outputs [Array<TransactionOutput>] outputs flagged as change
+      # @param rng [Random] RNG instance (injectable for testing)
+      # @return [void]
+      def distribute_random_change(available, change_outputs, rng)
+        n = change_outputs.length
+
+        # Initialise each output with a 1-sat base and reserve that pool
+        amounts = Array.new(n, 1)
+        pool = available - n
+        distributed = n
+
+        # Allocate Benford-scaled portions to all outputs except the last
+        (n - 1).times do |i|
+          portion = benford_number(0, pool, rng)
+          amounts[i] += portion
+          distributed += portion
+          pool -= portion
+        end
+
+        # Assign computed amounts to change outputs
+        change_outputs.each_with_index do |output, i|
+          output.satoshis = amounts[i]
+        end
+
+        # Assign any remainder (floor-rounding loss) to the last transaction output
+        remainder = available - distributed
+        return unless remainder.positive?
+
+        last_output = @outputs.last
+        last_output.satoshis = (last_output.satoshis || 0) + remainder
+      end
+
+      # Generate a Benford-inspired integer in the range [min, max).
+      #
+      # Picks a random digit d in 1..9 and uses log10(1 + 1/d) as a scaling
+      # factor on the range. This biases the result towards the lower end of
+      # the range, matching the Benford distribution of leading digits.
+      #
+      # Since log10(10) = 1, the TS SDK's division by log10(10) is omitted.
+      #
+      # @param min [Integer] lower bound (inclusive)
+      # @param max [Integer] upper bound (exclusive)
+      # @param rng [Random] RNG instance
+      # @return [Integer] Benford-distributed integer
+      def benford_number(min, max, rng)
+        d = rng.rand(1..9)
+        (min + ((max - min) * Math.log10(1 + (1.0 / d)))).floor
       end
     end
   end
