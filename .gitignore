@@ -13,6 +13,8 @@ doc/
 
 # Claude Code
 .claude/settings.local.json
+.claude/agents/
+.claude/agent-memory/
 
 # IDE
 .idea/
