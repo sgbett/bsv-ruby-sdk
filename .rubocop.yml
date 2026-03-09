@@ -18,12 +18,16 @@ Naming/FileName:
     - 'lib/bsv-sdk.rb'
     - 'lib/bsv-attest.rb'
 
-# Cryptographic code uses standard short names (r, s, bn, etc.)
+# Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
 Naming/MethodParameterName:
   AllowedNames:
     - r
     - s
     - z
+    - x
+    - y
+    - n
+    - m
     - bn
     - tx
     - p1
@@ -163,6 +167,7 @@ RSpec/SpecFilePathFormat:
   Exclude:
     - 'spec/bsv/transaction/p2pkh_spec.rb'
     - 'spec/bsv/script/interpreter/**/*'
+    - 'spec/bsv/primitives/shamir/**/*'
     - 'spec/conformance/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.

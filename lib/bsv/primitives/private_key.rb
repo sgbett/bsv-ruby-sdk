@@ -166,6 +166,105 @@ module BSV
       def sign(hash)
         ECDSA.sign(hash, @bn)
       end
+
+      # Split this private key into Shamir's Secret Sharing shares.
+      #
+      # Generates +total_shares+ evaluation points on a random polynomial whose
+      # y-intercept encodes this key. Any +threshold+ of them suffice to
+      # reconstruct the key. X-coordinates are derived via HMAC-SHA-512 over a
+      # 64-byte random seed, ensuring uniqueness even under partial RNG failure.
+      #
+      # @param threshold    [Integer] minimum shares needed to reconstruct (>= 2)
+      # @param total_shares [Integer] total shares to generate (>= threshold)
+      # @return [KeyShares]
+      # @raise [ArgumentError] if parameters are out of range
+      def to_key_shares(threshold, total_shares)
+        raise ArgumentError, 'threshold must be an integer'    unless threshold.is_a?(Integer)
+        raise ArgumentError, 'total_shares must be an integer' unless total_shares.is_a?(Integer)
+        raise ArgumentError, 'threshold must be at least 2'    if threshold < 2
+        raise ArgumentError, 'total_shares must be at least 2' if total_shares < 2
+        raise ArgumentError, 'threshold must be <= total_shares' if threshold > total_shares
+
+        poly = Polynomial.from_private_key(self, threshold: threshold)
+
+        seed          = SecureRandom.random_bytes(64)
+        used_x        = {}
+        points        = []
+
+        total_shares.times do |i|
+          x = nil
+          attempts = 0
+          loop do
+            counter_bytes = [i, attempts].pack('N*') + SecureRandom.random_bytes(32)
+            h             = Digest.hmac_sha512(seed, counter_bytes)
+            candidate     = OpenSSL::BN.new(h.unpack1('H*'), 16) % PointInFiniteField::P
+
+            attempts += 1
+            raise ArgumentError, 'failed to generate unique x-coordinate after 5 attempts' if attempts > 5
+
+            next if candidate.zero? || used_x.key?(candidate.to_s)
+
+            x = candidate
+            break
+          end
+
+          used_x[x.to_s] = true
+          y = poly.value_at(x)
+          points << PointInFiniteField.new(x, y)
+        end
+
+        integrity = public_key.hash160[0, 4].unpack1('H*')
+        KeyShares.new(points, threshold, integrity)
+      end
+
+      # Serialise this key as Shamir backup share strings.
+      #
+      # Convenience wrapper around {#to_key_shares} and {KeyShares#to_backup_format}.
+      #
+      # @param threshold    [Integer] minimum shares needed to reconstruct
+      # @param total_shares [Integer] total shares to generate
+      # @return [Array<String>] backup-format share strings
+      def to_backup_shares(threshold, total_shares)
+        to_key_shares(threshold, total_shares).to_backup_format
+      end
+
+      # Reconstruct a private key from a {KeyShares} object.
+      #
+      # Evaluates the Lagrange polynomial at x=0 to recover the secret, then
+      # checks the integrity hash against the reconstructed public key.
+      #
+      # @param key_shares [KeyShares] the shares to combine
+      # @return [PrivateKey] the reconstructed private key
+      # @raise [ArgumentError] if there are too few shares, duplicates, or integrity fails
+      def self.from_key_shares(key_shares)
+        points    = key_shares.points
+        threshold = key_shares.threshold
+        integrity = key_shares.integrity
+
+        raise ArgumentError, 'threshold must be at least 2' if threshold < 2
+        raise ArgumentError, "at least #{threshold} shares are required" if points.length < threshold
+
+        # Guard against duplicate x-coordinates
+        xs = points.first(threshold).map { |p| p.x.to_s }
+        raise ArgumentError, 'duplicate share detected; each share must be unique' if xs.length != xs.uniq.length
+
+        poly    = Polynomial.new(points.first(threshold), threshold)
+        secret  = poly.value_at(OpenSSL::BN.new('0'))
+        key     = new(secret)
+
+        actual_integrity = key.public_key.hash160[0, 4].unpack1('H*')
+        raise ArgumentError, 'integrity hash mismatch — shares may be corrupt or belong to a different key' unless actual_integrity == integrity
+
+        key
+      end
+
+      # Reconstruct a private key from backup-format share strings.
+      #
+      # @param shares [Array<String>] backup-format share strings
+      # @return [PrivateKey]
+      def self.from_backup_shares(shares)
+        from_key_shares(KeyShares.from_backup_format(shares))
+      end
     end
   end
 end
