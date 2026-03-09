@@ -72,7 +72,7 @@ RSpec.describe BSV::Transaction::Transaction do
     describe 'change distribution' do
       it 'distributes change across multiple change outputs equally' do
         tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 2)
-        tx.fee(1000)
+        tx.fee(1000, change_distribution: :equal)
 
         change_outputs = tx.outputs.select(&:change)
         expect(change_outputs.length).to eq(2)
@@ -84,7 +84,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       it 'distributes remainder to first outputs' do
         tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 3)
-        tx.fee(1000)
+        tx.fee(1000, change_distribution: :equal)
 
         change_outputs = tx.outputs.select(&:change)
         expect(change_outputs.length).to eq(3)
@@ -152,6 +152,122 @@ RSpec.describe BSV::Transaction::Transaction do
       it 'raises ArgumentError for unexpected types' do
         tx = build_tx(input_sats: 100_000, output_sats: 50_000)
         expect { tx.fee('invalid') }.to raise_error(ArgumentError, /expected FeeModel/)
+      end
+
+      it 'raises ArgumentError for invalid change_distribution' do
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000)
+        expect { tx.fee(1000, change_distribution: :banana) }
+          .to raise_error(ArgumentError, /invalid change_distribution/)
+      end
+    end
+
+    it 'defaults to :equal distribution' do
+      # No change_distribution: argument — should behave identically to :equal
+      tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 2)
+      tx.fee(1000)
+
+      change_outputs = tx.outputs.select(&:change)
+      expect(change_outputs.length).to eq(2)
+      expect(change_outputs[0].satoshis).to eq(24_500)
+      expect(change_outputs[1].satoshis).to eq(24_500)
+    end
+
+    describe 'random change distribution' do
+      it 'single change output receives the full available amount' do
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000)
+        tx.fee(1000, change_distribution: :random)
+
+        change_outputs = tx.outputs.select(&:change)
+        expect(change_outputs.length).to eq(1)
+        expect(change_outputs[0].satoshis).to eq(49_000)
+      end
+
+      it 'preserves total satoshis exactly — no satoshis lost or created' do
+        rng = Random.new(42)
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 3)
+        tx.fee(1000, change_distribution: :random, rng: rng)
+
+        # Total of all outputs (including non-change) must equal inputs minus fee
+        total = tx.outputs.sum(&:satoshis)
+        expect(total).to eq(99_000) # 100_000 - 1_000
+      end
+
+      it 'allocates at least 1 satoshi to each change output' do
+        rng = Random.new(42)
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 4)
+        tx.fee(1000, change_distribution: :random, rng: rng)
+
+        change_outputs = tx.outputs.select(&:change)
+        change_outputs.each do |output|
+          expect(output.satoshis).to be >= 1
+        end
+      end
+
+      it 'produces varied amounts with multiple change outputs (injected RNG)' do
+        rng = Random.new(12_345)
+        tx = build_tx(input_sats: 1_000_000, output_sats: 100_000, change_count: 3)
+        tx.fee(1000, change_distribution: :random, rng: rng)
+
+        change_outputs = tx.outputs.select(&:change)
+        amounts = change_outputs.map(&:satoshis)
+        # With a seeded RNG and multiple outputs, amounts should not all be equal
+        expect(amounts.uniq.length).to be > 1
+      end
+
+      it 'assigns any floor-rounding remainder to the last transaction output' do
+        # Use a tiny pool where rounding will definitely produce a remainder.
+        # For d in 1..9, benford_number(0, 2) = floor(2 * log10(1 + 1/d))
+        # d=1: floor(2 * log10(2)) = floor(0.602) = 0; remainder sent to last tx output.
+        # We verify the sum invariant: all sats accounted for.
+        rng = Random.new(99)
+        tx = build_tx(input_sats: 60_000, output_sats: 50_000, change_count: 3)
+        tx.fee(1000, change_distribution: :random, rng: rng)
+
+        total = tx.outputs.sum(&:satoshis)
+        expect(total).to eq(59_000) # 60_000 - 1_000
+      end
+
+      it 'is deterministic with the same seeded RNG' do
+        tx1 = build_tx(input_sats: 500_000, output_sats: 100_000, change_count: 3)
+        tx1.fee(1000, change_distribution: :random, rng: Random.new(7))
+
+        tx2 = build_tx(input_sats: 500_000, output_sats: 100_000, change_count: 3)
+        tx2.fee(1000, change_distribution: :random, rng: Random.new(7))
+
+        amounts1 = tx1.outputs.select(&:change).map(&:satoshis)
+        amounts2 = tx2.outputs.select(&:change).map(&:satoshis)
+        expect(amounts1).to eq(amounts2)
+      end
+
+      it 'removes change outputs when available equals number of change outputs' do
+        # available = 51002 - 50000 - 1000 = 2, change_count = 2
+        # 2 <= 2 → remove change outputs
+        tx = build_tx(input_sats: 51_002, output_sats: 50_000, change_count: 2)
+        tx.fee(1000, change_distribution: :random)
+        expect(tx.outputs.select(&:change)).to be_empty
+      end
+
+      it 'handles two change outputs (single iteration plus remainder)' do
+        rng = Random.new(1)
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 2)
+        tx.fee(1000, change_distribution: :random, rng: rng)
+
+        change_outputs = tx.outputs.select(&:change)
+        expect(change_outputs.length).to eq(2)
+        # Sum of all outputs must equal inputs minus fee
+        expect(tx.outputs.sum(&:satoshis)).to eq(99_000)
+      end
+
+      it 'handles very large change amounts without integer overflow' do
+        # 100 BTC = 10_000_000_000 sats — Ruby handles big integers natively
+        rng = Random.new(3)
+        large_input = 10_000_000_000
+        fee_sats = 1000
+        tx = build_tx(input_sats: large_input, output_sats: 1_000_000, change_count: 3)
+        tx.fee(fee_sats, change_distribution: :random, rng: rng)
+
+        total = tx.outputs.sum(&:satoshis)
+        expect(total).to eq(large_input - fee_sats)
       end
     end
   end
