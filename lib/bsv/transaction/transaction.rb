@@ -30,7 +30,7 @@ module BSV
                                         0.06694678963061322,
                                         0.05799194697768673,
                                         0.05115252244738129,
-                                        0.04575749056067514]
+                                        0.04575749056067514].freeze
 
       # @return [Integer] transaction version number
       attr_reader :version
@@ -825,7 +825,7 @@ module BSV
       # @return [Integer] Benford-distributed integer
       def benford_number(min, max)
         scale_factor = LOG10_RECIPROCAL_D_VALUES_1TO9[Random.rand(9)] # Array indexing starts at 0
-        (min + scale_factor * (max - min)).floor
+        (min + (scale_factor * (max - min))).floor
       end
     end
   end
