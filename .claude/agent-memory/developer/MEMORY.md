@@ -10,7 +10,7 @@
 ## Ruby Version Gotchas
 
 - `Random::DEFAULT` is NOT available in Ruby 3.x — use `Random` (the class itself) as default RNG
-  - Pattern: `def foo(rng: nil); rng ||= Random; ...`
+  - Preferred pattern: expose a `self.rng` class method returning `Random`; stub in tests
   - `Random.rand(range)` works via the class method
 
 ## Project Patterns
@@ -62,9 +62,11 @@
 
 ## Transaction Fee API
 
-- `Transaction#fee(model_or_fee = nil, change_distribution: :equal, rng: nil)`
+- `Transaction#fee(model_or_fee = nil, change_distribution: :equal)` — no `rng:` parameter
 - `:equal` = equal split (default, matching TS SDK), `:random` = Benford-inspired
-- `benford_number(min, max, rng)` is private — access via `send` in specs
+- `benford_number(min, max)` is private — access via `send` in specs; uses `self.class.rng.rand(1..9)`
+- `Transaction.rng` is a class method returning `Random` — stub it in tests for determinism:
+  `allow(BSV::Transaction::Transaction).to receive(:rng).and_return(Random.new(seed))`
 - Remainder from floor-rounding in random distribution → last transaction output (TS SDK match)
 
 ## Statistical Testing Notes
