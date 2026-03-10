@@ -40,9 +40,10 @@ RSpec.describe 'Benford change distribution — statistical validation' do # rub
   # Expose the private helper via a thin wrapper so we can test it directly.
   let(:tx_class) { BSV::Transaction::Transaction }
 
-  def benford_number(min, max, rng)
+  def benford_number(min, max, rng = nil)
+    allow(tx_class).to receive(:rng).and_return(rng) if rng
     priv_tx = tx_class.allocate
-    priv_tx.send(:benford_number, min, max, rng)
+    priv_tx.send(:benford_number, min, max)
   end
 
   # Compute a chi-squared statistic.
@@ -168,9 +169,9 @@ RSpec.describe 'Benford change distribution — statistical validation' do # rub
       expected_total = input_sats - fee_sats
 
       1_000.times do |i|
-        rng = Random.new(i)
+        allow(tx_class).to receive(:rng).and_return(Random.new(i))
         tx = build_tx(input_sats: input_sats, output_sats: output_sats, change_count: change_count)
-        tx.fee(fee_sats, change_distribution: :random, rng: rng)
+        tx.fee(fee_sats, change_distribution: :random)
         total = tx.outputs.sum(&:satoshis)
         expect(total).to eq(expected_total), "Seed #{i}: expected #{expected_total}, got #{total}"
       end
@@ -183,9 +184,9 @@ RSpec.describe 'Benford change distribution — statistical validation' do # rub
       change_count = 4
 
       1_000.times do |i|
-        rng = Random.new(i)
+        allow(tx_class).to receive(:rng).and_return(Random.new(i))
         tx = build_tx(input_sats: input_sats, output_sats: output_sats, change_count: change_count)
-        tx.fee(fee_sats, change_distribution: :random, rng: rng)
+        tx.fee(fee_sats, change_distribution: :random)
 
         tx.outputs.select(&:change).each_with_index do |output, j|
           expect(output.satoshis).to be >= 1,
@@ -198,9 +199,9 @@ RSpec.describe 'Benford change distribution — statistical validation' do # rub
       # Run 1000 distributions and collect the first change output's amount.
       # If the distribution were always equal, every sample would be the same.
       first_change_amounts = Array.new(1_000) do |i|
-        rng = Random.new(i)
+        allow(tx_class).to receive(:rng).and_return(Random.new(i))
         tx = build_tx(input_sats: 100_000, output_sats: 10_000, change_count: 3)
-        tx.fee(1_000, change_distribution: :random, rng: rng)
+        tx.fee(1_000, change_distribution: :random)
         tx.outputs.select(&:change).first.satoshis
       end
 

@@ -19,6 +19,14 @@ module BSV
       # Estimated size of an unsigned P2PKH input in bytes.
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
+      # Returns the random number generator used for Benford-inspired change
+      # distribution. Override or stub this in tests for deterministic behaviour.
+      #
+      # @return [Random] the RNG class (or a seeded instance in tests)
+      def self.rng
+        Random
+      end
+
       # @return [Integer] transaction version number
       attr_reader :version
 
@@ -612,23 +620,17 @@ module BSV
       #
       # If insufficient change remains, all change outputs are removed.
       #
-      # An optional +rng:+ keyword argument may be supplied to inject a seeded
-      # {Random} instance for deterministic testing. Defaults to
-      # {Random}.
-      #
       # @param model_or_fee [FeeModel, Integer, nil] fee model, fixed fee, or nil for default
       # @param change_distribution [Symbol] +:equal+ or +:random+ (default: +:equal+)
-      # @param rng [Random, nil] injectable RNG for deterministic testing; defaults to +Random+
       # @return [self] for chaining
       # @raise [ArgumentError] if +change_distribution+ is not +:random+ or +:equal+
-      def fee(model_or_fee = nil, change_distribution: :equal, rng: nil)
+      def fee(model_or_fee = nil, change_distribution: :equal)
         unless %i[random equal].include?(change_distribution)
           raise ArgumentError, "invalid change_distribution #{change_distribution.inspect}; expected :random or :equal"
         end
 
-        rng ||= Random
         fee_sats = compute_fee_sats(model_or_fee)
-        distribute_change(fee_sats, change_distribution, rng)
+        distribute_change(fee_sats, change_distribution)
         self
       end
 
@@ -729,7 +731,7 @@ module BSV
         end
       end
 
-      def distribute_change(fee_sats, change_distribution, rng)
+      def distribute_change(fee_sats, change_distribution)
         change_outputs = @outputs.select(&:change)
         return if change_outputs.empty?
 
@@ -743,7 +745,7 @@ module BSV
         end
 
         if change_distribution == :random
-          distribute_random_change(available, change_outputs, rng)
+          distribute_random_change(available, change_outputs)
         else
           distribute_equal_change(available, change_outputs)
         end
@@ -770,9 +772,8 @@ module BSV
       #
       # @param available [Integer] total satoshis to distribute
       # @param change_outputs [Array<TransactionOutput>] outputs flagged as change
-      # @param rng [Random] RNG instance (injectable for testing)
       # @return [void]
-      def distribute_random_change(available, change_outputs, rng)
+      def distribute_random_change(available, change_outputs)
         n = change_outputs.length
 
         # Initialise each output with a 1-sat base and reserve that pool
@@ -782,7 +783,7 @@ module BSV
 
         # Allocate Benford-scaled portions to all outputs except the last
         (n - 1).times do |i|
-          portion = benford_number(0, pool, rng)
+          portion = benford_number(0, pool)
           amounts[i] += portion
           distributed += portion
           pool -= portion
@@ -811,10 +812,9 @@ module BSV
       #
       # @param min [Integer] lower bound (inclusive)
       # @param max [Integer] upper bound (exclusive)
-      # @param rng [Random] RNG instance
       # @return [Integer] Benford-distributed integer
-      def benford_number(min, max, rng)
-        d = rng.rand(1..9)
+      def benford_number(min, max)
+        d = self.class.rng.rand(1..9)
         (min + ((max - min) * Math.log10(1 + (1.0 / d)))).floor
       end
     end
