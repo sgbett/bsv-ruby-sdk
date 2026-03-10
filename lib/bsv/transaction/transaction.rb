@@ -19,14 +19,6 @@ module BSV
       # Estimated size of an unsigned P2PKH input in bytes.
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
-      # Returns the random number generator used for Benford-inspired change
-      # distribution. Override or stub this in tests for deterministic behaviour.
-      #
-      # @return [Random] the RNG class (or a seeded instance in tests)
-      def self.rng
-        Random
-      end
-
       # @return [Integer] transaction version number
       attr_reader :version
 
@@ -814,7 +806,7 @@ module BSV
       # @param max [Integer] upper bound (exclusive)
       # @return [Integer] Benford-distributed integer
       def benford_number(min, max)
-        d = self.class.rng.rand(1..9)
+        d = Random.rand(1..9)
         (min + ((max - min) * Math.log10(1 + (1.0 / d)))).floor
       end
     end

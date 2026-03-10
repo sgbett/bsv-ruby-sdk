@@ -5,6 +5,11 @@ RSpec.describe BSV::Transaction::Transaction do
     let(:priv) { BSV::Primitives::PrivateKey.generate }
     let(:lock_script) { BSV::Script::Script.p2pkh_lock(priv.public_key.hash160) }
 
+    def seed_rng(seed)
+      rng = Random.new(seed)
+      allow(Random).to(receive(:rand).and_wrap_original { |_m, *args| rng.rand(*args) })
+    end
+
     def build_tx(input_sats:, output_sats:, change_sats: 0, change_count: 1)
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
@@ -183,7 +188,7 @@ RSpec.describe BSV::Transaction::Transaction do
       end
 
       it 'preserves total satoshis exactly — no satoshis lost or created' do
-        allow(described_class).to receive(:rng).and_return(Random.new(42))
+        seed_rng(42)
         tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 3)
         tx.fee(1000, change_distribution: :random)
 
@@ -193,7 +198,7 @@ RSpec.describe BSV::Transaction::Transaction do
       end
 
       it 'allocates at least 1 satoshi to each change output' do
-        allow(described_class).to receive(:rng).and_return(Random.new(42))
+        seed_rng(42)
         tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 4)
         tx.fee(1000, change_distribution: :random)
 
@@ -204,7 +209,7 @@ RSpec.describe BSV::Transaction::Transaction do
       end
 
       it 'produces varied amounts with multiple change outputs (stubbed RNG)' do
-        allow(described_class).to receive(:rng).and_return(Random.new(12_345))
+        seed_rng(12_345)
         tx = build_tx(input_sats: 1_000_000, output_sats: 100_000, change_count: 3)
         tx.fee(1000, change_distribution: :random)
 
@@ -219,7 +224,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # For d in 1..9, benford_number(0, 2) = floor(2 * log10(1 + 1/d))
         # d=1: floor(2 * log10(2)) = floor(0.602) = 0; remainder sent to last tx output.
         # We verify the sum invariant: all sats accounted for.
-        allow(described_class).to receive(:rng).and_return(Random.new(99))
+        seed_rng(99)
         tx = build_tx(input_sats: 60_000, output_sats: 50_000, change_count: 3)
         tx.fee(1000, change_distribution: :random)
 
@@ -228,11 +233,11 @@ RSpec.describe BSV::Transaction::Transaction do
       end
 
       it 'is deterministic with the same seeded RNG' do
-        allow(described_class).to receive(:rng).and_return(Random.new(7))
+        seed_rng(7)
         tx1 = build_tx(input_sats: 500_000, output_sats: 100_000, change_count: 3)
         tx1.fee(1000, change_distribution: :random)
 
-        allow(described_class).to receive(:rng).and_return(Random.new(7))
+        seed_rng(7)
         tx2 = build_tx(input_sats: 500_000, output_sats: 100_000, change_count: 3)
         tx2.fee(1000, change_distribution: :random)
 
@@ -250,7 +255,7 @@ RSpec.describe BSV::Transaction::Transaction do
       end
 
       it 'handles two change outputs (single iteration plus remainder)' do
-        allow(described_class).to receive(:rng).and_return(Random.new(1))
+        seed_rng(1)
         tx = build_tx(input_sats: 100_000, output_sats: 50_000, change_count: 2)
         tx.fee(1000, change_distribution: :random)
 
@@ -262,7 +267,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       it 'handles very large change amounts without integer overflow' do
         # 100 BTC = 10_000_000_000 sats — Ruby handles big integers natively
-        allow(described_class).to receive(:rng).and_return(Random.new(3))
+        seed_rng(3)
         large_input = 10_000_000_000
         fee_sats = 1000
         tx = build_tx(input_sats: large_input, output_sats: 1_000_000, change_count: 3)

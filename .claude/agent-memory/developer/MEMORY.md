@@ -64,9 +64,10 @@
 
 - `Transaction#fee(model_or_fee = nil, change_distribution: :equal)` — no `rng:` parameter
 - `:equal` = equal split (default, matching TS SDK), `:random` = Benford-inspired
-- `benford_number(min, max)` is private — access via `send` in specs; uses `self.class.rng.rand(1..9)`
-- `Transaction.rng` is a class method returning `Random` — stub it in tests for determinism:
-  `allow(BSV::Transaction::Transaction).to receive(:rng).and_return(Random.new(seed))`
+- `benford_number(min, max)` is private — access via `send` in specs; uses `Random.rand(1..9)` directly
+- No RNG indirection in production code — stub `Random.rand` in tests for determinism:
+  `allow(Random).to(receive(:rand).and_wrap_original { |_m, *args| Random.new(seed).rand(*args) })`
+- Use `seed_rng(seed)` helper in specs (defined in transaction_fee_spec.rb) to wrap the above pattern
 - Remainder from floor-rounding in random distribution → last transaction output (TS SDK match)
 
 ## Statistical Testing Notes
