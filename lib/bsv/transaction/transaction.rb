@@ -19,6 +19,19 @@ module BSV
       # Estimated size of an unsigned P2PKH input in bytes.
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
+      # Lookup table for benford_number calculation.
+      # we want float values for log10(1 + (1.0 / i)) for the 9 integers 0 < i < 10
+      # in ruby this becomes: (1..9).to_a.collect{|d| Math.log10(1 + (1.0 / d)) }
+      LOG10_RECIPROCAL_D_VALUES_1TO9 = [0.3010299956639812,
+                                        0.17609125905568124,
+                                        0.12493873660829993,
+                                        0.09691001300805642,
+                                        0.07918124604762482,
+                                        0.06694678963061322,
+                                        0.05799194697768673,
+                                        0.05115252244738129,
+                                        0.04575749056067514].freeze
+
       # @return [Integer] transaction version number
       attr_reader :version
 
@@ -612,23 +625,17 @@ module BSV
       #
       # If insufficient change remains, all change outputs are removed.
       #
-      # An optional +rng:+ keyword argument may be supplied to inject a seeded
-      # {Random} instance for deterministic testing. Defaults to
-      # {Random}.
-      #
       # @param model_or_fee [FeeModel, Integer, nil] fee model, fixed fee, or nil for default
       # @param change_distribution [Symbol] +:equal+ or +:random+ (default: +:equal+)
-      # @param rng [Random, nil] injectable RNG for deterministic testing; defaults to +Random+
       # @return [self] for chaining
       # @raise [ArgumentError] if +change_distribution+ is not +:random+ or +:equal+
-      def fee(model_or_fee = nil, change_distribution: :equal, rng: nil)
+      def fee(model_or_fee = nil, change_distribution: :equal)
         unless %i[random equal].include?(change_distribution)
           raise ArgumentError, "invalid change_distribution #{change_distribution.inspect}; expected :random or :equal"
         end
 
-        rng ||= Random
         fee_sats = compute_fee_sats(model_or_fee)
-        distribute_change(fee_sats, change_distribution, rng)
+        distribute_change(fee_sats, change_distribution)
         self
       end
 
@@ -729,7 +736,7 @@ module BSV
         end
       end
 
-      def distribute_change(fee_sats, change_distribution, rng)
+      def distribute_change(fee_sats, change_distribution)
         change_outputs = @outputs.select(&:change)
         return if change_outputs.empty?
 
@@ -743,7 +750,7 @@ module BSV
         end
 
         if change_distribution == :random
-          distribute_random_change(available, change_outputs, rng)
+          distribute_random_change(available, change_outputs)
         else
           distribute_equal_change(available, change_outputs)
         end
@@ -770,9 +777,8 @@ module BSV
       #
       # @param available [Integer] total satoshis to distribute
       # @param change_outputs [Array<TransactionOutput>] outputs flagged as change
-      # @param rng [Random] RNG instance (injectable for testing)
       # @return [void]
-      def distribute_random_change(available, change_outputs, rng)
+      def distribute_random_change(available, change_outputs)
         n = change_outputs.length
 
         # Initialise each output with a 1-sat base and reserve that pool
@@ -782,7 +788,7 @@ module BSV
 
         # Allocate Benford-scaled portions to all outputs except the last
         (n - 1).times do |i|
-          portion = benford_number(0, pool, rng)
+          portion = benford_number(0, pool)
           amounts[i] += portion
           distributed += portion
           pool -= portion
@@ -803,19 +809,23 @@ module BSV
 
       # Generate a Benford-inspired integer in the range [min, max).
       #
-      # Picks a random digit d in 1..9 and uses log10(1 + 1/d) as a scaling
-      # factor on the range. This biases the result towards the lower end of
-      # the range, matching the Benford distribution of leading digits.
+      # Randomly selects a scale factor that biases the result towards the lower end of
+      # the range, based on the Benford distribution of leading digits.
       #
-      # Since log10(10) = 1, the TS SDK's division by log10(10) is omitted.
+      # Reference ts SDK implementation
+      # Math.floor(min + ((max - min) * Math.log10(1 + 1 / d)) / Math.log10(10))
+      #
+      # We simplify:
+      #  - log10(10) = 1, divide by 1 is a no-op, removed it
+      #  - pre-calculated the 9 possible values to a look-up table LOG10_RECIPROCAL_D_VALUES_1TO9
+      #  - rearrange to "start at min, add a scaled portion of the range"
       #
       # @param min [Integer] lower bound (inclusive)
       # @param max [Integer] upper bound (exclusive)
-      # @param rng [Random] RNG instance
       # @return [Integer] Benford-distributed integer
-      def benford_number(min, max, rng)
-        d = rng.rand(1..9)
-        (min + ((max - min) * Math.log10(1 + (1.0 / d)))).floor
+      def benford_number(min, max)
+        scale_factor = LOG10_RECIPROCAL_D_VALUES_1TO9[Random.rand(9)] # Array indexing starts at 0
+        (min + (scale_factor * (max - min))).floor
       end
     end
   end
