@@ -14,4 +14,6 @@ group :development, :test do
   gem 'simplecov-cobertura', require: false
   gem 'yard'
   gem 'yard-markdown'
+
+  gem 'prime'
 end
