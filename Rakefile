@@ -2,6 +2,7 @@
 
 Bundler::GemHelper.install_tasks(name: 'bsv-sdk')
 Bundler::GemHelper.install_tasks(name: 'bsv-attest')
+Bundler::GemHelper.install_tasks(name: 'bsv-x402')
 require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)

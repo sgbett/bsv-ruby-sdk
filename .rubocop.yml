@@ -17,12 +17,14 @@ Naming/FileName:
   Exclude:
     - 'lib/bsv-sdk.rb'
     - 'lib/bsv-attest.rb'
+    - 'lib/bsv-x402.rb'
 
-# Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
+# Cryptographic and protocol code uses standard short names (r, s, x, y, n, m, bn, v, etc.)
 Naming/MethodParameterName:
   AllowedNames:
     - r
     - s
+    - v
     - z
     - x
     - y
@@ -41,7 +43,7 @@ Naming/PredicateMethod:
     - cast_bool
     - execute
 
-# Cryptographic and script-parsing code is inherently complex;
+# Cryptographic, script-parsing, and protocol object code is inherently complex;
 # splitting into tiny methods would harm readability and auditability.
 Metrics/AbcSize:
   Exclude:
@@ -52,6 +54,8 @@ Metrics/AbcSize:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/x402.rb'
+    - 'lib/bsv/x402/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
@@ -63,6 +67,8 @@ Metrics/MethodLength:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/x402.rb'
+    - 'lib/bsv/x402/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
@@ -74,6 +80,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/x402.rb'
+    - 'lib/bsv/x402/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
@@ -85,6 +93,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/x402.rb'
+    - 'lib/bsv/x402/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
@@ -101,12 +111,14 @@ Metrics/ClassLength:
     - 'lib/bsv/transaction/transaction.rb'
     - 'lib/bsv/transaction/merkle_path.rb'
     - 'lib/bsv/transaction/beef.rb'
+    - 'lib/bsv/x402/**/*'
 
 Metrics/ParameterLists:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
+    - 'lib/bsv/x402/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -134,6 +146,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/wallet/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
+    - 'spec/x402/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -142,6 +155,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
+    - 'spec/x402/**/*'
     - 'spec/conformance/**/*'
 
 RSpec/ExampleLength:
@@ -153,6 +167,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/wallet/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
+    - 'spec/x402/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -170,6 +185,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/primitives/shamir/**/*'
     - 'spec/bsv/transaction/benford_number/**/*'
     - 'spec/conformance/**/*'
+    - 'spec/x402/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 RSpec/DescribeClass:

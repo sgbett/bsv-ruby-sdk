@@ -4,6 +4,7 @@ source 'https://rubygems.org'
 
 gemspec name: 'bsv-sdk'
 gemspec name: 'bsv-attest'
+gemspec name: 'bsv-x402'
 
 group :development, :test do
   gem 'rake'
