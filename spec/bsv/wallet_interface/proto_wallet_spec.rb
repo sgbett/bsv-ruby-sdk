@@ -239,6 +239,15 @@ RSpec.describe BSV::Wallet::ProtoWallet do
       end.to raise_error(BSV::Wallet::InvalidParameterError)
     end
 
+    it 'raises InvalidParameterError when counterparty is "anyone"' do
+      expect do
+        prover_wallet.reveal_counterparty_key_linkage({
+                                                        counterparty: 'anyone',
+                                                        verifier: verifier_key.public_key.to_hex
+                                                      })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
     it 'verifier can decrypt the linkage using the prover identity key as counterparty' do
       prover_identity_pub = prover_wallet.key_deriver.identity_key
 
@@ -338,6 +347,17 @@ RSpec.describe BSV::Wallet::ProtoWallet do
         prover_wallet.reveal_specific_key_linkage({
                                                     counterparty: counterparty_key.public_key.to_hex,
                                                     verifier: 'invalid',
+                                                    protocol_id: protocol_id,
+                                                    key_id: key_id
+                                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when counterparty is "anyone"' do
+      expect do
+        prover_wallet.reveal_specific_key_linkage({
+                                                    counterparty: 'anyone',
+                                                    verifier: verifier_key.public_key.to_hex,
                                                     protocol_id: protocol_id,
                                                     key_id: key_id
                                                   })

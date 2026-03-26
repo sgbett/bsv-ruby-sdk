@@ -212,6 +212,8 @@ module BSV
         counterparty = args[:counterparty]
         verifier = args[:verifier]
 
+        raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
+
         Validators.validate_pub_key_hex!(verifier, 'verifier')
 
         linkage = @key_deriver.reveal_counterparty_secret(counterparty)
@@ -273,6 +275,8 @@ module BSV
         verifier = args[:verifier]
         protocol_id = args[:protocol_id]
         key_id = args[:key_id]
+
+        raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')
 
