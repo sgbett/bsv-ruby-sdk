@@ -198,8 +198,9 @@ module BSV
       # Reveals counterparty key linkage to a verifier (BRC-69 Method 1).
       #
       # Encrypts the ECDH shared secret between this wallet and the counterparty
-      # using a key derived from the ECDH shared secret with the verifier (BRC-72).
-      # Also produces a proof HMAC over the encrypted linkage.
+      # for the verifier using a BRC-72 protocol-derived key. Also generates a
+      # BRC-94 Schnorr zero-knowledge proof of the linkage and encrypts it for
+      # the verifier.
       #
       # @param args [Hash]
       # @option args [String] :counterparty counterparty public key hex (not 'self')
@@ -211,28 +212,53 @@ module BSV
         counterparty = args[:counterparty]
         verifier = args[:verifier]
 
+        Validators.validate_pub_key_hex!(verifier, 'verifier')
+
         linkage = @key_deriver.reveal_counterparty_secret(counterparty)
+        revelation_time = Time.now.utc.iso8601
 
-        verifier_pub = BSV::Primitives::PublicKey.from_hex(verifier)
-        enc_key = BSV::Primitives::SymmetricKey.from_ecdh(@key_deriver.root_key, verifier_pub)
-        encrypted_linkage = enc_key.encrypt(linkage)
+        encrypted_linkage_result = encrypt({
+                                             plaintext: string_to_bytes(linkage),
+                                             protocol_id: [2, 'counterparty linkage revelation'],
+                                             key_id: revelation_time,
+                                             counterparty: verifier
+                                           })
 
-        proof = BSV::Primitives::Digest.hmac_sha256(linkage, encrypted_linkage)
+        counterparty_pub = BSV::Primitives::PublicKey.from_hex(counterparty)
+        linkage_point = BSV::Primitives::PublicKey.from_bytes(linkage)
+        schnorr_proof = BSV::Primitives::Schnorr.generate_proof(
+          @key_deriver.root_key,
+          @key_deriver.root_key.public_key,
+          counterparty_pub,
+          linkage_point
+        )
+
+        z_bytes = schnorr_proof.z.to_s(2)
+        z_bytes = ("\x00".b * (32 - z_bytes.length)) + z_bytes if z_bytes.length < 32
+        proof_bin = schnorr_proof.r.compressed + schnorr_proof.s_prime.compressed + z_bytes
+
+        encrypted_proof_result = encrypt({
+                                           plaintext: string_to_bytes(proof_bin),
+                                           protocol_id: [2, 'counterparty linkage revelation'],
+                                           key_id: revelation_time,
+                                           counterparty: verifier
+                                         })
 
         {
           prover: @key_deriver.identity_key,
           verifier: verifier,
           counterparty: counterparty,
-          revelation_time: Time.now.utc.iso8601,
-          encrypted_linkage: string_to_bytes(encrypted_linkage),
-          encrypted_linkage_proof: string_to_bytes(proof)
+          revelation_time: revelation_time,
+          encrypted_linkage: encrypted_linkage_result[:ciphertext],
+          encrypted_linkage_proof: encrypted_proof_result[:ciphertext]
         }
       end
 
       # Reveals specific key linkage for a particular interaction (BRC-69 Method 2).
       #
       # Encrypts the HMAC-derived key offset for the given protocol/key combination
-      # using a key derived from the ECDH shared secret with the verifier (BRC-72).
+      # for the verifier using a BRC-72 protocol-derived key. Proof type 0 means
+      # no cryptographic proof is provided (consistent with the ts-sdk behaviour).
       #
       # @param args [Hash]
       # @option args [String] :counterparty counterparty public key hex
@@ -248,13 +274,25 @@ module BSV
         protocol_id = args[:protocol_id]
         key_id = args[:key_id]
 
+        Validators.validate_pub_key_hex!(verifier, 'verifier')
+
         linkage = @key_deriver.reveal_specific_secret(counterparty, protocol_id, key_id)
 
-        verifier_pub = BSV::Primitives::PublicKey.from_hex(verifier)
-        enc_key = BSV::Primitives::SymmetricKey.from_ecdh(@key_deriver.root_key, verifier_pub)
-        encrypted_linkage = enc_key.encrypt(linkage)
+        derived_protocol = "specific linkage revelation #{protocol_id[0]} #{protocol_id[1]}"
 
-        proof = BSV::Primitives::Digest.hmac_sha256(linkage, encrypted_linkage)
+        encrypted_linkage_result = encrypt({
+                                             plaintext: string_to_bytes(linkage),
+                                             protocol_id: [2, derived_protocol],
+                                             key_id: key_id,
+                                             counterparty: verifier
+                                           })
+
+        encrypted_proof_result = encrypt({
+                                           plaintext: [0],
+                                           protocol_id: [2, derived_protocol],
+                                           key_id: key_id,
+                                           counterparty: verifier
+                                         })
 
         {
           prover: @key_deriver.identity_key,
@@ -262,8 +300,8 @@ module BSV
           counterparty: counterparty,
           protocol_id: protocol_id,
           key_id: key_id,
-          encrypted_linkage: string_to_bytes(encrypted_linkage),
-          encrypted_linkage_proof: string_to_bytes(proof),
+          encrypted_linkage: encrypted_linkage_result[:ciphertext],
+          encrypted_linkage_proof: encrypted_proof_result[:ciphertext],
           proof_type: 0
         }
       end
