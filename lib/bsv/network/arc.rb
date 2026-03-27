@@ -23,11 +23,20 @@ module BSV
       end
 
       # Submit a transaction to ARC.
-      # Returns BroadcastResponse on success, raises BroadcastError on failure.
-      def broadcast(tx)
+      #
+      # @param tx [Transaction] the transaction to broadcast
+      # @param wait_for [String, nil] ARC wait condition — one of
+      #   'RECEIVED', 'STORED', 'ANNOUNCED_TO_NETWORK',
+      #   'SEEN_ON_NETWORK', or 'MINED'. When set, ARC holds the
+      #   connection open until the transaction reaches the requested
+      #   state (or times out). Defaults to nil (no wait).
+      # @return [BroadcastResponse]
+      # @raise [BroadcastError]
+      def broadcast(tx, wait_for: nil)
         uri = URI("#{@url}/v1/tx")
         request = Net::HTTP::Post.new(uri)
         request['Content-Type'] = 'application/octet-stream'
+        request['X-WaitFor'] = wait_for if wait_for
         apply_auth_header(request)
         request.body = tx.to_binary
 
