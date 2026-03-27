@@ -188,119 +188,209 @@ RSpec.describe BSV::Wallet::ProtoWallet do
   end
 
   describe '#reveal_counterparty_key_linkage' do
-    let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
+    let(:prover_key) { BSV::Primitives::PrivateKey.generate }
     let(:verifier_key) { BSV::Primitives::PrivateKey.generate }
+    let(:prover_wallet) { described_class.new(prover_key) }
+    let(:verifier_wallet) { described_class.new(verifier_key) }
+    let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
 
-    it 'returns the expected keys in the result hash' do
-      result = wallet.reveal_counterparty_key_linkage({
-                                                        counterparty: counterparty_key.public_key.to_hex,
-                                                        verifier: verifier_key.public_key.to_hex
-                                                      })
-
-      expect(result).to have_key(:prover)
-      expect(result).to have_key(:verifier)
-      expect(result).to have_key(:counterparty)
-      expect(result).to have_key(:revelation_time)
-      expect(result).to have_key(:encrypted_linkage)
-      expect(result).to have_key(:encrypted_linkage_proof)
+    let(:linkage_result) do
+      prover_wallet.reveal_counterparty_key_linkage({
+                                                      counterparty: counterparty_key.public_key.to_hex,
+                                                      verifier: verifier_key.public_key.to_hex
+                                                    })
     end
 
-    it 'sets prover to the wallet identity key' do
-      result = wallet.reveal_counterparty_key_linkage({
-                                                        counterparty: counterparty_key.public_key.to_hex,
-                                                        verifier: verifier_key.public_key.to_hex
-                                                      })
-      expect(result[:prover]).to eq(wallet.key_deriver.identity_key)
+    it 'returns all expected keys in the result hash' do
+      expect(linkage_result).to have_key(:prover)
+      expect(linkage_result).to have_key(:verifier)
+      expect(linkage_result).to have_key(:counterparty)
+      expect(linkage_result).to have_key(:revelation_time)
+      expect(linkage_result).to have_key(:encrypted_linkage)
+      expect(linkage_result).to have_key(:encrypted_linkage_proof)
+    end
+
+    it 'sets prover to the prover wallet identity key' do
+      expect(linkage_result[:prover]).to eq(prover_wallet.key_deriver.identity_key)
     end
 
     it 'echoes the verifier and counterparty keys' do
-      cp_hex = counterparty_key.public_key.to_hex
-      v_hex = verifier_key.public_key.to_hex
-      result = wallet.reveal_counterparty_key_linkage({ counterparty: cp_hex, verifier: v_hex })
-      expect(result[:verifier]).to eq(v_hex)
-      expect(result[:counterparty]).to eq(cp_hex)
+      expect(linkage_result[:verifier]).to eq(verifier_key.public_key.to_hex)
+      expect(linkage_result[:counterparty]).to eq(counterparty_key.public_key.to_hex)
     end
 
     it 'returns an ISO 8601 revelation_time string' do
-      result = wallet.reveal_counterparty_key_linkage({
-                                                        counterparty: counterparty_key.public_key.to_hex,
-                                                        verifier: verifier_key.public_key.to_hex
-                                                      })
-      expect(result[:revelation_time]).to match(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/)
+      expect(linkage_result[:revelation_time]).to match(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/)
     end
 
     it 'returns encrypted_linkage and encrypted_linkage_proof as arrays of integers' do
-      result = wallet.reveal_counterparty_key_linkage({
+      expect(linkage_result[:encrypted_linkage]).to be_a(Array)
+      expect(linkage_result[:encrypted_linkage]).to all(be_a(Integer))
+      expect(linkage_result[:encrypted_linkage_proof]).to be_a(Array)
+      expect(linkage_result[:encrypted_linkage_proof]).to all(be_a(Integer))
+    end
+
+    it 'raises InvalidParameterError when verifier is not a valid public key' do
+      expect do
+        prover_wallet.reveal_counterparty_key_linkage({
                                                         counterparty: counterparty_key.public_key.to_hex,
+                                                        verifier: 'invalid'
+                                                      })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when counterparty is "anyone"' do
+      expect do
+        prover_wallet.reveal_counterparty_key_linkage({
+                                                        counterparty: 'anyone',
                                                         verifier: verifier_key.public_key.to_hex
                                                       })
-      expect(result[:encrypted_linkage]).to be_a(Array)
-      expect(result[:encrypted_linkage_proof]).to be_a(Array)
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'verifier can decrypt the linkage using the prover identity key as counterparty' do
+      prover_identity_pub = prover_wallet.key_deriver.identity_key
+
+      decrypted = verifier_wallet.decrypt({
+                                            ciphertext: linkage_result[:encrypted_linkage],
+                                            protocol_id: [2, 'counterparty linkage revelation'],
+                                            key_id: linkage_result[:revelation_time],
+                                            counterparty: prover_identity_pub
+                                          })
+
+      # The linkage is a compressed EC point — 33 bytes
+      expect(decrypted[:plaintext].length).to eq(33)
+    end
+
+    it 'verifier can decrypt and verify the Schnorr proof using only public keys' do
+      prover_identity_pub = prover_wallet.key_deriver.identity_key
+
+      decrypt_args = {
+        protocol_id: [2, 'counterparty linkage revelation'],
+        key_id: linkage_result[:revelation_time],
+        counterparty: prover_identity_pub
+      }
+
+      linkage_bytes = verifier_wallet.decrypt(
+        decrypt_args.merge(ciphertext: linkage_result[:encrypted_linkage])
+      )[:plaintext]
+
+      proof_bytes = verifier_wallet.decrypt(
+        decrypt_args.merge(ciphertext: linkage_result[:encrypted_linkage_proof])
+      )[:plaintext]
+
+      # Reconstruct the linkage EC point
+      linkage_point = BSV::Primitives::PublicKey.from_bytes(linkage_bytes.pack('C*'))
+
+      # Deserialise the 98-byte proof: 33 bytes R + 33 bytes S' + 32 bytes z
+      proof_bin = proof_bytes.pack('C*')
+      r_point     = BSV::Primitives::PublicKey.from_bytes(proof_bin[0, 33])
+      s_prime     = BSV::Primitives::PublicKey.from_bytes(proof_bin[33, 33])
+      z_scalar    = OpenSSL::BN.new(proof_bin[66, 32], 2)
+      proof       = BSV::Primitives::Schnorr::Proof.new(r_point, s_prime, z_scalar)
+
+      prover_pub       = BSV::Primitives::PublicKey.from_hex(prover_identity_pub)
+      counterparty_pub = BSV::Primitives::PublicKey.from_hex(counterparty_key.public_key.to_hex)
+
+      valid = BSV::Primitives::Schnorr.verify_proof(prover_pub, counterparty_pub, linkage_point, proof)
+      expect(valid).to be true
     end
   end
 
   describe '#reveal_specific_key_linkage' do
-    let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
+    let(:prover_key) { BSV::Primitives::PrivateKey.generate }
     let(:verifier_key) { BSV::Primitives::PrivateKey.generate }
+    let(:prover_wallet) { described_class.new(prover_key) }
+    let(:verifier_wallet) { described_class.new(verifier_key) }
+    let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
 
-    it 'returns the expected keys in the result hash' do
-      result = wallet.reveal_specific_key_linkage({
-                                                    counterparty: counterparty_key.public_key.to_hex,
-                                                    verifier: verifier_key.public_key.to_hex,
-                                                    protocol_id: protocol_id,
-                                                    key_id: key_id
-                                                  })
-
-      expect(result).to have_key(:prover)
-      expect(result).to have_key(:verifier)
-      expect(result).to have_key(:counterparty)
-      expect(result).to have_key(:protocol_id)
-      expect(result).to have_key(:key_id)
-      expect(result).to have_key(:encrypted_linkage)
-      expect(result).to have_key(:encrypted_linkage_proof)
-      expect(result).to have_key(:proof_type)
+    let(:linkage_result) do
+      prover_wallet.reveal_specific_key_linkage({
+                                                  counterparty: counterparty_key.public_key.to_hex,
+                                                  verifier: verifier_key.public_key.to_hex,
+                                                  protocol_id: protocol_id,
+                                                  key_id: key_id
+                                                })
     end
 
-    it 'sets prover to the wallet identity key' do
-      result = wallet.reveal_specific_key_linkage({
-                                                    counterparty: counterparty_key.public_key.to_hex,
-                                                    verifier: verifier_key.public_key.to_hex,
-                                                    protocol_id: protocol_id,
-                                                    key_id: key_id
-                                                  })
-      expect(result[:prover]).to eq(wallet.key_deriver.identity_key)
+    it 'returns all expected keys in the result hash' do
+      expect(linkage_result).to have_key(:prover)
+      expect(linkage_result).to have_key(:verifier)
+      expect(linkage_result).to have_key(:counterparty)
+      expect(linkage_result).to have_key(:protocol_id)
+      expect(linkage_result).to have_key(:key_id)
+      expect(linkage_result).to have_key(:encrypted_linkage)
+      expect(linkage_result).to have_key(:encrypted_linkage_proof)
+      expect(linkage_result).to have_key(:proof_type)
+    end
+
+    it 'sets prover to the prover wallet identity key' do
+      expect(linkage_result[:prover]).to eq(prover_wallet.key_deriver.identity_key)
     end
 
     it 'echoes the protocol_id and key_id' do
-      result = wallet.reveal_specific_key_linkage({
-                                                    counterparty: counterparty_key.public_key.to_hex,
-                                                    verifier: verifier_key.public_key.to_hex,
-                                                    protocol_id: protocol_id,
-                                                    key_id: key_id
-                                                  })
-      expect(result[:protocol_id]).to eq(protocol_id)
-      expect(result[:key_id]).to eq(key_id)
+      expect(linkage_result[:protocol_id]).to eq(protocol_id)
+      expect(linkage_result[:key_id]).to eq(key_id)
     end
 
     it 'sets proof_type to 0' do
-      result = wallet.reveal_specific_key_linkage({
-                                                    counterparty: counterparty_key.public_key.to_hex,
-                                                    verifier: verifier_key.public_key.to_hex,
-                                                    protocol_id: protocol_id,
-                                                    key_id: key_id
-                                                  })
-      expect(result[:proof_type]).to eq(0)
+      expect(linkage_result[:proof_type]).to eq(0)
     end
 
     it 'returns encrypted_linkage as an array of integers' do
-      result = wallet.reveal_specific_key_linkage({
+      expect(linkage_result[:encrypted_linkage]).to be_a(Array)
+      expect(linkage_result[:encrypted_linkage]).to all(be_a(Integer))
+    end
+
+    it 'raises InvalidParameterError when verifier is not a valid public key' do
+      expect do
+        prover_wallet.reveal_specific_key_linkage({
                                                     counterparty: counterparty_key.public_key.to_hex,
+                                                    verifier: 'invalid',
+                                                    protocol_id: protocol_id,
+                                                    key_id: key_id
+                                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when counterparty is "anyone"' do
+      expect do
+        prover_wallet.reveal_specific_key_linkage({
+                                                    counterparty: 'anyone',
                                                     verifier: verifier_key.public_key.to_hex,
                                                     protocol_id: protocol_id,
                                                     key_id: key_id
                                                   })
-      expect(result[:encrypted_linkage]).to be_a(Array)
-      expect(result[:encrypted_linkage]).to all(be_a(Integer))
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'verifier can decrypt the proof and it decodes to [0]' do
+      prover_identity_pub = prover_wallet.key_deriver.identity_key
+      derived_protocol    = "specific linkage revelation #{protocol_id[0]} #{protocol_id[1]}"
+
+      decrypted = verifier_wallet.decrypt({
+                                            ciphertext: linkage_result[:encrypted_linkage_proof],
+                                            protocol_id: [2, derived_protocol],
+                                            key_id: key_id,
+                                            counterparty: prover_identity_pub
+                                          })
+
+      expect(decrypted[:plaintext]).to eq([0])
+    end
+
+    it 'verifier can decrypt the linkage and it is 32 bytes' do
+      prover_identity_pub = prover_wallet.key_deriver.identity_key
+      derived_protocol    = "specific linkage revelation #{protocol_id[0]} #{protocol_id[1]}"
+
+      decrypted = verifier_wallet.decrypt({
+                                            ciphertext: linkage_result[:encrypted_linkage],
+                                            protocol_id: [2, derived_protocol],
+                                            key_id: key_id,
+                                            counterparty: prover_identity_pub
+                                          })
+
+      # The linkage is an HMAC-SHA256 output — 32 bytes
+      expect(decrypted[:plaintext].length).to eq(32)
     end
   end
 
