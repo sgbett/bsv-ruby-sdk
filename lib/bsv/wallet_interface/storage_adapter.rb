@@ -46,6 +46,10 @@ module BSV
       def count_outputs(_query)
         raise NotImplementedError, "#{self.class}#count_outputs not implemented"
       end
+
+      def count_certificates(_query)
+        raise NotImplementedError, "#{self.class}#count_certificates not implemented"
+      end
     end
   end
 end
