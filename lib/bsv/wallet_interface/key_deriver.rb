@@ -16,8 +16,10 @@ module BSV
       def initialize(root_key)
         @root_key = if root_key == 'anyone'
                       BSV::Primitives::PrivateKey.new(ANYONE_BN)
-                    else
+                    elsif root_key.is_a?(BSV::Primitives::PrivateKey)
                       root_key
+                    else
+                      raise ArgumentError, "expected a BSV::Primitives::PrivateKey or 'anyone', got #{root_key.class}"
                     end
       end
 
