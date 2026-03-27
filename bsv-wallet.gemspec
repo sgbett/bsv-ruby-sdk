@@ -24,6 +24,6 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob('lib/bsv/wallet_interface{.rb,/**/*}') + %w[lib/bsv-wallet.rb LICENSE]
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'base64'
-  spec.add_dependency 'bsv-sdk'
+  spec.add_dependency 'base64', '~> 0.2'
+  spec.add_dependency 'bsv-sdk', '~> 0.2'
 end
