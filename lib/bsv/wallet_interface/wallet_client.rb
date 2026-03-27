@@ -26,11 +26,21 @@ module BSV
       # @return [StorageAdapter] the underlying persistence adapter
       attr_reader :storage
 
+      # @return [ChainProvider] the blockchain data provider
+      attr_reader :chain_provider
+
+      # @return [String] the network ('mainnet' or 'testnet')
+      attr_reader :network
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: MemoryStore)
-      def initialize(key, storage: MemoryStore.new)
+      # @param network [String] 'mainnet' (default) or 'testnet'
+      # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
+      def initialize(key, storage: MemoryStore.new, network: 'mainnet', chain_provider: NullChainProvider.new)
         super(key)
         @storage = storage
+        @network = network
+        @chain_provider = chain_provider
         @pending = {}
       end
 
@@ -164,6 +174,63 @@ module BSV
         process_internalize_outputs(tx, args[:outputs])
         store_action(tx, args, status: 'completed')
         { accepted: true }
+      end
+
+      # --- Blockchain & Network Data ---
+
+      # Returns the current blockchain height from the chain provider.
+      #
+      # @param _args [Hash] unused (empty hash)
+      # @return [Hash] { height: Integer }
+      def get_height(_args = {}, _originator: nil)
+        { height: @chain_provider.get_height }
+      end
+
+      # Returns the block header at the given height from the chain provider.
+      #
+      # @param args [Hash]
+      # @option args [Integer] :height block height
+      # @return [Hash] { header: String } 80-byte hex-encoded block header
+      def get_header_for_height(args, _originator: nil)
+        raise InvalidParameterError.new('height', 'a positive Integer') unless args[:height].is_a?(Integer) && args[:height].positive?
+
+        { header: @chain_provider.get_header(args[:height]) }
+      end
+
+      # Returns the network this wallet is configured for.
+      #
+      # @param _args [Hash] unused (empty hash)
+      # @return [Hash] { network: String } 'mainnet' or 'testnet'
+      def get_network(_args = {}, _originator: nil)
+        { network: @network }
+      end
+
+      # Returns the wallet version string.
+      #
+      # @param _args [Hash] unused (empty hash)
+      # @return [Hash] { version: String } in vendor-major.minor.patch format
+      def get_version(_args = {}, _originator: nil)
+        { version: "bsv-wallet-#{BSV::WalletInterface::VERSION}" }
+      end
+
+      # --- Authentication ---
+
+      # Checks whether the user is authenticated.
+      # For local wallets with a private key, this is always true.
+      #
+      # @param _args [Hash] unused (empty hash)
+      # @return [Hash] { authenticated: Boolean }
+      def is_authenticated(_args = {}, _originator: nil)
+        { authenticated: true }
+      end
+
+      # Waits until the user is authenticated.
+      # For local wallets, returns immediately.
+      #
+      # @param _args [Hash] unused (empty hash)
+      # @return [Hash] { authenticated: true }
+      def wait_for_authentication(_args = {}, _originator: nil)
+        { authenticated: true }
       end
 
       private

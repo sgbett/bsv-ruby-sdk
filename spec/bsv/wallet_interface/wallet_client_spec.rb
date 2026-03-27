@@ -967,4 +967,88 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(verify_result[:valid]).to be true
     end
   end
+
+  # -------------------------------------------------------------------------
+  # Blockchain & Network Data
+  # -------------------------------------------------------------------------
+  describe '#get_network' do
+    it 'returns mainnet by default' do
+      expect(wallet.get_network[:network]).to eq('mainnet')
+    end
+
+    it 'returns the configured network' do
+      testnet_wallet = described_class.new(private_key, network: 'testnet')
+      expect(testnet_wallet.get_network[:network]).to eq('testnet')
+    end
+  end
+
+  describe '#get_version' do
+    it 'returns the wallet version string' do
+      result = wallet.get_version
+      expect(result[:version]).to eq("bsv-wallet-#{BSV::WalletInterface::VERSION}")
+    end
+
+    it 'matches the BRC-100 vendor-major.minor.patch format' do
+      expect(wallet.get_version[:version]).to match(/\Absv-wallet-\d+\.\d+\.\d+\z/)
+    end
+  end
+
+  describe '#get_height' do
+    it 'raises UnsupportedActionError with NullChainProvider' do
+      expect { wallet.get_height }.to raise_error(BSV::Wallet::UnsupportedActionError)
+    end
+
+    it 'delegates to the chain provider' do
+      provider = Class.new do
+        include BSV::Wallet::ChainProvider
+
+        def get_height
+          890_123
+        end
+      end.new
+      w = described_class.new(private_key, chain_provider: provider)
+      expect(w.get_height[:height]).to eq(890_123)
+    end
+  end
+
+  describe '#get_header_for_height' do
+    it 'raises UnsupportedActionError with NullChainProvider' do
+      expect { wallet.get_header_for_height({ height: 1 }) }.to raise_error(BSV::Wallet::UnsupportedActionError)
+    end
+
+    it 'delegates to the chain provider' do
+      header_hex = 'ab' * 80
+      provider = Class.new do
+        include BSV::Wallet::ChainProvider
+
+        define_method(:get_header) { |_h| header_hex }
+      end.new
+      w = described_class.new(private_key, chain_provider: provider)
+      expect(w.get_header_for_height({ height: 100 })[:header]).to eq(header_hex)
+    end
+
+    it 'raises InvalidParameterError for non-positive height' do
+      expect { wallet.get_header_for_height({ height: 0 }) }.to raise_error(BSV::Wallet::InvalidParameterError)
+      expect { wallet.get_header_for_height({ height: -1 }) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError for non-integer height' do
+      expect { wallet.get_header_for_height({ height: 'abc' }) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # Authentication
+  # -------------------------------------------------------------------------
+  describe '#is_authenticated' do
+    it 'returns authenticated: true for a local wallet' do
+      expect(wallet.is_authenticated[:authenticated]).to be true
+    end
+  end
+
+  describe '#wait_for_authentication' do
+    it 'returns authenticated: true immediately for a local wallet' do
+      expect(wallet.wait_for_authentication[:authenticated]).to be true
+    end
+  end
 end

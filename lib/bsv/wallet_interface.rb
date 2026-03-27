@@ -11,9 +11,11 @@ module BSV
     autoload :KeyDeriver,       'bsv/wallet_interface/key_deriver'
     autoload :ProtoWallet,      'bsv/wallet_interface/proto_wallet'
     autoload :Validators,       'bsv/wallet_interface/validators'
-    autoload :StorageAdapter,   'bsv/wallet_interface/storage_adapter'
-    autoload :MemoryStore,      'bsv/wallet_interface/memory_store'
-    autoload :WalletClient,     'bsv/wallet_interface/wallet_client'
+    autoload :StorageAdapter,    'bsv/wallet_interface/storage_adapter'
+    autoload :MemoryStore,       'bsv/wallet_interface/memory_store'
+    autoload :ChainProvider,     'bsv/wallet_interface/chain_provider'
+    autoload :NullChainProvider, 'bsv/wallet_interface/null_chain_provider'
+    autoload :WalletClient,      'bsv/wallet_interface/wallet_client'
 
     # Error classes
     autoload :WalletError,            'bsv/wallet_interface/errors/wallet_error'
