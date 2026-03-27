@@ -38,6 +38,14 @@ module BSV
       def delete_certificate(type:, serial_number:, certifier:)
         raise NotImplementedError, "#{self.class}#delete_certificate not implemented"
       end
+
+      def count_actions(_query)
+        raise NotImplementedError, "#{self.class}#count_actions not implemented"
+      end
+
+      def count_outputs(_query)
+        raise NotImplementedError, "#{self.class}#count_outputs not implemented"
+      end
     end
   end
 end
