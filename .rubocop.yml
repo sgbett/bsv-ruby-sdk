@@ -211,6 +211,7 @@ RSpec/DescribeClass:
     - 'spec/bsv/transaction/sighash_vectors_spec.rb'
     - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
     - 'spec/integration/**/*'
+    - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
