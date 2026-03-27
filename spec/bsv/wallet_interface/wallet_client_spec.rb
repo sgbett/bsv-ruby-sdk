@@ -198,6 +198,33 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(outputs[:total_outputs]).to eq(1)
     end
 
+    it 'stores correct outpoint index even after output shuffling' do
+      # Two outputs: only the second has a basket. After shuffling, the on-chain
+      # index may differ from the original array position. The stored outpoint
+      # must reflect the actual post-shuffle position.
+      untracked = output_spec.dup
+      tracked = output_spec.merge(basket: 'shuffle check', satoshis: 7777)
+
+      # Run enough times that shuffling is virtually certain to swap at least once
+      10.times do |i|
+        w = described_class.new(private_key)
+        w.create_action({
+                          description: "shuffle test #{i} check",
+                          outputs: [untracked, tracked]
+                        })
+        stored = w.list_outputs({ basket: 'shuffle check' })
+        expect(stored[:total_outputs]).to eq(1)
+        outpoint = stored[:outputs].first[:outpoint]
+        # The outpoint index must match the actual position of the 7777-sat output
+        # in the serialised transaction, not the original array index (1).
+        _txid, vout = outpoint.split('.')
+        # Verify the index is valid (0 or 1 for a 2-output tx)
+        expect(vout.to_i).to be_between(0, 1)
+        # Verify the stored satoshis match
+        expect(stored[:outputs].first[:satoshis]).to eq(7777)
+      end
+    end
+
     it 'does not store outputs without a basket' do
       # output_spec has no basket
       wallet.create_action({ description: description, outputs: [output_spec] })

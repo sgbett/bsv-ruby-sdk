@@ -283,6 +283,10 @@ module BSV
             satoshis: spec[:satoshis],
             locking_script: BSV::Script::Script.from_hex(spec[:locking_script])
           )
+          # Tag the output with its spec so store_tracked_outputs can find the
+          # correct post-shuffle index, even when multiple outputs share the
+          # same locking script and satoshis.
+          output.instance_variable_set(:@_spec, spec)
           tx.add_output(output)
         end
       end
@@ -313,7 +317,7 @@ module BSV
         status = args.dig(:options, :no_send) ? 'nosend' : 'completed'
 
         store_action(tx, args, status: status)
-        store_tracked_outputs(txid, args[:outputs])
+        store_tracked_outputs(txid, tx, args[:outputs])
 
         beef_binary = tx.to_beef
         result = { txid: txid, tx: beef_binary.unpack('C*') }
@@ -348,14 +352,20 @@ module BSV
                               })
       end
 
-      def store_tracked_outputs(txid, outputs)
-        return unless outputs
+      def store_tracked_outputs(txid, tx, output_specs)
+        return unless output_specs
 
-        outputs.each_with_index do |spec, idx|
+        output_specs.each do |spec|
           next unless spec[:basket]
 
+          # Find the actual post-shuffle index by matching the TransactionOutput object.
+          # build_outputs stores a reference on each output via instance_variable_set(:@_spec)
+          # so we can reliably map even when multiple outputs share the same script/satoshis.
+          actual_idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
+          next unless actual_idx
+
           @storage.store_output({
-                                  outpoint: "#{txid}.#{idx}",
+                                  outpoint: "#{txid}.#{actual_idx}",
                                   satoshis: spec[:satoshis],
                                   locking_script: spec[:locking_script],
                                   basket: spec[:basket],
