@@ -21,19 +21,11 @@ module BSV
       end
 
       def find_actions(query)
-        results = @actions
-        if query[:labels]
-          mode = query[:label_query_mode] || 'any'
-          results = results.select do |a|
-            action_labels = a[:labels] || []
-            if mode == 'all'
-              (query[:labels] - action_labels).empty?
-            else
-              (query[:labels] & action_labels).any?
-            end
-          end
-        end
-        apply_pagination(results, query)
+        apply_pagination(filter_actions(query), query)
+      end
+
+      def count_actions(query)
+        filter_actions(query).length
       end
 
       def store_output(output_data)
@@ -42,21 +34,11 @@ module BSV
       end
 
       def find_outputs(query)
-        results = @outputs
-        results = results.select { |o| o[:basket] == query[:basket] } if query[:basket]
-        if query[:tags]
-          mode = query[:tag_query_mode] || 'any'
-          results = results.select do |o|
-            output_tags = o[:tags] || []
-            if mode == 'all'
-              (query[:tags] - output_tags).empty?
-            else
-              (query[:tags] & output_tags).any?
-            end
-          end
-        end
-        results = results.reject { |o| o[:spendable] == false } unless query[:include_spent]
-        apply_pagination(results, query)
+        apply_pagination(filter_outputs(query), query)
+      end
+
+      def count_outputs(query)
+        filter_outputs(query).length
       end
 
       def delete_output(outpoint)
@@ -90,6 +72,38 @@ module BSV
       end
 
       private
+
+      def filter_actions(query)
+        results = @actions
+        return results unless query[:labels]
+
+        mode = query[:label_query_mode] || 'any'
+        results.select do |a|
+          action_labels = a[:labels] || []
+          if mode == 'all'
+            (query[:labels] - action_labels).empty?
+          else
+            (query[:labels] & action_labels).any?
+          end
+        end
+      end
+
+      def filter_outputs(query)
+        results = @outputs
+        results = results.select { |o| o[:basket] == query[:basket] } if query[:basket]
+        if query[:tags]
+          mode = query[:tag_query_mode] || 'any'
+          results = results.select do |o|
+            output_tags = o[:tags] || []
+            if mode == 'all'
+              (query[:tags] - output_tags).empty?
+            else
+              (query[:tags] & output_tags).any?
+            end
+          end
+        end
+        query[:include_spent] ? results : results.reject { |o| o[:spendable] == false }
+      end
 
       def apply_pagination(results, query)
         offset = query[:offset] || 0

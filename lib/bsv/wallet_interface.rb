@@ -13,6 +13,7 @@ module BSV
     autoload :Validators,       'bsv/wallet_interface/validators'
     autoload :StorageAdapter,   'bsv/wallet_interface/storage_adapter'
     autoload :MemoryStore,      'bsv/wallet_interface/memory_store'
+    autoload :WalletClient,     'bsv/wallet_interface/wallet_client'
 
     # Error classes
     autoload :WalletError,            'bsv/wallet_interface/errors/wallet_error'

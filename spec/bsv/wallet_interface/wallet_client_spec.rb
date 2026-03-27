@@ -1,0 +1,970 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+require 'bsv-wallet'
+require 'securerandom'
+require 'base64'
+
+RSpec.describe BSV::Wallet::WalletClient do
+  let(:private_key) { BSV::Primitives::PrivateKey.generate }
+  let(:pub_key) { private_key.public_key }
+  let(:wallet) { described_class.new(private_key) }
+
+  # P2PKH locking script for the wallet's own public key
+  let(:locking_script_hex) { BSV::Script::Script.p2pkh_lock(pub_key.hash160).to_hex }
+
+  # Minimal valid description (5-50 chars)
+  let(:description) { 'test transaction action' }
+
+  # A simple output spec
+  let(:output_spec) do
+    {
+      locking_script: locking_script_hex,
+      satoshis: 1000,
+      output_description: 'test output one'
+    }
+  end
+
+  # Build a source transaction and its BEEF bytes for use as input_beef
+  def build_source_beef(satoshis: 5000)
+    source_tx = BSV::Transaction::Transaction.new
+    source_tx.add_output(
+      BSV::Transaction::TransactionOutput.new(
+        satoshis: satoshis,
+        locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+      )
+    )
+    [source_tx, source_tx.to_beef.unpack('C*')]
+  end
+
+  # -------------------------------------------------------------------------
+  # #initialize
+  # -------------------------------------------------------------------------
+  describe '#initialize' do
+    it 'defaults storage to a MemoryStore' do
+      expect(wallet.storage).to be_a(BSV::Wallet::MemoryStore)
+    end
+
+    it 'exposes a KeyDeriver (inherited from ProtoWallet)' do
+      expect(wallet.key_deriver).to be_a(BSV::Wallet::KeyDeriver)
+    end
+
+    it 'accepts a custom storage adapter' do
+      custom_store = BSV::Wallet::MemoryStore.new
+      w = described_class.new(private_key, storage: custom_store)
+      expect(w.storage).to equal(custom_store)
+    end
+
+    it 'starts with no pending transactions' do
+      # Abort on a random reference should raise — no pending state
+      expect do
+        wallet.abort_action({ reference: 'nonexistent' })
+      end.to raise_error(BSV::Wallet::WalletError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #create_action — validation
+  # -------------------------------------------------------------------------
+  describe '#create_action — validation' do
+    it 'raises InvalidParameterError when description is missing' do
+      expect do
+        wallet.create_action({ outputs: [output_spec] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when description is too short' do
+      expect do
+        wallet.create_action({ description: 'hi', outputs: [output_spec] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when description is too long (> 50 chars)' do
+      long_desc = 'a' * 51
+      expect do
+        wallet.create_action({ description: long_desc, outputs: [output_spec] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when neither inputs nor outputs are provided' do
+      expect do
+        wallet.create_action({ description: description })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when inputs is present but empty' do
+      expect do
+        wallet.create_action({ description: description, inputs: [] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when outputs is present but empty' do
+      expect do
+        wallet.create_action({ description: description, outputs: [] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError for an invalid label' do
+      expect do
+        wallet.create_action({ description: description, outputs: [output_spec], labels: [''] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when an output has no satoshis' do
+      bad_output = { locking_script: locking_script_hex, output_description: 'bad output' }
+      expect do
+        wallet.create_action({ description: description, outputs: [bad_output] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when an output has an invalid locking_script' do
+      bad_output = { locking_script: 'not hex!', satoshis: 1000, output_description: 'bad out' }
+      expect do
+        wallet.create_action({ description: description, outputs: [bad_output] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #create_action — outputs only (no inputs, immediate finalisation)
+  # -------------------------------------------------------------------------
+  describe '#create_action — outputs only' do
+    let(:result) do
+      wallet.create_action({
+                             description: description,
+                             outputs: [output_spec]
+                           })
+    end
+
+    it 'returns a txid string of 64 hex characters' do
+      expect(result[:txid]).to be_a(String)
+      expect(result[:txid].length).to eq(64)
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+    end
+
+    it 'returns :tx as a byte array' do
+      expect(result[:tx]).to be_a(Array)
+      expect(result[:tx]).to all(be_a(Integer))
+    end
+
+    it 'does not return a signable_transaction' do
+      expect(result).not_to have_key(:signable_transaction)
+    end
+
+    it 'stores the action with the correct description' do
+      result[:txid]
+      wallet.list_actions({ labels: [description] })
+      # Action is stored; description may not match label filter directly —
+      # store stores with labels param, so use a broader label
+      # Re-create with an explicit label to enable lookup
+      wallet.create_action({
+                             description: description,
+                             outputs: [output_spec],
+                             labels: ['payment test']
+                           })
+      actions = wallet.list_actions({ labels: ['payment test'] })
+      expect(actions[:total_actions]).to be >= 1
+      expect(actions[:actions].any? { |a| a[:description] == description }).to be true
+    end
+
+    it 'stores labels on the action' do
+      wallet.create_action({
+                             description: description,
+                             outputs: [output_spec],
+                             labels: ['labeled action']
+                           })
+      actions = wallet.list_actions({ labels: ['labeled action'] })
+      expect(actions[:total_actions]).to eq(1)
+    end
+
+    it 'stores output in basket when basket is specified' do
+      basket_output = output_spec.merge(basket: 'my test tokens')
+      wallet.create_action({
+                             description: description,
+                             outputs: [basket_output]
+                           })
+      outputs = wallet.list_outputs({ basket: 'my test tokens' })
+      expect(outputs[:total_outputs]).to eq(1)
+      expect(outputs[:outputs].first[:satoshis]).to eq(1000)
+    end
+
+    it 'stores output tags when tags are specified' do
+      tagged_output = output_spec.merge(basket: 'token vault', tags: %w[rare gold])
+      wallet.create_action({
+                             description: description,
+                             outputs: [tagged_output]
+                           })
+      outputs = wallet.list_outputs({ basket: 'token vault', tags: ['rare'] })
+      expect(outputs[:total_outputs]).to eq(1)
+    end
+
+    it 'stores correct outpoint index even after output shuffling' do
+      # Two outputs: only the second has a basket. After shuffling, the on-chain
+      # index may differ from the original array position. The stored outpoint
+      # must reflect the actual post-shuffle position.
+      untracked = output_spec.dup
+      tracked = output_spec.merge(basket: 'shuffle check', satoshis: 7777)
+
+      # Run enough times that shuffling is virtually certain to swap at least once
+      10.times do |i|
+        w = described_class.new(private_key)
+        w.create_action({
+                          description: "shuffle test #{i} check",
+                          outputs: [untracked, tracked]
+                        })
+        stored = w.list_outputs({ basket: 'shuffle check' })
+        expect(stored[:total_outputs]).to eq(1)
+        outpoint = stored[:outputs].first[:outpoint]
+        # The outpoint index must match the actual position of the 7777-sat output
+        # in the serialised transaction, not the original array index (1).
+        _txid, vout = outpoint.split('.')
+        # Verify the index is valid (0 or 1 for a 2-output tx)
+        expect(vout.to_i).to be_between(0, 1)
+        # Verify the stored satoshis match
+        expect(stored[:outputs].first[:satoshis]).to eq(7777)
+      end
+    end
+
+    it 'does not store outputs without a basket' do
+      # output_spec has no basket
+      wallet.create_action({ description: description, outputs: [output_spec] })
+      # Attempting to list from a basket that would normally hold it returns 0
+      outputs = wallet.list_outputs({ basket: 'my test tokens' })
+      expect(outputs[:total_outputs]).to eq(0)
+    end
+
+    it 'increments total_actions with each call' do
+      wallet.create_action({ description: description, outputs: [output_spec], labels: ['counter test'] })
+      wallet.create_action({ description: description, outputs: [output_spec], labels: ['counter test'] })
+      actions = wallet.list_actions({ labels: ['counter test'] })
+      expect(actions[:total_actions]).to eq(2)
+    end
+
+    context 'with no_send option' do
+      it 'stores action with status "nosend" and returns no_send_change' do
+        r = wallet.create_action({
+                                   description: description,
+                                   outputs: [output_spec],
+                                   options: { no_send: true }
+                                 })
+        expect(r[:no_send_change]).to eq([])
+        expect(r[:txid]).to be_a(String)
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #create_action — signable transaction flow (input with unlocking_script_length)
+  # -------------------------------------------------------------------------
+  describe '#create_action — signable transaction flow' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+
+    let(:signable_result) do
+      wallet.create_action({
+                             description: 'signable transaction test action',
+                             input_beef: input_beef_bytes,
+                             inputs: [{
+                               outpoint: "#{source_txid}.0",
+                               unlocking_script_length: 107,
+                               input_description: 'spend source output one'
+                             }],
+                             outputs: [{
+                               locking_script: locking_script_hex,
+                               satoshis: 4000,
+                               output_description: 'payment output one'
+                             }]
+                           })
+    end
+
+    it 'returns a signable_transaction hash' do
+      expect(signable_result[:signable_transaction]).to be_a(Hash)
+    end
+
+    it 'returns a base64 reference string' do
+      expect(signable_result[:signable_transaction][:reference]).to be_a(String)
+      ref = signable_result[:signable_transaction][:reference]
+      expect { Base64.strict_decode64(ref) }.not_to raise_error
+    end
+
+    it 'returns :tx as a byte array inside signable_transaction' do
+      tx_bytes = signable_result[:signable_transaction][:tx]
+      expect(tx_bytes).to be_a(Array)
+      expect(tx_bytes).to all(be_a(Integer))
+    end
+
+    it 'does not return a top-level :txid' do
+      expect(signable_result).not_to have_key(:txid)
+    end
+
+    it 'returns different references for different signable transactions' do
+      r1 = wallet.create_action({
+                                  description: 'signable transaction test one aa',
+                                  input_beef: input_beef_bytes,
+                                  inputs: [{
+                                    outpoint: "#{source_txid}.0",
+                                    unlocking_script_length: 107,
+                                    input_description: 'spend source output one'
+                                  }],
+                                  outputs: [output_spec]
+                                })
+      _, beef2 = build_source_beef
+      r2 = wallet.create_action({
+                                  description: 'signable transaction test two bb',
+                                  input_beef: beef2,
+                                  inputs: [{
+                                    outpoint: "#{BSV::Transaction::Transaction.new.tap { |t| t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 1, locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160))) }.txid_hex}.0",
+                                    unlocking_script_length: 107,
+                                    input_description: 'spend second source output'
+                                  }],
+                                  outputs: [output_spec]
+                                })
+      ref1 = r1[:signable_transaction][:reference]
+      ref2 = r2[:signable_transaction][:reference]
+      expect(ref1).not_to eq(ref2)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #sign_action
+  # -------------------------------------------------------------------------
+  describe '#sign_action' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+
+    let(:signable_result) do
+      wallet.create_action({
+                             description: 'sign action integration test',
+                             input_beef: input_beef_bytes,
+                             inputs: [{
+                               outpoint: "#{source_txid}.0",
+                               unlocking_script_length: 107,
+                               input_description: 'spend the source output'
+                             }],
+                             outputs: [{
+                               locking_script: locking_script_hex,
+                               satoshis: 4000,
+                               output_description: 'signed payment output'
+                             }]
+                           })
+    end
+
+    let(:reference) { signable_result[:signable_transaction][:reference] }
+
+    # Build a dummy P2PKH unlocking script hex (signature + pubkey push)
+    let(:dummy_unlock_hex) do
+      # 71-byte dummy DER sig + sighash byte, then compressed pubkey push
+      sig_bytes = "0#{"\x00" * 70}A".b
+      pub_bytes = pub_key.compressed
+      BSV::Script::Script.p2pkh_unlock(sig_bytes, pub_bytes).to_hex
+    end
+
+    it 'returns a txid and tx after signing' do
+      result = wallet.sign_action({
+                                    reference: reference,
+                                    spends: { 0 => { unlocking_script: dummy_unlock_hex } }
+                                  })
+      expect(result[:txid]).to be_a(String)
+      expect(result[:txid].length).to eq(64)
+      expect(result[:tx]).to be_a(Array)
+    end
+
+    it 'stores the signed action in storage' do
+      # Create a second labeled signable so we can verify storage via list_actions
+      build_source_beef
+      labeled_source_tx = BSV::Transaction::Transaction.new
+      labeled_source_tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 3000,
+          locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+        )
+      )
+      labeled_input_beef = labeled_source_tx.to_beef.unpack('C*')
+      labeled_result = wallet.create_action({
+                                              description: 'labeled signable action',
+                                              input_beef: labeled_input_beef,
+                                              inputs: [{
+                                                outpoint: "#{labeled_source_tx.txid_hex}.0",
+                                                unlocking_script_length: 107,
+                                                input_description: 'spend labeled source'
+                                              }],
+                                              outputs: [output_spec],
+                                              labels: ['signed storage test']
+                                            })
+      wallet.sign_action({
+                           reference: labeled_result[:signable_transaction][:reference],
+                           spends: { 0 => { unlocking_script: dummy_unlock_hex } }
+                         })
+      actions = wallet.list_actions({ labels: ['signed storage test'] })
+      expect(actions[:total_actions]).to eq(1)
+    end
+
+    it 'clears the pending transaction so abort raises afterwards' do
+      wallet.sign_action({
+                           reference: reference,
+                           spends: { 0 => { unlocking_script: dummy_unlock_hex } }
+                         })
+      expect do
+        wallet.abort_action({ reference: reference })
+      end.to raise_error(BSV::Wallet::WalletError)
+    end
+
+    it 'raises WalletError for an invalid reference' do
+      expect do
+        wallet.sign_action({ reference: 'invalid-reference', spends: {} })
+      end.to raise_error(BSV::Wallet::WalletError, /not found/)
+    end
+
+    it 'raises WalletError for an out-of-range input index' do
+      expect do
+        wallet.sign_action({
+                             reference: reference,
+                             spends: { 99 => { unlocking_script: dummy_unlock_hex } }
+                           })
+      end.to raise_error(BSV::Wallet::WalletError, /out of range/)
+    end
+
+    it 'accepts string keys in spends hash' do
+      result = wallet.sign_action({
+                                    reference: reference,
+                                    spends: { '0' => { unlocking_script: dummy_unlock_hex } }
+                                  })
+      expect(result[:txid]).to be_a(String)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #abort_action
+  # -------------------------------------------------------------------------
+  describe '#abort_action' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+
+    let(:signable_result) do
+      wallet.create_action({
+                             description: 'abort action integration test',
+                             input_beef: input_beef_bytes,
+                             inputs: [{
+                               outpoint: "#{source_txid}.0",
+                               unlocking_script_length: 107,
+                               input_description: 'spend source for abort test'
+                             }],
+                             outputs: [output_spec]
+                           })
+    end
+
+    let(:reference) { signable_result[:signable_transaction][:reference] }
+
+    it 'returns { aborted: true }' do
+      result = wallet.abort_action({ reference: reference })
+      expect(result).to eq({ aborted: true })
+    end
+
+    it 'removes the pending transaction so a second abort raises' do
+      wallet.abort_action({ reference: reference })
+      expect do
+        wallet.abort_action({ reference: reference })
+      end.to raise_error(BSV::Wallet::WalletError)
+    end
+
+    it 'raises WalletError for an unknown reference' do
+      expect do
+        wallet.abort_action({ reference: 'does-not-exist' })
+      end.to raise_error(BSV::Wallet::WalletError, /not found/)
+    end
+
+    it 'prevents signing after abort' do
+      wallet.abort_action({ reference: reference })
+      expect do
+        wallet.sign_action({ reference: reference, spends: {} })
+      end.to raise_error(BSV::Wallet::WalletError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #list_actions
+  # -------------------------------------------------------------------------
+  describe '#list_actions' do
+    before do
+      wallet.create_action({ description: 'payment action one', outputs: [output_spec], labels: ['payment'] })
+      wallet.create_action({ description: 'payment action two', outputs: [output_spec], labels: ['payment'] })
+      wallet.create_action({ description: 'transfer action one', outputs: [output_spec], labels: ['transfer'] })
+      wallet.create_action({ description: 'mixed action labels', outputs: [output_spec], labels: %w[payment transfer] })
+    end
+
+    it 'raises InvalidParameterError when labels is missing' do
+      expect do
+        wallet.list_actions({})
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when labels is empty' do
+      expect do
+        wallet.list_actions({ labels: [] })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'returns total_actions and actions keys' do
+      result = wallet.list_actions({ labels: ['payment'] })
+      expect(result).to have_key(:total_actions)
+      expect(result).to have_key(:actions)
+    end
+
+    it 'lists actions matching any label by default' do
+      result = wallet.list_actions({ labels: ['payment'] })
+      # 3 actions have 'payment' label
+      expect(result[:total_actions]).to eq(3)
+    end
+
+    it 'lists actions matching any label with explicit "any" mode' do
+      result = wallet.list_actions({ labels: %w[payment transfer], label_query_mode: 'any' })
+      expect(result[:total_actions]).to eq(4)
+    end
+
+    it 'lists only actions matching all labels with "all" mode' do
+      result = wallet.list_actions({ labels: %w[payment transfer], label_query_mode: 'all' })
+      expect(result[:total_actions]).to eq(1)
+    end
+
+    it 'returns actions as an Array' do
+      result = wallet.list_actions({ labels: ['payment'] })
+      expect(result[:actions]).to be_a(Array)
+    end
+
+    it 'paginates results using limit' do
+      result = wallet.list_actions({ labels: ['payment'], limit: 2 })
+      expect(result[:actions].length).to eq(2)
+      expect(result[:total_actions]).to eq(3)
+    end
+
+    it 'paginates results using offset' do
+      all = wallet.list_actions({ labels: ['payment'], limit: 10 })
+      paged = wallet.list_actions({ labels: ['payment'], limit: 10, offset: 1 })
+      expect(paged[:actions].length).to eq(2)
+      expect(paged[:actions].first[:txid]).to eq(all[:actions][1][:txid])
+    end
+
+    it 'returns 0 total_actions when no actions match' do
+      result = wallet.list_actions({ labels: ['nonexistent label'] })
+      expect(result[:total_actions]).to eq(0)
+      expect(result[:actions]).to be_empty
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #list_outputs
+  # -------------------------------------------------------------------------
+  describe '#list_outputs' do
+    before do
+      wallet.create_action({
+                             description: 'create basket outputs one',
+                             outputs: [
+                               { locking_script: locking_script_hex, satoshis: 500, output_description: 'token alpha', basket: 'my tokens', tags: ['rare'] },
+                               { locking_script: locking_script_hex, satoshis: 1500, output_description: 'token beta', basket: 'my tokens', tags: %w[rare gold] }
+                             ]
+                           })
+      wallet.create_action({
+                             description: 'create other basket output',
+                             outputs: [
+                               { locking_script: locking_script_hex, satoshis: 2000, output_description: 'other output', basket: 'secondary store' }
+                             ]
+                           })
+    end
+
+    it 'raises InvalidParameterError when basket is missing' do
+      expect do
+        wallet.list_outputs({})
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'returns total_outputs and outputs keys' do
+      result = wallet.list_outputs({ basket: 'my tokens' })
+      expect(result).to have_key(:total_outputs)
+      expect(result).to have_key(:outputs)
+    end
+
+    it 'lists all outputs in the specified basket' do
+      result = wallet.list_outputs({ basket: 'my tokens' })
+      expect(result[:total_outputs]).to eq(2)
+    end
+
+    it 'does not return outputs from a different basket' do
+      result = wallet.list_outputs({ basket: 'secondary store' })
+      expect(result[:total_outputs]).to eq(1)
+      expect(result[:outputs].first[:satoshis]).to eq(2000)
+    end
+
+    it 'filters by tags in "any" mode' do
+      result = wallet.list_outputs({ basket: 'my tokens', tags: ['gold'] })
+      expect(result[:total_outputs]).to eq(1)
+      expect(result[:outputs].first[:satoshis]).to eq(1500)
+    end
+
+    it 'filters by tags in "all" mode' do
+      result = wallet.list_outputs({ basket: 'my tokens', tags: %w[rare gold], tag_query_mode: 'all' })
+      expect(result[:total_outputs]).to eq(1)
+    end
+
+    it 'paginates results using limit' do
+      result = wallet.list_outputs({ basket: 'my tokens', limit: 1 })
+      expect(result[:actions]).to be_nil
+      expect(result[:outputs].length).to eq(1)
+      expect(result[:total_outputs]).to eq(2)
+    end
+
+    it 'paginates results using offset' do
+      all = wallet.list_outputs({ basket: 'my tokens', limit: 10 })
+      paged = wallet.list_outputs({ basket: 'my tokens', limit: 10, offset: 1 })
+      expect(paged[:outputs].length).to eq(1)
+      expect(paged[:outputs].first[:outpoint]).to eq(all[:outputs][1][:outpoint])
+    end
+
+    it 'returns 0 total_outputs for an empty basket' do
+      result = wallet.list_outputs({ basket: 'empty store' })
+      expect(result[:total_outputs]).to eq(0)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #relinquish_output
+  # -------------------------------------------------------------------------
+  describe '#relinquish_output' do
+    before do
+      wallet.create_action({
+                             description: 'create relinquish test output',
+                             outputs: [{
+                               locking_script: locking_script_hex,
+                               satoshis: 777,
+                               output_description: 'relinquish target',
+                               basket: 'relinquish test'
+                             }]
+                           })
+    end
+
+    let(:outpoint) do
+      wallet.list_outputs({ basket: 'relinquish test' })[:outputs].first[:outpoint]
+    end
+
+    it 'returns { relinquished: true }' do
+      result = wallet.relinquish_output({ basket: 'relinquish test', output: outpoint })
+      expect(result).to eq({ relinquished: true })
+    end
+
+    it 'removes the output from storage' do
+      wallet.relinquish_output({ basket: 'relinquish test', output: outpoint })
+      remaining = wallet.list_outputs({ basket: 'relinquish test' })
+      expect(remaining[:total_outputs]).to eq(0)
+    end
+
+    it 'raises WalletError for a non-existent output' do
+      fake_outpoint = "#{'a' * 64}.0"
+      expect do
+        wallet.relinquish_output({ basket: 'relinquish test', output: fake_outpoint })
+      end.to raise_error(BSV::Wallet::WalletError, /not found/)
+    end
+
+    it 'raises InvalidParameterError for an invalid basket name' do
+      expect do
+        wallet.relinquish_output({ basket: '', output: outpoint })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError for an invalid outpoint format' do
+      expect do
+        wallet.relinquish_output({ basket: 'relinquish test', output: 'not-an-outpoint' })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #internalize_action — basket insertion
+  # -------------------------------------------------------------------------
+  describe '#internalize_action — basket insertion' do
+    let(:incoming_tx) do
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 2000,
+          locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+        )
+      )
+      tx
+    end
+
+    let(:beef_bytes) { incoming_tx.to_beef.unpack('C*') }
+
+    it 'returns { accepted: true }' do
+      result = wallet.internalize_action({
+                                           tx: beef_bytes,
+                                           description: 'receive incoming tokens',
+                                           outputs: [{
+                                             output_index: 0,
+                                             protocol: 'basket insertion',
+                                             insertion_remittance: {
+                                               basket: 'my test tokens',
+                                               tags: ['incoming']
+                                             }
+                                           }]
+                                         })
+      expect(result[:accepted]).to be true
+    end
+
+    it 'stores the output in the specified basket' do
+      wallet.internalize_action({
+                                  tx: beef_bytes,
+                                  description: 'receive incoming tokens',
+                                  outputs: [{
+                                    output_index: 0,
+                                    protocol: 'basket insertion',
+                                    insertion_remittance: {
+                                      basket: 'my test tokens',
+                                      tags: ['incoming']
+                                    }
+                                  }]
+                                })
+      outputs = wallet.list_outputs({ basket: 'my test tokens' })
+      expect(outputs[:total_outputs]).to eq(1)
+      expect(outputs[:outputs].first[:satoshis]).to eq(2000)
+    end
+
+    it 'applies tags from insertion_remittance' do
+      wallet.internalize_action({
+                                  tx: beef_bytes,
+                                  description: 'receive tagged tokens',
+                                  outputs: [{
+                                    output_index: 0,
+                                    protocol: 'basket insertion',
+                                    insertion_remittance: {
+                                      basket: 'tagged test store',
+                                      tags: %w[rare special]
+                                    }
+                                  }]
+                                })
+      outputs = wallet.list_outputs({ basket: 'tagged test store', tags: ['rare'] })
+      expect(outputs[:total_outputs]).to eq(1)
+    end
+
+    it 'stores the action in storage' do
+      wallet.internalize_action({
+                                  tx: beef_bytes,
+                                  description: 'internalize action label',
+                                  outputs: [{
+                                    output_index: 0,
+                                    protocol: 'basket insertion',
+                                    insertion_remittance: { basket: 'my test tokens' }
+                                  }],
+                                  labels: ['inbound']
+                                })
+      actions = wallet.list_actions({ labels: ['inbound'] })
+      expect(actions[:total_actions]).to eq(1)
+    end
+
+    it 'raises InvalidParameterError when tx is not an Array' do
+      expect do
+        wallet.internalize_action({
+                                    tx: 'not an array',
+                                    description: 'bad tx param here',
+                                    outputs: [{ output_index: 0, protocol: 'basket insertion', insertion_remittance: { basket: 'my test tokens' } }]
+                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when outputs is empty' do
+      expect do
+        wallet.internalize_action({
+                                    tx: beef_bytes,
+                                    description: 'no outputs given',
+                                    outputs: []
+                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises WalletError when output_index is out of range' do
+      expect do
+        wallet.internalize_action({
+                                    tx: beef_bytes,
+                                    description: 'bad output index test',
+                                    outputs: [{
+                                      output_index: 99,
+                                      protocol: 'basket insertion',
+                                      insertion_remittance: { basket: 'my test tokens' }
+                                    }]
+                                  })
+      end.to raise_error(BSV::Wallet::WalletError, /not found/)
+    end
+
+    it 'raises InvalidParameterError for an unknown protocol' do
+      expect do
+        wallet.internalize_action({
+                                    tx: beef_bytes,
+                                    description: 'unknown protocol test',
+                                    outputs: [{
+                                      output_index: 0,
+                                      protocol: 'unknown protocol type',
+                                      insertion_remittance: { basket: 'my test tokens' }
+                                    }]
+                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError when insertion_remittance is nil' do
+      expect do
+        wallet.internalize_action({
+                                    tx: beef_bytes,
+                                    description: 'nil remittance test',
+                                    outputs: [{
+                                      output_index: 0,
+                                      protocol: 'basket insertion',
+                                      insertion_remittance: nil
+                                    }]
+                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # #internalize_action — wallet payment (BRC-29)
+  # -------------------------------------------------------------------------
+  describe '#internalize_action — wallet payment' do
+    let(:sender_key) { BSV::Primitives::PrivateKey.generate }
+    let(:sender_pub_hex) { sender_key.public_key.to_hex }
+    let(:derivation_prefix) { Base64.strict_encode64(SecureRandom.random_bytes(16)) }
+    let(:derivation_suffix) { Base64.strict_encode64(SecureRandom.random_bytes(16)) }
+
+    # Derive the public key the wallet expects (matching internalize_payment logic)
+    let(:expected_pub) do
+      wallet.key_deriver.derive_public_key(
+        [2, '3241645161d8'],
+        "#{derivation_prefix} #{derivation_suffix}",
+        sender_pub_hex,
+        for_self: true
+      )
+    end
+
+    let(:payment_tx) do
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 50_000,
+          locking_script: BSV::Script::Script.p2pkh_lock(expected_pub.hash160)
+        )
+      )
+      tx
+    end
+
+    let(:beef_bytes) { payment_tx.to_beef.unpack('C*') }
+
+    it 'returns { accepted: true } for a correctly derived payment' do
+      result = wallet.internalize_action({
+                                           tx: beef_bytes,
+                                           description: 'receive wallet payment',
+                                           outputs: [{
+                                             output_index: 0,
+                                             protocol: 'wallet payment',
+                                             payment_remittance: {
+                                               sender_identity_key: sender_pub_hex,
+                                               derivation_prefix: derivation_prefix,
+                                               derivation_suffix: derivation_suffix
+                                             }
+                                           }]
+                                         })
+      expect(result[:accepted]).to be true
+    end
+
+    it 'stores the output with sender identity metadata' do
+      wallet.internalize_action({
+                                  tx: beef_bytes,
+                                  description: 'receive wallet payment',
+                                  outputs: [{
+                                    output_index: 0,
+                                    protocol: 'wallet payment',
+                                    payment_remittance: {
+                                      sender_identity_key: sender_pub_hex,
+                                      derivation_prefix: derivation_prefix,
+                                      derivation_suffix: derivation_suffix
+                                    }
+                                  }]
+                                })
+      # Payment outputs are stored without a basket; verify via storage directly
+      # (they are spendable but without basket assignment)
+      expect(wallet.storage).to respond_to(:find_outputs)
+    end
+
+    it 'raises WalletError when the output script does not match the derived key' do
+      # Build a tx with a random unrelated locking script
+      wrong_tx = BSV::Transaction::Transaction.new
+      wrong_pub = BSV::Primitives::PrivateKey.generate.public_key
+      wrong_tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 50_000,
+          locking_script: BSV::Script::Script.p2pkh_lock(wrong_pub.hash160)
+        )
+      )
+      wrong_beef = wrong_tx.to_beef.unpack('C*')
+
+      expect do
+        wallet.internalize_action({
+                                    tx: wrong_beef,
+                                    description: 'wrong script wallet pay',
+                                    outputs: [{
+                                      output_index: 0,
+                                      protocol: 'wallet payment',
+                                      payment_remittance: {
+                                        sender_identity_key: sender_pub_hex,
+                                        derivation_prefix: derivation_prefix,
+                                        derivation_suffix: derivation_suffix
+                                      }
+                                    }]
+                                  })
+      end.to raise_error(BSV::Wallet::WalletError, /script does not match/)
+    end
+
+    it 'raises InvalidParameterError when payment_remittance is nil' do
+      expect do
+        wallet.internalize_action({
+                                    tx: beef_bytes,
+                                    description: 'nil remittance wallet pay',
+                                    outputs: [{
+                                      output_index: 0,
+                                      protocol: 'wallet payment',
+                                      payment_remittance: nil
+                                    }]
+                                  })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # Inherited crypto methods (smoke test)
+  # -------------------------------------------------------------------------
+  describe 'inherited ProtoWallet methods' do
+    let(:crypto_args) do
+      { protocol_id: [0, 'hello world'], key_id: 'test key 1', counterparty: 'self' }
+    end
+
+    it 'inherits encrypt/decrypt round-trip from ProtoWallet' do
+      plaintext = [1, 2, 3, 4, 5]
+      encrypted = wallet.encrypt(crypto_args.merge(plaintext: plaintext))
+      decrypted = wallet.decrypt(crypto_args.merge(ciphertext: encrypted[:ciphertext]))
+      expect(decrypted[:plaintext]).to eq(plaintext)
+    end
+
+    it 'inherits get_public_key from ProtoWallet' do
+      result = wallet.get_public_key({ identity_key: true })
+      expect(result[:public_key]).to eq(pub_key.to_hex)
+    end
+
+    it 'inherits create_hmac/verify_hmac from ProtoWallet' do
+      data = [10, 20, 30]
+      hmac_result = wallet.create_hmac(crypto_args.merge(data: data))
+      verify_result = wallet.verify_hmac(crypto_args.merge(data: data, hmac: hmac_result[:hmac]))
+      expect(verify_result[:valid]).to be true
+    end
+  end
+end

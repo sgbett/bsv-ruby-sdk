@@ -194,6 +194,78 @@ RSpec.describe BSV::Wallet::MemoryStore do
     end
   end
 
+  describe '#count_actions' do
+    before do
+      store.store_action(labels: %w[payment urgent], txid: 'abc')
+      store.store_action(labels: ['payment'], txid: 'def')
+      store.store_action(labels: ['transfer'], txid: 'ghi')
+    end
+
+    it 'counts all actions when no label filter is given' do
+      expect(store.count_actions({})).to eq(3)
+    end
+
+    it 'counts actions matching any of the given labels' do
+      expect(store.count_actions(labels: ['payment'])).to eq(2)
+    end
+
+    it 'counts actions matching all given labels' do
+      expect(store.count_actions(labels: %w[payment urgent], label_query_mode: 'all')).to eq(1)
+    end
+
+    it 'returns 0 when no actions match the filter' do
+      expect(store.count_actions(labels: ['nonexistent'])).to eq(0)
+    end
+
+    it 'counts the full set without applying pagination' do
+      10.times { |i| store.store_action(labels: ['bulk'], txid: "bulk#{i}") }
+      expect(store.count_actions(labels: ['bulk'])).to eq(10)
+    end
+  end
+
+  describe '#count_outputs' do
+    before do
+      store.store_output(basket: 'my tokens', outpoint: 'abc.0', spendable: true, tags: %w[rare gold])
+      store.store_output(basket: 'my tokens', outpoint: 'def.0', spendable: true, tags: ['rare'])
+      store.store_output(basket: 'other basket', outpoint: 'ghi.0', spendable: true)
+    end
+
+    it 'counts all spendable outputs in the specified basket' do
+      expect(store.count_outputs(basket: 'my tokens')).to eq(2)
+    end
+
+    it 'counts outputs in a different basket' do
+      expect(store.count_outputs(basket: 'other basket')).to eq(1)
+    end
+
+    it 'returns 0 for an empty basket' do
+      expect(store.count_outputs(basket: 'empty basket')).to eq(0)
+    end
+
+    it 'counts outputs filtered by tag in "any" mode' do
+      expect(store.count_outputs(basket: 'my tokens', tags: ['gold'])).to eq(1)
+    end
+
+    it 'counts outputs filtered by all tags' do
+      expect(store.count_outputs(basket: 'my tokens', tags: %w[rare gold], tag_query_mode: 'all')).to eq(1)
+    end
+
+    it 'excludes spent outputs by default' do
+      store.store_output(basket: 'my tokens', outpoint: 'spent.0', spendable: false)
+      expect(store.count_outputs(basket: 'my tokens')).to eq(2)
+    end
+
+    it 'counts spent outputs when include_spent is true' do
+      store.store_output(basket: 'my tokens', outpoint: 'spent.0', spendable: false)
+      expect(store.count_outputs(basket: 'my tokens', include_spent: true)).to eq(3)
+    end
+
+    it 'counts the full set without applying pagination' do
+      15.times { |i| store.store_output(basket: 'bulk basket', outpoint: "bulk#{i}.0", spendable: true) }
+      expect(store.count_outputs(basket: 'bulk basket')).to eq(15)
+    end
+  end
+
   describe 'pagination' do
     before do
       5.times { |i| store.store_action(labels: ['all'], txid: "tx#{i}") }
