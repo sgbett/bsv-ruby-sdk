@@ -17,10 +17,14 @@ Naming/FileName:
   Exclude:
     - 'lib/bsv-sdk.rb'
     - 'lib/bsv-attest.rb'
+    - 'lib/bsv-wallet.rb'
 
 # Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
+# a/b are used in secure_compare for constant-time comparison.
 Naming/MethodParameterName:
   AllowedNames:
+    - a
+    - b
     - r
     - s
     - z
@@ -34,12 +38,22 @@ Naming/MethodParameterName:
     - p2
 
 # verify(), verify_proof(), and cast_bool() are standard cryptographic/protocol API names.
+# is_authenticated is the BRC-100 wire-protocol method name and cannot be renamed.
+# delete_output/delete_certificate return bool success indicators, not predicates.
 Naming/PredicateMethod:
   AllowedMethods:
     - verify
     - verify_proof
     - cast_bool
     - execute
+    - is_authenticated
+    - delete_output
+    - delete_certificate
+
+# is_authenticated uses the BRC-100 wire-protocol naming convention (is_ prefix).
+Naming/PredicatePrefix:
+  AllowedMethods:
+    - is_authenticated
 
 # Cryptographic and script-parsing code is inherently complex;
 # splitting into tiny methods would harm readability and auditability.
@@ -52,6 +66,8 @@ Metrics/AbcSize:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/wallet_interface.rb'
+    - 'lib/bsv/wallet_interface/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
@@ -63,6 +79,8 @@ Metrics/MethodLength:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/wallet_interface.rb'
+    - 'lib/bsv/wallet_interface/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
@@ -74,6 +92,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/wallet_interface.rb'
+    - 'lib/bsv/wallet_interface/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
@@ -85,6 +105,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/wallet/**/*'
     - 'lib/bsv/attest.rb'
     - 'lib/bsv/attest/**/*'
+    - 'lib/bsv/wallet_interface.rb'
+    - 'lib/bsv/wallet_interface/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
@@ -101,6 +123,7 @@ Metrics/ClassLength:
     - 'lib/bsv/transaction/transaction.rb'
     - 'lib/bsv/transaction/merkle_path.rb'
     - 'lib/bsv/transaction/beef.rb'
+    - 'lib/bsv/wallet_interface/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -134,6 +157,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/wallet/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
+    - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -143,6 +167,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
     - 'spec/conformance/**/*'
+    - 'spec/bsv/wallet_interface/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -153,6 +178,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/wallet/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
+    - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -170,6 +196,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/primitives/shamir/**/*'
     - 'spec/bsv/transaction/benford_number/**/*'
     - 'spec/conformance/**/*'
+    - 'spec/bsv/wallet_interface/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 RSpec/DescribeClass:
@@ -192,6 +219,16 @@ RSpec/LeakyConstantDeclaration:
 RSpec/EmptyExampleGroup:
   Exclude:
     - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+
+# wallet_interface spec file covers multiple top-level modules in one file.
+RSpec/MultipleDescribes:
+  Exclude:
+    - 'spec/bsv/wallet_interface/**/*'
+
+# Dynamic each loops with the same template string produce unique descriptions at runtime.
+RSpec/RepeatedDescription:
+  Exclude:
+    - 'spec/bsv/wallet_interface/**/*'
 
 # Integration tests use before(:context) which requires instance variables.
 RSpec/BeforeAfterAll:
