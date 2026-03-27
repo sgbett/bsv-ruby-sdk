@@ -55,10 +55,11 @@ module BSV
       end
 
       def find_certificates(query)
-        results = @certificates
-        results = results.select { |c| query[:certifiers].include?(c[:certifier]) } if query[:certifiers]
-        results = results.select { |c| query[:types].include?(c[:type]) } if query[:types]
-        apply_pagination(results, query)
+        apply_pagination(filter_certificates(query), query)
+      end
+
+      def count_certificates(query)
+        filter_certificates(query).length
       end
 
       def delete_certificate(type:, serial_number:, certifier:)
@@ -103,6 +104,20 @@ module BSV
           end
         end
         query[:include_spent] ? results : results.reject { |o| o[:spendable] == false }
+      end
+
+      def filter_certificates(query)
+        results = @certificates
+        results = results.select { |c| query[:certifiers].include?(c[:certifier]) } if query[:certifiers]
+        results = results.select { |c| query[:types].include?(c[:type]) } if query[:types]
+        results = results.select { |c| c[:subject] == query[:subject] } if query[:subject]
+        if query[:attributes]
+          results = results.select do |c|
+            fields = c[:fields] || {}
+            query[:attributes].all? { |k, v| fields[k] == v || fields[k.to_sym] == v }
+          end
+        end
+        results
       end
 
       def apply_pagination(results, query)
