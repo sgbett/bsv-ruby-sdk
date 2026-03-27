@@ -37,6 +37,12 @@ Naming/MethodParameterName:
     - p1
     - p2
 
+# BRC-100 method names use get_ prefix (get_height, get_header, etc.) — protocol names.
+Naming/AccessorMethodName:
+  Exclude:
+    - 'lib/bsv/wallet_interface/**/*'
+    - 'spec/bsv/wallet_interface/**/*'
+
 # verify(), verify_proof(), and cast_bool() are standard cryptographic/protocol API names.
 # is_authenticated is the BRC-100 wire-protocol method name and cannot be renamed.
 # delete_output/delete_certificate return bool success indicators, not predicates.
