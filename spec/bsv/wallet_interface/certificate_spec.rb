@@ -51,9 +51,86 @@ RSpec.describe 'WalletClient certificate methods' do
       expect(result).not_to have_key(:keyring)
     end
 
-    it 'raises UnsupportedActionError for issuance protocol' do
+    it 'raises InvalidParameterError for issuance without certifier_url' do
       args = direct_args.merge(acquisition_protocol: 'issuance')
-      expect { wallet.acquire_certificate(args) }.to raise_error(BSV::Wallet::UnsupportedActionError)
+      args.delete(:serial_number)
+      args.delete(:revocation_outpoint)
+      args.delete(:signature)
+      args.delete(:keyring_for_subject)
+      expect { wallet.acquire_certificate(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    context 'with issuance protocol' do
+      let(:issuance_response) do
+        {
+          'type' => cert_type,
+          'subject' => wallet.key_deriver.identity_key,
+          'serialNumber' => serial_number,
+          'certifier' => certifier_hex,
+          'revocationOutpoint' => revocation_outpoint,
+          'signature' => signature,
+          'fields' => fields,
+          'keyringForSubject' => keyring
+        }
+      end
+
+      let(:mock_http) do
+        resp = issuance_response
+        Class.new do
+          define_method(:request) do |_uri, _req|
+            Struct.new(:code, :body).new('200', JSON.generate(resp))
+          end
+        end.new
+      end
+
+      let(:issuance_wallet) do
+        BSV::Wallet::WalletClient.new(private_key, http_client: mock_http)
+      end
+
+      let(:issuance_args) do
+        {
+          type: cert_type,
+          certifier: certifier_hex,
+          acquisition_protocol: 'issuance',
+          fields: fields,
+          certifier_url: 'https://certifier.example.com/api/issue'
+        }
+      end
+
+      it 'acquires a certificate via issuance protocol' do
+        result = issuance_wallet.acquire_certificate(issuance_args)
+        expect(result[:type]).to eq(cert_type)
+        expect(result[:subject]).to eq(wallet.key_deriver.identity_key)
+        expect(result[:serial_number]).to eq(serial_number)
+        expect(result[:certifier]).to eq(certifier_hex)
+      end
+
+      it 'does not return the keyring in the result' do
+        result = issuance_wallet.acquire_certificate(issuance_args)
+        expect(result).not_to have_key(:keyring)
+      end
+
+      it 'stores the certificate in storage' do
+        issuance_wallet.acquire_certificate(issuance_args)
+        certs = issuance_wallet.list_certificates({ certifiers: [certifier_hex], types: [cert_type] })
+        expect(certs[:total_certificates]).to eq(1)
+      end
+
+      it 'raises WalletError on HTTP failure' do
+        failing_http = Class.new do
+          define_method(:request) { |_uri, _req| Struct.new(:code, :body).new('500', 'error') }
+        end.new
+        w = BSV::Wallet::WalletClient.new(private_key, http_client: failing_http)
+        expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /HTTP 500/)
+      end
+
+      it 'raises WalletError on invalid JSON response' do
+        bad_http = Class.new do
+          define_method(:request) { |_uri, _req| Struct.new(:code, :body).new('200', 'not json') }
+        end.new
+        w = BSV::Wallet::WalletClient.new(private_key, http_client: bad_http)
+        expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /invalid JSON/)
+      end
     end
 
     it 'raises InvalidParameterError for invalid protocol' do
