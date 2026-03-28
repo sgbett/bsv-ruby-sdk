@@ -11,6 +11,7 @@ Style/Documentation:
 
 Metrics/BlockLength:
   Exclude:
+    - 'lib/bsv/wallet_interface/wire/**/*'
     - 'spec/**/*'
 
 Naming/FileName:
@@ -27,6 +28,7 @@ Naming/MethodParameterName:
     - b
     - r
     - s
+    - w
     - z
     - x
     - y
@@ -120,6 +122,7 @@ Metrics/ModuleLength:
     - 'lib/bsv/primitives/ecdsa.rb'
     - 'lib/bsv/script/opcodes.rb'
     - 'lib/bsv/script/interpreter/operations/**/*'
+    - 'lib/bsv/wallet_interface/wire/**/*'
     - 'spec/**/*'
 
 Metrics/ClassLength:
@@ -189,8 +192,10 @@ RSpec/ExampleLength:
     - 'spec/conformance/**/*'
 
 # Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
+# Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
 Naming/VariableNumber:
   Exclude:
+    - 'lib/bsv/wallet_interface/wire/**/*'
     - 'spec/**/*'
 
 # Interpreter sub-specs and conformance specs legitimately describe parent
