@@ -2,6 +2,9 @@
 
 require 'securerandom'
 require 'base64'
+require 'net/http'
+require 'json'
+require 'uri'
 
 module BSV
   module Wallet
@@ -36,11 +39,13 @@ module BSV
       # @param storage [StorageAdapter] persistence adapter (default: MemoryStore)
       # @param network [String] 'mainnet' (default) or 'testnet'
       # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
-      def initialize(key, storage: MemoryStore.new, network: 'mainnet', chain_provider: NullChainProvider.new)
+      # @param http_client [#request, nil] injectable HTTP client for certificate issuance
+      def initialize(key, storage: MemoryStore.new, network: 'mainnet', chain_provider: NullChainProvider.new, http_client: nil)
         super(key)
         @storage = storage
         @network = network
         @chain_provider = chain_provider
+        @http_client = http_client
         @pending = {}
       end
 
@@ -254,18 +259,11 @@ module BSV
       def acquire_certificate(args, _originator: nil)
         validate_acquire_certificate!(args)
 
-        raise UnsupportedActionError, 'acquire_certificate with issuance protocol' if args[:acquisition_protocol] == 'issuance'
-
-        cert = {
-          type: args[:type],
-          subject: @key_deriver.identity_key,
-          serial_number: args[:serial_number],
-          certifier: args[:certifier],
-          revocation_outpoint: args[:revocation_outpoint],
-          signature: args[:signature],
-          fields: args[:fields],
-          keyring: args[:keyring_for_subject]
-        }
+        cert = if args[:acquisition_protocol] == 'issuance'
+                 acquire_via_issuance(args)
+               else
+                 acquire_via_direct(args)
+               end
 
         @storage.store_certificate(cert)
         cert_without_keyring(cert)
@@ -721,12 +719,69 @@ module BSV
         protocol = args[:acquisition_protocol]
         raise InvalidParameterError.new('acquisition_protocol', '"direct" or "issuance"') unless %w[direct issuance].include?(protocol)
 
-        return unless protocol == 'direct'
+        if protocol == 'direct'
+          raise InvalidParameterError.new('serial_number', 'present for direct acquisition') unless args[:serial_number]
+          raise InvalidParameterError.new('revocation_outpoint', 'present for direct acquisition') unless args[:revocation_outpoint]
+          raise InvalidParameterError.new('signature', 'present for direct acquisition') unless args[:signature]
+          raise InvalidParameterError.new('keyring_for_subject', 'a Hash for direct acquisition') unless args[:keyring_for_subject].is_a?(Hash)
+        elsif protocol == 'issuance'
+          raise InvalidParameterError.new('certifier_url', 'present for issuance acquisition') unless args[:certifier_url].is_a?(String)
+        end
+      end
 
-        raise InvalidParameterError.new('serial_number', 'present for direct acquisition') unless args[:serial_number]
-        raise InvalidParameterError.new('revocation_outpoint', 'present for direct acquisition') unless args[:revocation_outpoint]
-        raise InvalidParameterError.new('signature', 'present for direct acquisition') unless args[:signature]
-        raise InvalidParameterError.new('keyring_for_subject', 'a Hash for direct acquisition') unless args[:keyring_for_subject].is_a?(Hash)
+      def acquire_via_direct(args)
+        {
+          type: args[:type],
+          subject: @key_deriver.identity_key,
+          serial_number: args[:serial_number],
+          certifier: args[:certifier],
+          revocation_outpoint: args[:revocation_outpoint],
+          signature: args[:signature],
+          fields: args[:fields],
+          keyring: args[:keyring_for_subject]
+        }
+      end
+
+      def acquire_via_issuance(args)
+        uri = URI(args[:certifier_url])
+        request = Net::HTTP::Post.new(uri)
+        request['Content-Type'] = 'application/json'
+        request.body = JSON.generate({
+                                       type: args[:type],
+                                       subject: @key_deriver.identity_key,
+                                       certifier: args[:certifier],
+                                       fields: args[:fields]
+                                     })
+
+        response = execute_http(uri, request)
+        code = response.code.to_i
+
+        raise WalletError, "Certificate issuance failed: HTTP #{code}" unless (200..299).cover?(code)
+
+        body = JSON.parse(response.body)
+
+        {
+          type: body['type'] || args[:type],
+          subject: body['subject'] || @key_deriver.identity_key,
+          serial_number: body['serialNumber'],
+          certifier: body['certifier'] || args[:certifier],
+          revocation_outpoint: body['revocationOutpoint'],
+          signature: body['signature'],
+          fields: body['fields'] || args[:fields],
+          keyring: body['keyringForSubject']
+        }
+      rescue JSON::ParserError
+        raise WalletError, 'Certificate issuance failed: invalid JSON response'
+      end
+
+      def execute_http(uri, request)
+        if @http_client
+          @http_client.request(uri, request)
+        else
+          Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+            http.request(request)
+          end
+        end
       end
 
       def find_stored_certificate(cert_arg)
