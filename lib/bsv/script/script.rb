@@ -271,6 +271,36 @@ module BSV
         p2pkh_unlock(signature_der, pubkey_bytes)
       end
 
+      # Construct an OP_CAT locking script.
+      #
+      # The script concatenates two stack items and compares the result
+      # against the expected data. The spender must push two values whose
+      # concatenation equals +expected_data+.
+      #
+      # @param expected_data [String] binary string — the expected result of
+      #   concatenating the two unlocking values
+      # @return [Script]
+      def self.op_cat_lock(expected_data)
+        buf = [Opcodes::OP_CAT].pack('C')
+        buf << encode_push_data(expected_data.b)
+        buf << [Opcodes::OP_EQUAL].pack('C')
+        new(buf)
+      end
+
+      # Construct an OP_CAT unlocking script.
+      #
+      # Pushes two data items onto the stack. The locking script's OP_CAT
+      # will concatenate them and compare against the expected value.
+      #
+      # @param data1 [String] binary string — first item (pushed first, deeper on stack)
+      # @param data2 [String] binary string — second item (pushed second, top of stack)
+      # @return [Script]
+      def self.op_cat_unlock(data1, data2)
+        buf = encode_push_data(data1.b)
+        buf << encode_push_data(data2.b)
+        new(buf)
+      end
+
       # --- Serialisation ---
 
       # @return [String] a copy of the raw script bytes
@@ -420,6 +450,19 @@ module BSV
         end
       end
 
+      # Whether this is an OP_CAT puzzle script.
+      #
+      # Pattern: +OP_CAT <expected_data> OP_EQUAL+
+      #
+      # @return [Boolean]
+      def op_cat?
+        c = chunks
+        c.length == 3 &&
+          c[0].opcode == Opcodes::OP_CAT &&
+          c[1].data? &&
+          c[2].opcode == Opcodes::OP_EQUAL
+      end
+
       # Whether this is a bare multisig script.
       #
       # Pattern: +OP_M <pubkey1> ... <pubkeyN> OP_N OP_CHECKMULTISIG+
@@ -450,6 +493,7 @@ module BSV
         elsif multisig? then 'multisig'
         elsif pushdrop? then 'pushdrop'
         elsif rpuzzle? then 'rpuzzle'
+        elsif op_cat? then 'opcat'
         else 'nonstandard'
         end
       end

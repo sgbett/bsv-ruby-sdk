@@ -201,6 +201,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/script/interpreter/**/*'
     - 'spec/bsv/primitives/shamir/**/*'
     - 'spec/bsv/transaction/benford_number/**/*'
+    - 'spec/bsv/script/op_cat_spec.rb'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 
