@@ -212,6 +212,8 @@ module BSV
           reason_len = read_int8
           privileged_reason = if reason_len == -1
                                 nil
+                              elsif reason_len.negative?
+                                raise ArgumentError, "invalid privileged_reason length: #{reason_len}"
                               else
                                 read_bytes(reason_len).force_encoding('UTF-8')
                               end
@@ -221,6 +223,8 @@ module BSV
         private
 
         def require_bytes(n)
+          raise ArgumentError, "negative byte count: #{n}" if n.negative?
+
           remaining = @data.bytesize - @offset
           return if remaining >= n
 
