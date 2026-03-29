@@ -212,7 +212,10 @@ module BSV
 
         components[1..].reduce(self) do |key, component|
           hardened = component.end_with?("'", 'H', 'h')
-          index = component.to_i
+          numeric_part = component.delete("'Hh")
+          raise ArgumentError, "invalid path component: '#{component}'" unless numeric_part.match?(/\A\d+\z/)
+
+          index = numeric_part.to_i
           index += HARDENED if hardened
           key.child(index)
         end
