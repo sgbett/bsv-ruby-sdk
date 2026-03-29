@@ -3,6 +3,11 @@
     "bsv-protocol-docs": {
       "type": "http",
       "url": "https://hub.bsvblockchain.org/bitcoin-protocol-documentation/~gitbook/mcp"
+    },
+    "bsv-knowledge": {
+      "command": "/opt/python/bsv-knowledge/rag/venv/bin/python",
+      "args": ["-m", "rag.server"],
+      "cwd": "/opt/python/bsv-knowledge"
     }
   }
 }
