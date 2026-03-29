@@ -762,9 +762,9 @@ module BSV
 
         {
           type: body['type'] || args[:type],
-          subject: body['subject'] || @key_deriver.identity_key,
+          subject: @key_deriver.identity_key,
           serial_number: body['serialNumber'],
-          certifier: body['certifier'] || args[:certifier],
+          certifier: args[:certifier],
           revocation_outpoint: body['revocationOutpoint'],
           signature: body['signature'],
           fields: body['fields'] || args[:fields],
