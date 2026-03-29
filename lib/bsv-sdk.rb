@@ -8,4 +8,5 @@ module BSV
   autoload :Transaction, 'bsv/transaction'
   autoload :Network,     'bsv/network'
   autoload :Wallet,      'bsv/wallet'
+  autoload :Auth,        'bsv/auth'
 end

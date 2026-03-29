@@ -76,6 +76,8 @@ Metrics/AbcSize:
     - 'lib/bsv/attest/**/*'
     - 'lib/bsv/wallet_interface.rb'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/auth.rb'
+    - 'lib/bsv/auth/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
@@ -89,6 +91,8 @@ Metrics/MethodLength:
     - 'lib/bsv/attest/**/*'
     - 'lib/bsv/wallet_interface.rb'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/auth.rb'
+    - 'lib/bsv/auth/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
@@ -102,6 +106,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/attest/**/*'
     - 'lib/bsv/wallet_interface.rb'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/auth.rb'
+    - 'lib/bsv/auth/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
@@ -115,6 +121,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/attest/**/*'
     - 'lib/bsv/wallet_interface.rb'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/auth.rb'
+    - 'lib/bsv/auth/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
@@ -133,6 +141,7 @@ Metrics/ClassLength:
     - 'lib/bsv/transaction/merkle_path.rb'
     - 'lib/bsv/transaction/beef.rb'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/auth/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -166,6 +175,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/wallet/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
+    - 'spec/bsv/auth/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
@@ -175,6 +185,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/primitives/**/*'
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
+    - 'spec/bsv/auth/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 
@@ -187,6 +198,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/wallet/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
+    - 'spec/bsv/auth/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
