@@ -692,6 +692,11 @@ module BSV
 
             len = raw.getbyte(pos)
             pos += 1
+            if pos + len > raw.bytesize
+              raise ArgumentError,
+                    "truncated script: OP_PUSHDATA1 needs #{len} data bytes at offset #{pos}, got #{raw.bytesize - pos}"
+            end
+
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
@@ -700,6 +705,11 @@ module BSV
 
             len = raw.byteslice(pos, 2).unpack1('v')
             pos += 2
+            if pos + len > raw.bytesize
+              raise ArgumentError,
+                    "truncated script: OP_PUSHDATA2 needs #{len} data bytes at offset #{pos}, got #{raw.bytesize - pos}"
+            end
+
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
@@ -708,6 +718,11 @@ module BSV
 
             len = raw.byteslice(pos, 4).unpack1('V')
             pos += 4
+            if pos + len > raw.bytesize
+              raise ArgumentError,
+                    "truncated script: OP_PUSHDATA4 needs #{len} data bytes at offset #{pos}, got #{raw.bytesize - pos}"
+            end
+
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
