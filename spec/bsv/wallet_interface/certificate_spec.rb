@@ -7,7 +7,7 @@ require 'base64'
 
 RSpec.describe 'WalletClient certificate methods' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:wallet) { BSV::Wallet::WalletClient.new(private_key) }
+  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.generate }
   let(:certifier_hex) { certifier_key.public_key.to_hex }
 
@@ -84,7 +84,7 @@ RSpec.describe 'WalletClient certificate methods' do
       end
 
       let(:issuance_wallet) do
-        BSV::Wallet::WalletClient.new(private_key, http_client: mock_http)
+        BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new, http_client: mock_http)
       end
 
       let(:issuance_args) do
@@ -120,7 +120,7 @@ RSpec.describe 'WalletClient certificate methods' do
         failing_http = Class.new do
           define_method(:request) { |_uri, _req| Struct.new(:code, :body).new('500', 'error') }
         end.new
-        w = BSV::Wallet::WalletClient.new(private_key, http_client: failing_http)
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new, http_client: failing_http)
         expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /HTTP 500/)
       end
 
@@ -128,7 +128,7 @@ RSpec.describe 'WalletClient certificate methods' do
         bad_http = Class.new do
           define_method(:request) { |_uri, _req| Struct.new(:code, :body).new('200', 'not json') }
         end.new
-        w = BSV::Wallet::WalletClient.new(private_key, http_client: bad_http)
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new, http_client: bad_http)
         expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /invalid JSON/)
       end
     end
@@ -213,7 +213,7 @@ RSpec.describe 'WalletClient certificate methods' do
     end
 
     it 'allows the verifier to decrypt the keyring entry' do
-      verifier_wallet = BSV::Wallet::WalletClient.new(verifier_key)
+      verifier_wallet = BSV::Wallet::WalletClient.new(verifier_key, storage: BSV::Wallet::MemoryStore.new)
       prover_identity = wallet.key_deriver.identity_key
 
       result = wallet.prove_certificate({
