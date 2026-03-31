@@ -28,7 +28,7 @@ module BSV
       def initialize(dir: nil)
         super()
         @dir = dir || ENV.fetch('BSV_WALLET_DIR', DEFAULT_DIR)
-        FileUtils.mkdir_p(@dir)
+        FileUtils.mkdir_p(@dir, mode: 0o700)
         load_from_disk
       end
 
@@ -114,7 +114,7 @@ module BSV
       def write_file(path, data)
         json = JSON.pretty_generate(stringify_keys_deep(data))
         tmp = "#{path}.tmp"
-        File.write(tmp, json)
+        File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o600) { |f| f.write(json) }
         File.rename(tmp, path)
       end
 
