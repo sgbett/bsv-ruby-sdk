@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-27
+
+### Added
+
+#### Primitives
+
+- **SymmetricKey** — AES-256-GCM encryption/decryption with 32-byte IV (cross-SDK compatible). Construct from random, ECDH, or raw bytes.
+- **BRC-77 SignedMessage** — authenticated message signing and verification using BRC-42 derived keys. Supports targeted (specific verifier) and "anyone" modes.
+- **BRC-78 EncryptedMessage** — end-to-end encrypted messaging using ECDH-derived symmetric keys.
+- **Schnorr ZKP (BRC-94)** — zero-knowledge proof of ECDH shared secret knowledge. `Schnorr.generate_proof` / `Schnorr.verify_proof`.
+- **Shamir's Secret Sharing** — split private keys into threshold shares (`PrivateKey#to_key_shares`) with Lagrange interpolation reconstruction. Backup format with integrity check.
+
+#### Script
+
+- **PushDrop template** — data carrier with P2PK spending. `Script.pushdrop_lock` / `Script.pushdrop_unlock` with field extraction.
+- **RPuzzle template** — R-puzzle hash-based spending with 6 hash type variants (raw, SHA1, SHA256, RIPEMD160, HASH160, HASH256).
+
+#### Transaction
+
+- **Benford's law change distribution** — privacy-preserving change output splitting using Benford's first-digit distribution.
+- **ARC X-WaitFor** — `ARC#broadcast` gains `wait_for:` parameter for `X-WaitFor` header (RECEIVED, STORED, ANNOUNCED_TO_NETWORK, SEEN_ON_NETWORK, MINED).
+
+### Fixed
+
+- Empty plaintext/ciphertext handling on older OpenSSL versions
+- PushDrop detection for minimally-encoded fields
+
+### Changed
+
+- `Transaction#fee` change distribution uses Benford's law (was equal split)
+- `LineLength` raised to 150
+
 ## [0.2.1] - 2026-03-07
 
 ### Fixed
