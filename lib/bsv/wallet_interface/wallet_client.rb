@@ -36,11 +36,12 @@ module BSV
       attr_reader :network
 
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
-      # @param storage [StorageAdapter] persistence adapter (default: MemoryStore)
+      # @param storage [StorageAdapter] persistence adapter (default: FileStore).
+      #   Use +storage: MemoryStore.new+ for tests.
       # @param network [String] 'mainnet' (default) or 'testnet'
       # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
-      def initialize(key, storage: MemoryStore.new, network: 'mainnet', chain_provider: NullChainProvider.new, http_client: nil)
+      def initialize(key, storage: FileStore.new, network: 'mainnet', chain_provider: NullChainProvider.new, http_client: nil)
         super(key)
         @storage = storage
         @network = network

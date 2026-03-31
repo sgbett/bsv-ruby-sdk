@@ -8,7 +8,7 @@ require 'base64'
 RSpec.describe BSV::Wallet::WalletClient do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:pub_key) { private_key.public_key }
-  let(:wallet) { described_class.new(private_key) }
+  let(:wallet) { described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
 
   # P2PKH locking script for the wallet's own public key
   let(:locking_script_hex) { BSV::Script::Script.p2pkh_lock(pub_key.hash160).to_hex }
@@ -207,7 +207,7 @@ RSpec.describe BSV::Wallet::WalletClient do
 
       # Run enough times that shuffling is virtually certain to swap at least once
       10.times do |i|
-        w = described_class.new(private_key)
+        w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new)
         w.create_action({
                           description: "shuffle test #{i} check",
                           outputs: [untracked, tracked]

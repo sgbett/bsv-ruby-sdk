@@ -1,0 +1,147 @@
+# frozen_string_literal: true
+
+require 'json'
+require 'fileutils'
+
+module BSV
+  module Wallet
+    # JSON file-backed storage adapter.
+    #
+    # Persists actions, outputs, and certificates as JSON files in a
+    # configurable directory (default: +~/.bsv-wallet/+). Data survives
+    # process restarts.
+    #
+    # Inherits all filtering and pagination logic from {MemoryStore} and
+    # adds load-on-init / save-on-mutation.
+    #
+    # @example Default location
+    #   store = BSV::Wallet::FileStore.new
+    #   # Data written to ~/.bsv-wallet/
+    #
+    # @example Custom directory
+    #   store = BSV::Wallet::FileStore.new(dir: '/var/lib/my-app/wallet')
+    class FileStore < MemoryStore
+      DEFAULT_DIR = File.expand_path('~/.bsv-wallet')
+
+      # @param dir [String] directory for JSON files
+      #   (default: +~/.bsv-wallet/+ or +BSV_WALLET_DIR+ env var)
+      def initialize(dir: nil)
+        super()
+        @dir = dir || ENV.fetch('BSV_WALLET_DIR', DEFAULT_DIR)
+        FileUtils.mkdir_p(@dir)
+        load_from_disk
+      end
+
+      # @return [String] the storage directory path
+      attr_reader :dir
+
+      # --- Mutations: delegate to super, then persist ---
+
+      def store_action(action_data)
+        result = super
+        save_actions
+        result
+      end
+
+      def store_output(output_data)
+        result = super
+        save_outputs
+        result
+      end
+
+      def delete_output(outpoint)
+        result = super
+        save_outputs if result
+        result
+      end
+
+      def store_certificate(cert_data)
+        result = super
+        save_certificates
+        result
+      end
+
+      def delete_certificate(type:, serial_number:, certifier:)
+        result = super
+        save_certificates if result
+        result
+      end
+
+      private
+
+      def actions_path
+        File.join(@dir, 'actions.json')
+      end
+
+      def outputs_path
+        File.join(@dir, 'outputs.json')
+      end
+
+      def certificates_path
+        File.join(@dir, 'certificates.json')
+      end
+
+      def load_from_disk
+        @actions = load_file(actions_path)
+        @outputs = load_file(outputs_path)
+        @certificates = load_file(certificates_path)
+      end
+
+      def load_file(path)
+        return [] unless File.exist?(path)
+
+        data = JSON.parse(File.read(path))
+        return [] unless data.is_a?(Array)
+
+        # Symbolise top-level keys for consistency with MemoryStore
+        data.map { |entry| symbolise_keys(entry) }
+      rescue JSON::ParserError
+        []
+      end
+
+      def save_actions
+        write_file(actions_path, @actions)
+      end
+
+      def save_outputs
+        write_file(outputs_path, @outputs)
+      end
+
+      def save_certificates
+        write_file(certificates_path, @certificates)
+      end
+
+      def write_file(path, data)
+        json = JSON.pretty_generate(stringify_keys_deep(data))
+        tmp = "#{path}.tmp"
+        File.write(tmp, json)
+        File.rename(tmp, path)
+      end
+
+      def symbolise_keys(hash)
+        return hash unless hash.is_a?(Hash)
+
+        hash.each_with_object({}) do |(k, v), result|
+          result[k.to_sym] = case v
+                             when Hash then symbolise_keys(v)
+                             when Array then v.map { |e| e.is_a?(Hash) ? symbolise_keys(e) : e }
+                             else v
+                             end
+        end
+      end
+
+      def stringify_keys_deep(obj)
+        case obj
+        when Hash
+          obj.each_with_object({}) do |(k, v), result|
+            result[k.to_s] = stringify_keys_deep(v)
+          end
+        when Array
+          obj.map { |e| stringify_keys_deep(e) }
+        else
+          obj
+        end
+      end
+    end
+  end
+end
