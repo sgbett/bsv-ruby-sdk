@@ -2,6 +2,7 @@
 
 require 'json'
 require 'fileutils'
+require 'logger'
 
 module BSV
   module Wallet
@@ -25,10 +26,14 @@ module BSV
 
       # @param dir [String] directory for JSON files
       #   (default: +~/.bsv-wallet/+ or +BSV_WALLET_DIR+ env var)
-      def initialize(dir: nil)
+      # @param dir [String] directory for JSON files
+      # @param logger [Logger, nil] logger for permission warnings (default: Logger to STDERR)
+      def initialize(dir: nil, logger: nil)
         super()
         @dir = dir || ENV.fetch('BSV_WALLET_DIR', DEFAULT_DIR)
+        @logger = logger || Logger.new($stderr, progname: 'bsv-wallet')
         FileUtils.mkdir_p(@dir, mode: 0o700)
+        check_permissions
         load_from_disk
       end
 
@@ -68,6 +73,24 @@ module BSV
       end
 
       private
+
+      def check_permissions
+        dir_mode = File.stat(@dir).mode & 0o777
+        if dir_mode != 0o700
+          @logger.warn("Wallet directory #{@dir} has permissions #{format('%04o', dir_mode)} (expected 0700). " \
+                       'Other users may be able to access wallet data.')
+        end
+
+        [actions_path, outputs_path, certificates_path].each do |path|
+          next unless File.exist?(path)
+
+          file_mode = File.stat(path).mode & 0o777
+          next if file_mode == 0o600
+
+          @logger.warn("Wallet file #{path} has permissions #{format('%04o', file_mode)} (expected 0600). " \
+                       'Other users may be able to read wallet data.')
+        end
+      end
 
       def actions_path
         File.join(@dir, 'actions.json')
