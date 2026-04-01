@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-04-01
+
+### Added
+
+#### Primitives
+
+- **Bitcore ECIES** — `ECIES.bitcore_encrypt` / `ECIES.bitcore_decrypt`. AES-256-CBC with random IV, SHA-512(X-coordinate) key derivation. Matches ts-sdk and go-sdk Bitcore variants.
+
+#### Transaction
+
+- **LivePolicy.default** — one-line convenience for live fee queries via GorillaPool ARC with 5-minute cache and 100 sat/kB fallback.
+
+### Changed
+
+- **Default fee rate**: `SatoshisPerKilobyte` default changed from 50 to 100 sat/kB (matches ts-sdk LivePolicy fallback). `Wallet#fund` default changed from 0.5 to 0.1 sat/byte.
+
+### bsv-wallet v0.2.0
+
+- **FileStore** — JSON file-backed persistent storage, now the default for `WalletClient`. Data survives process restarts. MemoryStore becomes explicit opt-in for tests.
+- **File permissions** — directory created with 0700, files with 0600. Warns via Logger on startup if permissions are too open.
+- **BRC-31 Auth/Peer** — mutual authentication with nonce-based challenges, ECDSA signatures, and session management.
+- **Wire protocol** — binary ABI serialisation for all 28 BRC-100 methods (call codes 1-28, VarInt encoding).
+- **Certificate issuance** — `acquire_certificate` with `'issuance'` protocol (POST to certifier URL).
+- **OpCat template** — OP_CAT concatenation script template with lock/unlock constructors.
+- **Live fee policy** — `LivePolicy` fee model fetching from ARC `/v1/policy`.
+
+### Fixed
+
+- Subject and certifier pinned in certificate issuance response (not overridable by remote certifier)
+- Wire reader negative privileged_reason length crash
+- PUSHDATA1/2/4 bounds check (silent data corruption on truncated scripts)
+- Extended key path validation (reject non-numeric indices)
+
 ## [0.3.0] - 2026-03-27
 
 ### Added
