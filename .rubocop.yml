@@ -128,6 +128,7 @@ Metrics/PerceivedComplexity:
 Metrics/ModuleLength:
   Exclude:
     - 'lib/bsv/primitives/ecdsa.rb'
+    - 'lib/bsv/primitives/ecies.rb'
     - 'lib/bsv/script/opcodes.rb'
     - 'lib/bsv/script/interpreter/operations/**/*'
     - 'lib/bsv/wallet_interface/wire/**/*'

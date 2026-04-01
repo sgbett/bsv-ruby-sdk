@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'openssl'
+require 'securerandom'
 
 module BSV
   module Primitives
@@ -95,6 +96,74 @@ module BSV
         end
       end
 
+      # Encrypt a message using the Bitcore ECIES variant.
+      #
+      # Differs from the Electrum variant: no magic prefix, AES-256-CBC
+      # (not AES-128), random IV prepended to ciphertext, and HMAC covers
+      # the ciphertext (not the ephemeral pubkey).
+      #
+      # Wire format: +ephemeral_pub(33) + IV(16) + ciphertext + HMAC(32)+
+      #
+      # @param message [String] the plaintext message
+      # @param public_key [PublicKey] the recipient's public key
+      # @param private_key [PrivateKey, nil] optional ephemeral key (random if omitted)
+      # @return [String] encrypted payload
+      def bitcore_encrypt(message, public_key, private_key: nil)
+        message = message.b if message.encoding != Encoding::ASCII_8BIT
+
+        ephemeral = private_key || PrivateKey.generate
+        key_e, key_m = derive_bitcore_keys(ephemeral, public_key)
+
+        iv = SecureRandom.random_bytes(16)
+
+        cipher = OpenSSL::Cipher.new('aes-256-cbc')
+        cipher.encrypt
+        cipher.key = key_e
+        cipher.iv = iv
+        ciphertext = message.empty? ? cipher.final : cipher.update(message) + cipher.final
+
+        c = iv + ciphertext
+        mac = Digest.hmac_sha256(key_m, c)
+
+        ephemeral.public_key.compressed + c + mac
+      end
+
+      # Decrypt a message encrypted with the Bitcore ECIES variant.
+      #
+      # @param data [String] the encrypted payload (Bitcore ECIES format)
+      # @param private_key [PrivateKey] the recipient's private key
+      # @return [String] the decrypted plaintext
+      # @raise [ArgumentError] if the data is too short
+      # @raise [DecryptionError] if HMAC verification or AES decryption fails
+      def bitcore_decrypt(data, private_key)
+        data = data.b if data.encoding != Encoding::ASCII_8BIT
+
+        # Minimum: ephemeral_pub(33) + IV(16) + AES block(16) + HMAC(32) = 97
+        raise ArgumentError, 'data too short' if data.bytesize < 97
+
+        ephemeral_pub = PublicKey.from_bytes(data[0, 33])
+        mac = data[-32, 32]
+        c = data[33...-32] # IV + ciphertext
+
+        key_e, key_m = derive_bitcore_keys(private_key, ephemeral_pub)
+
+        expected_mac = Digest.hmac_sha256(key_m, c)
+        raise DecryptionError, 'HMAC verification failed' unless secure_compare(mac, expected_mac)
+
+        iv = c[0, 16]
+        ciphertext = c[16..]
+
+        begin
+          cipher = OpenSSL::Cipher.new('aes-256-cbc')
+          cipher.decrypt
+          cipher.key = key_e
+          cipher.iv = iv
+          cipher.update(ciphertext) + cipher.final
+        rescue OpenSSL::Cipher::CipherError => e
+          raise DecryptionError, "decryption failed: #{e.message}"
+        end
+      end
+
       class << self
         private
 
@@ -121,6 +190,19 @@ module BSV
           key_m = derived[32, 32]
 
           [iv, key_e, key_m]
+        end
+
+        # Bitcore key derivation: SHA-512(ECDH X-coordinate) → key_e(32) + key_m(32)
+        def derive_bitcore_keys(private_key, public_key)
+          shared = private_key.derive_shared_secret(public_key)
+          # Bitcore uses raw X-coordinate (32 bytes BE), not compressed point
+          x_bytes = shared.point.to_octet_string(:uncompressed)[1, 32]
+          derived = Digest.sha512(x_bytes)
+
+          key_e = derived[0, 32]
+          key_m = derived[32, 32]
+
+          [key_e, key_m]
         end
       end
     end
