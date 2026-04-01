@@ -32,12 +32,24 @@ module BSV
         # @return [Integer] cache TTL in seconds
         attr_reader :cache_ttl
 
+        DEFAULT_ARC_URL = 'https://arc.gorillapool.io'
+        DEFAULT_FALLBACK_RATE = 100
+
+        # Returns a LivePolicy with sensible defaults (GorillaPool ARC,
+        # 100 sat/kB fallback, 5-minute cache).
+        #
+        # @param api_key [String, nil] optional ARC API key
+        # @return [LivePolicy]
+        def self.default(api_key: nil)
+          new(arc_url: DEFAULT_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
+        end
+
         # @param arc_url [String] ARC base URL (e.g. 'https://arc.gorillapool.io')
-        # @param fallback_rate [Integer] sat/kB to use when fetch fails (default: 50)
+        # @param fallback_rate [Integer] sat/kB to use when fetch fails (default: 100)
         # @param cache_ttl [Integer] seconds to cache a fetched rate (default: 300)
         # @param api_key [String, nil] optional Bearer token for ARC authentication
         # @param http_client [#request, nil] injectable HTTP client for testing
-        def initialize(arc_url:, fallback_rate: 50, cache_ttl: DEFAULT_CACHE_TTL, api_key: nil, http_client: nil)
+        def initialize(arc_url:, fallback_rate: DEFAULT_FALLBACK_RATE, cache_ttl: DEFAULT_CACHE_TTL, api_key: nil, http_client: nil)
           super()
           @arc_url = arc_url.chomp('/')
           @fallback_rate = fallback_rate

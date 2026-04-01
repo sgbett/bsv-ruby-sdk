@@ -134,7 +134,7 @@ RSpec.describe BSV::Wallet::Wallet do
           prev_tx_out_index: 0
         )
       )
-      fee_with_change = dummy_tx.estimated_fee(satoshis_per_byte: 0.5)
+      fee_with_change = dummy_tx.estimated_fee(satoshis_per_byte: 0.1)
 
       # UTXO covers output + fee (with change) exactly — no room for actual change
       utxos = [make_utxo(10_000 + fee_with_change)]
