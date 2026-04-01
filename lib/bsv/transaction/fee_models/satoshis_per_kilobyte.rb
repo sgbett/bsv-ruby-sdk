@@ -15,8 +15,8 @@ module BSV
         # @return [Integer] satoshis per kilobyte rate
         attr_reader :value
 
-        # @param value [Integer] satoshis per kilobyte (default: 50)
-        def initialize(value: 50)
+        # @param value [Integer] satoshis per kilobyte (default: 100)
+        def initialize(value: 100)
           super()
           @value = value
         end

@@ -6,14 +6,14 @@ RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do
       tx = instance_double(BSV::Transaction::Transaction, estimated_size: 1000)
       model = described_class.new
 
-      expect(model.compute_fee(tx)).to eq(50) # 1000/1000 * 50
+      expect(model.compute_fee(tx)).to eq(100) # 1000/1000 * 100
     end
 
     it 'computes fee for a 250 byte transaction at default rate' do
       tx = instance_double(BSV::Transaction::Transaction, estimated_size: 250)
       model = described_class.new
 
-      expect(model.compute_fee(tx)).to eq(13) # ceil(250/1000 * 50) = ceil(12.5) = 13
+      expect(model.compute_fee(tx)).to eq(25) # ceil(250/1000 * 100) = 25
     end
 
     it 'computes fee with custom rate' do
@@ -39,8 +39,8 @@ RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do
   end
 
   describe '#value' do
-    it 'defaults to 50 sat/kB' do
-      expect(described_class.new.value).to eq(50)
+    it 'defaults to 100 sat/kB' do
+      expect(described_class.new.value).to eq(100)
     end
 
     it 'accepts a custom rate' do

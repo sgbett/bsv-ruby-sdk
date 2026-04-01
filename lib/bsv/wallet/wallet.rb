@@ -25,7 +25,7 @@ module BSV
         @provider.fetch_utxos(address(network: network)).sum(&:satoshis)
       end
 
-      def fund(tx, network: :mainnet, satoshis_per_byte: 0.5)
+      def fund(tx, network: :mainnet, satoshis_per_byte: 0.1)
         utxos = @provider.fetch_utxos(address(network: network))
         output_total = tx.total_output_satoshis
 
@@ -66,7 +66,7 @@ module BSV
         tx.sign_all(@private_key)
       end
 
-      def fund_and_sign(tx, network: :mainnet, satoshis_per_byte: 0.5)
+      def fund_and_sign(tx, network: :mainnet, satoshis_per_byte: 0.1)
         fund(tx, network: network, satoshis_per_byte: satoshis_per_byte)
         sign(tx)
       end

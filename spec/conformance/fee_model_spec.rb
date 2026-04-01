@@ -49,8 +49,8 @@ RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do # rubocop:dis
     expect(described_class.new.compute_fee(tx)).to be_an(Integer)
   end
 
-  it 'defaults to 50 sat/kB matching reference SDKs' do
-    expect(described_class.new.value).to eq(50)
+  it 'defaults to 100 sat/kB matching reference SDK fallback' do
+    expect(described_class.new.value).to eq(100)
   end
 end
 
