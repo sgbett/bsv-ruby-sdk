@@ -171,7 +171,8 @@ module BSV
 
         answer.outputs.each do |output|
           beef_data    = output['beef'] || output[:beef]
-          output_index = output['outputIndex'] || output[:output_index] || 0
+          output_index = (output['outputIndex'] || output[:output_index] || 0).to_i
+          next if output_index.negative?
 
           next unless beef_data
 
@@ -220,9 +221,22 @@ module BSV
       end
 
       def normalise_domain(domain)
-        return domain if domain.start_with?('https://', 'http://')
+        url = domain.start_with?('https://', 'http://') ? domain : "https://#{domain}"
+        return nil if private_url?(url)
 
-        "https://#{domain}"
+        url
+      end
+
+      # Reject URLs whose hostname is a private/loopback IP literal (SSRF protection).
+      def private_url?(url)
+        require 'ipaddr'
+        host = URI(url).hostname
+        return true if host.nil? || host.empty?
+
+        addr = IPAddr.new(host)
+        addr.loopback? || addr.private? || addr.link_local?
+      rescue IPAddr::InvalidAddressError
+        false # Not an IP literal — domain names pass through
       end
 
       # ---- Parallel dispatch ----

@@ -188,6 +188,8 @@ module BSV
       def extract_host_from_output(output, service)
         beef_data = output['beef'] || output[:beef]
         output_index = output['outputIndex'] || output[:output_index] || 0
+        output_index = output_index.to_i
+        return nil if output_index.negative?
 
         return nil unless beef_data
 
@@ -210,7 +212,10 @@ module BSV
         domain = advert.domain
         return nil if domain.nil? || domain.empty?
 
-        domain.start_with?('https://', 'http://') ? domain : "https://#{domain}"
+        url = domain.start_with?('https://', 'http://') ? domain : "https://#{domain}"
+        return nil if private_url?(url)
+
+        url
       end
 
       def parse_beef(beef_data)
@@ -327,7 +332,7 @@ module BSV
 
       def dedup_key(output)
         beef_data    = output['beef'] || output[:beef]
-        output_index = output['outputIndex'] || output[:output_index] || 0
+        output_index = (output['outputIndex'] || output[:output_index] || 0).to_i
 
         txid =
           begin
@@ -363,6 +368,22 @@ module BSV
 
       def local?
         @network_preset == :local
+      end
+
+      # Reject URLs whose hostname is a private/loopback IP literal (SSRF protection).
+      # Only applied to SLAP-discovered domains, not to user-configured overrides.
+      # Does not perform DNS resolution — only catches IP-literal hostnames like
+      # 127.0.0.1, 169.254.x.x, 10.x.x.x, 192.168.x.x, etc. Domain-name SSRF
+      # (DNS rebinding) is outside the scope of this check.
+      def private_url?(url)
+        require 'ipaddr'
+        host = URI(url).hostname
+        return true if host.nil? || host.empty?
+
+        addr = IPAddr.new(host)
+        addr.loopback? || addr.private? || addr.link_local?
+      rescue IPAddr::InvalidAddressError
+        false # Not an IP literal — allow (domain names pass through)
       end
 
       def default_facilitator

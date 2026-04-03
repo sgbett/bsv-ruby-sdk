@@ -104,7 +104,10 @@ module BSV
 
       def handle_response(response)
         code = response.code.to_i
-        raise "Failed to facilitate lookup (HTTP #{code}): #{response.body}" unless (200..299).cover?(code)
+        unless (200..299).cover?(code)
+          body_preview = response.body.to_s[0, 200]
+          raise "Failed to facilitate lookup (HTTP #{code}): #{body_preview}"
+        end
 
         body = parse_json(response.body)
         type    = body['type'] || 'output-list'

@@ -40,10 +40,16 @@ module BSV
     class HTTPSBroadcastFacilitator < BroadcastFacilitator
       # @param allow_http  [Boolean]        permit non-HTTPS URLs (default: false)
       # @param http_client [#request, nil]  injectable HTTP client for testing
-      def initialize(allow_http: false, http_client: nil)
+      DEFAULT_TIMEOUT = 30
+
+      # @param allow_http  [Boolean]        permit non-HTTPS URLs (default: false)
+      # @param http_client [#request, nil]  injectable HTTP client for testing
+      # @param timeout     [Integer]        request timeout in seconds (default: 30)
+      def initialize(allow_http: false, http_client: nil, timeout: DEFAULT_TIMEOUT)
         super()
         @allow_http  = allow_http
         @http_client = http_client
+        @timeout     = timeout
       end
 
       # Send a tagged BEEF to +{url}/submit+ and return the parsed STEAK hash.
@@ -90,7 +96,9 @@ module BSV
           Net::HTTP.start(
             uri.hostname,
             uri.port,
-            use_ssl: uri.scheme == 'https'
+            use_ssl: uri.scheme == 'https',
+            open_timeout: @timeout,
+            read_timeout: @timeout
           ) do |http|
             http.request(request)
           end
