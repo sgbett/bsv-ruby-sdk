@@ -9,4 +9,5 @@ module BSV
   autoload :Network,     'bsv/network'
   autoload :Wallet,      'bsv/wallet'
   autoload :Auth,        'bsv/auth'
+  autoload :Overlay,     'bsv/overlay'
 end
