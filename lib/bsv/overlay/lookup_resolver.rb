@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'set'
+require 'uri'
+
 module BSV
   module Overlay
     # Resolves LookupQuestions by discovering competent overlay hosts via SLAP
@@ -248,7 +251,7 @@ module BSV
         threads = hosts.map do |host|
           Thread.new do
             answer = lookup_with_tracking(host, question, timeout)
-            if answer && answer.type == 'output-list' && !answer.outputs.empty?
+            if answer && answer.type == 'output-list'
               results_mu.synchronize { results << answer }
 
               resolved_mu.synchronize do

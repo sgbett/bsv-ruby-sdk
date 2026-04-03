@@ -99,8 +99,9 @@ module BSV
           entry[:last_updated_at] = now
 
           if dns_error?(reason)
-            # Skip grace period — treat as if grace failures already consumed.
-            entry[:consecutive_failures] = FAILURE_BACKOFF_GRACE + 1
+            # Skip grace period but continue ramping — ensure consecutive_failures
+            # is at least past grace, then keep incrementing on repeated DNS errors.
+            entry[:consecutive_failures] = [entry[:consecutive_failures] + 1, FAILURE_BACKOFF_GRACE + 1].max
           else
             entry[:consecutive_failures] += 1
           end

@@ -2,6 +2,7 @@
 
 require 'set'
 require 'json'
+require 'uri'
 
 module BSV
   module Overlay
@@ -109,7 +110,7 @@ module BSV
 
         OverlayBroadcastResult.new(
           status: 'success',
-          txid: tx.txid,
+          txid: tx.txid_hex,
           message: "Sent to #{successful.size} Overlay Service host(s)."
         )
       end
@@ -121,12 +122,14 @@ module BSV
       # @return [Hash{String => Set<String>}] map of host URL to set of interested topics
       def find_interested_hosts
         @ship_cache_mutex.synchronize do
-          return @ship_cache.dup if @ship_cache && (Time.now.to_f - @ship_cache_at) < SHIP_CACHE_TTL
+          if @ship_cache && (Time.now.to_f - @ship_cache_at) < SHIP_CACHE_TTL
+            return @ship_cache.transform_values(&:dup)
+          end
 
           hosts = fetch_ship_hosts
           @ship_cache    = hosts
           @ship_cache_at = Time.now.to_f
-          hosts.dup
+          hosts.transform_values(&:dup)
         end
       end
 
@@ -147,7 +150,7 @@ module BSV
       def serialise_beef(tx)
         tx.to_beef
       rescue StandardError => e
-        error_result('400', "Failed to serialise transaction to BEEF: #{e.message}")
+        error_result('ERR_BEEF_SERIALIZATION_FAILED', "Failed to serialise transaction to BEEF: #{e.message}")
       end
 
       # ---- SHIP host discovery ----
