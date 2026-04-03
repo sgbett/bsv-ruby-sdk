@@ -155,8 +155,10 @@ module BSV
         all_hosts = []
         threads   = @slap_trackers.map do |tracker|
           Thread.new do
+            started_at = Time.now
             answer = @facilitator.lookup(tracker, slap_question, timeout: SLAP_TRACKER_TIMEOUT)
-            @reputation_tracker.record_success(tracker, SLAP_TRACKER_TIMEOUT * 1000)
+            latency_ms = ((Time.now - started_at) * 1000).round
+            @reputation_tracker.record_success(tracker, latency_ms)
             extract_hosts_from_answer(answer, service)
           rescue StandardError => e
             @reputation_tracker.record_failure(tracker, e)
@@ -221,12 +223,7 @@ module BSV
       def parse_beef(beef_data)
         case beef_data
         when String
-          # Binary string or hex
-          if beef_data.encoding == Encoding::BINARY || beef_data =~ /\A[\x00-\xFF]*\z/n
-            BSV::Transaction::Beef.from_binary(beef_data)
-          else
-            BSV::Transaction::Beef.from_hex(beef_data)
-          end
+          BSV::Transaction::Beef.from_binary(beef_data)
         when Array
           # Array of integers (TS SDK wire format)
           BSV::Transaction::Beef.from_binary(beef_data.pack('C*'))

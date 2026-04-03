@@ -453,6 +453,12 @@ RSpec.describe 'BSV::Overlay::LookupResolver' do
       end.to raise_error(ArgumentError, /ls_/)
     end
 
+    it 'raises ArgumentError for host_overrides without ls_ prefix' do
+      expect do
+        resolver(host_overrides: { 'nope' => ['https://host'] })
+      end.to raise_error(ArgumentError, /ls_/)
+    end
+
     it 'raises ArgumentError when slap_trackers is empty for mainnet' do
       expect do
         BSV::Overlay::LookupResolver.new(
@@ -460,6 +466,77 @@ RSpec.describe 'BSV::Overlay::LookupResolver' do
           slap_trackers: []
         )
       end.to raise_error(ArgumentError, /slap_trackers/)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # SSRF protection
+  # ---------------------------------------------------------------------------
+
+  describe 'SSRF protection' do
+    it 'rejects SLAP advertisements with loopback IP domains' do
+      beef = slap_beef(domain: '127.0.0.1', service: 'ls_ssrf')
+      answer = BSV::Overlay::LookupAnswer.new(
+        type: 'output-list',
+        outputs: [{ 'beef' => beef, 'outputIndex' => 0 }]
+      )
+
+      allow(mock_facilitator).to receive(:lookup) { |url, _q, **_opts|
+        if url == slap_tracker
+          answer
+        else
+          BSV::Overlay::LookupAnswer.new(type: 'output-list', outputs: [])
+        end
+      }
+
+      r = resolver
+      expect do
+        r.query(BSV::Overlay::LookupQuestion.new(service: 'ls_ssrf', query: {}))
+      end.to raise_error(BSV::Overlay::NoCompetentHostsError)
+    end
+
+    it 'rejects SLAP advertisements with private IP domains' do
+      %w[10.0.0.1 192.168.1.1 172.16.0.1].each do |ip|
+        beef = slap_beef(domain: ip, service: 'ls_priv')
+        answer = BSV::Overlay::LookupAnswer.new(
+          type: 'output-list',
+          outputs: [{ 'beef' => beef, 'outputIndex' => 0 }]
+        )
+
+        allow(mock_facilitator).to receive(:lookup) { |url, _q, **_opts|
+          if url == slap_tracker
+            answer
+          else
+            BSV::Overlay::LookupAnswer.new(type: 'output-list', outputs: [])
+          end
+        }
+
+        r = resolver
+        expect do
+          r.query(BSV::Overlay::LookupQuestion.new(service: 'ls_priv', query: {}))
+        end.to raise_error(BSV::Overlay::NoCompetentHostsError)
+      end
+    end
+
+    it 'rejects SLAP advertisements with link-local IP domains' do
+      beef = slap_beef(domain: '169.254.169.254', service: 'ls_meta')
+      answer = BSV::Overlay::LookupAnswer.new(
+        type: 'output-list',
+        outputs: [{ 'beef' => beef, 'outputIndex' => 0 }]
+      )
+
+      allow(mock_facilitator).to receive(:lookup) { |url, _q, **_opts|
+        if url == slap_tracker
+          answer
+        else
+          BSV::Overlay::LookupAnswer.new(type: 'output-list', outputs: [])
+        end
+      }
+
+      r = resolver
+      expect do
+        r.query(BSV::Overlay::LookupQuestion.new(service: 'ls_meta', query: {}))
+      end.to raise_error(BSV::Overlay::NoCompetentHostsError)
     end
   end
 end

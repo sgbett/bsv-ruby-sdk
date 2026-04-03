@@ -38,8 +38,6 @@ module BSV
     # to +#request(uri, net_http_request)+ and return an object with +#code+
     # and +#body+.
     class HTTPSBroadcastFacilitator < BroadcastFacilitator
-      # @param allow_http  [Boolean]        permit non-HTTPS URLs (default: false)
-      # @param http_client [#request, nil]  injectable HTTP client for testing
       DEFAULT_TIMEOUT = 30
 
       # @param allow_http  [Boolean]        permit non-HTTPS URLs (default: false)
