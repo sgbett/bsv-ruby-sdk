@@ -243,9 +243,14 @@ module BSV
       # Cache for precomputed wNAF tables, keyed by "window:x:y".
       WNAF_TABLE_CACHE = {} # rubocop:disable Style/MutableConstant
 
+      # @!visibility private
       # Multiply a point by a scalar using windowed-NAF.
       #
-      # @param k [Integer] the scalar
+      # Internal method — use {Point#mul} instead. Exposed as a module
+      # function only so the nested Point class can call it; not part of
+      # the public API.
+      #
+      # @param k [Integer] the scalar (must be in [1, N))
       # @param px [Integer] affine x-coordinate of the base point
       # @param py [Integer] affine y-coordinate of the base point
       # @param window [Integer] wNAF window size (default 5)

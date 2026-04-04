@@ -134,6 +134,16 @@ class BSVShimEC
     end
   end
 
+  # Parse a DER-encoded EC key and extract the public key point.
+  #
+  # Note: unlike real OpenSSL, this parser does not validate the curve
+  # OID embedded in the DER. This is acceptable because the only callers
+  # are {Curve.ec_key_from_private_bytes} and {Curve.ec_key_from_public_bytes},
+  # which construct the DER internally with a hardcoded secp256k1 OID.
+  # No production code path passes externally-supplied DER to this method.
+  # This method exists solely to maintain interface compatibility with the
+  # original OpenSSL-backed Curve module and may be removed in a future
+  # refactor that eliminates the ec_key_from_* methods.
   def self.parse_der(der)
     der = der.b
     seq = OpenSSL::ASN1.decode(der)
