@@ -50,4 +50,6 @@ nav:
       - Primitives: guides/primitives.md
       - Script: guides/script.md
       - Transaction: guides/transaction.md
+  - About:
+      - Pure Ruby secp256k1: about/secp256k1.md
   - API Reference: reference/index.md
