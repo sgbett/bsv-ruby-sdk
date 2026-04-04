@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 126 byte-for-byte compliance specs against real OpenSSL.
   - 24 process-isolated integration tests (separate Ruby processes, MD5 file comparison).
 
+#### Registry
+
+- **Registry client** — `BSV::Registry` module for on-chain definition management.
+  - `Client` — register, resolve, list, revoke, and update definitions for protocols, baskets, and certificate types via PushDrop tokens on the overlay network.
+  - Per-type overlay topics (`tm_basketmap`, `tm_protomap`, `tm_certmap`) and lookup services matching TS and Go SDKs.
+  - Types: `BasketDefinitionData`, `ProtocolDefinitionData`, `CertificateDefinitionData`, `CertificateFieldDescriptor`, `RegisteredDefinition`.
+  - Ownership verification before revocation. BEEF Array/String normalisation for wire format compatibility.
+
 ### Changed
 
 - **OpenSSL usage reduced** — OpenSSL now used only for hashing (SHA/RIPEMD), HMAC, PBKDF2, AES, and constant-time comparison. Elliptic curve operations are pure Ruby.
