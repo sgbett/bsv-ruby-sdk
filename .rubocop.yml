@@ -82,6 +82,8 @@ Metrics/AbcSize:
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity.rb'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry.rb'
+    - 'lib/bsv/registry/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
@@ -101,6 +103,8 @@ Metrics/MethodLength:
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity.rb'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry.rb'
+    - 'lib/bsv/registry/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
@@ -120,6 +124,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity.rb'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry.rb'
+    - 'lib/bsv/registry/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
@@ -139,6 +145,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity.rb'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry.rb'
+    - 'lib/bsv/registry/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
@@ -149,6 +157,7 @@ Metrics/ModuleLength:
     - 'lib/bsv/script/interpreter/operations/**/*'
     - 'lib/bsv/wallet_interface/wire/**/*'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry/**/*'
     - 'spec/**/*'
 
 Metrics/ClassLength:
@@ -162,6 +171,7 @@ Metrics/ClassLength:
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -170,6 +180,7 @@ Metrics/ParameterLists:
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity/**/*'
+    - 'lib/bsv/registry/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -206,6 +217,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/auth/**/*'
     - 'spec/bsv/overlay/**/*'
     - 'spec/bsv/identity/**/*'
+    - 'spec/bsv/registry/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
@@ -218,6 +230,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/auth/**/*'
     - 'spec/bsv/overlay/**/*'
     - 'spec/bsv/identity/**/*'
+    - 'spec/bsv/registry/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 
@@ -233,6 +246,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/auth/**/*'
     - 'spec/bsv/overlay/**/*'
     - 'spec/bsv/identity/**/*'
+    - 'spec/bsv/registry/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
@@ -256,6 +270,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/transaction/live_policy_spec.rb'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/bsv/registry/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 RSpec/DescribeClass:
@@ -266,6 +281,7 @@ RSpec/DescribeClass:
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/bsv/registry/**/*'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
 Lint/ConstantDefinitionInBlock:

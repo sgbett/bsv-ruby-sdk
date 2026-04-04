@@ -11,4 +11,5 @@ module BSV
   autoload :Auth,        'bsv/auth'
   autoload :Overlay,     'bsv/overlay'
   autoload :Identity,    'bsv/identity'
+  autoload :Registry,    'bsv/registry'
 end
