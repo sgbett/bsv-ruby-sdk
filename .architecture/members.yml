@@ -159,6 +159,27 @@ members:
         - "implementation_planning"
         - "adr_creation"
 
+  - id: quality_assurance
+    name: "Quality Assurance Specialist"
+    title: "Quality Assurance Specialist"
+    specialties:
+      - "developer experience"
+      - "documentation quality"
+      - "test strategy"
+    disciplines:
+      - "consumer-facing quality"
+      - "documentation review"
+      - "release readiness"
+    skillsets:
+      - "evaluating SDK from a new user's perspective"
+      - "identifying documentation gaps and inconsistencies"
+      - "assessing test coverage and confidence"
+    domains:
+      - "README, guides, and API documentation"
+      - "gem packaging and first-run experience"
+      - "changelog, versioning, and release communication"
+    perspective: "Evaluates the SDK from the perspective of an external consumer — a developer encountering it for the first time. Focuses on whether documentation is accurate and complete, whether the public API is discoverable and well-explained, and whether the test suite inspires confidence. Also considers whether the code's structure and naming would make sense to a contributor, and flags opportunities where doing things differently would significantly improve the experience for external stakeholders."
+
   # --- Technology Specialists ---
 
   - id: ruby_expert
