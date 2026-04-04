@@ -12,9 +12,11 @@ module BSV
     autoload :Builder, 'bsv/script/builder'
     autoload :Script,  'bsv/script/script'
 
-    autoload :Interpreter,  'bsv/script/interpreter/interpreter'
-    autoload :ScriptError,  'bsv/script/interpreter/error'
-    autoload :ScriptNumber, 'bsv/script/interpreter/script_number'
-    autoload :Stack,        'bsv/script/interpreter/stack'
+    autoload :Interpreter,       'bsv/script/interpreter/interpreter'
+    autoload :ScriptError,       'bsv/script/interpreter/error'
+    autoload :ScriptNumber,      'bsv/script/interpreter/script_number'
+    autoload :Stack,             'bsv/script/interpreter/stack'
+
+    autoload :PushDropTemplate, 'bsv/script/push_drop_template'
   end
 end
