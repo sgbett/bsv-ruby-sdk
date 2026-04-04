@@ -43,7 +43,7 @@ This Ruby SDK brings maximum compatibility with the official SDK family to the R
 ### Requirements
 
 - Ruby >= 2.7
-- No external dependencies beyond Ruby's standard library (`openssl` for hashing and AES only)
+- No external dependencies beyond Ruby's standard library (`openssl` for hashing, HMAC, PBKDF2, and AES)
 
 ### Installation
 

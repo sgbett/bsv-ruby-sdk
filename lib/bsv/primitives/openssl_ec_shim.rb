@@ -102,11 +102,6 @@ class BSVShimECPoint
     self
   end
 
-  # Allow respond_to?(:add) to return true (used by Curve#add_points).
-  def respond_to?(method, include_private = false)
-    super
-  end
-
   private
 
   def bn_to_int(bn)

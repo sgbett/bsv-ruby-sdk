@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'digest'
+require 'fileutils'
 require 'tmpdir'
 
 RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
@@ -15,10 +16,10 @@ RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
   # The openssl run uses raw ruby (no SDK). The shim run adds lib/ to the load path.
   before(:context) do
     ok = system('ruby', harness, 'openssl', openssl_dir)
-    raise "openssl harness failed (exit #{$CHILD_STATUS.exitstatus})" unless ok
+    raise "openssl harness failed (exit #{$?.exitstatus})" unless ok
 
     ok = system('ruby', '-I', File.join(project_root, 'lib'), harness, 'shim', shim_dir)
-    raise "shim harness failed (exit #{$CHILD_STATUS.exitstatus})" unless ok
+    raise "shim harness failed (exit #{$?.exitstatus})" unless ok
   end
 
   after(:context) do

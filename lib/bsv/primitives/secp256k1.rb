@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'securerandom'
-
 module BSV
   module Primitives
     # Pure Ruby secp256k1 elliptic curve implementation.
@@ -54,8 +52,12 @@ module BSV
       # @param length [Integer] desired byte length (default 32)
       # @return [String] binary string (ASCII-8BIT)
       def int_to_bytes(n, length = 32)
+        raise ArgumentError, 'negative integer' if n.negative?
+
         hex = n.to_s(16)
         hex = "0#{hex}" if hex.length.odd?
+        raise ArgumentError, "integer too large for #{length} bytes" if hex.length > length * 2
+
         hex = hex.rjust(length * 2, '0')
         [hex].pack('H*')
       end
@@ -111,9 +113,12 @@ module BSV
 
       # Modular multiplicative inverse in the field (Fermat's little theorem).
       #
-      # @param a [Integer] value to invert (must be non-zero)
+      # @param a [Integer] value to invert (must be non-zero mod P)
       # @return [Integer] a^(P-2) mod P
+      # @raise [ArgumentError] if a is zero mod P
       def finv(a)
+        raise ArgumentError, 'field inverse is undefined for zero' if (a % P).zero?
+
         a.pow(P - 2, P)
       end
 
@@ -141,7 +146,11 @@ module BSV
       end
 
       # Scalar multiplicative inverse (Fermat).
+      #
+      # @raise [ArgumentError] if a is zero mod N
       def scalar_inv(a)
+        raise ArgumentError, 'scalar inverse is undefined for zero' if (a % N).zero?
+
         a.pow(N - 2, N)
       end
 
@@ -364,6 +373,9 @@ module BSV
 
             x = Secp256k1.bytes_to_int(bytes[1, 32])
             y = Secp256k1.bytes_to_int(bytes[33, 32])
+            raise ArgumentError, 'x coordinate out of field range' if x >= P
+            raise ArgumentError, 'y coordinate out of field range' if y >= P
+
             pt = new(x, y)
             raise ArgumentError, 'point is not on the curve' unless pt.on_curve?
 
@@ -372,6 +384,7 @@ module BSV
             raise ArgumentError, 'invalid compressed point length' unless bytes.length == 33
 
             x = Secp256k1.bytes_to_int(bytes[1, 32])
+            raise ArgumentError, 'x coordinate out of field range' if x >= P
             y_squared = Secp256k1.fadd(Secp256k1.fmul(Secp256k1.fsqr(x), x), 7)
             y = Secp256k1.fsqrt(y_squared)
             raise ArgumentError, 'invalid point: x not on curve' if y.nil?
