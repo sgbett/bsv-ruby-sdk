@@ -83,7 +83,7 @@ module BSV
 
         raise "Register failed: could not create #{definition_type} registration transaction" if create_result[:tx].nil?
 
-        tx = BSV::Transaction::Transaction.from_beef(create_result[:tx])
+        tx = BSV::Transaction::Transaction.from_beef(normalise_beef(create_result[:tx]))
         broadcaster_for(definition_type).broadcast(tx)
       end
 
@@ -129,9 +129,10 @@ module BSV
         outputs  = list_result[:outputs] || list_result['outputs'] || []
         beef_raw = list_result[:beef] || list_result['beef'] || list_result[:BEEF] || list_result['BEEF']
 
-        return [] if beef_raw.nil? || outputs.empty?
+        normalised_beef = normalise_beef(beef_raw)
+        return [] if normalised_beef.nil? || outputs.empty?
 
-        beef = BSV::Transaction::Beef.from_binary(beef_raw)
+        beef = BSV::Transaction::Beef.from_binary(normalised_beef)
 
         outputs.filter_map do |output|
           next unless spendable?(output)
@@ -403,9 +404,9 @@ module BSV
       # @param output [Hash] overlay output with :beef and :outputIndex keys
       # @return [RegisteredDefinition, nil]
       def parse_output_to_registered_definition(definition_type, output)
-        beef_raw   = output['beef'] || output[:beef]
+        beef_raw   = normalise_beef(output['beef'] || output[:beef])
         output_idx = (output['outputIndex'] || output[:output_index]).to_i
-        return nil if output_idx.negative?
+        return nil if output_idx.negative? || beef_raw.nil?
 
         beef = BSV::Transaction::Beef.from_binary(beef_raw)
         tx   = beef.transactions.last&.transaction
@@ -466,7 +467,7 @@ module BSV
       # @return [BSV::Overlay::OverlayBroadcastResult]
       def sign_and_broadcast(definition_type, create_result)
         signable   = create_result[:signable_transaction]
-        partial_tx = BSV::Transaction::Transaction.from_beef(signable[:tx])
+        partial_tx = BSV::Transaction::Transaction.from_beef(normalise_beef(signable[:tx]))
 
         template = BSV::Script::PushDropTemplate.new(wallet: @wallet, originator: @originator)
         unlocker = template.unlock(
@@ -489,7 +490,7 @@ module BSV
 
         raise 'Revoke failed: could not sign transaction' if sign_result[:tx].nil?
 
-        signed_tx = BSV::Transaction::Transaction.from_beef(sign_result[:tx])
+        signed_tx = BSV::Transaction::Transaction.from_beef(normalise_beef(sign_result[:tx]))
         broadcaster_for(definition_type).broadcast(signed_tx)
       end
 
@@ -563,6 +564,18 @@ module BSV
         result  = @wallet.get_network({}, originator: @originator)
         net_str = result[:network] || result['network'] || 'mainnet'
         net_str.to_sym
+      end
+
+      # Normalises BEEF data that may arrive as an Array<Integer> (wire format)
+      # into a binary String suitable for Beef.from_binary.
+      #
+      # @param data [String, Array<Integer>, nil] raw BEEF data
+      # @return [String, nil] binary string, or nil if data is nil
+      def normalise_beef(data)
+        case data
+        when Array  then data.pack('C*')
+        when String then data
+        end
       end
     end
   end
