@@ -80,6 +80,8 @@ Metrics/AbcSize:
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay.rb'
     - 'lib/bsv/overlay/**/*'
+    - 'lib/bsv/identity.rb'
+    - 'lib/bsv/identity/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
@@ -97,6 +99,8 @@ Metrics/MethodLength:
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay.rb'
     - 'lib/bsv/overlay/**/*'
+    - 'lib/bsv/identity.rb'
+    - 'lib/bsv/identity/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
@@ -114,6 +118,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay.rb'
     - 'lib/bsv/overlay/**/*'
+    - 'lib/bsv/identity.rb'
+    - 'lib/bsv/identity/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
@@ -131,6 +137,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay.rb'
     - 'lib/bsv/overlay/**/*'
+    - 'lib/bsv/identity.rb'
+    - 'lib/bsv/identity/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
@@ -140,6 +148,7 @@ Metrics/ModuleLength:
     - 'lib/bsv/script/opcodes.rb'
     - 'lib/bsv/script/interpreter/operations/**/*'
     - 'lib/bsv/wallet_interface/wire/**/*'
+    - 'lib/bsv/identity/**/*'
     - 'spec/**/*'
 
 Metrics/ClassLength:
@@ -159,6 +168,7 @@ Metrics/ParameterLists:
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
     - 'lib/bsv/overlay/**/*'
+    - 'lib/bsv/identity/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -188,6 +198,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
     - 'spec/bsv/overlay/**/*'
+    - 'spec/bsv/identity/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
@@ -213,6 +224,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
     - 'spec/bsv/overlay/**/*'
+    - 'spec/bsv/identity/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
