@@ -45,7 +45,7 @@ module BSV
       # @option args [Boolean] :for_self derive from own identity
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { public_key: String } hex-encoded compressed public key
-      def get_public_key(args, _originator: nil)
+      def get_public_key(args, originator: nil)
         if args[:identity_key]
           { public_key: @key_deriver.identity_key }
         else
@@ -69,7 +69,7 @@ module BSV
       # @option args [String] :counterparty public key hex, 'self', or 'anyone'
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { ciphertext: Array<Integer> }
-      def encrypt(args, _originator: nil)
+      def encrypt(args, originator: nil)
         sym_key = derive_sym_key(args)
         ciphertext = sym_key.encrypt(bytes_to_string(args[:plaintext]))
         { ciphertext: string_to_bytes(ciphertext) }
@@ -84,7 +84,7 @@ module BSV
       # @option args [String] :counterparty public key hex, 'self', or 'anyone'
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { plaintext: Array<Integer> }
-      def decrypt(args, _originator: nil)
+      def decrypt(args, originator: nil)
         sym_key = derive_sym_key(args)
         plaintext = sym_key.decrypt(bytes_to_string(args[:ciphertext]))
         { plaintext: string_to_bytes(plaintext) }
@@ -99,7 +99,7 @@ module BSV
       # @option args [String] :counterparty public key hex, 'self', or 'anyone'
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { hmac: Array<Integer> }
-      def create_hmac(args, _originator: nil)
+      def create_hmac(args, originator: nil)
         sym_key = derive_sym_key(args)
         hmac = BSV::Primitives::Digest.hmac_sha256(sym_key.to_bytes, bytes_to_string(args[:data]))
         { hmac: string_to_bytes(hmac) }
@@ -116,7 +116,7 @@ module BSV
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { valid: true }
       # @raise [InvalidHmacError] if the HMAC does not match
-      def verify_hmac(args, _originator: nil)
+      def verify_hmac(args, originator: nil)
         sym_key = derive_sym_key(args)
         expected = BSV::Primitives::Digest.hmac_sha256(sym_key.to_bytes, bytes_to_string(args[:data]))
         provided = bytes_to_string(args[:hmac])
@@ -140,7 +140,7 @@ module BSV
       # @option args [String] :counterparty public key hex, 'self', or 'anyone'
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { signature: Array<Integer> } DER-encoded signature as byte array
-      def create_signature(args, _originator: nil)
+      def create_signature(args, originator: nil)
         counterparty = args[:counterparty] || 'self'
         priv_key = @key_deriver.derive_private_key(args[:protocol_id], args[:key_id], counterparty)
 
@@ -170,7 +170,7 @@ module BSV
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { valid: true }
       # @raise [InvalidSignatureError] if the signature does not verify
-      def verify_signature(args, _originator: nil)
+      def verify_signature(args, originator: nil)
         counterparty = args[:counterparty] || 'self'
         for_self = args[:for_self] || false
 
@@ -208,7 +208,7 @@ module BSV
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] with :prover, :verifier, :counterparty, :revelation_time,
       #   :encrypted_linkage, :encrypted_linkage_proof
-      def reveal_counterparty_key_linkage(args, _originator: nil)
+      def reveal_counterparty_key_linkage(args, originator: nil)
         counterparty = args[:counterparty]
         verifier = args[:verifier]
 
@@ -270,7 +270,7 @@ module BSV
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] with :prover, :verifier, :counterparty, :protocol_id, :key_id,
       #   :encrypted_linkage, :encrypted_linkage_proof, :proof_type
-      def reveal_specific_key_linkage(args, _originator: nil)
+      def reveal_specific_key_linkage(args, originator: nil)
         counterparty = args[:counterparty]
         verifier = args[:verifier]
         protocol_id = args[:protocol_id]

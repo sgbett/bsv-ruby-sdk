@@ -173,6 +173,12 @@ Metrics/ParameterLists:
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
+# ProtoWallet implements the WalletInterface but intentionally ignores the
+# originator: keyword on all methods (local-only wallet, no originator policy).
+Lint/UnusedMethodArgument:
+  Exclude:
+    - 'lib/bsv/wallet_interface/proto_wallet.rb'
+
 Lint/BooleanSymbol:
   Exclude:
     - 'lib/bsv/script/interpreter/**/*'

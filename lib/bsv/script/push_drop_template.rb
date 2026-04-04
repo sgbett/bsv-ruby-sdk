@@ -107,16 +107,15 @@ module BSV
             key_id: @key_id,
             counterparty: @counterparty
           }
-          sig_args[:originator] = @originator if @originator
-          result = @wallet.create_signature(sig_args)
+          orig_kw = @originator ? { originator: @originator } : {}
+          result = @wallet.create_signature(sig_args, **orig_kw)
 
           sig_bytes = result[:signature].pack('C*')
           sig_with_hashtype = sig_bytes + [sighash_type].pack('C')
 
           # Fetch the derived public key so the P2PKH unlock can include it
           pub_args = { protocol_id: @protocol_id, key_id: @key_id, counterparty: @counterparty }
-          pub_args[:originator] = @originator if @originator
-          pub_result = @wallet.get_public_key(pub_args)
+          pub_result = @wallet.get_public_key(pub_args, **orig_kw)
           pubkey_bytes = [pub_result[:public_key]].pack('H*')
 
           BSV::Script::Script.pushdrop_unlock(
@@ -168,8 +167,8 @@ module BSV
                          [GENERATOR_PUBKEY_HEX].pack('H*')
                        else
                          pub_args = { protocol_id: protocol_id, key_id: key_id, counterparty: counterparty }
-                         pub_args[:originator] = @originator if @originator
-                         pub_result = @wallet.get_public_key(pub_args)
+                         orig_kw = @originator ? { originator: @originator } : {}
+                         pub_result = @wallet.get_public_key(pub_args, **orig_kw)
                          [pub_result[:public_key]].pack('H*')
                        end
 
@@ -179,8 +178,8 @@ module BSV
         if include_signature
           data_to_sign = all_fields.reduce(''.b) { |acc, f| acc + f }.unpack('C*')
           sig_args = { data: data_to_sign, protocol_id: protocol_id, key_id: key_id, counterparty: counterparty }
-          sig_args[:originator] = @originator if @originator
-          sig_result = @wallet.create_signature(sig_args)
+          orig_kw = @originator ? { originator: @originator } : {}
+          sig_result = @wallet.create_signature(sig_args, **orig_kw)
           all_fields << sig_result[:signature].pack('C*')
         end
 
