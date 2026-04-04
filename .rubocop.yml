@@ -161,6 +161,7 @@ Metrics/ClassLength:
     - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay/**/*'
+    - 'lib/bsv/identity/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -210,6 +211,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/auth/**/*'
     - 'spec/bsv/overlay/**/*'
+    - 'spec/bsv/identity/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 

@@ -13,5 +13,6 @@ module BSV
     autoload :ClientOptions,        'bsv/identity/types'
     autoload :Constants,            'bsv/identity/constants'
     autoload :IdentityParser,       'bsv/identity/identity_parser'
+    autoload :Client,               'bsv/identity/client'
   end
 end
