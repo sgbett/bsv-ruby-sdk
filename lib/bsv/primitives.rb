@@ -7,6 +7,7 @@ module BSV
   # HD key derivation (BIP-32), and mnemonic phrase generation (BIP-39).
   # All cryptography uses Ruby's stdlib +openssl+ — no external gems.
   module Primitives
+    autoload :Secp256k1,    'bsv/primitives/secp256k1'
     autoload :Curve,        'bsv/primitives/curve'
     autoload :Digest,       'bsv/primitives/digest'
     autoload :Base58,       'bsv/primitives/base58'

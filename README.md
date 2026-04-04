@@ -34,7 +34,7 @@ These are maintained under the BSV Blockchain organisation and backed by the Bit
 
 The BSV Blockchain Libraries Project aims to structure and maintain a middleware layer of the BSV Blockchain technology stack. By facilitating the development and maintenance of core libraries, it serves as an essential toolkit for developers looking to build on the BSV Blockchain.
 
-This Ruby SDK brings maximum compatibility with the official SDK family to the Ruby ecosystem. It was born from a practical need: building an attestation gem ([bsv-attest](https://rubygems.org/gems/bsv-attest)) required a complete, idiomatic Ruby implementation of BSV primitives, script handling, and transaction construction. Rather than wrapping FFI bindings or shelling out to other languages, the SDK implements everything in pure Ruby using only the standard library's OpenSSL bindings.
+This Ruby SDK brings maximum compatibility with the official SDK family to the Ruby ecosystem. It was born from a practical need: building an attestation gem ([bsv-attest](https://rubygems.org/gems/bsv-attest)) required a complete, idiomatic Ruby implementation of BSV primitives, script handling, and transaction construction. Rather than wrapping FFI bindings or shelling out to other languages, the SDK implements everything in pure Ruby. Elliptic curve operations (secp256k1) use a native Ruby implementation ported from the TypeScript reference SDK; OpenSSL is used only for hashing, HMAC, and symmetric encryption.
 
 <!-- TODO: Update bsv-attest link once gem documentation is published (see #48) -->
 
@@ -43,7 +43,7 @@ This Ruby SDK brings maximum compatibility with the official SDK family to the R
 ### Requirements
 
 - Ruby >= 2.7
-- No external dependencies beyond Ruby's standard library (`openssl`)
+- No external dependencies beyond Ruby's standard library (`openssl` for hashing and AES only)
 
 ### Installation
 
@@ -101,7 +101,7 @@ puts tx.to_hex
 
 ## Features & Deliverables
 
-- **Cryptographic Primitives** — ECDSA signing with RFC 6979 deterministic nonces, Schnorr signatures, ECIES encryption/decryption, Bitcoin Signed Messages. All built on Ruby's stdlib OpenSSL.
+- **Cryptographic Primitives** — ECDSA signing with RFC 6979 deterministic nonces, Schnorr signatures, ECIES encryption/decryption, Bitcoin Signed Messages. Elliptic curve operations use a [pure Ruby secp256k1 implementation](docs/about/secp256k1.md) ported from the TypeScript reference SDK.
 - **Key Management** — BIP-32 HD key derivation, BIP-39 mnemonic generation (12/24-word phrases), WIF import/export, Base58Check encoding/decoding.
 - **Script Layer** — Complete opcode set, script parsing and serialisation, type detection and predicates (`p2pkh?`, `p2pk?`, `p2sh?`, `multisig?`, `op_return?`), data extraction (pubkey hashes, script hashes, addresses), and a fluent builder API.
 - **Script Templates** — Ready-made locking and unlocking script generators for P2PKH, P2PK, P2MS (multisig), and OP_RETURN.

@@ -75,9 +75,11 @@ A script being parseable but failing execution is not a bug — it's the distinc
 
 ## Cryptography
 
-Use Ruby's stdlib `openssl` for all cryptography — no external gems. `OpenSSL::PKey::EC` supports secp256k1 natively, covering ECDSA, SHA-256, RIPEMD-160, AES, HMAC, and ECDH.
+Elliptic curve operations (secp256k1) use a pure Ruby implementation (`BSV::Primitives::Secp256k1`) ported from the TypeScript reference SDK. An OpenSSL compatibility shim (`openssl_ec_shim.rb`) replaces `OpenSSL::PKey::EC` classes so consumer code continues to use the same API. See `docs/about/secp256k1.md` for details.
 
-Items needing custom implementation: RFC 6979 deterministic signing, Schnorr signatures, Base58Check, BIP-32/39.
+OpenSSL is used for hashing (SHA-256, RIPEMD-160, SHA-512), HMAC, PBKDF2, AES encryption, and constant-time comparison — no external gems.
+
+Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base58Check, BIP-32/39, secp256k1 field/point arithmetic.
 
 ## Conventions
 
