@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-04-04
+
+### Added
+
+#### Overlay
+
+- **SHIP/SLAP overlay services** — `BSV::Overlay` module for topic-based transaction broadcasting and service discovery.
+  - `TopicBroadcaster` (aliased as `SHIPBroadcaster`) — broadcasts tagged BEEF to topic-interested hosts with configurable acknowledgement modes (all/any/specific hosts) and STEAK response parsing.
+  - `LookupResolver` — discovers competent hosts via SLAP trackers, queries in parallel, aggregates and deduplicates results. TTL-based host caching.
+  - `HostReputationTracker` — EWMA latency scoring with exponential backoff, DNS error escalation, thread-safe. Optional persistence via injectable store adapter.
+  - `AdminTokenTemplate` — decode/lock/unlock for SHIP/SLAP advertisement PushDrop tokens with BRC-42 wallet key derivation.
+  - Abstract base classes (`LookupFacilitator`, `BroadcastFacilitator`) with default HTTPS implementations — all dependencies injectable via constructor.
+  - SSRF protection for SLAP-discovered domains (private/loopback IP rejection).
+
+#### Identity
+
+- **Identity client** — `BSV::Identity` module for certificate-based identity resolution and publication.
+  - `Client` — resolve identities by key or attributes, publicly reveal certificate fields on-chain, revoke revelations. All overlay dependencies injectable.
+  - `IdentityParser` — converts identity certificates to `DisplayableIdentity`, handling all 9 known types (xCert, discordCert, phoneCert, emailCert, identiCert, registrant, coolCert, anyone, self) plus generic field-name heuristic fallback.
+  - Types: `DisplayableIdentity`, `IdentityCertificate`, `CertifierInfo`, `ClientOptions` with cross-SDK constant alignment.
+  - Certificate verifier injectable with safe-by-default (raises `NotImplementedError`).
+
+#### Script
+
+- **PushDropTemplate** — reusable wallet-aware PushDrop template with BRC-42 key derivation, optional ECDSA field signing, and P2PKH lock/unlock. Used by Identity client, reusable for ContactsManager and other PushDrop-based features.
+
+### Fixed
+
+- `ProtoWallet` parameter name mismatch: `_originator:` → `originator:` to match the `WalletInterface` contract.
+
 ## [0.4.0] - 2026-04-01
 
 ### Added
