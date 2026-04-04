@@ -236,12 +236,15 @@ module BSV
           key_id: @options.key_id,
           counterparty: 'anyone'
         )
-        unlocking_script = unlocker.sign(partial_tx, output_idx)
+        # Sign the first (and only) input in the spending transaction.
+        # output_idx is the index in the *source* tx; the spending tx input is always 0.
+        spending_input_idx = 0
+        unlocking_script = unlocker.sign(partial_tx, spending_input_idx)
 
         sign_result = @wallet.sign_action(
           {
             reference: signable[:reference],
-            spends: { output_idx => { unlocking_script: unlocking_script.to_hex } },
+            spends: { spending_input_idx => { unlocking_script: unlocking_script.to_hex } },
             options: { no_send: true }
           },
           originator: @originator
@@ -341,14 +344,8 @@ module BSV
 
       # Returns the default ClientOptions.
       #
-      # Calling +Constants.name+ triggers the autoload of constants.rb, which
-      # reopens ClientOptions to define +ClientOptions::DEFAULT+.
-      #
       # @return [ClientOptions]
       def default_options
-        # Calling a method on Constants forces its autoload (constants.rb), which
-        # reopens ClientOptions and defines ClientOptions::DEFAULT.
-        Constants.name
         ClientOptions::DEFAULT
       end
     end

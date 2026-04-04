@@ -105,6 +105,14 @@ module BSV
         @token_amount = token_amount
         @output_index = output_index
       end
+
+      # Default options matching the TS SDK DEFAULT_IDENTITY_CLIENT_OPTIONS constant.
+      DEFAULT = new(
+        protocol_id: [1, 'identity'].freeze,
+        key_id: '1',
+        token_amount: 1,
+        output_index: 0
+      ).freeze
     end
   end
 end

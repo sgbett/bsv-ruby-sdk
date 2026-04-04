@@ -127,7 +127,15 @@ module BSV
       private_class_method :parse_phone_cert
 
       def self.parse_identi_cert(fields, certifier)
-        name        = "#{fields['firstName']} #{fields['lastName']}"
+        first = fields['firstName']
+        last  = fields['lastName']
+        name  = if present?(first) && present?(last)
+                  "#{first} #{last}"
+                elsif present?(first)
+                  first
+                elsif present?(last)
+                  last
+                end
         avatar_url  = fields['profilePhoto']
         badge_label = "Government ID certified by #{certifier&.name}"
         badge_icon  = certifier&.icon_url

@@ -8,6 +8,13 @@ module BSV
     # derives a locking key from the wallet, optionally signs the data fields,
     # and wraps everything in a PushDrop script backed by a P2PKH condition.
     #
+    # == Note: P2PKH vs P2PK
+    #
+    # This template uses P2PKH as the underlying spending condition. The
+    # {BSV::Overlay::AdminTokenTemplate} uses P2PK (matching the TS/Go SDKs'
+    # overlay admin token convention). The two lock types are not
+    # interchangeable — tokens locked by one cannot be unlocked by the other.
+    #
     # PushDrop scripts embed arbitrary token data inline in a spendable output:
     #
     #   <field0> <field1> ... <fieldN> [OP_2DROP...] [OP_DROP?]
