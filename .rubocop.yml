@@ -78,6 +78,8 @@ Metrics/AbcSize:
     - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/auth.rb'
     - 'lib/bsv/auth/**/*'
+    - 'lib/bsv/overlay.rb'
+    - 'lib/bsv/overlay/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
@@ -93,6 +95,8 @@ Metrics/MethodLength:
     - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/auth.rb'
     - 'lib/bsv/auth/**/*'
+    - 'lib/bsv/overlay.rb'
+    - 'lib/bsv/overlay/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
@@ -108,6 +112,8 @@ Metrics/CyclomaticComplexity:
     - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/auth.rb'
     - 'lib/bsv/auth/**/*'
+    - 'lib/bsv/overlay.rb'
+    - 'lib/bsv/overlay/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
@@ -123,6 +129,8 @@ Metrics/PerceivedComplexity:
     - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/auth.rb'
     - 'lib/bsv/auth/**/*'
+    - 'lib/bsv/overlay.rb'
+    - 'lib/bsv/overlay/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
@@ -143,12 +151,14 @@ Metrics/ClassLength:
     - 'lib/bsv/transaction/beef.rb'
     - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/auth/**/*'
+    - 'lib/bsv/overlay/**/*'
 
 Metrics/ParameterLists:
   Exclude:
     - 'lib/bsv/primitives/**/*'
     - 'lib/bsv/script/**/*'
     - 'lib/bsv/transaction/**/*'
+    - 'lib/bsv/overlay/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -177,6 +187,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
+    - 'spec/bsv/overlay/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
@@ -187,6 +198,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/script/**/*'
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/auth/**/*'
+    - 'spec/bsv/overlay/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 
@@ -200,6 +212,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
+    - 'spec/bsv/overlay/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
