@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-04
+
+### Added
+
+#### Primitives
+
+- **Pure Ruby secp256k1** — native Ruby implementation of secp256k1 elliptic curve operations, ported from the TypeScript reference SDK. Replaces OpenSSL's EC point arithmetic with an OpenSSL compatibility shim — zero consumer code changes required. See [docs/about/secp256k1.md](docs/about/secp256k1.md).
+  - Field arithmetic (modular multiplication, inversion, square root) over the secp256k1 prime.
+  - Jacobian coordinate point operations (addition, doubling, scalar multiplication).
+  - Windowed-NAF (w=5) scalar multiplication with precomputed table caching.
+  - SEC 1 point serialisation (compressed and uncompressed).
+  - 126 byte-for-byte compliance specs against real OpenSSL.
+  - 24 process-isolated integration tests (separate Ruby processes, MD5 file comparison).
+
+### Changed
+
+- **OpenSSL usage reduced** — OpenSSL now used only for hashing (SHA/RIPEMD), HMAC, PBKDF2, AES, and constant-time comparison. Elliptic curve operations are pure Ruby.
+
 ## [0.5.0] - 2026-04-04
 
 ### Added

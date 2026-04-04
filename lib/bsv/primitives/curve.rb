@@ -6,9 +6,10 @@ module BSV
   module Primitives
     # Low-level secp256k1 elliptic curve operations.
     #
-    # Wraps +OpenSSL::PKey::EC+ to provide point arithmetic, scalar
-    # multiplication, and key construction helpers used throughout the SDK.
-    # All constants and methods operate on the secp256k1 curve.
+    # Backed by the pure Ruby {Secp256k1} module via an OpenSSL
+    # compatibility shim. The shim preserves the +OpenSSL::PKey::EC+
+    # interface so consumer code is unchanged. All constants and
+    # methods operate on the secp256k1 curve.
     module Curve
       # The secp256k1 curve group.
       GROUP  = OpenSSL::PKey::EC::Group.new('secp256k1')
