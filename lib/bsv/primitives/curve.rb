@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'openssl'
+require_relative 'openssl_ec_shim'
 
 module BSV
   module Primitives
