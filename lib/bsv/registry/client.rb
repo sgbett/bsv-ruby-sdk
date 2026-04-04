@@ -176,7 +176,7 @@ module BSV
 
         raise 'Revoke failed: could not create signable transaction' if create_result[:signable_transaction].nil?
 
-        sign_and_broadcast(definition_type, registered_definition, create_result)
+        sign_and_broadcast(definition_type, create_result)
       end
 
       # Updates an existing registry definition by revoking it and registering new data.
@@ -405,6 +405,7 @@ module BSV
       def parse_output_to_registered_definition(definition_type, output)
         beef_raw   = output['beef'] || output[:beef]
         output_idx = (output['outputIndex'] || output[:output_index]).to_i
+        return nil if output_idx.negative?
 
         beef = BSV::Transaction::Beef.from_binary(beef_raw)
         tx   = beef.transactions.last&.transaction
@@ -461,10 +462,9 @@ module BSV
       # Signs and broadcasts a signable transaction for a revocation or update.
       #
       # @param definition_type [String]
-      # @param registered_definition [RegisteredDefinition]
       # @param create_result [Hash] result from wallet.create_action containing :signable_transaction
       # @return [BSV::Overlay::OverlayBroadcastResult]
-      def sign_and_broadcast(definition_type, _registered_definition, create_result)
+      def sign_and_broadcast(definition_type, create_result)
         signable   = create_result[:signable_transaction]
         partial_tx = BSV::Transaction::Transaction.from_beef(signable[:tx])
 
