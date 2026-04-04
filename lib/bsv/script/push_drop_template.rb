@@ -17,6 +17,20 @@ module BSV
     # concatenation of all fields is appended as a final field. This
     # authenticates the token at creation time using the same derived key.
     #
+    # == Security note: +counterparty: 'anyone'+ tokens
+    #
+    # When +counterparty+ is +'anyone'+, the locking key is derived from the
+    # secp256k1 generator point G (PrivateKey(1)). This is a publicly known
+    # scalar, meaning:
+    #
+    # 1. The output is **publicly spendable** — any party can sign with
+    #    PrivateKey(1) and spend the token. This is by design for overlay
+    #    tokens where public revocability is desired.
+    # 2. The field signature (+include_signature: true+) provides **no
+    #    authenticity guarantee** — anyone can produce a valid signature with
+    #    the known key. Rely on higher-level mechanisms (e.g. certificate
+    #    keyrings from +prove_certificate+) for field-level integrity.
+    #
     # @example Lock a token
     #   wallet   = BSV::Wallet::ProtoWallet.new(private_key)
     #   template = BSV::Script::PushDropTemplate.new(wallet:)

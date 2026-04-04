@@ -318,7 +318,8 @@ RSpec.describe 'BSV::Identity::Client' do
     let(:broadcaster) { instance_double(BSV::Overlay::TopicBroadcaster) }
 
     # Minimal BEEF-like stub: just needs to respond to .transactions.last.transaction
-    let(:inner_tx) { instance_double(BSV::Transaction::Transaction, txid_hex: 'deadbeef01') }
+    let(:mock_output) { instance_double(BSV::Transaction::TransactionOutput) }
+    let(:inner_tx) { instance_double(BSV::Transaction::Transaction, txid_hex: 'deadbeef01', outputs: [mock_output]) }
     let(:beef_tx) { instance_double(BSV::Transaction::Beef::BeefTx, transaction: inner_tx) }
     let(:beef_obj) { instance_double(BSV::Transaction::Beef, transactions: [beef_tx]) }
     let(:beef_bytes) { 'fake_beef' }

@@ -122,8 +122,22 @@ module BSV
         )
         keyring = prove_result[:keyring_for_verifier]
 
-        # Build the PushDrop payload: certificate fields merged with the keyring
-        payload = JSON.generate(certificate.merge(keyring: keyring))
+        # Build the PushDrop payload with ONLY the revealed fields — never
+        # broadcast the full certificate (encrypted values for unrevealed
+        # fields must not be written on-chain).
+        revealed_fields = fields_to_reveal.each_with_object({}) do |name, h|
+          h[name] = fields[name.to_s] || fields[name.to_sym]
+        end
+
+        payload = JSON.generate(
+          type: certificate[:type] || certificate['type'],
+          serialNumber: certificate[:serial_number] || certificate['serial_number'] || certificate[:serialNumber] || certificate['serialNumber'],
+          subject: certificate[:subject] || certificate['subject'],
+          certifier: certificate[:certifier] || certificate['certifier'],
+          revocationOutpoint: certificate[:revocation_outpoint] || certificate['revocation_outpoint'] || certificate[:revocationOutpoint] || certificate['revocationOutpoint'],
+          fields: revealed_fields,
+          keyring: keyring
+        )
 
         # Construct the locking script via PushDropTemplate
         template = BSV::Script::PushDropTemplate.new(wallet: @wallet, originator: @originator)
@@ -177,9 +191,18 @@ module BSV
 
         output     = answer.outputs.first
         beef_bytes = output['beef'] || output[:beef]
-        output_idx = (output['outputIndex'] || output[:output_index] || @options.output_index).to_i
+        raise 'Revoke failed: overlay response missing BEEF data' unless beef_bytes
 
-        tx      = BSV::Transaction::Beef.from_binary(beef_bytes).transactions.last.transaction
+        raw_idx = output['outputIndex'] || output[:output_index]
+        raise 'Revoke failed: overlay response missing outputIndex' if raw_idx.nil?
+
+        output_idx = raw_idx.to_i
+        raise 'Revoke failed: invalid outputIndex from overlay' if output_idx.negative?
+
+        beef = BSV::Transaction::Beef.from_binary(beef_bytes)
+        tx   = beef.transactions.last&.transaction
+        raise 'Revoke failed: no transaction found in BEEF' unless tx
+        raise 'Revoke failed: outputIndex out of range' if output_idx >= tx.outputs.length
         txid    = tx.txid_hex
         outpoint = "#{txid}.#{output_idx}"
 
