@@ -483,13 +483,16 @@ module BSV
           )
 
           wire_source(input, txid_hex, output_index, beef) if beef
-          wire_source_from_storage(input, spec[:outpoint]) unless beef
+          wire_source_from_storage(input, spec[:outpoint]) if input.source_satoshis.nil? || input.source_locking_script.nil?
 
           case spec[:unlocking_script]
           when BSV::Transaction::UnlockingScriptTemplate
             input.unlocking_script_template = spec[:unlocking_script]
           when String
             input.unlocking_script = BSV::Script::Script.from_hex(spec[:unlocking_script])
+          when nil then nil
+          else
+            raise InvalidParameterError.new('unlocking_script', 'a hex String or UnlockingScriptTemplate')
           end
 
           tx.add_input(input)

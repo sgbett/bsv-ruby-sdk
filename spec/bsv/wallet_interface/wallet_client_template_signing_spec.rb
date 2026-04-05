@@ -76,22 +76,7 @@ RSpec.describe 'WalletClient P2PKH template signing' do
       expect(result[:tx]).to all(be_a(Integer))
     end
 
-    it 'produces a transaction whose input script verifies against the P2PKH locking script' do
-      beef_binary = result[:tx].pack('C*')
-      beef = BSV::Transaction::Beef.from_binary(beef_binary)
-      tx = beef.transactions.last.transaction
-
-      # The transaction must have a non-empty unlocking script on input 0
-      unlocking = tx.inputs.first.unlocking_script
-      expect(unlocking).not_to be_nil
-      expect(unlocking.to_binary.bytesize).to be > 0
-    end
-  end
-
-  # --- End-to-end: script verifies ---
-
-  describe 'end-to-end: signed transaction verifies' do
-    it 'produces a transaction that verifies the P2PKH script' do
+    it 'produces a signed transaction that verifies the P2PKH script' do
       beef_binary = result[:tx].pack('C*')
       beef = BSV::Transaction::Beef.from_binary(beef_binary)
       tx = beef.transactions.last.transaction
