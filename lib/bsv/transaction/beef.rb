@@ -121,7 +121,9 @@ module BSV
             raise ArgumentError, "truncated Atomic BEEF: need 36 bytes at offset #{offset}, got #{remaining}"
           end
 
-          beef.instance_variable_set(:@subject_txid, data.byteslice(offset, 32))
+          # Atomic BEEF stores the subject txid in internal byte order (little-endian
+          # hash order), matching JS and Go SDKs. Reverse to display order for internal use.
+          beef.instance_variable_set(:@subject_txid, data.byteslice(offset, 32).reverse)
           offset += 32
           inner_version = data.byteslice(offset, 4).unpack1('V')
           offset += 4
@@ -198,7 +200,9 @@ module BSV
       # @return [String] raw Atomic BEEF binary
       def to_atomic_binary(subject_txid)
         buf = [ATOMIC_BEEF].pack('V')
-        buf << subject_txid
+        # Write subject txid in internal byte order (reverse of display order),
+        # matching JS and Go SDK conventions for Bitcoin binary formats.
+        buf << subject_txid.b.reverse
         buf << to_binary
         buf
       end

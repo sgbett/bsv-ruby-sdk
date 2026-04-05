@@ -207,9 +207,9 @@ RSpec.describe BSV::Transaction::Beef do
 
       atomic_bytes = beef.to_atomic_binary(subject_txid)
 
-      # Verify prefix
+      # Verify prefix and internal byte order (reversed from display order)
       expect(atomic_bytes.byteslice(0, 4).unpack1('V')).to eq(described_class::ATOMIC_BEEF)
-      expect(atomic_bytes.byteslice(4, 32)).to eq(subject_txid)
+      expect(atomic_bytes.byteslice(4, 32)).to eq(subject_txid.b.reverse)
 
       # Parse back
       parsed = described_class.from_binary(atomic_bytes)

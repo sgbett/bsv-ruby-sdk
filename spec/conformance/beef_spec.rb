@@ -165,8 +165,8 @@ RSpec.describe BSV::Transaction::Beef do
 
       # BRC-95: first 4 bytes = 0x01010101
       expect(atomic.byteslice(0, 4).unpack1('V')).to eq(0x01010101)
-      # BRC-95: next 32 bytes = subject txid
-      expect(atomic.byteslice(4, 32)).to eq(subject_txid)
+      # BRC-95: next 32 bytes = subject txid in internal byte order (reversed)
+      expect(atomic.byteslice(4, 32)).to eq(subject_txid.b.reverse)
       # BRC-95: remainder is V2 BEEF
       inner_version = atomic.byteslice(36, 4).unpack1('V')
       expect(inner_version).to eq(described_class::BEEF_V2)
