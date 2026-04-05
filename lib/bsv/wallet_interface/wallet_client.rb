@@ -483,8 +483,17 @@ module BSV
           )
 
           wire_source(input, txid_hex, output_index, beef) if beef
+          wire_source_from_storage(input, spec[:outpoint]) if input.source_satoshis.nil? || input.source_locking_script.nil?
 
-          input.unlocking_script = BSV::Script::Script.from_hex(spec[:unlocking_script]) if spec[:unlocking_script]
+          case spec[:unlocking_script]
+          when BSV::Transaction::UnlockingScriptTemplate
+            input.unlocking_script_template = spec[:unlocking_script]
+          when String
+            input.unlocking_script = BSV::Script::Script.from_hex(spec[:unlocking_script])
+          when nil then nil
+          else
+            raise InvalidParameterError.new('unlocking_script', 'a hex String or UnlockingScriptTemplate')
+          end
 
           tx.add_input(input)
         end
@@ -502,6 +511,15 @@ module BSV
 
         input.source_satoshis = source_tx.outputs[output_index].satoshis
         input.source_locking_script = source_tx.outputs[output_index].locking_script
+      end
+
+      def wire_source_from_storage(input, outpoint)
+        results = @storage.find_outputs({ outpoint: outpoint, limit: 1 })
+        stored = results.first
+        return unless stored
+
+        input.source_satoshis = stored[:satoshis]
+        input.source_locking_script = BSV::Script::Script.from_hex(stored[:locking_script])
       end
 
       def build_outputs(tx, outputs)
@@ -540,6 +558,7 @@ module BSV
       end
 
       def finalize_action(tx, args)
+        tx.sign_all if tx.inputs.any?(&:unlocking_script_template)
         txid = tx.txid_hex
         status = args.dig(:options, :no_send) ? 'nosend' : 'completed'
 

@@ -91,6 +91,7 @@ module BSV
 
       def filter_outputs(query)
         results = @outputs
+        results = results.select { |o| o[:outpoint] == query[:outpoint] } if query[:outpoint]
         results = results.select { |o| o[:basket] == query[:basket] } if query[:basket]
         if query[:tags]
           mode = query[:tag_query_mode] || 'any'
