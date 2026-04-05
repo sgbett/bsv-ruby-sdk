@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-04-06
+
+### Added
+
+- **Wallet** — `WalletClient#create_action` now accepts `UnlockingScriptTemplate` objects (e.g. `P2PKH`) as input unlocking scripts, enabling template-based signing without BEEF.
+- **Wallet** — `wire_source_from_storage` fallback populates `source_satoshis` and `source_locking_script` from wallet storage when BEEF is absent or incomplete, enabling BIP-143 sighash computation for wallet-tracked outputs.
+- **Wallet** — `finalize_action` resolves template inputs via `sign_all` before serialisation.
+- **Storage** — `MemoryStore#filter_outputs` supports outpoint filtering for efficient single-output lookups.
+
 ## [0.6.1] - 2026-04-05
 
 ### Fixed
