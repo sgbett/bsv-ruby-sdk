@@ -598,6 +598,7 @@ module BSV
         txid = tx.txid_hex
         status = args.dig(:options, :no_send) ? 'nosend' : 'completed'
 
+        @storage.store_transaction(txid, tx.to_hex)
         store_action(tx, args, status: status)
         store_tracked_outputs(txid, tx, args[:outputs])
 
