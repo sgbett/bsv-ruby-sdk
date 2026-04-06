@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-06
+
+### Added
+
+- **Wallet** — pluggable proof store for merkle proof persistence. The wallet is now a lightweight SPV node: `internalize_action` extracts and stores merkle proofs from incoming BEEF; `create_action` reattaches them to produce valid BEEF with BUMPs for ARC broadcast.
+  - `ProofStore` interface with `store_proof` / `resolve_proof`
+  - `LocalProofStore` default implementation using `StorageAdapter`
+  - `WalletClient` accepts injectable `proof_store:` parameter
+  - Transaction caching (`store_transaction` / `find_transaction`) for ancestry reconstruction
+- **Wallet** — `StorageAdapter` gains `store_proof`, `find_proof`, `store_transaction`, `find_transaction` methods, implemented in both `MemoryStore` and `FileStore`.
+
+### Changed
+
+- **Transaction** — `Beef#to_binary` now defaults to BEEF V1 (BRC-62) format, matching the TS reference SDK's `Transaction#toBEEF()`. ARC's parser does not support V2. Pass `version: BEEF_V2` for BRC-96 format. Atomic BEEF (BRC-95) inner envelope remains V2 per spec.
+
+### Fixed
+
+- **Wallet** — `wire_source_from_storage` resolves merkle proofs via proof store so `to_beef` produces valid BEEF that ARC accepts. Previously, BEEF contained source transactions without proofs, causing ARC 463/468 rejections.
+
 ## [0.6.2] - 2026-04-06
 
 ### Added
