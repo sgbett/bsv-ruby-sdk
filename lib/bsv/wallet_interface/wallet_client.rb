@@ -685,11 +685,11 @@ module BSV
 
       def store_proofs_from_beef(beef)
         beef.transactions.each do |beef_tx|
-          next unless beef_tx.transaction&.merkle_path
+          next unless beef_tx.transaction
 
           txid_hex = beef_tx.transaction.txid_hex
-          @proof_store.store_proof(txid_hex, beef_tx.transaction.merkle_path)
           @storage.store_transaction(txid_hex, beef_tx.transaction.to_hex)
+          @proof_store.store_proof(txid_hex, beef_tx.transaction.merkle_path) if beef_tx.transaction.merkle_path
         end
       end
 
