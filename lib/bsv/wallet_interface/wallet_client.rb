@@ -183,6 +183,7 @@ module BSV
         tx = extract_subject_transaction(beef)
 
         store_proofs_from_beef(beef)
+        @storage.store_transaction(tx.txid_hex, tx.to_hex)
         process_internalize_outputs(tx, args[:outputs])
         store_action(tx, args, status: 'completed')
         { accepted: true }
