@@ -29,8 +29,17 @@ RSpec.describe 'WalletClient P2PKH template signing' do
   let(:locking_script) { BSV::Script::Script.p2pkh_lock(pub_key.hash160) }
   let(:locking_script_hex) { locking_script.to_hex }
 
-  # A tracked source output stored directly in the MemoryStore
-  let(:source_txid) { 'a' * 64 }
+  # A real source transaction (needed to produce valid hex for BEEF ancestry)
+  let(:source_tx) do
+    tx = BSV::Transaction::Transaction.new
+    tx.add_output(BSV::Transaction::TransactionOutput.new(
+                    satoshis: source_satoshis,
+                    locking_script: locking_script
+                  ))
+    tx
+  end
+  let(:source_tx_hex) { source_tx.to_hex }
+  let(:source_txid) { source_tx.txid_hex }
   let(:source_outpoint) { "#{source_txid}.0" }
   let(:source_satoshis) { 5000 }
 
@@ -41,7 +50,8 @@ RSpec.describe 'WalletClient P2PKH template signing' do
                            locking_script: locking_script_hex,
                            basket: 'test-basket',
                            tags: [],
-                           spendable: true
+                           spendable: true,
+                           source_tx_hex: source_tx_hex
                          })
   end
 
@@ -81,11 +91,38 @@ RSpec.describe 'WalletClient P2PKH template signing' do
       beef = BSV::Transaction::Beef.from_binary(beef_binary)
       tx = beef.transactions.last.transaction
 
-      # Wire source data for verification (not present in BEEF for a 1-hop tx)
-      tx.inputs.first.source_satoshis = source_satoshis
-      tx.inputs.first.source_locking_script = locking_script
+      # Source transaction is now included in the BEEF; wire it for verification
+      input = tx.inputs.first
+      input.source_satoshis = source_satoshis
+      input.source_locking_script = locking_script
 
       expect(tx.verify_input(0)).to be true
+    end
+  end
+
+  # --- Gap 4: BEEF contains parent transactions via source_tx_hex ---
+
+  describe 'Gap 4: to_beef includes ancestor transactions from source_transaction' do
+    it 'produces a BEEF with more than one transaction entry' do
+      beef_binary = result[:tx].pack('C*')
+      beef = BSV::Transaction::Beef.from_binary(beef_binary)
+      tx_entries = beef.transactions.select(&:transaction)
+      expect(tx_entries.length).to be > 1
+    end
+
+    it 'includes the source transaction as a BEEF ancestor' do
+      beef_binary = result[:tx].pack('C*')
+      beef = BSV::Transaction::Beef.from_binary(beef_binary)
+      txids = beef.transactions.select(&:transaction).map { |bt| bt.transaction.txid_hex }
+      expect(txids).to include(source_txid)
+    end
+
+    it 'wire_source_from_storage sets source_transaction on the input' do
+      # Verify by checking the BEEF contains the ancestor rather than inspecting internals
+      beef_binary = result[:tx].pack('C*')
+      beef = BSV::Transaction::Beef.from_binary(beef_binary)
+      subject_tx = beef.transactions.last.transaction
+      expect(subject_tx.inputs.first.source_transaction).not_to be_nil
     end
   end
 end
