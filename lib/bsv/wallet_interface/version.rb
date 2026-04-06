@@ -2,6 +2,6 @@
 
 module BSV
   module WalletInterface
-    VERSION = '0.3.0'
+    VERSION = '0.3.1'
   end
 end
