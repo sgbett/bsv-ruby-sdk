@@ -21,6 +21,22 @@ RSpec.describe BSV::Wallet::StorageAdapter do
     expect { adapter.delete_certificate(type: 'x', serial_number: 'y', certifier: 'z') }.to raise_error(NotImplementedError)
   end
 
+  it 'raises NotImplementedError for #store_proof' do
+    expect { adapter.store_proof('txid', 'bump_hex') }.to raise_error(NotImplementedError)
+  end
+
+  it 'raises NotImplementedError for #find_proof' do
+    expect { adapter.find_proof('txid') }.to raise_error(NotImplementedError)
+  end
+
+  it 'raises NotImplementedError for #store_transaction' do
+    expect { adapter.store_transaction('txid', 'tx_hex') }.to raise_error(NotImplementedError)
+  end
+
+  it 'raises NotImplementedError for #find_transaction' do
+    expect { adapter.find_transaction('txid') }.to raise_error(NotImplementedError)
+  end
+
   it 'includes the class name in NotImplementedError messages' do
     expect { adapter.store_action({}) }.to raise_error(NotImplementedError, /store_action/)
   end

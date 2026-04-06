@@ -13,6 +13,8 @@ module BSV
         @actions = []
         @outputs = []
         @certificates = []
+        @proofs = {}
+        @transactions = {}
       end
 
       def store_action(action_data)
@@ -60,6 +62,22 @@ module BSV
 
       def count_certificates(query)
         filter_certificates(query).length
+      end
+
+      def store_proof(txid, bump_hex)
+        @proofs[txid] = bump_hex
+      end
+
+      def find_proof(txid)
+        @proofs[txid]
+      end
+
+      def store_transaction(txid, tx_hex)
+        @transactions[txid] = tx_hex
+      end
+
+      def find_transaction(txid)
+        @transactions[txid]
       end
 
       def delete_certificate(type:, serial_number:, certifier:)

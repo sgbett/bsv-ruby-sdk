@@ -147,7 +147,7 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#to_hex (V2 round-trip)' do
     it 'round-trips the BEEFSet vector' do
       beef = described_class.from_hex(beef_set_hex)
-      expect(beef.to_hex).to eq(beef_set_hex)
+      expect(beef.to_binary(version: described_class::BEEF_V2).unpack1('H*')).to eq(beef_set_hex)
     end
   end
 
@@ -251,7 +251,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       # Rebuild BEEF from that transaction
       beef_binary = tx.to_beef
-      expect(beef_binary.byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
+      expect(beef_binary.byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V1)
 
       # Parse the rebuilt BEEF
       rebuilt = described_class.from_binary(beef_binary)
@@ -267,7 +267,7 @@ RSpec.describe BSV::Transaction::Beef do
       tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
       hex = tx.to_beef_hex
       expect(hex).to match(/\A[0-9a-f]+\z/)
-      expect([hex].pack('H*').byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
+      expect([hex].pack('H*').byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V1)
     end
 
     it 'handles multiple ancestors at the same block height via merge_bump' do

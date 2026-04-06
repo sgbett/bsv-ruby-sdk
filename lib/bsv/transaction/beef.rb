@@ -152,35 +152,30 @@ module BSV
         from_binary([hex].pack('H*'))
       end
 
-      # --- Serialisation (always V2) ---
+      # --- Serialisation ---
 
-      # Serialise the BEEF bundle to V2 (BRC-96) binary format.
+      # Serialise the BEEF bundle to binary format.
       #
+      # Defaults to V1 (BRC-62) for compatibility with ARC and the
+      # reference TS SDK. Pass +version: BEEF_V2+ for BRC-96 format.
+      #
+      # @param version [Integer] BEEF_V1 (default) or BEEF_V2
       # @return [String] raw BEEF binary
-      def to_binary
+      def to_binary(version: BEEF_V1)
         bump_map = build_bump_map
         bumps_to_write = bump_map.values.sort_by { |entry| entry[:index] }.map { |entry| entry[:bump] }
 
-        buf = [BEEF_V2].pack('V')
+        buf = [version].pack('V')
 
         buf << VarInt.encode(bumps_to_write.length)
         bumps_to_write.each { |bump| buf << bump.to_binary }
 
         buf << VarInt.encode(@transactions.length)
         @transactions.each do |beef_tx|
-          case beef_tx.format
-          when FORMAT_TXID_ONLY
-            buf << [FORMAT_TXID_ONLY].pack('C')
-            buf << beef_tx.known_txid
-          when FORMAT_RAW_TX_AND_BUMP
-            buf << [FORMAT_RAW_TX_AND_BUMP].pack('C')
-            mp = beef_tx.transaction.merkle_path
-            idx = bump_map[mp][:index]
-            buf << VarInt.encode(idx)
-            buf << beef_tx.transaction.to_binary
+          if version == BEEF_V2
+            write_v2_tx(buf, beef_tx, bump_map)
           else
-            buf << [FORMAT_RAW_TX].pack('C')
-            buf << beef_tx.transaction.to_binary
+            write_v1_tx(buf, beef_tx, bump_map)
           end
         end
 
@@ -203,7 +198,8 @@ module BSV
         # Write subject txid in internal byte order (reverse of display order),
         # matching JS and Go SDK conventions for Bitcoin binary formats.
         buf << subject_txid.b.reverse
-        buf << to_binary
+        # BRC-95: inner envelope is always V2
+        buf << to_binary(version: BEEF_V2)
         buf
       end
 
@@ -603,6 +599,37 @@ module BSV
           source = input.source_transaction
           source.merkle_path ||= find_bump(source.txid)
           wire_ancestry(source)
+        end
+      end
+
+      # V1 (BRC-62): raw_tx + has_bump(byte) [+ bump_index(varint)]
+      def write_v1_tx(buf, beef_tx, bump_map)
+        buf << beef_tx.transaction.to_binary
+        if beef_tx.format == FORMAT_RAW_TX_AND_BUMP
+          mp = beef_tx.transaction.merkle_path
+          idx = bump_map[mp][:index]
+          buf << [1].pack('C')
+          buf << VarInt.encode(idx)
+        else
+          buf << [0].pack('C')
+        end
+      end
+
+      # V2 (BRC-96): format_byte [+ bump_index(varint)] + raw_tx
+      def write_v2_tx(buf, beef_tx, bump_map)
+        case beef_tx.format
+        when FORMAT_TXID_ONLY
+          buf << [FORMAT_TXID_ONLY].pack('C')
+          buf << beef_tx.known_txid
+        when FORMAT_RAW_TX_AND_BUMP
+          buf << [FORMAT_RAW_TX_AND_BUMP].pack('C')
+          mp = beef_tx.transaction.merkle_path
+          idx = bump_map[mp][:index]
+          buf << VarInt.encode(idx)
+          buf << beef_tx.transaction.to_binary
+        else
+          buf << [FORMAT_RAW_TX].pack('C')
+          buf << beef_tx.transaction.to_binary
         end
       end
 

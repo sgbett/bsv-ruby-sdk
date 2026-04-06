@@ -14,6 +14,8 @@ module BSV
     autoload :StorageAdapter,    'bsv/wallet_interface/storage_adapter'
     autoload :MemoryStore,       'bsv/wallet_interface/memory_store'
     autoload :FileStore,         'bsv/wallet_interface/file_store'
+    autoload :ProofStore,        'bsv/wallet_interface/proof_store'
+    autoload :LocalProofStore,   'bsv/wallet_interface/local_proof_store'
     autoload :ChainProvider,     'bsv/wallet_interface/chain_provider'
     autoload :NullChainProvider, 'bsv/wallet_interface/null_chain_provider'
     autoload :WalletClient,      'bsv/wallet_interface/wallet_client'
