@@ -117,12 +117,10 @@ RSpec.describe 'WalletClient P2PKH template signing' do
       expect(txids).to include(source_txid)
     end
 
-    it 'wire_source_from_storage sets source_transaction on the input' do
-      # Verify by checking the BEEF contains the ancestor rather than inspecting internals
+    it 'produces a valid BEEF (all inputs reference known transactions)' do
       beef_binary = result[:tx].pack('C*')
       beef = BSV::Transaction::Beef.from_binary(beef_binary)
-      subject_tx = beef.transactions.last.transaction
-      expect(subject_tx.inputs.first.source_transaction).not_to be_nil
+      expect(beef.valid?).to be true
     end
   end
 end
