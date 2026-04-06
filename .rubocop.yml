@@ -181,6 +181,7 @@ Metrics/ParameterLists:
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity/**/*'
     - 'lib/bsv/registry/**/*'
+    - 'lib/bsv/wallet_interface/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.

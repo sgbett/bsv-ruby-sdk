@@ -72,7 +72,25 @@ module BSV
         result
       end
 
+      def store_proof(txid, bump_hex)
+        super
+        save_proofs
+      end
+
+      def store_transaction(txid, tx_hex)
+        super
+        save_transactions
+      end
+
       private
+
+      def proofs_path
+        File.join(@dir, 'proofs.json')
+      end
+
+      def transactions_path
+        File.join(@dir, 'transactions.json')
+      end
 
       def check_permissions
         dir_mode = File.stat(@dir).mode & 0o777
@@ -81,7 +99,7 @@ module BSV
                        'Other users may be able to access wallet data.')
         end
 
-        [actions_path, outputs_path, certificates_path].each do |path|
+        [actions_path, outputs_path, certificates_path, proofs_path, transactions_path].each do |path|
           next unless File.exist?(path)
 
           file_mode = File.stat(path).mode & 0o777
@@ -108,6 +126,8 @@ module BSV
         @actions = load_file(actions_path)
         @outputs = load_file(outputs_path)
         @certificates = load_file(certificates_path)
+        @proofs = load_proofs_file
+        @transactions = load_transactions_file
       end
 
       def load_file(path)
@@ -132,6 +152,38 @@ module BSV
 
       def save_certificates
         write_file(certificates_path, @certificates)
+      end
+
+      def save_proofs
+        json = JSON.pretty_generate(@proofs)
+        tmp = "#{proofs_path}.tmp"
+        File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o600) { |f| f.write(json) }
+        File.rename(tmp, proofs_path)
+      end
+
+      def load_proofs_file
+        return {} unless File.exist?(proofs_path)
+
+        data = JSON.parse(File.read(proofs_path))
+        data.is_a?(Hash) ? data : {}
+      rescue JSON::ParserError
+        {}
+      end
+
+      def save_transactions
+        json = JSON.pretty_generate(@transactions)
+        tmp = "#{transactions_path}.tmp"
+        File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o600) { |f| f.write(json) }
+        File.rename(tmp, transactions_path)
+      end
+
+      def load_transactions_file
+        return {} unless File.exist?(transactions_path)
+
+        data = JSON.parse(File.read(transactions_path))
+        data.is_a?(Hash) ? data : {}
+      rescue JSON::ParserError
+        {}
       end
 
       def write_file(path, data)

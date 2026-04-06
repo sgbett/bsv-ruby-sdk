@@ -50,6 +50,22 @@ module BSV
       def count_certificates(_query)
         raise NotImplementedError, "#{self.class}#count_certificates not implemented"
       end
+
+      def store_proof(_txid, _bump_hex)
+        raise NotImplementedError, "#{self.class}#store_proof not implemented"
+      end
+
+      def find_proof(_txid)
+        raise NotImplementedError, "#{self.class}#find_proof not implemented"
+      end
+
+      def store_transaction(_txid, _tx_hex)
+        raise NotImplementedError, "#{self.class}#store_transaction not implemented"
+      end
+
+      def find_transaction(_txid)
+        raise NotImplementedError, "#{self.class}#find_transaction not implemented"
+      end
     end
   end
 end

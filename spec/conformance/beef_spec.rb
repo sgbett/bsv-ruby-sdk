@@ -149,7 +149,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'V2 round-trips through serialise/parse' do
-      expect(beef.to_hex).to eq(go_beef_set_hex)
+      expect(beef.to_binary(version: described_class::BEEF_V2).unpack1('H*')).to eq(go_beef_set_hex)
     end
   end
 
@@ -203,9 +203,14 @@ RSpec.describe BSV::Transaction::Beef do
       expect(beef.transactions).to be_empty
     end
 
-    it 'serialises empty V2 BEEF to expected hex' do
+    it 'serialises empty V1 BEEF to expected hex' do
       beef = described_class.new
-      expect(beef.to_hex).to eq('0200beef0000')
+      expect(beef.to_hex).to eq('0100beef0000')
+    end
+
+    it 'serialises empty V2 BEEF when requested' do
+      beef = described_class.new
+      expect(beef.to_binary(version: described_class::BEEF_V2).unpack1('H*')).to eq('0200beef0000')
     end
   end
 
@@ -214,7 +219,7 @@ RSpec.describe BSV::Transaction::Beef do
   describe 'V1 to V2 upgrade' do
     it 'parses V1 and serialises as V2 preserving all data' do
       v1 = described_class.from_hex(go_brc62_hex)
-      v2_hex = v1.to_hex
+      v2_hex = v1.to_binary(version: described_class::BEEF_V2).unpack1('H*')
 
       # Should start with V2 magic
       expect(v2_hex[0..7]).to eq('0200beef')

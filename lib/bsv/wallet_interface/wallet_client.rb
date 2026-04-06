@@ -35,17 +35,22 @@ module BSV
       # @return [String] the network ('mainnet' or 'testnet')
       attr_reader :network
 
+      # @return [ProofStore] the merkle proof persistence store
+      attr_reader :proof_store
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
       # @param network [String] 'mainnet' (default) or 'testnet'
       # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
+      # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
-      def initialize(key, storage: FileStore.new, network: 'mainnet', chain_provider: NullChainProvider.new, http_client: nil)
+      def initialize(key, storage: FileStore.new, network: 'mainnet', chain_provider: NullChainProvider.new, proof_store: nil, http_client: nil)
         super(key)
         @storage = storage
         @network = network
         @chain_provider = chain_provider
+        @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
         @pending = {}
       end
@@ -177,6 +182,7 @@ module BSV
         beef = BSV::Transaction::Beef.from_binary(beef_binary)
         tx = extract_subject_transaction(beef)
 
+        store_proofs_from_beef(beef)
         process_internalize_outputs(tx, args[:outputs])
         store_action(tx, args, status: 'completed')
         { accepted: true }
@@ -523,7 +529,32 @@ module BSV
 
         return unless stored[:source_tx_hex]
 
-        input.source_transaction = BSV::Transaction::Transaction.from_hex(stored[:source_tx_hex])
+        source_tx = BSV::Transaction::Transaction.from_hex(stored[:source_tx_hex])
+        txid_hex = outpoint.split('.').first
+        proof = @proof_store.resolve_proof(txid_hex)
+        source_tx.merkle_path = proof if proof
+
+        # Recursively wire ancestors of the source tx so to_beef can build a
+        # complete, valid BEEF with the full proof chain.
+        wire_source_tx_ancestors(source_tx) unless source_tx.merkle_path
+
+        input.source_transaction = source_tx
+      end
+
+      def wire_source_tx_ancestors(tx)
+        tx.inputs.each do |inp|
+          next if inp.source_transaction
+
+          ancestor_txid_hex = inp.prev_tx_id.reverse.unpack1('H*')
+          tx_hex = @storage.find_transaction(ancestor_txid_hex)
+          next unless tx_hex
+
+          ancestor_tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+          proof = @proof_store.resolve_proof(ancestor_txid_hex)
+          ancestor_tx.merkle_path = proof if proof
+          wire_source_tx_ancestors(ancestor_tx) unless ancestor_tx.merkle_path
+          inp.source_transaction = ancestor_tx
+        end
       end
 
       def build_outputs(tx, outputs)
@@ -650,6 +681,16 @@ module BSV
       end
 
       # --- Internalize helpers ---
+
+      def store_proofs_from_beef(beef)
+        beef.transactions.each do |beef_tx|
+          next unless beef_tx.transaction&.merkle_path
+
+          txid_hex = beef_tx.transaction.txid_hex
+          @proof_store.store_proof(txid_hex, beef_tx.transaction.merkle_path)
+          @storage.store_transaction(txid_hex, beef_tx.transaction.to_hex)
+        end
+      end
 
       def extract_subject_transaction(beef)
         return find_by_subject_txid(beef) if beef.subject_txid
