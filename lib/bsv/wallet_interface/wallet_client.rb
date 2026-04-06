@@ -520,6 +520,10 @@ module BSV
 
         input.source_satoshis = stored[:satoshis]
         input.source_locking_script = BSV::Script::Script.from_hex(stored[:locking_script])
+
+        return unless stored[:source_tx_hex]
+
+        input.source_transaction = BSV::Transaction::Transaction.from_hex(stored[:source_tx_hex])
       end
 
       def build_outputs(tx, outputs)
@@ -601,6 +605,8 @@ module BSV
       def store_tracked_outputs(txid, tx, output_specs)
         return unless output_specs
 
+        tx_hex = tx.to_hex
+
         output_specs.each do |spec|
           next unless spec[:basket]
 
@@ -617,7 +623,8 @@ module BSV
                                   basket: spec[:basket],
                                   tags: spec[:tags] || [],
                                   custom_instructions: spec[:custom_instructions],
-                                  spendable: true
+                                  spendable: true,
+                                  source_tx_hex: tx_hex
                                 })
         end
       end
@@ -660,6 +667,7 @@ module BSV
 
       def process_internalize_outputs(tx, output_specs)
         txid = tx.txid_hex
+        tx_hex = tx.to_hex
 
         output_specs.each do |spec|
           output_index = spec[:output_index]
@@ -668,16 +676,16 @@ module BSV
 
           case spec[:protocol]
           when 'wallet payment'
-            internalize_payment(txid, output_index, tx_output, spec[:payment_remittance])
+            internalize_payment(txid, output_index, tx_output, spec[:payment_remittance], tx_hex)
           when 'basket insertion'
-            internalize_basket(txid, output_index, tx_output, spec[:insertion_remittance])
+            internalize_basket(txid, output_index, tx_output, spec[:insertion_remittance], tx_hex)
           else
             raise InvalidParameterError.new('protocol', '"wallet payment" or "basket insertion"')
           end
         end
       end
 
-      def internalize_payment(txid, output_index, tx_output, remittance)
+      def internalize_payment(txid, output_index, tx_output, remittance, tx_hex = nil)
         unless remittance
           raise InvalidParameterError.new('payment_remittance',
                                           'present for wallet payment protocol')
@@ -705,11 +713,12 @@ module BSV
                                 spendable: true,
                                 sender_identity_key: sender_key,
                                 derivation_prefix: prefix,
-                                derivation_suffix: suffix
+                                derivation_suffix: suffix,
+                                source_tx_hex: tx_hex
                               })
       end
 
-      def internalize_basket(txid, output_index, tx_output, remittance)
+      def internalize_basket(txid, output_index, tx_output, remittance, tx_hex = nil)
         unless remittance
           raise InvalidParameterError.new('insertion_remittance',
                                           'present for basket insertion protocol')
@@ -724,7 +733,8 @@ module BSV
                                 basket: remittance[:basket],
                                 tags: remittance[:tags] || [],
                                 custom_instructions: remittance[:custom_instructions],
-                                spendable: true
+                                spendable: true,
+                                source_tx_hex: tx_hex
                               })
       end
 
