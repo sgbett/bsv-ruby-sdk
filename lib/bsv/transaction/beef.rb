@@ -54,7 +54,10 @@ module BSV
         # @param transaction [Transaction, nil] the transaction
         # @param known_txid [String, nil] 32-byte txid for TXID-only entries
         # @param bump_index [Integer, nil] index into the bumps array
+        # @raise [ArgumentError] if format is FORMAT_RAW_TX_AND_BUMP without a bump_index
         def initialize(format:, transaction: nil, known_txid: nil, bump_index: nil)
+          raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if format == FORMAT_RAW_TX_AND_BUMP && bump_index.nil?
+
           @format = format
           @transaction = transaction
           @known_txid = known_txid
@@ -324,7 +327,12 @@ module BSV
         return existing if existing
 
         entry = if bump_index
-                  tx.merkle_path = @bumps[bump_index] if bump_index < @bumps.length
+                  unless bump_index.is_a?(Integer) && bump_index >= 0 && bump_index < @bumps.length
+                    raise ArgumentError,
+                          "bump_index #{bump_index.inspect} out of range (have #{@bumps.length} bumps)"
+                  end
+
+                  tx.merkle_path = @bumps[bump_index]
                   BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index)
                 else
                   BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)

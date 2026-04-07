@@ -582,6 +582,77 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  describe '#merge_raw_tx' do
+    let(:raw_tx_hex) do
+      '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
+        '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
+        '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
+    end
+
+    it 'stores a raw transaction without a BUMP' do
+      beef = described_class.new
+      entry = beef.merge_raw_tx([raw_tx_hex].pack('H*'))
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+    end
+
+    it 'stores a raw transaction with a valid BUMP index' do
+      source = described_class.from_hex(brc62_hex)
+      beef = described_class.new
+      beef.merge_bump(source.bumps.first)
+
+      entry = beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: 0)
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry.bump_index).to eq(0)
+    end
+
+    it 'raises when bump_index is beyond @bumps' do
+      beef = described_class.new
+      expect do
+        beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: 99)
+      end.to raise_error(ArgumentError, /out of range/)
+    end
+
+    it 'raises when bump_index is negative' do
+      source = described_class.from_hex(brc62_hex)
+      beef = described_class.new
+      beef.merge_bump(source.bumps.first)
+
+      expect do
+        beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: -1)
+      end.to raise_error(ArgumentError, /out of range/)
+    end
+  end
+
+  describe 'BeefTx initialisation invariants' do
+    it 'raises when FORMAT_RAW_TX_AND_BUMP is constructed without a bump_index' do
+      tx = BSV::Transaction::Transaction.new
+      expect do
+        described_class::BeefTx.new(
+          format: described_class::FORMAT_RAW_TX_AND_BUMP,
+          transaction: tx
+        )
+      end.to raise_error(ArgumentError, /FORMAT_RAW_TX_AND_BUMP requires a bump_index/)
+    end
+
+    it 'accepts FORMAT_RAW_TX_AND_BUMP with a bump_index' do
+      tx = BSV::Transaction::Transaction.new
+      expect do
+        described_class::BeefTx.new(
+          format: described_class::FORMAT_RAW_TX_AND_BUMP,
+          transaction: tx,
+          bump_index: 0
+        )
+      end.not_to raise_error
+    end
+
+    it 'accepts FORMAT_RAW_TX without a bump_index' do
+      tx = BSV::Transaction::Transaction.new
+      expect do
+        described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      end.not_to raise_error
+    end
+  end
+
   describe '#merge_transaction' do
     it 'adds a transaction and its ancestors' do
       source = described_class.from_hex(beef_set_hex)
