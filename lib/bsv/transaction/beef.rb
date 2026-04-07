@@ -164,7 +164,15 @@ module BSV
       #
       # @param version [Integer] BEEF_V1 (default) or BEEF_V2
       # @return [String] raw BEEF binary
+      # @raise [ArgumentError] if version is BEEF_V1 and the bundle contains
+      #   any FORMAT_TXID_ONLY entries (V1 / BRC-62 has no TXID-only format;
+      #   pass +version: BEEF_V2+ to serialise such bundles)
       def to_binary(version: BEEF_V1)
+        if version == BEEF_V1 && @transactions.any? { |bt| bt.format == FORMAT_TXID_ONLY }
+          raise ArgumentError,
+                'BEEF V1 (BRC-62) does not support FORMAT_TXID_ONLY entries; pass version: BEEF_V2 to serialise this bundle'
+        end
+
         buf = [version].pack('V')
 
         buf << VarInt.encode(@bumps.length)
