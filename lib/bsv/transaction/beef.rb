@@ -54,7 +54,10 @@ module BSV
         # @param transaction [Transaction, nil] the transaction
         # @param known_txid [String, nil] 32-byte txid for TXID-only entries
         # @param bump_index [Integer, nil] index into the bumps array
+        # @raise [ArgumentError] if format is FORMAT_RAW_TX_AND_BUMP without a bump_index
         def initialize(format:, transaction: nil, known_txid: nil, bump_index: nil)
+          raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if format == FORMAT_RAW_TX_AND_BUMP && bump_index.nil?
+
           @format = format
           @transaction = transaction
           @known_txid = known_txid
@@ -162,20 +165,17 @@ module BSV
       # @param version [Integer] BEEF_V1 (default) or BEEF_V2
       # @return [String] raw BEEF binary
       def to_binary(version: BEEF_V1)
-        bump_map = build_bump_map
-        bumps_to_write = bump_map.values.sort_by { |entry| entry[:index] }.map { |entry| entry[:bump] }
-
         buf = [version].pack('V')
 
-        buf << VarInt.encode(bumps_to_write.length)
-        bumps_to_write.each { |bump| buf << bump.to_binary }
+        buf << VarInt.encode(@bumps.length)
+        @bumps.each { |bump| buf << bump.to_binary }
 
         buf << VarInt.encode(@transactions.length)
         @transactions.each do |beef_tx|
           if version == BEEF_V2
-            write_v2_tx(buf, beef_tx, bump_map)
+            write_v2_tx(buf, beef_tx)
           else
-            write_v1_tx(buf, beef_tx, bump_map)
+            write_v1_tx(buf, beef_tx)
           end
         end
 
@@ -327,7 +327,12 @@ module BSV
         return existing if existing
 
         entry = if bump_index
-                  tx.merkle_path = @bumps[bump_index] if bump_index < @bumps.length
+                  unless bump_index.is_a?(Integer) && bump_index >= 0 && bump_index < @bumps.length
+                    raise ArgumentError,
+                          "bump_index #{bump_index.inspect} out of range (have #{@bumps.length} bumps)"
+                  end
+
+                  tx.merkle_path = @bumps[bump_index]
                   BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index)
                 else
                   BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
@@ -603,50 +608,30 @@ module BSV
       end
 
       # V1 (BRC-62): raw_tx + has_bump(byte) [+ bump_index(varint)]
-      def write_v1_tx(buf, beef_tx, bump_map)
+      def write_v1_tx(buf, beef_tx)
         buf << beef_tx.transaction.to_binary
         if beef_tx.format == FORMAT_RAW_TX_AND_BUMP
-          mp = beef_tx.transaction.merkle_path
-          idx = bump_map[mp][:index]
           buf << [1].pack('C')
-          buf << VarInt.encode(idx)
+          buf << VarInt.encode(beef_tx.bump_index)
         else
           buf << [0].pack('C')
         end
       end
 
       # V2 (BRC-96): format_byte [+ bump_index(varint)] + raw_tx
-      def write_v2_tx(buf, beef_tx, bump_map)
+      def write_v2_tx(buf, beef_tx)
         case beef_tx.format
         when FORMAT_TXID_ONLY
           buf << [FORMAT_TXID_ONLY].pack('C')
           buf << beef_tx.known_txid
         when FORMAT_RAW_TX_AND_BUMP
           buf << [FORMAT_RAW_TX_AND_BUMP].pack('C')
-          mp = beef_tx.transaction.merkle_path
-          idx = bump_map[mp][:index]
-          buf << VarInt.encode(idx)
+          buf << VarInt.encode(beef_tx.bump_index)
           buf << beef_tx.transaction.to_binary
         else
           buf << [FORMAT_RAW_TX].pack('C')
           buf << beef_tx.transaction.to_binary
         end
-      end
-
-      def build_bump_map
-        map = {}.compare_by_identity
-        idx = 0
-        @transactions.each do |beef_tx|
-          next unless beef_tx.format == FORMAT_RAW_TX_AND_BUMP
-          next unless beef_tx.transaction&.merkle_path
-
-          mp = beef_tx.transaction.merkle_path
-          unless map.key?(mp)
-            map[mp] = { bump: mp, index: idx }
-            idx += 1
-          end
-        end
-        map
       end
     end
   end

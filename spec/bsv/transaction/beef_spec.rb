@@ -329,6 +329,177 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/288
+  #
+  # When two same-block ancestors are merged via Beef#merge_bump, the second
+  # call combines the new path into the existing @bumps entry. Prior to the
+  # fix, Beef#to_binary walked each tx.merkle_path via object identity rather
+  # than reading @bumps and beef_tx.bump_index, so every ancestor serialised
+  # as its own un-merged BUMP — defeating the dedupe that merge_bump had
+  # already performed in memory.
+  describe 'same-block BUMP dedup in to_binary (issue #288)' do
+    # Build a synthetic 4-leaf merkle tree so two single-leaf BUMPs for
+    # different leaves can share the same merkle root and collapse under
+    # merge_bump.
+    let(:mp_class) { BSV::Transaction::MerklePath }
+    let(:pe) { mp_class::PathElement }
+    let(:leaf_hashes) { (0..3).map { |i| BSV::Primitives::Digest.sha256("leaf_#{i}") } }
+    let(:level1_hashes) do
+      [
+        mp_class.merkle_tree_parent(leaf_hashes[0], leaf_hashes[1]),
+        mp_class.merkle_tree_parent(leaf_hashes[2], leaf_hashes[3])
+      ]
+    end
+    let(:expected_root) { mp_class.merkle_tree_parent(level1_hashes[0], level1_hashes[1]) }
+
+    # Single-leaf BUMP for the leaf at offset 1
+    let(:path_a) do
+      mp_class.new(
+        block_height: 900_000,
+        path: [
+          [pe.new(offset: 0, hash: leaf_hashes[0]),
+           pe.new(offset: 1, hash: leaf_hashes[1], txid: true)],
+          [pe.new(offset: 1, hash: level1_hashes[1])]
+        ]
+      )
+    end
+
+    # Single-leaf BUMP for the leaf at offset 2 — shares the same root
+    let(:path_b) do
+      mp_class.new(
+        block_height: 900_000,
+        path: [
+          [pe.new(offset: 2, hash: leaf_hashes[2], txid: true),
+           pe.new(offset: 3, hash: leaf_hashes[3])],
+          [pe.new(offset: 0, hash: level1_hashes[0])]
+        ]
+      )
+    end
+
+    it 'path_a and path_b compute the same merkle root' do
+      expect(path_a.compute_root).to eq(expected_root)
+      expect(path_b.compute_root).to eq(expected_root)
+    end
+
+    it 'merge_bump dedupes to a single entry in @bumps' do
+      beef = described_class.new
+      idx_a = beef.merge_bump(path_a)
+      idx_b = beef.merge_bump(path_b)
+
+      expect(idx_a).to eq(0)
+      expect(idx_b).to eq(0)
+      expect(beef.bumps.length).to eq(1)
+    end
+
+    it 'serialises exactly one BUMP when two txs share a merged path (V1)' do
+      tx_a = BSV::Transaction::Transaction.new
+      tx_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
+      tx_a.merkle_path = path_a
+
+      tx_b = BSV::Transaction::Transaction.new(version: 2)
+      tx_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: BSV::Script::Script.new))
+      tx_b.merkle_path = path_b
+
+      beef = described_class.new
+      idx_a = beef.merge_bump(tx_a.merkle_path)
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+        transaction: tx_a,
+        bump_index: idx_a
+      )
+      idx_b = beef.merge_bump(tx_b.merkle_path)
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+        transaction: tx_b,
+        bump_index: idx_b
+      )
+
+      parsed = described_class.from_binary(beef.to_binary)
+      expect(parsed.bumps.length).to eq(1)
+      expect(parsed.transactions.length).to eq(2)
+    end
+
+    it 'serialises exactly one BUMP when two txs share a merged path (V2)' do
+      tx_a = BSV::Transaction::Transaction.new
+      tx_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
+      tx_a.merkle_path = path_a
+
+      tx_b = BSV::Transaction::Transaction.new(version: 2)
+      tx_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: BSV::Script::Script.new))
+      tx_b.merkle_path = path_b
+
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+        transaction: tx_a,
+        bump_index: beef.merge_bump(tx_a.merkle_path)
+      )
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+        transaction: tx_b,
+        bump_index: beef.merge_bump(tx_b.merkle_path)
+      )
+
+      parsed = described_class.from_binary(beef.to_binary(version: described_class::BEEF_V2))
+      expect(parsed.bumps.length).to eq(1)
+      expect(parsed.transactions.length).to eq(2)
+    end
+
+    it 'serialises exactly one BUMP via Beef#merge_transaction' do
+      lock = BSV::Script::Script.new
+
+      ancestor_a = BSV::Transaction::Transaction.new
+      ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
+      ancestor_a.merkle_path = path_a
+
+      ancestor_b = BSV::Transaction::Transaction.new(version: 2)
+      ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
+      ancestor_b.merkle_path = path_b
+
+      child = BSV::Transaction::Transaction.new
+      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.txid, prev_tx_out_index: 0)
+      input_a.source_transaction = ancestor_a
+      child.add_input(input_a)
+      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.txid, prev_tx_out_index: 0)
+      input_b.source_transaction = ancestor_b
+      child.add_input(input_b)
+      child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
+
+      beef = described_class.new
+      beef.merge_transaction(child)
+
+      expect(beef.bumps.length).to eq(1)
+
+      parsed = described_class.from_binary(beef.to_binary)
+      expect(parsed.bumps.length).to eq(1)
+    end
+
+    it 'serialises exactly one BUMP via Transaction#to_beef' do
+      lock = BSV::Script::Script.new
+
+      ancestor_a = BSV::Transaction::Transaction.new
+      ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
+      ancestor_a.merkle_path = path_a
+
+      ancestor_b = BSV::Transaction::Transaction.new(version: 2)
+      ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
+      ancestor_b.merkle_path = path_b
+
+      child = BSV::Transaction::Transaction.new
+      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.txid, prev_tx_out_index: 0)
+      input_a.source_transaction = ancestor_a
+      child.add_input(input_a)
+      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.txid, prev_tx_out_index: 0)
+      input_b.source_transaction = ancestor_b
+      child.add_input(input_b)
+      child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
+
+      parsed = described_class.from_binary(child.to_beef)
+      expect(parsed.bumps.length).to eq(1)
+      expect(parsed.transactions.length).to eq(3)
+    end
+  end
+
   describe '#find_bump' do
     it 'returns the merkle path for a mined transaction' do
       beef = described_class.from_hex(beef_set_hex)
@@ -408,6 +579,77 @@ RSpec.describe BSV::Transaction::Beef do
       idx2 = beef.merge_bump(mp)
       expect(idx1).to eq(idx2)
       expect(beef.bumps.length).to eq(1)
+    end
+  end
+
+  describe '#merge_raw_tx' do
+    let(:raw_tx_hex) do
+      '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
+        '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
+        '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
+    end
+
+    it 'stores a raw transaction without a BUMP' do
+      beef = described_class.new
+      entry = beef.merge_raw_tx([raw_tx_hex].pack('H*'))
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+    end
+
+    it 'stores a raw transaction with a valid BUMP index' do
+      source = described_class.from_hex(brc62_hex)
+      beef = described_class.new
+      beef.merge_bump(source.bumps.first)
+
+      entry = beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: 0)
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry.bump_index).to eq(0)
+    end
+
+    it 'raises when bump_index is beyond @bumps' do
+      beef = described_class.new
+      expect do
+        beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: 99)
+      end.to raise_error(ArgumentError, /out of range/)
+    end
+
+    it 'raises when bump_index is negative' do
+      source = described_class.from_hex(brc62_hex)
+      beef = described_class.new
+      beef.merge_bump(source.bumps.first)
+
+      expect do
+        beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: -1)
+      end.to raise_error(ArgumentError, /out of range/)
+    end
+  end
+
+  describe 'BeefTx initialisation invariants' do
+    it 'raises when FORMAT_RAW_TX_AND_BUMP is constructed without a bump_index' do
+      tx = BSV::Transaction::Transaction.new
+      expect do
+        described_class::BeefTx.new(
+          format: described_class::FORMAT_RAW_TX_AND_BUMP,
+          transaction: tx
+        )
+      end.to raise_error(ArgumentError, /FORMAT_RAW_TX_AND_BUMP requires a bump_index/)
+    end
+
+    it 'accepts FORMAT_RAW_TX_AND_BUMP with a bump_index' do
+      tx = BSV::Transaction::Transaction.new
+      expect do
+        described_class::BeefTx.new(
+          format: described_class::FORMAT_RAW_TX_AND_BUMP,
+          transaction: tx,
+          bump_index: 0
+        )
+      end.not_to raise_error
+    end
+
+    it 'accepts FORMAT_RAW_TX without a bump_index' do
+      tx = BSV::Transaction::Transaction.new
+      expect do
+        described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      end.not_to raise_error
     end
   end
 
