@@ -89,10 +89,11 @@ module BSV
       # @return [String, nil] 32-byte subject txid (Atomic BEEF only)
       attr_reader :subject_txid
 
-      # @param version [Integer] BEEF version constant (default: BEEF_V2)
+      # @param version [Integer] BEEF version constant (default: BEEF_V1, matching to_binary's
+      #   default for ARC compatibility; from_binary overwrites this with the parsed version)
       # @param bumps [Array<MerklePath>] merkle proofs
       # @param transactions [Array<BeefTx>] transaction entries
-      def initialize(version: BEEF_V2, bumps: [], transactions: [])
+      def initialize(version: BEEF_V1, bumps: [], transactions: [])
         @version = version
         @bumps = bumps
         @transactions = transactions
@@ -190,11 +191,15 @@ module BSV
         buf
       end
 
-      # Serialise the BEEF bundle to a V2 hex string.
+      # Serialise the BEEF bundle to a hex string.
+      #
+      # Uses the bundle's own +@version+, so a BEEF parsed from V2 round-trips
+      # to V2 hex, and a BEEF parsed from V1 (or freshly constructed via the
+      # default constructor) round-trips to V1 hex.
       #
       # @return [String] hex-encoded BEEF data
       def to_hex
-        to_binary.unpack1('H*')
+        to_binary(version: @version).unpack1('H*')
       end
 
       # Serialise as Atomic BEEF (BRC-95), wrapping V2 data with a subject txid.
@@ -355,6 +360,9 @@ module BSV
       #
       # @param other [Beef] the BEEF bundle to merge from
       # @return [self]
+      # @raise [ArgumentError] if a transaction in +other+ has a +bump_index+
+      #   that does not point to any BUMP in +other.bumps+ (i.e. the source
+      #   bundle is internally inconsistent)
       def merge(other)
         # Build index remap for BUMPs
         bump_remap = {}
@@ -373,7 +381,13 @@ module BSV
             next if @transactions.any? { |bt| bt.txid == beef_tx.txid }
 
             if beef_tx.format == FORMAT_RAW_TX_AND_BUMP && beef_tx.bump_index
-              new_idx = bump_remap[beef_tx.bump_index] || beef_tx.bump_index
+              new_idx = bump_remap[beef_tx.bump_index]
+              if new_idx.nil?
+                raise ArgumentError,
+                      "source BEEF has inconsistent bump_index #{beef_tx.bump_index} " \
+                      "(source has #{other.bumps.length} bumps); refusing to write a stale reference"
+              end
+
               beef_tx.transaction.merkle_path = @bumps[new_idx]
               @transactions << BeefTx.new(
                 format: FORMAT_RAW_TX_AND_BUMP,
