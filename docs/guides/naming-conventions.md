@@ -23,9 +23,9 @@ Every method and parameter name uses snake_case. This applies universally — no
 Boolean-returning methods end in `?`. The `is` prefix is dropped entirely; `has` is usually dropped too (kept only when the method would be ambiguous without it).
 
 ```ruby
-# TS:   key.isValid()         → Ruby: key.valid?
-# TS:   beef.hasProof()       → Ruby: beef.has_proof?
-# TS:   wallet.isAuthenticated() → Ruby: wallet.authenticated?
+# TS:   script.isP2PKH()      → Ruby: script.p2pkh?
+# TS:   script.isOpReturn()   → Ruby: script.op_return?
+# TS:   beef.isValid()        → Ruby: beef.valid?
 ```
 
 The `?` is part of the method name and cannot be omitted.
@@ -36,25 +36,29 @@ Ruby treats attribute access and method calls identically, so `get_` is redundan
 
 ```ruby
 # TS:   tx.getVersion()     → Ruby: tx.version
-# TS:   tx.getTxid()        → Ruby: tx.txid
+# TS:   tx.getLockTime()    → Ruby: tx.lock_time
 # TS:   beef.getBumps()     → Ruby: beef.bumps
 ```
+
+Note: `tx.txid` returns the transaction ID as **raw bytes** (for binary comparison). Use `tx.txid_hex` for the hex-encoded display form that most TS/Go APIs return from `getTxid()`.
 
 ### 4. Setters use assignment syntax
 
 Ruby has first-class support for assignment methods. `obj.foo = bar` calls `foo=(bar)` on the object.
 
 ```ruby
-# TS:   tx.setVersion(2)           → Ruby: tx.version = 2
-# TS:   input.setSequence(0xFFFF)  → Ruby: input.sequence = 0xFFFF
+# TS:   input.setSourceSatoshis(5000)    → Ruby: input.source_satoshis = 5000
+# TS:   input.setUnlockingScript(script) → Ruby: input.unlocking_script = script
 ```
 
 Combined with rule 3, this gives you Ruby's attribute-like API:
 
 ```ruby
-tx.version          # getter
-tx.version = 2      # setter
+input.source_satoshis          # getter
+input.source_satoshis = 5000   # setter
 ```
+
+Note: not every attribute is writable. The SDK exposes setters (`attr_accessor`) only where mutation after construction is part of the intended workflow — e.g. wiring source data onto inputs before signing. Immutable attributes are read-only (`attr_reader`).
 
 ### 5. Conversions use `to_*`
 
@@ -138,7 +142,6 @@ private_key.to_hex        # a hex string representation — conversion
 public_key.address        # an address string — property (it's a derived domain concept)
 public_key.hash160        # the hash160 bytes — property
 public_key.to_hex         # hex-encoded representation — conversion
-public_key.to_der         # DER-encoded representation — conversion
 ```
 
 This distinction makes reading code clearer: `tx.inputs.first.source_transaction.outputs.first.locking_script` is a chain of properties, whereas `tx.to_hex` is clearly a one-way transformation to a string.
@@ -194,13 +197,13 @@ This matches Ruby convention and roughly matches TS/Go constant naming, just wit
 | Pattern | TS / Go | Ruby |
 |---|---|---|
 | Case | `camelCase` | `snake_case` |
-| Getter | `getX()` | `x` |
-| Setter | `setX(v)` | `x = v` |
-| Predicate | `isX()` / `hasX()` | `x?` / `has_x?` |
-| Conversion | `toX()` | `to_x` |
-| Constructor | `fromX()` | `from_x` |
-| Options object | `({ a, b, c })` | `(a:, b:, c:)` |
-| Derived property | `toX()` | `x` (bare noun) |
-| BRC-100 method | `getPublicKey()` | `get_public_key` (verbatim) |
+| Getter | `tx.getVersion()` | `tx.version` |
+| Setter | `input.setSourceSatoshis(5000)` | `input.source_satoshis = 5000` |
+| Predicate | `script.isP2PKH()` | `script.p2pkh?` |
+| Conversion | `tx.toHex()` | `tx.to_hex` |
+| Constructor | `Transaction.fromBinary(data)` | `Transaction.from_binary(data)` |
+| Options object | `createAction({ description, inputs })` | `create_action(description:, inputs:)` |
+| Derived property | `key.toPublicKey()` | `key.public_key` |
+| BRC-100 method | `wallet.getPublicKey()` | `wallet.get_public_key` (verbatim) |
 
 If you remember these nine rules, you can predict nearly every method name in the SDK without looking it up.

@@ -127,11 +127,11 @@ If you already know the TypeScript or Go BSV SDKs, most of the API is a direct t
 | TS / Go | Ruby | Notes |
 |---|---|---|
 | `key.toPublicKey()` | `key.public_key` | Derived properties are bare nouns, not `to_*` methods |
-| `tx.getTxid()` | `tx.txid` | No `get_` prefix |
-| `tx.setVersion(2)` | `tx.version = 2` | Setters use assignment syntax |
+| `tx.getTxid()` | `tx.txid_hex` | No `get_` prefix (use `txid` for raw bytes) |
+| `input.setSourceSatoshis(5000)` | `input.source_satoshis = 5000` | Setters use assignment syntax |
 | `tx.toHex()` | `tx.to_hex` | Format conversions keep `to_` |
 | `Transaction.fromBinary(data)` | `Transaction.from_binary(data)` | Constructors use `from_` |
-| `key.isValid()` | `key.valid?` | Boolean methods end in `?`, drop `is`/`has` prefix |
+| `script.isP2PKH()` | `script.p2pkh?` | Boolean methods end in `?`, drop `is`/`has` prefix |
 | `createAction({ description, inputs })` | `create_action(description:, inputs:)` | Options objects become keyword arguments |
 
 **BRC-100 wire protocol methods are the exception** — `get_public_key`, `get_height`, `is_authenticated`, `list_outputs` keep their protocol names because they *are* the protocol names. Don't try to rename them.
