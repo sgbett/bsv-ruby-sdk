@@ -3,11 +3,14 @@
 require 'spec_helper'
 
 RSpec.describe BSV::Primitives::Secp256k1 do
-  let(:s) { BSV::Primitives::Secp256k1 }
+  # Explicitly named (not `described_class`) so `s::GX` etc. resolves to
+  # Secp256k1 inside nested `describe Secp256k1::Point` blocks, where
+  # `described_class` would otherwise become Point and break constant lookup.
+  let(:s) { BSV::Primitives::Secp256k1 } # rubocop:disable RSpec/DescribedClass
 
   describe 'constants' do
     it 'P is the secp256k1 field prime' do
-      expect(s::P).to eq(2**256 - 2**32 - 977)
+      expect(s::P).to eq((2**256) - (2**32) - 977)
     end
 
     it 'N is the curve order' do
@@ -172,15 +175,15 @@ RSpec.describe BSV::Primitives::Secp256k1 do
       end
 
       it 'raises on invalid prefix' do
-        expect { described_class.from_bytes("\x01" + ("\x00" * 32)) }.to raise_error(ArgumentError, /unknown point prefix/)
+        expect { described_class.from_bytes("\u0001#{"\x00" * 32}") }.to raise_error(ArgumentError, /unknown point prefix/)
       end
 
       it 'raises on wrong length for compressed' do
-        expect { described_class.from_bytes("\x02" + ("\x00" * 31)) }.to raise_error(ArgumentError, /invalid compressed/)
+        expect { described_class.from_bytes("\u0002#{"\x00" * 31}") }.to raise_error(ArgumentError, /invalid compressed/)
       end
 
       it 'raises on wrong length for uncompressed' do
-        expect { described_class.from_bytes("\x04" + ("\x00" * 63)) }.to raise_error(ArgumentError, /invalid uncompressed/)
+        expect { described_class.from_bytes("\u0004#{"\x00" * 63}") }.to raise_error(ArgumentError, /invalid uncompressed/)
       end
 
       it 'raises on point not on curve' do
@@ -201,7 +204,7 @@ RSpec.describe BSV::Primitives::Secp256k1 do
       end
 
       it 'round-trips through from_bytes' do
-        [:compressed, :uncompressed].each do |fmt|
+        %i[compressed uncompressed].each do |fmt|
           pt = described_class.from_bytes(g.to_octet_string(fmt))
           expect(pt).to eq(g)
         end
@@ -250,11 +253,6 @@ RSpec.describe BSV::Primitives::Secp256k1 do
         three_g = g.mul(3)
         expect(three_g.x).to eq(0xF9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9)
         expect(three_g.y).to eq(0x388F7B0F632DE8140FE337E62A37F3566500A99934C2231B6CB9FD7584B8E672)
-      end
-
-      it 'scalar multiplication with known private key' do
-        # Test vector: private key 1 should give G
-        expect(g.mul(1)).to eq(g)
       end
 
       it 'produces result on the curve' do
@@ -321,8 +319,10 @@ RSpec.describe BSV::Primitives::Secp256k1 do
         expect(g).not_to eq(g.mul(2))
       end
 
-      it 'infinity == infinity' do
-        expect(described_class.infinity).to eq(described_class.infinity)
+      it 'two infinity points are equal' do
+        first  = described_class.infinity
+        second = described_class.infinity
+        expect(first).to eq(second)
       end
 
       it 'infinity != non-infinity' do

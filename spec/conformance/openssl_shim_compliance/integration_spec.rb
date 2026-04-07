@@ -1,30 +1,45 @@
 # frozen_string_literal: true
 
+require 'English'
 require 'spec_helper'
 require 'digest'
 require 'fileutils'
 require 'tmpdir'
 
+# Context-scoped setup and instance variables are deliberate here: the harness
+# is invoked twice as out-of-process Ruby subprocesses (once for stock OpenSSL,
+# once for the shim) and the resulting binary fixtures are byte-compared per
+# example. Running the harness per example would be ~25x slower with no
+# semantic benefit. The shared state (@openssl_dir / @shim_dir) is read-only
+# after setup and explicitly cleaned up in after(:context).
+# rubocop:disable RSpec/InstanceVariable, RSpec/BeforeAfterAll
 RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
-  harness = File.expand_path('integration_harness.rb', __dir__)
-  project_root = File.expand_path('../../..', __dir__)
-
-  openssl_dir = Dir.mktmpdir('openssl_compliance_')
-  shim_dir    = Dir.mktmpdir('shim_compliance_')
-
-  # Run both backends in separate processes before any examples.
-  # The openssl run uses raw ruby (no SDK). The shim run adds lib/ to the load path.
   before(:context) do
-    ok = system('ruby', harness, 'openssl', openssl_dir)
-    raise "openssl harness failed (exit #{$?.exitstatus})" unless ok
+    # OpenSSL::PKey::EC::Point#add was added in the openssl gem v3.0
+    # (bundled with Ruby 3.1+). The harness invokes a fresh subprocess
+    # using *stock* OpenSSL (not the shim), so we have to check the Ruby
+    # version directly — querying Point.method_defined?(:add) here would
+    # see the *shim's* implementation of #add, not stock OpenSSL's.
+    # The shim itself has direct unit-test coverage in
+    # spec/bsv/primitives/secp256k1_spec.rb that runs on every supported
+    # Ruby version.
+    skip 'requires openssl gem >= 3.0 (Ruby 3.1+)' if RUBY_VERSION < '3.1'
 
-    ok = system('ruby', '-I', File.join(project_root, 'lib'), harness, 'shim', shim_dir)
-    raise "shim harness failed (exit #{$?.exitstatus})" unless ok
+    @harness      = File.expand_path('integration_harness.rb', __dir__)
+    @project_root = File.expand_path('../../..', __dir__)
+    @openssl_dir  = Dir.mktmpdir('openssl_compliance_')
+    @shim_dir     = Dir.mktmpdir('shim_compliance_')
+
+    ok = system('ruby', @harness, 'openssl', @openssl_dir)
+    raise "openssl harness failed (exit #{$CHILD_STATUS.exitstatus})" unless ok
+
+    ok = system('ruby', '-I', File.join(@project_root, 'lib'), @harness, 'shim', @shim_dir)
+    raise "shim harness failed (exit #{$CHILD_STATUS.exitstatus})" unless ok
   end
 
   after(:context) do
-    FileUtils.rm_rf(openssl_dir)
-    FileUtils.rm_rf(shim_dir)
+    FileUtils.rm_rf(@openssl_dir) if @openssl_dir
+    FileUtils.rm_rf(@shim_dir) if @shim_dir
   end
 
   # Dynamically generate one example per output file.
@@ -59,8 +74,8 @@ RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
 
   expected_files.each do |filename|
     it "#{filename} is byte-identical between openssl and shim" do
-      openssl_path = File.join(openssl_dir, filename)
-      shim_path    = File.join(shim_dir, filename)
+      openssl_path = File.join(@openssl_dir, filename)
+      shim_path    = File.join(@shim_dir, filename)
 
       expect(File.exist?(openssl_path)).to be(true), "openssl output missing: #{filename}"
       expect(File.exist?(shim_path)).to be(true), "shim output missing: #{filename}"
@@ -73,3 +88,4 @@ RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
     end
   end
 end
+# rubocop:enable RSpec/InstanceVariable, RSpec/BeforeAfterAll

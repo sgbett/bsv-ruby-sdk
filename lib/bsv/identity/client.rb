@@ -125,16 +125,21 @@ module BSV
         # Build the PushDrop payload with ONLY the revealed fields — never
         # broadcast the full certificate (encrypted values for unrevealed
         # fields must not be written on-chain).
-        revealed_fields = fields_to_reveal.each_with_object({}) do |name, h|
-          h[name] = fields[name.to_s] || fields[name.to_sym]
+        revealed_fields = fields_to_reveal.to_h do |name|
+          [name, fields[name.to_s] || fields[name.to_sym]]
         end
+
+        serial_number = certificate[:serial_number] || certificate['serial_number'] ||
+                        certificate[:serialNumber] || certificate['serialNumber']
+        revocation_outpoint = certificate[:revocation_outpoint] || certificate['revocation_outpoint'] ||
+                              certificate[:revocationOutpoint] || certificate['revocationOutpoint']
 
         payload = JSON.generate(
           type: certificate[:type] || certificate['type'],
-          serialNumber: certificate[:serial_number] || certificate['serial_number'] || certificate[:serialNumber] || certificate['serialNumber'],
+          serialNumber: serial_number,
           subject: certificate[:subject] || certificate['subject'],
           certifier: certificate[:certifier] || certificate['certifier'],
-          revocationOutpoint: certificate[:revocation_outpoint] || certificate['revocation_outpoint'] || certificate[:revocationOutpoint] || certificate['revocationOutpoint'],
+          revocationOutpoint: revocation_outpoint,
           fields: revealed_fields,
           keyring: keyring
         )
@@ -203,7 +208,8 @@ module BSV
         tx   = beef.transactions.last&.transaction
         raise 'Revoke failed: no transaction found in BEEF' unless tx
         raise 'Revoke failed: outputIndex out of range' if output_idx >= tx.outputs.length
-        txid    = tx.txid_hex
+
+        txid = tx.txid_hex
         outpoint = "#{txid}.#{output_idx}"
 
         # Create a spending transaction; use unlocking_script_length so the wallet

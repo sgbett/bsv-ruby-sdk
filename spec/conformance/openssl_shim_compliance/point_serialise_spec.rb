@@ -10,7 +10,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point serialisation' do
 
   describe '#to_octet_string' do
     OpenSSLCompliance::SCALARS.each do |label, scalar|
-      context "for #{label} * G" do
+      context "when serialising #{label} * G" do
         let(:real_point) { real_gen.mul(scalar) }
         let(:shim_point) { shim_gen.mul(scalar) }
 
@@ -46,7 +46,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point serialisation' do
 
   describe '#to_bn' do
     OpenSSLCompliance::SCALARS.each do |label, scalar|
-      context "for #{label} * G" do
+      context "when converting #{label} * G to BN" do
         let(:real_point) { real_gen.mul(scalar) }
         let(:shim_point) { shim_gen.mul(scalar) }
 

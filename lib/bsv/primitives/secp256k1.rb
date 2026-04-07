@@ -1,5 +1,13 @@
 # frozen_string_literal: true
 
+# Single-letter parameter names (k, p, q, x, y, z, etc.) match standard
+# elliptic-curve mathematical notation and the BSV TypeScript reference SDK
+# this module is ported from. The whole-module length cop is disabled because
+# the curve implementation (field arithmetic + Jacobian point ops + wNAF
+# scalar multiplication + Point class) intentionally lives in one module to
+# keep the secp256k1 surface coherent.
+# rubocop:disable Naming/MethodParameterName, Metrics/ModuleLength
+
 module BSV
   module Primitives
     # Pure Ruby secp256k1 elliptic curve implementation.
@@ -385,6 +393,7 @@ module BSV
 
             x = Secp256k1.bytes_to_int(bytes[1, 32])
             raise ArgumentError, 'x coordinate out of field range' if x >= P
+
             y_squared = Secp256k1.fadd(Secp256k1.fmul(Secp256k1.fsqr(x), x), 7)
             y = Secp256k1.fsqrt(y_squared)
             raise ArgumentError, 'invalid point: x not on curve' if y.nil?
@@ -496,9 +505,10 @@ module BSV
         alias eql? ==
 
         def hash
-          infinity? ? 0 : @x.hash ^ @y.hash
+          infinity? ? 0 : [@x, @y].hash
         end
       end
     end
   end
 end
+# rubocop:enable Naming/MethodParameterName, Metrics/ModuleLength

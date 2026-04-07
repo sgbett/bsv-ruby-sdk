@@ -7,6 +7,11 @@
 # Load order matters: real OpenSSL is loaded first so that BN and the
 # symmetric-crypto classes are available, then the EC classes are
 # replaced (not reopened) to delegate to our Secp256k1 module.
+#
+# Multiple shim classes (Group, Point, EC) are deliberately co-located in
+# this single file because they form one coordinated namespace replacement
+# and must be loaded together for the swap to be coherent.
+# rubocop:disable Style/OneClassPerFile
 
 require 'openssl'
 
@@ -147,15 +152,13 @@ class BSVShimEC
       priv_bytes = seq.value[1].value
       scalar = BSV::Primitives::Secp256k1.bytes_to_int(priv_bytes)
       secp_point = BSV::Primitives::Secp256k1::Point.generator.mul(scalar)
-      group = BSVShimECGroup.new('secp256k1')
-      BSVShimECPoint.from_secp_point(group, secp_point)
     else
       pub_bytes = seq.value[1].value
       pub_bytes = pub_bytes[1..] if pub_bytes.getbyte(0).zero? && pub_bytes.length > 33
       secp_point = BSV::Primitives::Secp256k1::Point.from_bytes(pub_bytes)
-      group = BSVShimECGroup.new('secp256k1')
-      BSVShimECPoint.from_secp_point(group, secp_point)
     end
+    group = BSVShimECGroup.new('secp256k1')
+    BSVShimECPoint.from_secp_point(group, secp_point)
   end
 end
 
@@ -180,3 +183,4 @@ end
 
 # Ensure the Error class is accessible at the expected path.
 BSVShimECPoint.const_set(:Error, BSVShimECPoint::Error) unless BSVShimECPoint.const_defined?(:Error)
+# rubocop:enable Style/OneClassPerFile

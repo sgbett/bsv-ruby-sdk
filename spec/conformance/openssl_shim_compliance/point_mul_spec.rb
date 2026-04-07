@@ -9,7 +9,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#mul' do
   let(:shim_gen) { shim_group.generator }
 
   OpenSSLCompliance::SCALARS.each do |label, scalar|
-    context "scalar multiplication with #{label}" do
+    context "when multiplying with #{label}" do
       it 'produces identical compressed output for G * scalar' do
         real_result = real_gen.mul(scalar)
         shim_result = shim_gen.mul(scalar)
@@ -26,7 +26,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#mul' do
     end
   end
 
-  context 'non-generator point multiplication' do
+  context 'when multiplying a non-generator point' do
     OpenSSLCompliance::SCALARS.each do |label, scalar|
       it "produces identical results for (2*G) * #{label}" do
         two = OpenSSL::BN.new('2')
@@ -41,7 +41,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#mul' do
     end
   end
 
-  context 'boundary cases' do
+  context 'with boundary scalars' do
     it 'G * N produces infinity for both' do
       n = OpenSSLCompliance::N
       real_result = real_gen.mul(n)

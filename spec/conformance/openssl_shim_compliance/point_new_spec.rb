@@ -37,7 +37,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point.new' do
   context 'with invalid input' do
     it 'raises on bytes that are not a valid point' do
       # x=1, y=2 is not on the curve
-      bad = "\x04".b + ("\x00" * 31 + "\x01").b + ("\x00" * 31 + "\x02").b
+      bad = "\x04".b + "#{"\x00" * 31}\u0001".b + "#{"\x00" * 31}\u0002".b
       bn = OpenSSL::BN.new(bad, 2)
       expect { OpenSSL::PKey::EC::Point.new(shim_group, bn) }
         .to raise_error(OpenSSL::PKey::EC::Point::Error)
