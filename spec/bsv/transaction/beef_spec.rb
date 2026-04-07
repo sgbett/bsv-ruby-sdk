@@ -151,6 +151,55 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/290
+  #
+  # V1 (BRC-62) has no FORMAT_TXID_ONLY format. The previous behaviour was a
+  # NoMethodError on `nil.to_binary` deep inside write_v1_tx; now to_binary
+  # raises ArgumentError up front with a clear message and a recovery hint.
+  describe '#to_binary with FORMAT_TXID_ONLY entries (issue #290)' do
+    let(:beef_with_txid_only) do
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_txid: "\x01".b * 32
+      )
+      beef
+    end
+
+    it 'raises ArgumentError when serialising as V1 (default)' do
+      expect { beef_with_txid_only.to_binary }
+        .to raise_error(ArgumentError, /V1.*FORMAT_TXID_ONLY.*BEEF_V2/)
+    end
+
+    it 'raises ArgumentError when serialising as V1 explicitly' do
+      expect { beef_with_txid_only.to_binary(version: described_class::BEEF_V1) }
+        .to raise_error(ArgumentError, /V1.*FORMAT_TXID_ONLY.*BEEF_V2/)
+    end
+
+    it 'serialises successfully as V2' do
+      bytes = beef_with_txid_only.to_binary(version: described_class::BEEF_V2)
+      expect(bytes).to be_a(String)
+
+      parsed = described_class.from_binary(bytes)
+      expect(parsed.transactions.length).to eq(1)
+      expect(parsed.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
+      expect(parsed.transactions.first.known_txid).to eq("\x01".b * 32)
+    end
+
+    it 'V2 round-trip preserves the TXID-only entry' do
+      bytes_a = beef_with_txid_only.to_binary(version: described_class::BEEF_V2)
+      reparsed = described_class.from_binary(bytes_a)
+      bytes_b = reparsed.to_binary(version: described_class::BEEF_V2)
+      expect(bytes_b).to eq(bytes_a)
+    end
+
+    it 'V1 still works for bundles without TXID-only entries' do
+      beef = described_class.from_hex(brc62_hex)
+      expect { beef.to_binary }.not_to raise_error
+      expect(beef.to_binary(version: described_class::BEEF_V1).unpack1('H*')).to eq(brc62_hex)
+    end
+  end
+
   describe 'source transaction wiring' do
     let(:beef) { described_class.from_hex(beef_set_hex) }
 
