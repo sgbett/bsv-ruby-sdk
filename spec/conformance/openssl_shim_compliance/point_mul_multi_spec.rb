@@ -14,7 +14,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#mul (multi-scalar)' do
   # compare against it directly. Instead we verify internal consistency:
   # multi-scalar must produce the same result as separate mul + add.
 
-  context 'addition via multi-scalar (a=1, b=1) matches add' do
+  context 'when using multi-scalar with a=1, b=1 to add two points' do
     # P.mul([1, 1], [Q]) should equal P.add(Q)
     OpenSSLCompliance::SCALARS.each do |label_a, scalar_a|
       OpenSSLCompliance::SCALARS.each do |label_b, scalar_b|
@@ -38,7 +38,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#mul (multi-scalar)' do
     end
   end
 
-  context 'weighted multi-scalar matches separate operations' do
+  context 'when computing a weighted multi-scalar sum' do
     it 'a*P + b*Q via multi-scalar matches mul + add' do
       a = OpenSSL::BN.new('7')
       b = OpenSSL::BN.new('13')
@@ -54,7 +54,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#mul (multi-scalar)' do
     end
   end
 
-  context 'add results match real OpenSSL add' do
+  context 'when comparing multi-scalar add results to real OpenSSL' do
     # Since multi-scalar is just a way to do addition, verify the add
     # result matches what real OpenSSL produces via its add method.
     let(:real_group) { OpenSSLCompliance.real_group }

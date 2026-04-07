@@ -8,7 +8,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#add' do
   let(:real_gen) { real_group.generator }
   let(:shim_gen) { shim_group.generator }
 
-  context 'basic addition' do
+  context 'when adding two points' do
     it 'G + G matches real OpenSSL' do
       real_result = real_gen.add(real_gen)
       shim_result = shim_gen.add(shim_gen)
@@ -40,7 +40,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#add' do
     end
   end
 
-  context 'additive inverse' do
+  context 'when adding a point to its additive inverse' do
     OpenSSLCompliance::SCALARS.each do |label, scalar|
       it "P + (-P) = infinity for #{label}" do
         n = OpenSSLCompliance::N
@@ -60,7 +60,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#add' do
     end
   end
 
-  context 'commutativity' do
+  context 'when verifying commutativity' do
     it 'P + Q == Q + P for both implementations' do
       a = OpenSSL::BN.new('42')
       b = OpenSSL::BN.new('99')
@@ -72,7 +72,7 @@ RSpec.describe 'OpenSSL EC Shim Compliance: Point#add' do
     end
   end
 
-  context 'addition matches scalar multiplication' do
+  context 'when comparing addition with scalar multiplication' do
     it '(k*G) + (m*G) == (k+m)*G' do
       k = OpenSSL::BN.new('12345')
       m = OpenSSL::BN.new('67890')

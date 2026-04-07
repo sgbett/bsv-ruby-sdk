@@ -22,7 +22,7 @@ module OpenSSLCompliance
   SCALAR_1    = OpenSSL::BN.new('1')
   SCALAR_MID  = OpenSSL::BN.new('DEADBEEF12345678', 16)
   SCALAR_HIGH = N - OpenSSL::BN.new('1')
-  SCALAR_RAND = OpenSSL::BN.new(SecureRandom.random_bytes(32), 2) % (N - OpenSSL::BN.new('2')) + OpenSSL::BN.new('1')
+  SCALAR_RAND = (OpenSSL::BN.new(SecureRandom.random_bytes(32), 2) % (N - OpenSSL::BN.new('2'))) + OpenSSL::BN.new('1')
 
   SCALARS = {
     'minimum (1)' => SCALAR_1,

@@ -122,9 +122,7 @@ module BSV
       # @return [Hash{String => Set<String>}] map of host URL to set of interested topics
       def find_interested_hosts
         @ship_cache_mutex.synchronize do
-          if @ship_cache && (Time.now.to_f - @ship_cache_at) < SHIP_CACHE_TTL
-            return @ship_cache.transform_values(&:dup)
-          end
+          return @ship_cache.transform_values(&:dup) if @ship_cache && (Time.now.to_f - @ship_cache_at) < SHIP_CACHE_TTL
 
           hosts = fetch_ship_hosts
           @ship_cache    = hosts

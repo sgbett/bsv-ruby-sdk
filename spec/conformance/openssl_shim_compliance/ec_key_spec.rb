@@ -10,22 +10,22 @@ RSpec.describe 'OpenSSL EC Shim Compliance: EC key construction' do
   # Build a SEC 1 private key DER (same logic as Curve.ec_key_from_private_bytes).
   def build_private_der(private_bytes, pub_point_bytes)
     OpenSSL::ASN1::Sequence.new([
-      OpenSSL::ASN1::Integer.new(1),
-      OpenSSL::ASN1::OctetString.new(private_bytes),
-      OpenSSL::ASN1::ObjectId.new('secp256k1', 0, :EXPLICIT),
-      OpenSSL::ASN1::BitString.new(pub_point_bytes, 1, :EXPLICIT)
-    ]).to_der
+                                  OpenSSL::ASN1::Integer.new(1),
+                                  OpenSSL::ASN1::OctetString.new(private_bytes),
+                                  OpenSSL::ASN1::ObjectId.new('secp256k1', 0, :EXPLICIT),
+                                  OpenSSL::ASN1::BitString.new(pub_point_bytes, 1, :EXPLICIT)
+                                ]).to_der
   end
 
   # Build a SPKI public key DER (same logic as Curve.ec_key_from_public_bytes).
   def build_public_der(public_bytes)
     OpenSSL::ASN1::Sequence.new([
-      OpenSSL::ASN1::Sequence.new([
-        OpenSSL::ASN1::ObjectId.new('id-ecPublicKey'),
-        OpenSSL::ASN1::ObjectId.new('secp256k1')
-      ]),
-      OpenSSL::ASN1::BitString.new(public_bytes)
-    ]).to_der
+                                  OpenSSL::ASN1::Sequence.new([
+                                                                OpenSSL::ASN1::ObjectId.new('id-ecPublicKey'),
+                                                                OpenSSL::ASN1::ObjectId.new('secp256k1')
+                                                              ]),
+                                  OpenSSL::ASN1::BitString.new(public_bytes)
+                                ]).to_der
   end
 
   describe 'private key DER' do

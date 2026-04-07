@@ -11,6 +11,8 @@
 # result to a separate file. When run with both backends, the output
 # directories should be byte-identical.
 
+require 'fileutils'
+
 mode = ARGV[0]
 output_dir = ARGV[1]
 
@@ -19,13 +21,13 @@ unless %w[openssl shim].include?(mode) && output_dir
   exit 1
 end
 
-Dir.mkdir(output_dir) unless Dir.exist?(output_dir)
+FileUtils.mkdir_p(output_dir)
 
 case mode
 when 'openssl'
   require 'openssl'
 when 'shim'
-  $LOAD_PATH.unshift(File.expand_path('../../../..', __dir__) + '/lib')
+  $LOAD_PATH.unshift("#{File.expand_path('../../../..', __dir__)}/lib")
   require 'bsv/primitives/openssl_ec_shim'
 end
 
@@ -46,23 +48,25 @@ end
 
 # Build SEC 1 private key DER.
 def build_private_der(priv_bytes, pub_compressed)
-  OpenSSL::ASN1::Sequence.new([
-    OpenSSL::ASN1::Integer.new(1),
-    OpenSSL::ASN1::OctetString.new(priv_bytes),
-    OpenSSL::ASN1::ObjectId.new('secp256k1', 0, :EXPLICIT),
-    OpenSSL::ASN1::BitString.new(pub_compressed, 1, :EXPLICIT)
-  ]).to_der
+  OpenSSL::ASN1::Sequence.new(
+    [
+      OpenSSL::ASN1::Integer.new(1),
+      OpenSSL::ASN1::OctetString.new(priv_bytes),
+      OpenSSL::ASN1::ObjectId.new('secp256k1', 0, :EXPLICIT),
+      OpenSSL::ASN1::BitString.new(pub_compressed, 1, :EXPLICIT)
+    ]
+  ).to_der
 end
 
 # Build SPKI public key DER.
 def build_public_der(pub_bytes)
-  OpenSSL::ASN1::Sequence.new([
-    OpenSSL::ASN1::Sequence.new([
+  algorithm_id = OpenSSL::ASN1::Sequence.new(
+    [
       OpenSSL::ASN1::ObjectId.new('id-ecPublicKey'),
       OpenSSL::ASN1::ObjectId.new('secp256k1')
-    ]),
-    OpenSSL::ASN1::BitString.new(pub_bytes)
-  ]).to_der
+    ]
+  )
+  OpenSSL::ASN1::Sequence.new([algorithm_id, OpenSSL::ASN1::BitString.new(pub_bytes)]).to_der
 end
 
 # Pad scalar BN to 32 bytes.
