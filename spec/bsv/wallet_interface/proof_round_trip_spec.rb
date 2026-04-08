@@ -22,9 +22,10 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
   end
 
   # Build a simple merkle proof for the source transaction.
-  # The txid leaf uses the source_tx's actual txid (internal byte order).
+  # Level 0 leaf hashes are in internal byte order (reverse of display
+  # order), matching the BRC-74 wire format and compute_root lookup.
   let(:merkle_path) do
-    txid_bytes = source_tx.txid.b # 32-byte display order → reverse for internal
+    txid_bytes = source_tx.txid.reverse # display → internal byte order
     sibling = ("\xCD" * 32).b
     tx_elem = BSV::Transaction::MerklePath::PathElement.new(
       offset: 0, hash: txid_bytes, txid: true

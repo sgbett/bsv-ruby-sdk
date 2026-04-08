@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'base64'
+
 RSpec.describe BSV::Transaction::Beef do
   # Go SDK test vector: BEEF V1 (BRC-62) with 1 BUMP and 2 transactions
   let(:brc62_hex) do
@@ -418,10 +420,30 @@ RSpec.describe BSV::Transaction::Beef do
   describe 'same-block BUMP dedup in to_binary (issue #288)' do
     # Build a synthetic 4-leaf merkle tree so two single-leaf BUMPs for
     # different leaves can share the same merkle root and collapse under
-    # merge_bump.
+    # merge_bump. The txid-flagged leaves use the real txids of the
+    # synthetic transactions below so that Transaction#to_beef's extract
+    # pass finds them.
     let(:mp_class) { BSV::Transaction::MerklePath }
     let(:pe) { mp_class::PathElement }
-    let(:leaf_hashes) { (0..3).map { |i| BSV::Primitives::Digest.sha256("leaf_#{i}") } }
+    let(:lock) { BSV::Script::Script.new }
+
+    # Proven ancestors at offsets 1 and 2 of the synthetic 4-leaf block.
+    let(:tx_a) do
+      t = BSV::Transaction::Transaction.new
+      t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
+      t
+    end
+    let(:tx_b) do
+      t = BSV::Transaction::Transaction.new(version: 2)
+      t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
+      t
+    end
+
+    # Sibling placeholders at offsets 0 and 3
+    let(:sibling0_hash) { BSV::Primitives::Digest.sha256('sibling_0') }
+    let(:sibling3_hash) { BSV::Primitives::Digest.sha256('sibling_3') }
+
+    let(:leaf_hashes) { [sibling0_hash, tx_a.txid.reverse, tx_b.txid.reverse, sibling3_hash] }
     let(:level1_hashes) do
       [
         mp_class.merkle_tree_parent(leaf_hashes[0], leaf_hashes[1]),
@@ -430,7 +452,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
     let(:expected_root) { mp_class.merkle_tree_parent(level1_hashes[0], level1_hashes[1]) }
 
-    # Single-leaf BUMP for the leaf at offset 1
+    # Single-leaf BUMP for tx_a at offset 1
     let(:path_a) do
       mp_class.new(
         block_height: 900_000,
@@ -442,7 +464,7 @@ RSpec.describe BSV::Transaction::Beef do
       )
     end
 
-    # Single-leaf BUMP for the leaf at offset 2 — shares the same root
+    # Single-leaf BUMP for tx_b at offset 2 — shares the same root
     let(:path_b) do
       mp_class.new(
         block_height: 900_000,
@@ -452,6 +474,21 @@ RSpec.describe BSV::Transaction::Beef do
           [pe.new(offset: 0, hash: level1_hashes[0])]
         ]
       )
+    end
+
+    def attach_paths_and_build_child
+      tx_a.merkle_path = path_a
+      tx_b.merkle_path = path_b
+
+      child = BSV::Transaction::Transaction.new
+      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_a.txid, prev_tx_out_index: 0)
+      input_a.source_transaction = tx_a
+      child.add_input(input_a)
+      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_b.txid, prev_tx_out_index: 0)
+      input_b.source_transaction = tx_b
+      child.add_input(input_b)
+      child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
+      child
     end
 
     it 'path_a and path_b compute the same merkle root' do
@@ -470,12 +507,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'serialises exactly one BUMP when two txs share a merged path (V1)' do
-      tx_a = BSV::Transaction::Transaction.new
-      tx_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
       tx_a.merkle_path = path_a
-
-      tx_b = BSV::Transaction::Transaction.new(version: 2)
-      tx_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: BSV::Script::Script.new))
       tx_b.merkle_path = path_b
 
       beef = described_class.new
@@ -498,12 +530,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'serialises exactly one BUMP when two txs share a merged path (V2)' do
-      tx_a = BSV::Transaction::Transaction.new
-      tx_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
       tx_a.merkle_path = path_a
-
-      tx_b = BSV::Transaction::Transaction.new(version: 2)
-      tx_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: BSV::Script::Script.new))
       tx_b.merkle_path = path_b
 
       beef = described_class.new
@@ -524,24 +551,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'serialises exactly one BUMP via Beef#merge_transaction' do
-      lock = BSV::Script::Script.new
-
-      ancestor_a = BSV::Transaction::Transaction.new
-      ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
-      ancestor_a.merkle_path = path_a
-
-      ancestor_b = BSV::Transaction::Transaction.new(version: 2)
-      ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
-      ancestor_b.merkle_path = path_b
-
-      child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.txid, prev_tx_out_index: 0)
-      input_a.source_transaction = ancestor_a
-      child.add_input(input_a)
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.txid, prev_tx_out_index: 0)
-      input_b.source_transaction = ancestor_b
-      child.add_input(input_b)
-      child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
+      child = attach_paths_and_build_child
 
       beef = described_class.new
       beef.merge_transaction(child)
@@ -553,28 +563,206 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'serialises exactly one BUMP via Transaction#to_beef' do
-      lock = BSV::Script::Script.new
-
-      ancestor_a = BSV::Transaction::Transaction.new
-      ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
-      ancestor_a.merkle_path = path_a
-
-      ancestor_b = BSV::Transaction::Transaction.new(version: 2)
-      ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
-      ancestor_b.merkle_path = path_b
-
-      child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.txid, prev_tx_out_index: 0)
-      input_a.source_transaction = ancestor_a
-      child.add_input(input_a)
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.txid, prev_tx_out_index: 0)
-      input_b.source_transaction = ancestor_b
-      child.add_input(input_b)
-      child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
+      child = attach_paths_and_build_child
 
       parsed = described_class.from_binary(child.to_beef)
       expect(parsed.bumps.length).to eq(1)
       expect(parsed.transactions.length).to eq(3)
+    end
+  end
+
+  # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/302
+  #
+  # When a wallet receives a BEEF via internalize_action from a counterparty
+  # whose wallet has merged multiple BUMPs across shared block heights, the
+  # resulting stored BUMP entry in LocalProofStore carries txid-flagged leaves
+  # for every txid in the original compound — including ones unrelated to
+  # the tx being stored. When a subsequent tx spends those UTXOs and calls
+  # Transaction#to_beef, the phantom flags were previously propagated into
+  # the emitted BEEF, which ARC rejects.
+  #
+  # The fix is in Transaction#to_beef (which now groups ancestors by block,
+  # combines their merkle paths, and calls MerklePath#extract with the bundle
+  # txids to produce clean BUMPs) backed by MerklePath#extract and #trim.
+  describe 'phantom txid leaves in to_beef (issue #302)' do
+    describe 'synthetic 4-leaf tree' do
+      let(:mp_class) { BSV::Transaction::MerklePath }
+      let(:pe) { mp_class::PathElement }
+      let(:lock) { BSV::Script::Script.new }
+
+      # The real proven ancestor — sits at offset 0 in the block merkle tree.
+      let(:tx_real) do
+        t = BSV::Transaction::Transaction.new
+        t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: lock))
+        t
+      end
+
+      # Non-txid siblings and the phantom txid at offset 2.
+      let(:tx_real_sibling) { BSV::Primitives::Digest.sha256('sibling_leaf_1') }
+      let(:phantom_leaf) { BSV::Primitives::Digest.sha256('phantom_at_offset_2') }
+      let(:phantom_sibling) { BSV::Primitives::Digest.sha256('sibling_leaf_3') }
+
+      let(:leaf_hashes) do
+        [tx_real.txid.reverse, tx_real_sibling, phantom_leaf, phantom_sibling]
+      end
+      let(:level1_hashes) do
+        [
+          mp_class.merkle_tree_parent(leaf_hashes[0], leaf_hashes[1]),
+          mp_class.merkle_tree_parent(leaf_hashes[2], leaf_hashes[3])
+        ]
+      end
+      let(:expected_root) { mp_class.merkle_tree_parent(level1_hashes[0], level1_hashes[1]) }
+
+      # A contaminated compound BUMP — as if loaded from a proof store that
+      # received a BEEF whose BUMP was merged across tx_real and a phantom
+      # sibling transaction. Both offsets 0 and 2 are txid-flagged. The
+      # path has 2 levels to match the 4-leaf tree depth; level 1 is empty
+      # because both parents are computable from level 0.
+      let(:contaminated_bump) do
+        mp_class.new(
+          block_height: 900_000,
+          path: [
+            [pe.new(offset: 0, hash: leaf_hashes[0], txid: true),
+             pe.new(offset: 1, hash: leaf_hashes[1]),
+             pe.new(offset: 2, hash: leaf_hashes[2], txid: true),
+             pe.new(offset: 3, hash: leaf_hashes[3])],
+            []
+          ]
+        )
+      end
+
+      let(:child) do
+        tx_real.merkle_path = contaminated_bump
+
+        c = BSV::Transaction::Transaction.new
+        input = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_real.txid, prev_tx_out_index: 0)
+        input.source_transaction = tx_real
+        c.add_input(input)
+        c.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 400, locking_script: lock))
+        c
+      end
+
+      it 'starts with both real and phantom leaves flagged as txid' do
+        # Sanity check on the fixture itself
+        expect(contaminated_bump.path[0].select(&:txid).length).to eq(2)
+        expect(contaminated_bump.compute_root).to eq(expected_root)
+      end
+
+      it 'emits a BEEF with only the real txid flagged' do
+        parsed = described_class.from_binary(child.to_beef)
+
+        expect(parsed.bumps.length).to eq(1)
+        bump = parsed.bumps[0]
+        txid_leaves = bump.path[0].select(&:txid)
+        expect(txid_leaves.length).to eq(1)
+        expect(txid_leaves[0].hash).to eq(tx_real.txid.reverse)
+      end
+
+      it 'strips the phantom leaf hash from the emitted BUMP' do
+        parsed = described_class.from_binary(child.to_beef)
+        bump = parsed.bumps[0]
+        level0_hashes = bump.path[0].map(&:hash)
+        expect(level0_hashes).not_to include(phantom_leaf)
+      end
+
+      it 'preserves the original merkle root through the rebuild' do
+        parsed = described_class.from_binary(child.to_beef)
+        expect(parsed.bumps[0].compute_root(tx_real.txid.reverse)).to eq(expected_root)
+      end
+
+      it 'does not mutate the caller tx_real.merkle_path' do
+        # to_beef should deep-dup paths before combining/trimming
+        before_offsets = contaminated_bump.path[0].map(&:offset)
+        before_txid_count = contaminated_bump.path[0].count(&:txid)
+
+        child.to_beef
+
+        expect(contaminated_bump.path[0].map(&:offset)).to eq(before_offsets)
+        expect(contaminated_bump.path[0].count(&:txid)).to eq(before_txid_count)
+      end
+
+      it 'round-trips byte-stably via Beef.from_binary' do
+        beef_bytes = child.to_beef
+        parsed = described_class.from_binary(beef_bytes)
+        expect(parsed.to_binary).to eq(beef_bytes)
+      end
+    end
+
+    describe 'real-world 8257-byte BEEF (bump[0] has 3 phantoms)' do
+      let(:fixture_path) { File.expand_path('../../fixtures/beef_302_phantom_leaves.b64', __dir__) }
+      let(:source_beef) { described_class.from_binary(Base64.decode64(File.read(fixture_path))) }
+
+      def bundled_txid_hashes(beef)
+        beef.transactions.map { |bt| bt.txid.reverse }
+      end
+
+      def count_phantoms(bump, bundled_hashes)
+        bump.path[0].count { |leaf| leaf.txid && leaf.hash && !bundled_hashes.include?(leaf.hash) }
+      end
+
+      it 'confirms the fixture has phantom leaves before the fix' do
+        # Establishes the pre-fix state baseline so future changes to the
+        # fixture are caught.
+        bundled = bundled_txid_hashes(source_beef)
+        expect(source_beef.bumps.length).to eq(2)
+        expect(source_beef.transactions.length).to eq(18)
+        expect(count_phantoms(source_beef.bumps[0], bundled)).to eq(3)
+        expect(count_phantoms(source_beef.bumps[1], bundled)).to eq(0)
+      end
+
+      it 'extracts a clean BUMP with zero phantom leaves' do
+        bundled = bundled_txid_hashes(source_beef)
+        bump0 = source_beef.bumps[0]
+        real_hashes = bump0.path[0].select(&:txid).map(&:hash).select { |h| bundled.include?(h) }
+
+        clean = bump0.extract(real_hashes)
+
+        expect(clean.path[0].select(&:txid).map(&:hash)).to match_array(real_hashes)
+        expect(count_phantoms(clean, bundled)).to eq(0)
+        expect(clean.compute_root).to eq(bump0.compute_root)
+      end
+
+      it 'shrinks the BUMP when trimming phantoms from a merged proof' do
+        bundled = bundled_txid_hashes(source_beef)
+        bump0 = source_beef.bumps[0]
+        real_hashes = bump0.path[0].select(&:txid).map(&:hash).select { |h| bundled.include?(h) }
+
+        clean = bump0.extract(real_hashes)
+
+        # The TS-aligned extract collapses intermediate siblings that are no
+        # longer needed to prove the remaining txids, so the cleaned BUMP
+        # should be strictly smaller than the phantom-contaminated source.
+        expect(clean.to_binary.bytesize).to be < bump0.to_binary.bytesize
+      end
+
+      it 'preserves the merkle root for every real txid' do
+        bundled = bundled_txid_hashes(source_beef)
+        bump0 = source_beef.bumps[0]
+        real_hashes = bump0.path[0].select(&:txid).map(&:hash).select { |h| bundled.include?(h) }
+        expected_root = bump0.compute_root
+
+        clean = bump0.extract(real_hashes)
+
+        real_hashes.each do |txid_hash|
+          expect(clean.compute_root(txid_hash)).to eq(expected_root)
+        end
+      end
+
+      it 'leaves the clean BUMP parseable by Beef.from_binary after re-serialising' do
+        bundled = bundled_txid_hashes(source_beef)
+        bump0 = source_beef.bumps[0]
+        real_hashes = bump0.path[0].select(&:txid).map(&:hash).select { |h| bundled.include?(h) }
+
+        clean = bump0.extract(real_hashes)
+
+        # Build a minimal Beef with just the clean BUMP, no txs — confirms
+        # the on-wire form is structurally valid.
+        beef = described_class.new
+        beef.bumps << clean
+        round_tripped = described_class.from_binary(beef.to_binary)
+        expect(round_tripped.bumps.length).to eq(1)
+        expect(round_tripped.bumps[0].compute_root).to eq(bump0.compute_root)
+      end
     end
   end
 
