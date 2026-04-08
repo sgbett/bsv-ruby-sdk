@@ -179,4 +179,176 @@ RSpec.describe BSV::Transaction::MerklePath do
         .with(expected_root_hex, 813_706)
     end
   end
+
+  # Issue #280 — TSC proof conversion
+  describe '.from_tsc' do
+    # Real WhatsOnChain TSC proof for tx 294cd1eb… in block 612251.
+    # Captured from https://api.whatsonchain.com/v1/bsv/main/tx/294cd1ebd5689fdee03509f92c32184c0f52f037d4046af250229b97e0c8f1aa/proof/tsc
+    let(:woc_txid) { '294cd1ebd5689fdee03509f92c32184c0f52f037d4046af250229b97e0c8f1aa' }
+    let(:woc_index) { 799 }
+    let(:woc_block_height) { 612_251 }
+    let(:woc_expected_root) { 'fa37948946c4a356b99d0b335cc165a32de0cba7a4e0b8a0be39c5325189f446' }
+    let(:woc_nodes) do
+      %w[
+        57a79dbc0be8225f4d9dc705a91096e60d3da8f3a7fdf009715dc28975a8dbb8
+        deaab20855e7e018e8a5fc1b2414874e0392af5422b0af38576f3ff4cb0b6e29
+        42e7d50a9fc732198d4e8ebf6056b19864c8928abe88f063f2060b525568add1
+        bbc40d8d4c7415af5238075b0af3191ad234262d7c0d55b2891cbac947189634
+        9a6d505bcf676e375660c264a1a2cee7d1951662a1cbbd843e3f56d9101aa157
+        8c3b17405f9f8385a351f45f02f62327821d3be34592c7f49f1628f53c47ce72
+        62ea964beeb128e2f286b90e7e79a2828d6b7392095b9f361199eedb1bd4a9b6
+        85b522dec2714d35492edb824860f5b08ec065071cff7812c55c6d167285728f
+        8b4309cc7d8872d37dec79aab24d106961f4997f3d6a7f3eddcb46cac54fcc2d
+        f98edbe3e00de856d3013c16b1cb79f75825ffcbe04d726811affcf164d0d637
+        2d62e81513f8b44359976b3566f8f622766d73b889fc8c5eebdc6f3686803ccd
+        b136c3bd30688d245c06d9d96689387431102dc176ad2b9f492976fa493db2f0
+      ]
+    end
+
+    let(:woc_path) do
+      described_class.from_tsc(
+        txid: woc_txid,
+        index: woc_index,
+        nodes: woc_nodes,
+        block_height: woc_block_height
+      )
+    end
+
+    it 'computes the correct merkle root for a real WoC vector' do
+      expect(woc_path.compute_root_hex(woc_txid)).to eq(woc_expected_root)
+    end
+
+    it 'sets the block height' do
+      expect(woc_path.block_height).to eq(woc_block_height)
+    end
+
+    it 'produces a path with one level per TSC node' do
+      expect(woc_path.path.length).to eq(woc_nodes.length)
+    end
+
+    it 'places the txid at the correct offset on level 0' do
+      txid_leaf = woc_path.path[0].find(&:txid)
+      expect(txid_leaf.offset).to eq(woc_index)
+      expect(txid_leaf.hash.reverse.unpack1('H*')).to eq(woc_txid)
+    end
+
+    it 'level 0 contains the txid plus its direct sibling' do
+      expect(woc_path.path[0].length).to eq(2)
+      offsets = woc_path.path[0].map(&:offset)
+      expect(offsets).to contain_exactly(woc_index, woc_index ^ 1)
+    end
+
+    it 'levels 1..N each contain exactly one sibling' do
+      woc_path.path[1..].each_with_index do |level, i|
+        expect(level.length).to eq(1), "level #{i + 1} had #{level.length} leaves, expected 1"
+      end
+    end
+
+    it 'sibling offsets at each level match the TSC walk' do
+      woc_path.path[1..].each_with_index do |level, i|
+        height = i + 1
+        expected_offset = (woc_index >> height) ^ 1
+        expect(level.first.offset).to eq(expected_offset)
+      end
+    end
+
+    it 'round-trips through to_hex / from_hex' do
+      hex = woc_path.to_hex
+      reparsed = described_class.from_hex(hex)
+      expect(reparsed.compute_root_hex(woc_txid)).to eq(woc_expected_root)
+      expect(reparsed.to_hex).to eq(hex)
+    end
+
+    context 'with a single-tx block' do
+      it 'produces a one-level path containing only the txid' do
+        mp = described_class.from_tsc(
+          txid: woc_txid,
+          index: 0,
+          nodes: [],
+          block_height: 100
+        )
+        expect(mp.path.length).to eq(1)
+        expect(mp.path[0].length).to eq(1)
+        expect(mp.path[0].first.txid).to be true
+        # For a single-tx block the txid IS the root.
+        expect(mp.compute_root_hex(woc_txid)).to eq(woc_txid)
+      end
+    end
+
+    context 'with duplicate ("*") nodes' do
+      # Synthetic 4-leaf tree where the proven tx is at the rightmost
+      # odd-pair position, so its level-0 sibling is itself (duplicated).
+      let(:fake_hash) { ->(label) { BSV::Primitives::Digest.sha256(label) } }
+      let(:leaves) { (0..2).map { |i| fake_hash.call("t#{i}") } }
+      let(:level1) do
+        [
+          described_class.merkle_tree_parent(leaves[0], leaves[1]),
+          described_class.merkle_tree_parent(leaves[2], leaves[2])
+        ]
+      end
+      let(:expected_root) { described_class.merkle_tree_parent(level1[0], level1[1]).reverse.unpack1('H*') }
+
+      let(:txid_hex) { leaves[2].reverse.unpack1('H*') }
+
+      it 'computes the correct root when level 0 has a duplicate sibling' do
+        mp = described_class.from_tsc(
+          txid: txid_hex,
+          index: 2,
+          nodes: ['*', level1[0].reverse.unpack1('H*')],
+          block_height: 50
+        )
+        expect(mp.compute_root_hex(txid_hex)).to eq(expected_root)
+      end
+
+      it 'marks the duplicate level-0 sibling as duplicate' do
+        mp = described_class.from_tsc(
+          txid: txid_hex,
+          index: 2,
+          nodes: ['*', level1[0].reverse.unpack1('H*')],
+          block_height: 50
+        )
+        sibling = mp.path[0].find { |l| l.offset == 3 }
+        expect(sibling.duplicate).to be true
+        expect(sibling.hash).to be_nil
+      end
+
+      it 'round-trips a path with duplicate nodes' do
+        mp = described_class.from_tsc(
+          txid: txid_hex,
+          index: 2,
+          nodes: ['*', level1[0].reverse.unpack1('H*')],
+          block_height: 50
+        )
+        reparsed = described_class.from_hex(mp.to_hex)
+        expect(reparsed.compute_root_hex(txid_hex)).to eq(expected_root)
+      end
+    end
+
+    context 'with a small synthetic tree' do
+      # 4-leaf tree, proving the leaf at index 2.
+      let(:fake_hash) { ->(label) { BSV::Primitives::Digest.sha256(label) } }
+      let(:leaves) { (0..3).map { |i| fake_hash.call("t#{i}") } }
+      let(:level1) do
+        [
+          described_class.merkle_tree_parent(leaves[0], leaves[1]),
+          described_class.merkle_tree_parent(leaves[2], leaves[3])
+        ]
+      end
+      let(:root) { described_class.merkle_tree_parent(level1[0], level1[1]) }
+
+      it 'computes the correct root from a hand-built TSC proof' do
+        mp = described_class.from_tsc(
+          txid: leaves[2].reverse.unpack1('H*'),
+          index: 2,
+          nodes: [
+            leaves[3].reverse.unpack1('H*'),  # level-0 sibling
+            level1[0].reverse.unpack1('H*')   # level-1 sibling
+          ],
+          block_height: 1
+        )
+        expect(mp.compute_root_hex(leaves[2].reverse.unpack1('H*')))
+          .to eq(root.reverse.unpack1('H*'))
+      end
+    end
+  end
 end

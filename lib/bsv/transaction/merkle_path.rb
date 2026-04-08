@@ -103,6 +103,70 @@ module BSV
         from_binary([hex].pack('H*')).first
       end
 
+      # Construct a MerklePath from a TSC (Bitcoin SV "Transaction Status
+      # Check") merkle proof, as returned by the WhatsOnChain
+      # +/tx/{txid}/proof/tsc+ endpoint.
+      #
+      # The TSC format gives a flat list of sibling hashes (leaf-to-root
+      # order), one per tree level. BRC-74 (BUMP) requires a multi-level
+      # structure with explicit tree positions. This method does the
+      # conversion. Getting it wrong (e.g. flat array in a single level)
+      # produces a BUMP that ARC rejects.
+      #
+      # @example Convert a WoC TSC proof
+      #   tsc = JSON.parse(woc_response).first
+      #   mp = BSV::Transaction::MerklePath.from_tsc(
+      #     txid:         tsc['txOrId'],
+      #     index:        tsc['index'],
+      #     nodes:        tsc['nodes'],
+      #     block_height: 612_251
+      #   )
+      #   mp.compute_root_hex(tsc['txOrId']) #=> the block's merkle root
+      #
+      # @param txid [String] hex-encoded transaction ID in display byte order
+      # @param index [Integer] the transaction's position in the block
+      # @param nodes [Array<String>] sibling hashes leaf-to-root, each a 32-byte
+      #   hex string in display byte order, or +"*"+ for a duplicate node
+      # @param block_height [Integer] the block's height (TSC carries the block
+      #   hash; the caller must look up the height separately)
+      # @return [MerklePath] a BRC-74 merkle path equivalent to the TSC proof
+      def self.from_tsc(txid:, index:, nodes:, block_height:)
+        txid_bytes = [txid].pack('H*').reverse
+
+        # Level 0 always contains the txid leaf.
+        level0 = [PathElement.new(offset: index, hash: txid_bytes, txid: true)]
+
+        # A single-tx block has no siblings — the txid IS the merkle root.
+        return new(block_height: block_height, path: [level0]) if nodes.empty?
+
+        # Add the txid's direct sibling at level 0.
+        level0 << tsc_path_element(nodes[0], index ^ 1)
+        level0.sort_by!(&:offset)
+
+        # Levels 1..N-1 each contain one sibling (the BRC-74 minimum).
+        upper_levels = nodes[1..].each_with_index.map do |node, i|
+          height = i + 1
+          [tsc_path_element(node, (index >> height) ^ 1)]
+        end
+
+        new(block_height: block_height, path: [level0] + upper_levels)
+      end
+
+      # Build a single PathElement from a TSC node entry.
+      #
+      # @param node [String] either +"*"+ (duplicate marker) or a 32-byte hex
+      #   hash in display byte order
+      # @param offset [Integer] tree position for this element
+      # @return [PathElement]
+      def self.tsc_path_element(node, offset)
+        if node == '*'
+          PathElement.new(offset: offset, duplicate: true)
+        else
+          PathElement.new(offset: offset, hash: [node].pack('H*').reverse)
+        end
+      end
+      private_class_method :tsc_path_element
+
       # Serialise the merkle path to BRC-74 binary format.
       #
       # @return [String] binary BUMP data
