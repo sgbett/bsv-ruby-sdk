@@ -215,6 +215,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
@@ -222,6 +223,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/identity/**/*'
     - 'spec/bsv/registry/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/support/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -236,6 +238,8 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/registry/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
+    - 'spec/support/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -244,6 +248,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
@@ -251,6 +256,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/identity/**/*'
     - 'spec/bsv/registry/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/support/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
