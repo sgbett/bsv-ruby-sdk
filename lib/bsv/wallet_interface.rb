@@ -20,6 +20,7 @@ module BSV
     autoload :NullChainProvider, 'bsv/wallet_interface/null_chain_provider'
     autoload :WalletClient,      'bsv/wallet_interface/wallet_client'
     autoload :Wire,              'bsv/wallet_interface/wire'
+    autoload :CertificateSignature, 'bsv/wallet_interface/certificate_signature'
 
     # Error classes
     autoload :WalletError,            'bsv/wallet_interface/errors/wallet_error'

@@ -10,11 +10,18 @@ module BSV
     module VarInt
       module_function
 
+      # Maximum value representable by a Bitcoin VarInt (unsigned 64-bit).
+      MAX_UINT64 = 0xFFFF_FFFF_FFFF_FFFF
+
       # Encode an integer as a Bitcoin VarInt.
       #
-      # @param value [Integer] non-negative integer to encode
+      # @param value [Integer] non-negative integer to encode (0..2^64-1)
       # @return [String] encoded binary bytes
+      # @raise [ArgumentError] if +value+ is negative or exceeds 2^64-1
       def encode(value)
+        raise ArgumentError, "varint requires non-negative integer, got #{value}" if value.negative?
+        raise ArgumentError, "varint value #{value} exceeds uint64 max (#{MAX_UINT64})" if value > MAX_UINT64
+
         if value < 0xFD
           [value].pack('C')
         elsif value <= 0xFFFF

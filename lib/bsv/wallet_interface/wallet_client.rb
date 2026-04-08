@@ -803,7 +803,7 @@ module BSV
       end
 
       def acquire_via_direct(args)
-        {
+        cert = {
           type: args[:type],
           subject: @key_deriver.identity_key,
           serial_number: args[:serial_number],
@@ -813,6 +813,15 @@ module BSV
           fields: args[:fields],
           keyring: args[:keyring_for_subject]
         }
+
+        # BRC-52: verify the certifier's signature against the canonical
+        # serialisation before persisting. Fixes F8.15 from the 2026-04-08
+        # cross-SDK compliance review (#305) — prior to this check, callers
+        # could pass any value in `args[:signature]` and it would be stored
+        # as if certifier-authentic.
+        CertificateSignature.verify!(cert)
+
+        cert
       end
 
       def acquire_via_issuance(args)
@@ -833,7 +842,7 @@ module BSV
 
         body = JSON.parse(response.body)
 
-        {
+        cert = {
           type: body['type'] || args[:type],
           subject: @key_deriver.identity_key,
           serial_number: body['serialNumber'],
@@ -843,6 +852,14 @@ module BSV
           fields: body['fields'] || args[:fields],
           keyring: body['keyringForSubject']
         }
+
+        # BRC-52: the certifier's HTTP response is untrusted network data;
+        # verify the signature before persisting. Closes the F8.15 class of
+        # bug on the issuance path too (the finding's "Same issue as F8.15"
+        # note from F8.16).
+        CertificateSignature.verify!(cert)
+
+        cert
       rescue JSON::ParserError
         raise WalletError, 'Certificate issuance failed: invalid JSON response'
       end
