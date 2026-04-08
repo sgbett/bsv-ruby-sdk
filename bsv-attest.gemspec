@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.description = 'Hash data, publish hashes to the BSV blockchain via OP_RETURN, ' \
                      'and verify attestations on chain.'
   spec.homepage    = 'https://github.com/sgbett/bsv-ruby-sdk'
-  spec.license     = 'Open BSV'
+  spec.license     = 'LicenseRef-OpenBSV'
 
   spec.required_ruby_version = '>= 2.7'
 
@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
     'rubygems_mfa_required' => 'true'
   }
 
-  spec.files = Dir.glob('lib/bsv/attest{.rb,/**/*}') + %w[lib/bsv-attest.rb LICENCE]
+  spec.files = Dir.glob('lib/bsv/attest{.rb,/**/*}') + %w[lib/bsv-attest.rb LICENSE]
   spec.require_paths = ['lib']
 
   spec.add_dependency 'bsv-sdk'
