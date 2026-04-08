@@ -292,13 +292,14 @@ module BSV
       # --- BEEF convenience methods ---
 
       # Serialise this transaction (with its ancestry chain and merkle proofs)
-      # into a BEEF V2 binary bundle.
+      # into a BEEF V1 binary bundle (BRC-62), the default format for ARC and
+      # the reference TS SDK.
       #
       # Walks the `source_transaction` references on inputs to collect ancestors.
       # Transactions with a `merkle_path` are treated as proven leaves — their
       # ancestors are not traversed further.
       #
-      # @return [String] raw BEEF V2 binary
+      # @return [String] raw BEEF V1 binary
       def to_beef
         beef = Beef.new
         ancestors = collect_ancestors

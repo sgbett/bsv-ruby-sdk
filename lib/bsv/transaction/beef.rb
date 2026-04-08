@@ -78,7 +78,7 @@ module BSV
       end
 
       # @return [Integer] BEEF version constant
-      attr_reader :version
+      attr_accessor :version
 
       # @return [Array<MerklePath>] merkle proofs (BUMPs) referenced by transactions
       attr_reader :bumps
@@ -130,7 +130,7 @@ module BSV
           offset += 32
           inner_version = data.byteslice(offset, 4).unpack1('V')
           offset += 4
-          beef.instance_variable_set(:@version, inner_version)
+          beef.version = inner_version
         end
 
         offset = read_bumps(beef, data, offset)
