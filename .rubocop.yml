@@ -19,6 +19,7 @@ Naming/FileName:
     - 'lib/bsv-sdk.rb'
     - 'lib/bsv-attest.rb'
     - 'lib/bsv-wallet.rb'
+    - 'lib/bsv-wallet-postgres.rb'
 
 # Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
 # a/b are used in secure_compare for constant-time comparison.
