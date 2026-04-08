@@ -50,6 +50,19 @@ module BSV
         @path = path
       end
 
+      # Produce an independent copy: a new MerklePath whose outer +path+
+      # array and each inner level array can be mutated (via {#combine},
+      # {#trim}, {#extract}) without affecting the original. PathElements
+      # themselves are immutable and are shared between the original and
+      # the copy.
+      #
+      # @param source [MerklePath] the MerklePath being copied from
+      # @return [void]
+      def initialize_copy(source)
+        super
+        @path = source.path.map(&:dup)
+      end
+
       # --- Binary serialisation (BRC-74) ---
 
       # Deserialise a merkle path from BRC-74 binary format.
@@ -270,7 +283,11 @@ module BSV
       # Merge another merkle path into this one.
       #
       # Both paths must share the same block height and merkle root.
-      # After combining, this path contains the union of all leaves.
+      # After combining, this path contains the union of all leaves,
+      # trimmed to the minimum set required to prove every txid-flagged
+      # leaf. The trim matches the TS SDK's +combine+ behaviour and
+      # prevents accumulation of unnecessary sibling hashes across
+      # repeated merges.
       #
       # @param other [MerklePath] the path to merge in
       # @return [self] for chaining
@@ -289,15 +306,180 @@ module BSV
 
           existing = @path[h].to_h { |e| [e.offset, e] }
           other.path[h].each do |elem|
-            existing[elem.offset] ||= elem
+            # Preserve txid flag when combining: if the incoming leaf is
+            # flagged, never downgrade an existing entry.
+            if existing.key?(elem.offset)
+              existing_elem = existing[elem.offset]
+              if elem.txid && !existing_elem.txid
+                existing[elem.offset] = PathElement.new(
+                  offset: existing_elem.offset,
+                  hash: existing_elem.hash,
+                  txid: true,
+                  duplicate: existing_elem.duplicate
+                )
+              end
+            else
+              existing[elem.offset] = elem
+            end
           end
           @path[h] = existing.values.sort_by(&:offset)
+        end
+
+        trim
+        self
+      end
+
+      # --- Trim ---
+
+      # Remove all internal nodes that are not required by level zero
+      # txid-flagged leaves. Assumes the path has at least the minimum
+      # set of sibling hashes needed to prove every txid leaf. Leaves
+      # each level sorted by increasing offset.
+      #
+      # This is the Ruby port of the TypeScript SDK's +MerklePath.trim+.
+      # It is called implicitly by {#combine} and {#extract} and rarely
+      # needs to be invoked directly.
+      #
+      # @return [self] for chaining
+      def trim
+        @path.each { |level| level.sort_by!(&:offset) }
+
+        computed_offsets = []
+        drop_offsets = []
+
+        @path[0].each_with_index do |node, i|
+          if node.txid
+            # level 0 must enable computing level 1 for every txid node
+            trim_push_if_new(computed_offsets, node.offset >> 1)
+          else
+            # Array-index peer — works for well-formed compound BUMPs
+            # where level 0 is a sequence of adjacent (txid, sibling) pairs.
+            peer_index = node.offset.odd? ? i - 1 : i + 1
+            peer = @path[0][peer_index] if peer_index.between?(0, @path[0].length - 1)
+            # Drop non-txid level 0 nodes whose peer is also non-txid
+            trim_push_if_new(drop_offsets, peer.offset) if peer && !peer.txid
+          end
+        end
+
+        trim_drop_offsets_from_level(drop_offsets, 0)
+
+        (1...@path.length).each do |h|
+          drop_offsets = computed_offsets
+          computed_offsets = trim_next_computed_offsets(computed_offsets)
+          trim_drop_offsets_from_level(drop_offsets, h)
         end
 
         self
       end
 
+      # --- Extract ---
+
+      # Extract a minimal compound MerklePath covering only the specified
+      # transaction IDs.
+      #
+      # Given a compound path (e.g. one merged from multiple single-leaf
+      # proofs in the same block), this method reconstructs the minimum
+      # set of sibling hashes at each tree level for every requested txid,
+      # assembles them into a new trimmed compound path, and verifies
+      # that the extracted path computes the same merkle root as the
+      # source.
+      #
+      # The primary use case is +Transaction#to_beef+: when a BUMP loaded
+      # from a proof store carries +txid: true+ flags for transactions
+      # that are not part of the current BEEF bundle, extracting only the
+      # bundled txids strips the phantom flags (and the now-unneeded
+      # sibling nodes) from the serialised output. See issue #302 for
+      # background.
+      #
+      # Matches the TS SDK's +MerklePath.extract+ behaviour.
+      #
+      # @param txid_hashes [Array<String>] 32-byte txids in internal byte
+      #   order (reverse of display order). To pass hex strings, use
+      #   +txid_hexes.map { |h| [h].pack('H*').reverse }+.
+      # @return [MerklePath] a new trimmed compound path proving only the
+      #   requested txids
+      # @raise [ArgumentError] if +txid_hashes+ is empty, any requested
+      #   txid is not present in the source path's level 0, or the
+      #   extracted path's root does not match the source root
+      def extract(txid_hashes)
+        raise ArgumentError, 'at least one txid must be provided to extract' if txid_hashes.empty?
+
+        original_root = compute_root
+        indexed = build_indexed_path
+
+        # Build a level-0 hash → offset lookup
+        txid_to_offset = {}
+        @path[0].each do |leaf|
+          txid_to_offset[leaf.hash] = leaf.offset if leaf.hash
+        end
+
+        max_offset = @path[0].map(&:offset).max || 0
+        tree_height = [@path.length, max_offset.bit_length].max
+
+        needed = Array.new(tree_height) { {} }
+
+        txid_hashes.each do |txid|
+          tx_offset = txid_to_offset[txid]
+          if tx_offset.nil?
+            raise ArgumentError,
+                  "transaction ID #{txid.reverse.unpack1('H*')} not found in the Merkle Path"
+          end
+
+          # Level 0: the txid leaf itself + its tree sibling
+          needed[0][tx_offset] = PathElement.new(offset: tx_offset, hash: txid, txid: true)
+          sib0_offset = tx_offset ^ 1
+          unless needed[0].key?(sib0_offset)
+            sib = offset_leaf(indexed, 0, sib0_offset)
+            needed[0][sib0_offset] = sib if sib
+          end
+
+          # Higher levels: just the sibling at each height
+          (1...tree_height).each do |h|
+            sib_offset = (tx_offset >> h) ^ 1
+            next if needed[h].key?(sib_offset)
+
+            sib = offset_leaf(indexed, h, sib_offset)
+            if sib
+              needed[h][sib_offset] = sib
+            elsif (tx_offset >> h) == (max_offset >> h)
+              # Rightmost path in a tree whose last leaf has no real sibling —
+              # BRC-74 represents this as a duplicate marker.
+              needed[h][sib_offset] = PathElement.new(offset: sib_offset, duplicate: true)
+            end
+          end
+        end
+
+        compound_path = needed.map { |level| level.values.sort_by(&:offset) }
+        compound = self.class.new(block_height: @block_height, path: compound_path)
+        compound.trim
+
+        extracted_root = compound.compute_root
+        unless extracted_root == original_root
+          raise ArgumentError,
+                "extracted path root #{extracted_root.reverse.unpack1('H*')} " \
+                "does not match source root #{original_root.reverse.unpack1('H*')}"
+        end
+
+        compound
+      end
+
       private
+
+      def trim_push_if_new(arr, value)
+        arr << value if arr.empty? || arr.last != value
+      end
+
+      def trim_drop_offsets_from_level(drop_offsets, level)
+        return if drop_offsets.empty?
+
+        @path[level].reject! { |node| drop_offsets.include?(node.offset) }
+      end
+
+      def trim_next_computed_offsets(offsets)
+        next_offsets = []
+        offsets.each { |o| trim_push_if_new(next_offsets, o >> 1) }
+        next_offsets
+      end
 
       def build_indexed_path
         @path.map do |level|

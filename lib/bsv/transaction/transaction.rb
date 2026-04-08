@@ -299,24 +299,36 @@ module BSV
       # Transactions with a `merkle_path` are treated as proven leaves — their
       # ancestors are not traversed further.
       #
+      # Proven ancestors that share a block are combined into a single BUMP per
+      # block, then trimmed via {MerklePath#extract} so the serialised bundle
+      # carries only the +txid: true+-flagged leaves that correspond to
+      # transactions in this BEEF. This prevents "phantom" txid leaves carried
+      # over from a shared {LocalProofStore} entry (issue #302) and also
+      # shrinks the BEEF by dropping intermediate sibling hashes that are no
+      # longer needed.
+      #
+      # Ancestor +merkle_path+ objects are not mutated: paths are deep-copied
+      # before any combine/trim work.
+      #
       # @return [String] raw BEEF V1 binary
+      # @raise [ArgumentError] if an ancestor's merkle_path does not actually
+      #   contain that transaction's txid, or if the cleaned BUMP's root does
+      #   not match the source root (both indicate corrupt proof data)
       def to_beef
         beef = Beef.new
         ancestors = collect_ancestors
 
+        bump_index_by_height = build_beef_bumps(beef, ancestors)
+
         ancestors.each do |tx|
           entry = if tx.merkle_path
-                    bump_idx = beef.merge_bump(tx.merkle_path)
                     Beef::BeefTx.new(
                       format: Beef::FORMAT_RAW_TX_AND_BUMP,
                       transaction: tx,
-                      bump_index: bump_idx
+                      bump_index: bump_index_by_height.fetch(tx.merkle_path.block_height)
                     )
                   else
-                    Beef::BeefTx.new(
-                      format: Beef::FORMAT_RAW_TX,
-                      transaction: tx
-                    )
+                    Beef::BeefTx.new(format: Beef::FORMAT_RAW_TX, transaction: tx)
                   end
           beef.transactions << entry
         end
@@ -722,6 +734,35 @@ module BSV
 
         seen[txid] = true
         result << tx
+      end
+
+      # Group proven ancestors by block height, combine each group into a
+      # single compound merkle path (without mutating the source paths), then
+      # extract just the txids actually in the bundle. The resulting clean
+      # BUMPs are appended to +beef.bumps+, one per block height.
+      #
+      # @return [Hash{Integer => Integer}] block height → bump index mapping
+      def build_beef_bumps(beef, ancestors)
+        proven_by_height = ancestors.each_with_object({}) do |tx, h|
+          next unless tx.merkle_path
+
+          (h[tx.merkle_path.block_height] ||= []) << tx
+        end
+
+        bump_index_by_height = {}
+        proven_by_height.each do |height, txs|
+          # Deep-dup the first source so combine/trim can't mutate caller state
+          merged = txs.first.merkle_path.dup
+          txs.drop(1).each { |t| merged.combine(t.merkle_path) }
+
+          txid_hashes = txs.map { |t| t.txid.reverse }
+          clean = merged.extract(txid_hashes)
+
+          bump_index_by_height[height] = beef.bumps.length
+          beef.bumps << clean
+        end
+
+        bump_index_by_height
       end
 
       def compute_fee_sats(model_or_fee)

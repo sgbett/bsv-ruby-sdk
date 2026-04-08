@@ -132,10 +132,15 @@ RSpec.describe BSV::Transaction::MerklePath do
       expect(mp_a.compute_root_hex).to eq(expected_root_hex)
       expect(mp_b.compute_root_hex).to eq(expected_root_hex)
 
-      # After combining, path_a has all leaves
+      # After combining, path_a has the minimal compound proof for both
+      # txid leaves. Level 0 keeps both txid leaves and their siblings
+      # (3048/3051 are retained because 3049/3050 are txid-flagged).
+      # Level 1 is trimmed to empty because both parents (1524, 1525) can
+      # be computed from level 0. All higher levels retain only the
+      # siblings still needed above the new "computed boundary".
       mp_a.combine(mp_b)
       expect(mp_a.path[0].map(&:offset)).to contain_exactly(3048, 3049, 3050, 3051)
-      expect(mp_a.path[1].map(&:offset)).to contain_exactly(1524, 1525)
+      expect(mp_a.path[1]).to be_empty
       expect(mp_a.compute_root_hex).to eq(expected_root_hex)
     end
 
@@ -144,6 +149,111 @@ RSpec.describe BSV::Transaction::MerklePath do
       mp2 = described_class.new(block_height: 2, path: [[]])
 
       expect { mp1.combine(mp2) }.to raise_error(ArgumentError, /block heights/)
+    end
+
+    it 'does not mutate the other path' do
+      mp = described_class.from_hex(brc74_hex)
+      leaves_a = mp.path[0].select { |l| [3048, 3049].include?(l.offset) }
+      leaves_b = mp.path[0].select { |l| [3050, 3051].include?(l.offset) }
+      level1_a = mp.path[1].select { |l| l.offset == 1525 }
+      level1_b = mp.path[1].select { |l| l.offset == 1524 }
+      path_a = [leaves_a, level1_a] + mp.path[2..].map(&:dup)
+      path_b = [leaves_b, level1_b] + mp.path[2..].map(&:dup)
+
+      mp_a = described_class.new(block_height: mp.block_height, path: path_a)
+      mp_b = described_class.new(block_height: mp.block_height, path: path_b)
+
+      snapshot_b = mp_b.path.map { |level| level.map(&:offset) }
+      mp_a.combine(mp_b)
+      expect(mp_b.path.map { |level| level.map(&:offset) }).to eq(snapshot_b)
+    end
+  end
+
+  describe '#trim' do
+    let(:mp) { described_class.from_hex(brc74_hex) }
+
+    it 'drops intermediate levels whose parents can be computed from level 0' do
+      # The brc74 vector has both offsets 3049 and 3050 as txid leaves at
+      # level 0, along with their siblings 3048 and 3051. Level 1 contains
+      # 1524 and 1525 — the parents of those two pairs. After trim, level 1
+      # is empty because both parents can be derived from level 0.
+      mp.trim
+      expect(mp.path[0].map(&:offset)).to contain_exactly(3048, 3049, 3050, 3051)
+      expect(mp.path[1]).to be_empty
+    end
+
+    it 'preserves the merkle root after trimming' do
+      original_root = mp.compute_root
+      mp.trim
+      expect(mp.compute_root).to eq(original_root)
+    end
+
+    it 'round-trips after trimming' do
+      mp.trim
+      hex = mp.to_hex
+      parsed = described_class.from_hex(hex)
+      expect(parsed.compute_root).to eq(mp.compute_root)
+      expect(parsed.to_hex).to eq(hex)
+    end
+
+    it 'is a no-op on an already-minimal compound path' do
+      mp.trim
+      minimal_hex = mp.to_hex
+      mp.trim
+      expect(mp.to_hex).to eq(minimal_hex)
+    end
+
+    it 'returns self for chaining' do
+      expect(mp.trim).to be(mp)
+    end
+  end
+
+  describe '#extract' do
+    let(:mp) { described_class.from_hex(brc74_hex) }
+    let(:lower_target_hash) { mp.path[0].find { |l| l.offset == 3049 }.hash }
+    let(:upper_target_hash) { mp.path[0].find { |l| l.offset == 3050 }.hash }
+
+    it 'extracts a single-txid minimal compound path' do
+      compound = mp.extract([lower_target_hash])
+
+      expect(compound.compute_root).to eq(mp.compute_root)
+      txid_leaves = compound.path[0].select(&:txid).map(&:hash)
+      expect(txid_leaves).to contain_exactly(lower_target_hash)
+    end
+
+    it 'extracts multiple txids into one compound path' do
+      compound = mp.extract([lower_target_hash, upper_target_hash])
+
+      expect(compound.compute_root).to eq(mp.compute_root)
+      txid_leaves = compound.path[0].select(&:txid).map(&:hash)
+      expect(txid_leaves).to contain_exactly(lower_target_hash, upper_target_hash)
+    end
+
+    it 'returns a new MerklePath without mutating the source' do
+      before_path = mp.path.map { |level| level.map(&:offset) }
+      compound = mp.extract([lower_target_hash])
+
+      expect(compound).not_to be(mp)
+      expect(mp.path.map { |level| level.map(&:offset) }).to eq(before_path)
+    end
+
+    it 'strips phantom txid flags when extracting a subset' do
+      # Both 3049 and 3050 are txid-flagged in the source. Extract only
+      # the lower of the two and confirm the upper is absent as a txid
+      # leaf in the compound.
+      compound = mp.extract([lower_target_hash])
+      compound_txids = compound.path[0].select(&:txid).map(&:hash)
+      expect(compound_txids).not_to include(upper_target_hash)
+    end
+
+    it 'raises when txid_hashes is empty' do
+      expect { mp.extract([]) }.to raise_error(ArgumentError, /at least one txid/)
+    end
+
+    it 'raises when a requested txid is not in the source path' do
+      fake_txid = "\x00".b * 32
+      expect { mp.extract([fake_txid]) }
+        .to raise_error(ArgumentError, /not found in the Merkle Path/)
     end
   end
 
