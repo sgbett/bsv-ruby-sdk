@@ -22,6 +22,12 @@ Gem::Specification.new do |spec|
     'rubygems_mfa_required' => 'true'
   }
 
-  spec.files = Dir.glob('lib/**/*') + %w[LICENSE README.md CHANGELOG.md]
+  # Explicit module list — bsv-attest and bsv-wallet are separate gems with
+  # their own gemspecs and must not be bundled into bsv-sdk. Adding a new
+  # top-level SDK module means adding it here AND to the autoload list in
+  # lib/bsv-sdk.rb.
+  spec.files = Dir.glob(
+    'lib/bsv/{primitives,script,transaction,network,wallet,auth,overlay,identity,registry}{.rb,/**/*}'
+  ) + %w[lib/bsv-sdk.rb lib/bsv/version.rb LICENSE README.md CHANGELOG.md]
   spec.require_paths = ['lib']
 end
