@@ -21,6 +21,124 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and each gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 independently.
 
+## sdk-0.8.2 / wallet-0.3.4 — 2026-04-08
+
+Paired security patch release. Three P0 findings from the
+[2026-04-08 cross-SDK compliance review](.architecture/reviews/20260408-cross-sdk-compliance-review.md)
+plus follow-up hardening from the PR review pass. Must be installed
+together — the `bsv-wallet` gemspec now pins its `bsv-sdk` dependency
+to `>= 0.8.2, < 1.0` to enforce the paired upgrade and prevent a stale
+pair where one gem has its fixes and the other doesn't.
+
+Two GitHub Security Advisories accompany this release (draft until
+CVE IDs return from MITRE):
+
+- [GHSA-hc36-c89j-5f4j](.security/advisories/2026-0001-acquire-certificate-signature-bypass.md) — F8.15 / F8.16 partial — `acquire_certificate` persists unverified certifier signatures (CWE-347, CVSS 8.1 HIGH)
+- [GHSA-9hfr-gw99-8rhx](.security/advisories/2026-0002-arc-broadcaster-failure-statuses.md) — F5.13 — ARC broadcaster treats failure statuses as success (CWE-754, CVSS 7.5 HIGH)
+
+### Security
+
+- [wallet] **`acquire_certificate` now verifies certifier signatures** before
+  persisting (BRC-52). Both the `'direct'` and `'issuance'` acquisition
+  paths previously wrote user-supplied `signature:` values to storage
+  without any verification — a caller could forge a certificate that
+  `list_certificates` / `prove_certificate` would later treat as
+  authentic. This was a credential forgery primitive masquerading as
+  an API finding. The new `BSV::Wallet::CertificateSignature` module
+  builds the canonical BRC-52 preimage (matching the TS reference
+  `Certificate#toBinary(false)` byte-for-byte) and delegates to
+  `ProtoWallet#verify_signature`. Invalid certificates raise
+  `BSV::Wallet::CertificateSignature::InvalidError` and are not
+  persisted. Closes F8.15 (and the verification aspect of F8.16).
+
+- [sdk] **`VarInt.encode` now rejects negative integers** and values
+  above 2^64 − 1. Previously `VarInt.encode(-1)` fell into the single-
+  byte branch and emitted `0xFF` (the marker for a 9-byte encoding),
+  silently corrupting the transaction stream with no exception raised.
+  The docstring already required a non-negative integer; the
+  implementation did not enforce it. Closes F1.3.
+
+- [sdk] **ARC broadcaster recognises the full failure status set**. The
+  previous `REJECTED_STATUSES` contained only `REJECTED` and
+  `DOUBLE_SPEND_ATTEMPTED`; responses with txStatus `INVALID`,
+  `MALFORMED`, `MINED_IN_STALE_BLOCK`, or any `ORPHAN`-containing
+  `txStatus` / `extraInfo` were silently treated as successful
+  broadcasts. Callers relying on `broadcast()` to signal failure would
+  trust transactions that were never actually accepted by the network.
+  The new failure set matches the TypeScript reference broadcaster
+  exactly, and case-insensitive matching defends against ARC's
+  documented history of emitting values outside its own OpenAPI enum
+  (TS issue #105). Malformed 2xx responses without a `txid` field
+  also raise, closing the same silent-success class for shape
+  corruption. Closes F5.13.
+
+### Changed
+
+- [sdk] **ARC broadcaster HTTP wire format** brought into line with the
+  TypeScript reference:
+  - Content-Type is now `application/json` (was `application/octet-stream`)
+  - Body is `{"rawTx": hex}` — Extended Format (BRC-30) hex when every
+    input has `source_satoshis` / `source_locking_script` populated
+    (so ARC can validate sighashes without fetching parents), falling
+    back to plain raw-tx hex otherwise
+  - New `XDeployment-ID` header (default: `bsv-ruby-sdk-<random hex>`,
+    overridable via `deployment_id:` constructor kwarg)
+  - New optional `X-CallbackUrl` and `X-CallbackToken` constructor
+    kwargs for ARC status callbacks
+
+- [wallet] **`bsv-wallet.gemspec` bsv-sdk dependency pinned** to
+  `>= 0.8.2, < 1.0`. The previous `~> 0.4` constraint was stale (wallet
+  hasn't been tested against bsv-sdk 0.4.x in months) and would have
+  let a user install `bsv-wallet 0.3.4` against an old `bsv-sdk` that
+  was missing F1.3 and F5.13. Technically breaking — any consumer
+  pinned to `bsv-sdk < 0.8.2` must upgrade — but un-breaking in
+  practice: it forces users to the known-good pair rather than a
+  silently-broken combination.
+
+### Internal
+
+- [sdk] `lib/bsv/network/**/*` added to `Metrics/ClassLength` and
+  `Metrics/ParameterLists` RuboCop exclusion lists to match the
+  existing treatment of `lib/bsv/wallet_interface/**/*`. ARC is
+  HTTP-client boilerplate in the same shape.
+- [wallet] `lib/bsv/wallet_interface/**/*` added to the
+  `Metrics/ModuleLength` exclusion list (was previously only excluded
+  from `Metrics/ClassLength`). The new `CertificateSignature` module
+  triggered the discrepancy.
+- [sdk, wallet] Review-feedback hardening bundled into the same PR to
+  keep the security-patch window small: case-insensitive ARC failure
+  matching, `Base64.strict_decode64` on BRC-52 preimage fields,
+  `EncodingError` rescue in `CertificateSignature.verify!`, rejection
+  of mixed string / symbol duplicate field names, malformed 2xx
+  rejection in ARC, and even-length guard on hex signatures.
+
+### Migration notes
+
+- **Existing `bsv-wallet` users** pinned to `bsv-sdk ~> 0.4` will need
+  to relax their constraint or upgrade. Anything installed before
+  `bsv-wallet 0.3.4` is vulnerable to the F8.15 certificate forgery
+  primitive.
+- **Callers passing negative integers to `VarInt.encode`** (unlikely —
+  the docstring already disallowed it) will now get an `ArgumentError`
+  instead of silent corruption. Fix: pass non-negative values.
+- **Callers relying on ARC broadcaster silently succeeding for INVALID
+  / MALFORMED / MINED_IN_STALE_BLOCK / ORPHAN responses** will now see
+  `BroadcastError` raised. Fix: handle the error — the previous
+  behaviour was objectively wrong and any downstream logic that
+  tolerated it was silently corrupt.
+- **Callers of `acquire_certificate` with a fake or untrusted
+  `signature:` field** will now see
+  `BSV::Wallet::CertificateSignature::InvalidError`. Fix: ensure the
+  certificate has been properly signed by the declared certifier.
+
+### Test suite
+
+- 3112 examples, 0 failures (up from 3080 on 0.8.1)
+- 16 new regression tests for F1.3, F5.13, and F8.15
+- 16 further regression tests for the review-feedback hardening
+- Ruby 2.7 — 3.4 matrix green
+- CodeQL clean; RuboCop clean across 266 files
+
 ## sdk-0.8.1 — 2026-04-08
 
 ### Fixed
