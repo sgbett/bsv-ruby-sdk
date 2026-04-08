@@ -18,5 +18,5 @@ Security reports should be made via GitHub's private vulnerability reporting (Se
 
 | GHSA | Finding | Packages | Severity | Status |
 | --- | --- | --- | --- | --- |
-| [GHSA-hc36-c89j-5f4j](advisories/2026-0001-acquire-certificate-signature-bypass.md) | F8.15 / F8.16 partial — `acquire_certificate` persists unverified certifier signatures | `bsv-sdk`, `bsv-wallet` | HIGH (8.1) | Draft |
-| [GHSA-9hfr-gw99-8rhx](advisories/2026-0002-arc-broadcaster-failure-statuses.md) | F5.13 — ARC broadcaster treats failure statuses as success | `bsv-sdk` | HIGH (7.5) | Draft |
+| [GHSA-hc36-c89j-5f4j](advisories/2026-0001-acquire-certificate-signature-bypass.md) | F8.15 / F8.16 partial — `acquire_certificate` persists unverified certifier signatures | `bsv-sdk`, `bsv-wallet` | HIGH (8.1) | Published 2026-04-08 |
+| [GHSA-9hfr-gw99-8rhx](advisories/2026-0002-arc-broadcaster-failure-statuses.md) | F5.13 — ARC broadcaster treats failure statuses as success | `bsv-sdk` | HIGH (7.5) | Published 2026-04-08 |

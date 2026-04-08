@@ -3,7 +3,7 @@ id: 2026-0001
 ghsa_id: GHSA-hc36-c89j-5f4j
 ghsa_url: https://github.com/sgbett/bsv-ruby-sdk/security/advisories/GHSA-hc36-c89j-5f4j
 cve_id: TBD
-status: draft
+status: published
 title: bsv-sdk and bsv-wallet persist unverified certifier signatures in acquire_certificate (direct and issuance paths)
 ecosystem: RubyGems
 severity: HIGH
@@ -21,7 +21,7 @@ finding: F8.15
 review: .architecture/reviews/20260408-cross-sdk-compliance-review.md
 hlr: sgbett/bsv-ruby-sdk#305
 reported: 2026-04-08
-published: TBD
+published: 2026-04-08
 ---
 
 # Unverified certifier signatures persisted by `acquire_certificate`
