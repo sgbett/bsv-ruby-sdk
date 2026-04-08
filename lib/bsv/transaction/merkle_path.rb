@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'set'
+
 module BSV
   module Transaction
     # A BRC-74 merkle path (BUMP — Bitcoin Unified Merkle Path).
@@ -472,7 +474,8 @@ module BSV
       def trim_drop_offsets_from_level(drop_offsets, level)
         return if drop_offsets.empty?
 
-        @path[level].reject! { |node| drop_offsets.include?(node.offset) }
+        drop_set = drop_offsets.to_set
+        @path[level].reject! { |node| drop_set.include?(node.offset) }
       end
 
       def trim_next_computed_offsets(offsets)

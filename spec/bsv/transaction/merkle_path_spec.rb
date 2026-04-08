@@ -167,6 +167,45 @@ RSpec.describe BSV::Transaction::MerklePath do
       mp_a.combine(mp_b)
       expect(mp_b.path.map { |level| level.map(&:offset) }).to eq(snapshot_b)
     end
+
+    it 'upgrades an existing non-txid leaf when the incoming leaf is flagged' do
+      # Two single-leaf paths in a synthetic 4-leaf block. In path_a, offset 2
+      # is a non-txid sibling of the tx at offset 3. In path_b, offset 2 is
+      # the txid leaf itself. Combining path_a and path_b must upgrade the
+      # existing leaf at offset 2 from non-txid to txid, otherwise the
+      # emitted BEEF would lose proof of the offset-2 tx.
+      pe = described_class::PathElement
+      leaf_hashes = (0..3).map { |i| BSV::Primitives::Digest.sha256("upgrade_leaf_#{i}") }
+      level1_hashes = [
+        described_class.merkle_tree_parent(leaf_hashes[0], leaf_hashes[1]),
+        described_class.merkle_tree_parent(leaf_hashes[2], leaf_hashes[3])
+      ]
+
+      # Single-leaf proof for offset 3 — offset 2 appears as a non-txid sibling
+      path_a = described_class.new(
+        block_height: 950_000,
+        path: [
+          [pe.new(offset: 2, hash: leaf_hashes[2]),
+           pe.new(offset: 3, hash: leaf_hashes[3], txid: true)],
+          [pe.new(offset: 0, hash: level1_hashes[0])]
+        ]
+      )
+
+      # Single-leaf proof for offset 2 — offset 2 is txid here
+      path_b = described_class.new(
+        block_height: 950_000,
+        path: [
+          [pe.new(offset: 2, hash: leaf_hashes[2], txid: true),
+           pe.new(offset: 3, hash: leaf_hashes[3])],
+          [pe.new(offset: 0, hash: level1_hashes[0])]
+        ]
+      )
+
+      path_a.combine(path_b)
+
+      txid_offsets = path_a.path[0].select(&:txid).map(&:offset)
+      expect(txid_offsets).to contain_exactly(2, 3)
+    end
   end
 
   describe '#trim' do
@@ -254,6 +293,27 @@ RSpec.describe BSV::Transaction::MerklePath do
       fake_txid = "\x00".b * 32
       expect { mp.extract([fake_txid]) }
         .to raise_error(ArgumentError, /not found in the Merkle Path/)
+    end
+
+    it 'raises when the reconstructed root does not match the source root' do
+      # A truncated BUMP: path has only level 0, but max_offset's bit_length
+      # is larger than path.length, so extract's tree_height calculation
+      # forces an upper-level walk. The source's compute_root only walks one
+      # level (producing an "early" root at level 1), while extract builds a
+      # 2-level compound and walks to a level-2 root. The two differ, and
+      # the root-equality safety net in extract catches it.
+      pe = described_class::PathElement
+      tx_hash = BSV::Primitives::Digest.sha256('truncated_tx')
+      source = described_class.new(
+        block_height: 960_000,
+        path: [
+          [pe.new(offset: 2, hash: tx_hash, txid: true),
+           pe.new(offset: 3, duplicate: true)]
+        ]
+      )
+
+      expect { source.extract([tx_hash]) }
+        .to raise_error(ArgumentError, /does not match source root/)
     end
   end
 
