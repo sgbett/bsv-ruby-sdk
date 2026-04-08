@@ -151,6 +151,35 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/292
+  #
+  # to_hex previously called to_binary with no args, which defaults to V1,
+  # so a BEEF parsed from V2 would silently downgrade to V1 on round-trip.
+  # Now to_hex uses @version, preserving the parsed format.
+  describe '#to_hex preserves the parsed version (issue #292)' do
+    it 'V1 BEEF round-trips to V1 hex' do
+      beef = described_class.from_hex(brc62_hex)
+      expect(beef.version).to eq(described_class::BEEF_V1)
+      expect(beef.to_hex).to eq(brc62_hex)
+    end
+
+    it 'V2 BEEF round-trips to V2 hex' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.version).to eq(described_class::BEEF_V2)
+      expect(beef.to_hex).to eq(beef_set_hex)
+    end
+
+    it 'freshly constructed Beef defaults to V1 hex (constructor default)' do
+      beef = described_class.new
+      expect(beef.to_hex).to eq('0100beef0000')
+    end
+
+    it 'Beef constructed with explicit V2 emits V2 hex' do
+      beef = described_class.new(version: described_class::BEEF_V2)
+      expect(beef.to_hex).to eq('0200beef0000')
+    end
+  end
+
   # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/290
   #
   # V1 (BRC-62) has no FORMAT_TXID_ONLY format. The previous behaviour was a
@@ -769,6 +798,29 @@ RSpec.describe BSV::Transaction::Beef do
       # Should parse back
       parsed = described_class.from_hex(hex)
       expect(parsed.transactions.length).to eq(beef1.transactions.length)
+    end
+
+    # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/291
+    #
+    # If the source BEEF has a transaction whose bump_index does not point at
+    # any BUMP in the source, the previous behaviour was to silently fall back
+    # to the source's stale index — propagating a meaningless reference into
+    # the merged bundle. Now it raises ArgumentError.
+    it 'raises when source BEEF has an inconsistent bump_index (issue #291)' do
+      # Empty target so there's no txid dedupe interference.
+      target = described_class.new
+
+      # Construct a malformed source BEEF by direct mutation: a tx pointing at
+      # a bump_index that doesn't exist in @bumps.
+      source = described_class.from_hex(brc62_hex)
+      bogus_entry = described_class::BeefTx.new(
+        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+        transaction: BSV::Transaction::Transaction.new(version: 99), # unique txid
+        bump_index: source.bumps.length + 42
+      )
+      source.transactions << bogus_entry
+
+      expect { target.merge(source) }.to raise_error(ArgumentError, /inconsistent bump_index/)
     end
   end
 
