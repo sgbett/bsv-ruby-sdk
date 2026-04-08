@@ -21,6 +21,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and each gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 independently.
 
+## sdk-0.8.0 — 2026-04-08
+
+### Added
+
+- [sdk] **`MerklePath.from_tsc`** — convert WhatsOnChain TSC merkle proofs
+  (the flat leaf-to-root sibling list returned by
+  `/tx/{txid}/proof/tsc`) into BRC-74 BUMP format. Verified end-to-end
+  against a real mainnet vector (block 612251). Closes #280.
+- [sdk] **`Beef#version=`** writer — promoted from internal
+  `instance_variable_set` to a proper accessor.
+
+### Changed
+
+- [sdk] **`Beef#to_binary` rewrite** — serialises BUMPs from the canonical
+  `@bumps` array and uses `beef_tx.bump_index` as the on-wire reference,
+  instead of walking each transaction's `merkle_path` via object identity.
+  Fixes duplicate-BUMP serialisation for same-block ancestors that
+  previously caused ARC `468 BEEF invalid` rejections. Matches the TS and
+  Go reference SDKs. Closes #288.
+- [sdk] **`Beef#to_hex`** preserves the bundle's `@version` so a BEEF
+  parsed from V2 round-trips to V2 hex (and V1 to V1) instead of always
+  silently downgrading to V1. The original docstring already claimed
+  "V2 hex string" — this fix matches the original intent. Closes #292.
+- [sdk] **`Beef#initialize`** default `version:` parameter changed from
+  `BEEF_V2` to `BEEF_V1` to match `to_binary`'s default. Every existing
+  `Beef.new + to_hex` caller continues to emit V1 (preserving every
+  existing observable behaviour). Closes #292.
+- [sdk] **`bsv-sdk` gem packaging** — explicit module list in
+  `bsv-sdk.gemspec` excludes `bsv-attest` and `bsv-wallet` code. Reduces
+  `bsv-sdk` from 144 files to 98 (24% smaller); no overlap with the
+  sibling gems except `LICENSE`.
+- [sdk] `Transaction#to_beef` docstring corrected from "BEEF V2 binary
+  bundle" to "BEEF V1 binary bundle (BRC-62)" to match what the method
+  actually emits.
+
+### Fixed
+
+- [sdk] **`Beef#to_binary`** raises `ArgumentError` upfront when V1
+  (BRC-62) is requested for a bundle containing `FORMAT_TXID_ONLY`
+  entries, instead of crashing deep inside `write_v1_tx` with
+  `NoMethodError`. V2 (BRC-96) supports TXID-only and is unaffected. The
+  error message points the caller at `version: BEEF_V2`. Closes #290.
+- [sdk] **`Beef#merge`** raises `ArgumentError` on inconsistent
+  `bump_index` from the source bundle (when the source has a transaction
+  pointing at a `bump_index` that doesn't exist in the source's
+  `@bumps`), instead of silently propagating a stale index that could
+  attach the wrong merkle path to a transaction in the merged bundle.
+  Closes #291.
+- [sdk] **`Beef::BeefTx#initialize`** validates that
+  `FORMAT_RAW_TX_AND_BUMP` requires a non-nil `bump_index`, failing fast
+  in the constructor instead of crashing later in `VarInt.encode(nil)`.
+- [sdk] **`Beef#merge_raw_tx`** bounds-checks the `bump_index` parameter
+  and raises `ArgumentError` if out of range, instead of silently writing
+  an invalid index that downstream parsers would misinterpret.
+
+### Internal
+
+- [sdk] CI is now green: 73 pre-existing RuboCop offenses across
+  `spec/conformance/openssl_shim_compliance/` resolved. Closes #293.
+- [sdk] OpenSSL EC shim conformance suite is now skipped on Ruby 2.7,
+  where stock `OpenSSL::PKey::EC::Point#add` is unavailable. The shim
+  itself still has direct unit-test coverage on every supported Ruby.
+
 ## wallet-0.3.3 — 2026-04-06
 
 ### Fixed
