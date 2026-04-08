@@ -21,6 +21,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and each gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 independently.
 
+## sdk-0.8.1 — 2026-04-08
+
+### Fixed
+
+- [sdk] **`Transaction#to_beef` strips phantom `txid: true` leaves** —
+  when a proof loaded from a shared `LocalProofStore` carries txid flags
+  for transactions that are not part of the bundle being constructed,
+  `to_beef` now rebuilds each per-block BUMP from only the bundle's own
+  txids instead of propagating the phantoms into the serialised output.
+  ARC previously rejected such BEEFs with misleading parser errors,
+  blocking any wallet workflow that received a BEEF via
+  `internalize_action` and then spent the internalised UTXOs.
+  Closes #302.
+
+### Added
+
+- [sdk] **`MerklePath#extract(txid_hashes)`** — returns a new trimmed
+  compound path covering only the requested txids, reconstructing the
+  minimum set of sibling hashes at each tree level. Raises
+  `ArgumentError` on empty input, unknown txid, or root mismatch.
+  Ported from the TypeScript SDK. Used internally by
+  `Transaction#to_beef` and available for direct use.
+- [sdk] **`MerklePath#trim`** — removes internal nodes not required by
+  level-zero txid leaves. Called implicitly by `#combine` and `#extract`
+  and rarely needs to be invoked directly. Ported from the TypeScript
+  SDK.
+- [sdk] **`MerklePath#initialize_copy`** — `.dup` now produces a new
+  MerklePath whose outer and level arrays are independent of the
+  source, so the copy can be freely mutated via `#combine`, `#trim`,
+  or `#extract` without affecting the original. `PathElement`s
+  remain immutable and are shared between source and copy.
+
+### Changed
+
+- [sdk] **`MerklePath#combine`** now calls `#trim` at the end so merged
+  paths stay minimal across repeated merges, matching the TypeScript
+  SDK. Combined paths are strictly smaller than before — external
+  callers that inspected `mp.path` after `#combine` may see fewer
+  nodes, though every txid leaf's merkle proof is preserved.
+- [sdk] **`MerklePath#combine`** also preserves `txid: true` flags when
+  the incoming leaf is flagged and the existing leaf at the same offset
+  isn't, so merging an ancestor's single-leaf proof into a compound
+  that already contains the same offset as a sibling no longer loses
+  the txid flag.
+- [sdk] **`Transaction#to_beef`** now raises `ArgumentError` if an
+  ancestor's merkle path doesn't actually contain that transaction's
+  txid, or if the rebuilt BUMP's root doesn't match the source root.
+  Previously such corrupt proof data would silently emit a broken BEEF.
+  Callers relying on `to_beef` not raising on valid data are
+  unaffected; the new exception only triggers on corrupt proof stores.
+
+### Internal
+
+- [sdk] **`Beef#merge_transaction`** indirectly benefits from the
+  tighter `#combine` + `#trim` behaviour: compound BUMPs no longer
+  accumulate dead sibling hashes across repeated merges.
+- [sdk] On the real-world `#302` regression fixture, the cleaned BUMP
+  shrinks from 2476 B to 1300 B (47% reduction) as a side effect of
+  `#extract` removing intermediate siblings that are no longer needed
+  once phantom leaves are gone.
+
 ## sdk-0.8.0 — 2026-04-08
 
 ### Added
