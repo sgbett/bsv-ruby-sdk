@@ -3,6 +3,7 @@
 require 'net/http'
 require 'json'
 require 'uri'
+require 'securerandom'
 
 module BSV
   module Network
@@ -14,15 +15,47 @@ module BSV
     # The HTTP client is injectable for testability. It must respond to
     # #request(uri, request) and return an object with #code and #body.
     class ARC
-      REJECTED_STATUSES = %w[REJECTED DOUBLE_SPEND_ATTEMPTED].freeze
+      # ARC response statuses that indicate the transaction was NOT accepted.
+      # Matches the TypeScript SDK's ARC broadcaster failure set (issue #305,
+      # finding F5.13). Prior to this fix, Ruby only recognised REJECTED and
+      # DOUBLE_SPEND_ATTEMPTED, silently treating INVALID / MALFORMED /
+      # MINED_IN_STALE_BLOCK responses as successful broadcasts.
+      REJECTED_STATUSES = %w[
+        REJECTED
+        DOUBLE_SPEND_ATTEMPTED
+        INVALID
+        MALFORMED
+        MINED_IN_STALE_BLOCK
+      ].freeze
 
-      def initialize(url, api_key: nil, http_client: nil)
+      # Substring match for orphan detection in txStatus or extraInfo fields.
+      ORPHAN_MARKER = 'ORPHAN'
+
+      # @param url [String] ARC base URL (without trailing slash)
+      # @param api_key [String, nil] optional bearer token for Authorization
+      # @param deployment_id [String, nil] optional deployment identifier for
+      #   the +XDeployment-ID+ header; defaults to a per-instance random value
+      # @param callback_url [String, nil] optional +X-CallbackUrl+ for ARC
+      #   status callbacks
+      # @param callback_token [String, nil] optional +X-CallbackToken+ for
+      #   ARC status callback authentication
+      # @param http_client [#request, nil] injectable HTTP client for testing
+      def initialize(url, api_key: nil, deployment_id: nil, callback_url: nil,
+                     callback_token: nil, http_client: nil)
         @url = url.chomp('/')
         @api_key = api_key
+        @deployment_id = deployment_id || "bsv-ruby-sdk-#{SecureRandom.hex(8)}"
+        @callback_url = callback_url
+        @callback_token = callback_token
         @http_client = http_client
       end
 
       # Submit a transaction to ARC.
+      #
+      # The transaction is encoded as Extended Format (BRC-30) hex when every
+      # input has +source_satoshis+ and +source_locking_script+ populated,
+      # which lets ARC validate sighashes without fetching parents. Falls back
+      # to plain raw-tx hex when EF is unavailable.
       #
       # @param tx [Transaction] the transaction to broadcast
       # @param wait_for [String, nil] ARC wait condition — one of
@@ -31,14 +64,18 @@ module BSV
       #   connection open until the transaction reaches the requested
       #   state (or times out). Defaults to nil (no wait).
       # @return [BroadcastResponse]
-      # @raise [BroadcastError]
+      # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
+      #   rejected/orphan +txStatus+
       def broadcast(tx, wait_for: nil)
         uri = URI("#{@url}/v1/tx")
         request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/octet-stream'
+        request['Content-Type'] = 'application/json'
+        request['XDeployment-ID'] = @deployment_id
         request['X-WaitFor'] = wait_for if wait_for
+        request['X-CallbackUrl'] = @callback_url if @callback_url
+        request['X-CallbackToken'] = @callback_token if @callback_token
         apply_auth_header(request)
-        request.body = tx.to_binary
+        request.body = JSON.generate(rawTx: raw_tx_hex(tx))
 
         response = execute(uri, request)
         handle_broadcast_response(response)
@@ -49,6 +86,7 @@ module BSV
       def status(txid)
         uri = URI("#{@url}/v1/tx/#{txid}")
         request = Net::HTTP::Get.new(uri)
+        request['XDeployment-ID'] = @deployment_id
         apply_auth_header(request)
 
         response = execute(uri, request)
@@ -56,6 +94,15 @@ module BSV
       end
 
       private
+
+      # Prefer Extended Format (BRC-30) hex so ARC can validate sighashes
+      # without fetching parent transactions. Falls back to plain raw-tx hex
+      # when any input lacks source_satoshis / source_locking_script.
+      def raw_tx_hex(tx)
+        tx.to_ef_hex
+      rescue ArgumentError
+        tx.to_hex
+      end
 
       def apply_auth_header(request)
         request['Authorization'] = "Bearer #{@api_key}" if @api_key
@@ -83,10 +130,9 @@ module BSV
           )
         end
 
-        tx_status = body['txStatus']
-        if rejected_status?(tx_status)
+        if rejected_status?(body)
           raise BroadcastError.new(
-            body['detail'] || body['title'] || tx_status,
+            body['detail'] || body['title'] || body['txStatus'],
             status_code: code,
             txid: body['txid']
           )
@@ -95,8 +141,15 @@ module BSV
         build_response(body)
       end
 
-      def rejected_status?(tx_status)
-        REJECTED_STATUSES.include?(tx_status)
+      def rejected_status?(body)
+        tx_status = body['txStatus']
+        return true if REJECTED_STATUSES.include?(tx_status)
+        return true if tx_status.is_a?(String) && tx_status.include?(ORPHAN_MARKER)
+
+        extra_info = body['extraInfo']
+        return true if extra_info.is_a?(String) && extra_info.include?(ORPHAN_MARKER)
+
+        false
       end
 
       def parse_json(raw)

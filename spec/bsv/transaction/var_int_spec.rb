@@ -99,4 +99,39 @@ RSpec.describe BSV::Transaction::VarInt do
       expect(described_class.encode(0x100000000).getbyte(0)).to eq(0xFF)  # 9-byte
     end
   end
+
+  # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/305 (F1.3)
+  #
+  # Prior behaviour: `VarInt.encode(-1)` fell into the `value < 0xFD` branch and
+  # emitted `[value].pack('C')`, which masks the two's-complement low byte —
+  # producing 0xFF, the marker byte for a 9-byte encoding. A downstream reader
+  # would then try to consume 8 more bytes from whatever followed, silently
+  # corrupting the transaction stream with no exception raised. The docstring
+  # required a non-negative integer but the implementation did not enforce it.
+  describe '.encode input validation (issue #305)' do
+    it 'raises ArgumentError on -1 (silent 0xFF marker corruption)' do
+      expect { described_class.encode(-1) }
+        .to raise_error(ArgumentError, /non-negative/)
+    end
+
+    it 'raises ArgumentError on a large negative integer' do
+      expect { described_class.encode(-0xFFFFFFFFFFFFFFFF) }
+        .to raise_error(ArgumentError, /non-negative/)
+    end
+
+    it 'accepts the uint64 maximum (2^64 - 1)' do
+      expected = "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF".b
+      expect(described_class.encode(0xFFFFFFFFFFFFFFFF)).to eq(expected)
+    end
+
+    it 'raises ArgumentError on 2^64 (just past uint64 max)' do
+      expect { described_class.encode(0x10000000000000000) }
+        .to raise_error(ArgumentError, /exceeds uint64/)
+    end
+
+    it 'raises ArgumentError on a very large value far above uint64' do
+      expect { described_class.encode(2**128) }
+        .to raise_error(ArgumentError, /exceeds uint64/)
+    end
+  end
 end

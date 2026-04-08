@@ -10,14 +10,35 @@ RSpec.describe 'WalletClient certificate methods' do
   let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.generate }
   let(:certifier_hex) { certifier_key.public_key.to_hex }
+  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
 
   let(:cert_type) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
   let(:serial_number) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
   let(:revocation_outpoint) { "#{'ab' * 32}.0" }
-  let(:signature) { 'deadbeef' * 8 }
 
   let(:fields) { { 'name' => 'Alice', 'email' => 'alice@example.com' } }
   let(:keyring) { { 'name' => Base64.strict_encode64('key1'), 'email' => Base64.strict_encode64('key2') } }
+
+  # Compute a valid BRC-52 certifier signature over the canonical preimage.
+  # The certifier signs with counterparty 'anyone' so any verifier deriving
+  # against counterparty=certifier_hex can reconstruct the same public key.
+  let(:signature) do
+    preimage = BSV::Wallet::CertificateSignature.serialise_preimage(
+      type: cert_type,
+      serial_number: serial_number,
+      subject: wallet.key_deriver.identity_key,
+      certifier: certifier_hex,
+      revocation_outpoint: revocation_outpoint,
+      fields: fields
+    )
+    result = certifier_wallet.create_signature({
+                                                 data: preimage.unpack('C*'),
+                                                 protocol_id: [2, 'certificate signature'],
+                                                 key_id: "#{cert_type} #{serial_number}",
+                                                 counterparty: 'anyone'
+                                               })
+    result[:signature].pack('C*').unpack1('H*')
+  end
 
   let(:direct_args) do
     {
@@ -49,6 +70,99 @@ RSpec.describe 'WalletClient certificate methods' do
     it 'does not return the keyring in the result' do
       result = wallet.acquire_certificate(direct_args)
       expect(result).not_to have_key(:keyring)
+    end
+
+    # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/305 (F8.15)
+    #
+    # Prior to this fix, `acquire_via_direct` wrote user-supplied certificate
+    # fields to storage without verifying the certifier's signature. A caller
+    # could pass any value as `args[:signature]` and it would be persisted as
+    # authentic. `list_certificates` and `prove_certificate` then treated the
+    # record as valid, producing a credential forgery primitive.
+    describe 'BRC-52 certifier signature verification (issue #305)' do
+      it 'rejects a certificate with an invalid signature' do
+        tampered = direct_args.merge(signature: 'ff' * 70)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'rejects a certificate whose fields have been tampered with after signing' do
+        tampered = direct_args.merge(fields: fields.merge('email' => 'attacker@example.com'))
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'rejects a certificate whose subject is overridden' do
+        # The wallet always sets subject to its own identity key, so changing
+        # the subject in args has no effect — but if the signature was made
+        # over a different subject, the preimage hash won't match.
+        other_wallet_signature = begin
+          other_key = BSV::Primitives::PrivateKey.generate
+          preimage = BSV::Wallet::CertificateSignature.serialise_preimage(
+            type: cert_type,
+            serial_number: serial_number,
+            subject: other_key.public_key.to_hex,
+            certifier: certifier_hex,
+            revocation_outpoint: revocation_outpoint,
+            fields: fields
+          )
+          result = certifier_wallet.create_signature({
+                                                       data: preimage.unpack('C*'),
+                                                       protocol_id: [2, 'certificate signature'],
+                                                       key_id: "#{cert_type} #{serial_number}",
+                                                       counterparty: 'anyone'
+                                                     })
+          result[:signature].pack('C*').unpack1('H*')
+        end
+
+        tampered = direct_args.merge(signature: other_wallet_signature)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'rejects a certificate signed by a different certifier' do
+        imposter_key = BSV::Primitives::PrivateKey.generate
+        imposter_wallet = BSV::Wallet::ProtoWallet.new(imposter_key)
+        preimage = BSV::Wallet::CertificateSignature.serialise_preimage(
+          type: cert_type,
+          serial_number: serial_number,
+          subject: wallet.key_deriver.identity_key,
+          certifier: certifier_hex, # claims to be from the real certifier
+          revocation_outpoint: revocation_outpoint,
+          fields: fields
+        )
+        imposter_sig = imposter_wallet.create_signature({
+                                                          data: preimage.unpack('C*'),
+                                                          protocol_id: [2, 'certificate signature'],
+                                                          key_id: "#{cert_type} #{serial_number}",
+                                                          counterparty: 'anyone'
+                                                        })[:signature].pack('C*').unpack1('H*')
+
+        tampered = direct_args.merge(signature: imposter_sig)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'rejects a certificate with a malformed (non-hex) signature' do
+        tampered = direct_args.merge(signature: 'not hex at all')
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'does not persist an unverified certificate to storage' do
+        tampered = direct_args.merge(signature: 'ff' * 70)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+
+        certs = wallet.list_certificates({ certifiers: [certifier_hex], types: [cert_type] })
+        expect(certs[:total_certificates]).to eq(0)
+      end
     end
 
     it 'raises InvalidParameterError for issuance without certifier_url' do

@@ -19,9 +19,24 @@ RSpec.describe BSV::Network::ARC do
     end
   end
 
-  # Minimal transaction double with #to_binary
+  # Minimal transaction double supporting the Extended Format (BRC-30)
+  # preferred by ARC, plus the plain raw-tx hex fallback used when any
+  # input lacks source_satoshis / source_locking_script.
   let(:tx) do
-    instance_double(BSV::Transaction::Transaction, to_binary: "\x01\x00\x00\x00".b)
+    instance_double(
+      BSV::Transaction::Transaction,
+      to_ef_hex: '010000000000ef0000',
+      to_hex: '01000000'
+    )
+  end
+
+  # Alternate transaction double that cannot produce EF form (matches the
+  # real Transaction#to_ef behaviour of raising when inputs are missing
+  # source_satoshis or source_locking_script).
+  let(:tx_no_source) do
+    dbl = instance_double(BSV::Transaction::Transaction, to_hex: '01000000')
+    allow(dbl).to receive(:to_ef_hex).and_raise(ArgumentError, 'inputs must have source_satoshis for EF')
+    dbl
   end
 
   let(:success_body) do
@@ -51,14 +66,68 @@ RSpec.describe BSV::Network::ARC do
       expect(response.success?).to be true
     end
 
-    it 'sends binary transaction body with correct content type' do
+    it 'sends JSON body with Extended Format hex raw tx' do
       http = mock_http.new(200, success_body)
       arc = described_class.new('https://arc.example.com', http_client: http)
 
       arc.broadcast(tx)
 
-      expect(http.last_request['Content-Type']).to eq('application/octet-stream')
-      expect(http.last_request.body).to eq("\x01\x00\x00\x00".b)
+      expect(http.last_request['Content-Type']).to eq('application/json')
+      body = JSON.parse(http.last_request.body)
+      expect(body).to eq('rawTx' => '010000000000ef0000')
+    end
+
+    it 'falls back to plain raw-tx hex when EF encoding is unavailable' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.new('https://arc.example.com', http_client: http)
+
+      arc.broadcast(tx_no_source)
+
+      body = JSON.parse(http.last_request.body)
+      expect(body).to eq('rawTx' => '01000000')
+    end
+
+    it 'sends the XDeployment-ID header (default random identifier)' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.new('https://arc.example.com', http_client: http)
+
+      arc.broadcast(tx)
+
+      expect(http.last_request['XDeployment-ID']).to start_with('bsv-ruby-sdk-')
+    end
+
+    it 'sends an explicit XDeployment-ID when configured' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.new('https://arc.example.com', deployment_id: 'acme-prod-42', http_client: http)
+
+      arc.broadcast(tx)
+
+      expect(http.last_request['XDeployment-ID']).to eq('acme-prod-42')
+    end
+
+    it 'sends X-CallbackUrl and X-CallbackToken headers when configured' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.new(
+        'https://arc.example.com',
+        callback_url: 'https://example.com/arc-cb',
+        callback_token: 'secret-token',
+        http_client: http
+      )
+
+      arc.broadcast(tx)
+
+      expect(http.last_request['X-CallbackUrl']).to eq('https://example.com/arc-cb')
+      expect(http.last_request['X-CallbackToken']).to eq('secret-token')
+    end
+
+    it 'omits X-CallbackUrl and X-CallbackToken when not configured' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.new('https://arc.example.com', http_client: http)
+
+      arc.broadcast(tx)
+
+      expect(http.last_request['X-CallbackUrl']).to be_nil
+      expect(http.last_request['X-CallbackToken']).to be_nil
     end
 
     it 'posts to /v1/tx' do
@@ -116,6 +185,57 @@ RSpec.describe BSV::Network::ARC do
       arc = described_class.new('https://arc.example.com', http_client: http)
 
       expect { arc.broadcast(tx) }.to raise_error(BSV::Network::BroadcastError, 'Double spend')
+    end
+
+    # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/305 (F5.13)
+    #
+    # Prior behaviour: `REJECTED_STATUSES` only contained REJECTED and
+    # DOUBLE_SPEND_ATTEMPTED. ARC responses with txStatus INVALID, MALFORMED,
+    # MINED_IN_STALE_BLOCK, or any ORPHAN-containing status / extraInfo were
+    # silently treated as successful broadcasts — callers relying on
+    # broadcast() to signal failure would trust un-broadcast transactions.
+    describe 'failure status recognition (issue #305)' do
+      %w[INVALID MALFORMED MINED_IN_STALE_BLOCK].each do |failure_status|
+        it "raises BroadcastError when txStatus is #{failure_status}" do
+          body = {
+            'txid' => 'abc123',
+            'txStatus' => failure_status,
+            'title' => "Transaction #{failure_status.downcase}"
+          }.to_json
+          http = mock_http.new(200, body)
+          arc = described_class.new('https://arc.example.com', http_client: http)
+
+          expect { arc.broadcast(tx) }
+            .to raise_error(BSV::Network::BroadcastError)
+        end
+      end
+
+      it 'raises BroadcastError when txStatus contains ORPHAN' do
+        body = {
+          'txid' => 'abc123',
+          'txStatus' => 'ORPHAN_MISSING_PARENT',
+          'title' => 'Orphan transaction'
+        }.to_json
+        http = mock_http.new(200, body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError, 'Orphan transaction')
+      end
+
+      it 'raises BroadcastError when extraInfo contains ORPHAN' do
+        body = {
+          'txid' => 'abc123',
+          'txStatus' => 'SEEN_ON_NETWORK',
+          'title' => 'Orphan',
+          'extraInfo' => 'transaction is an ORPHAN — missing parent tx'
+        }.to_json
+        http = mock_http.new(200, body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError)
+      end
     end
 
     it 'handles non-JSON response body gracefully' do
