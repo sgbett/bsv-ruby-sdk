@@ -1,0 +1,2305 @@
+{
+  "F1.1": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F1.2": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F1.3": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F1.4": {
+    "agree": 1,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F1.5": {
+    "agree": 10,
+    "disagree": 0,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F1.6": {
+    "agree": 5,
+    "disagree": 1,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F1.7": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F1.8": {
+    "agree": 10,
+    "disagree": 0,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F2.1": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F2.2": {
+    "agree": 8,
+    "disagree": 1,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F2.3": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F2.4": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F2.5": {
+    "agree": 5,
+    "disagree": 2,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONTROVERSIAL",
+    "dissenters": [
+      "Pragmatic Enforcer",
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Security Specialist",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F2.6": {
+    "agree": 3,
+    "disagree": 1,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F2.7": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Implementation Strategist",
+      "Pragmatic Enforcer"
+    ]
+  },
+  "F2.8": {
+    "agree": 2,
+    "disagree": 2,
+    "no_op": 6,
+    "missing": [],
+    "status": "CONTROVERSIAL",
+    "dissenters": [
+      "Pragmatic Enforcer",
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Security Specialist",
+      "Ruby Expert"
+    ]
+  },
+  "F2.9": {
+    "agree": 10,
+    "disagree": 0,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F3.1": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.2": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.3": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.4": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.5": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.6": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.7": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.8": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.9": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.10": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.11": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.12": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.13": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.14": {
+    "agree": 6,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [
+      "Implementation Strategist",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Cryptography Specialist"
+    ]
+  },
+  "F3.15": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.16": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.17": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.18": {
+    "agree": 5,
+    "disagree": 1,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F3.19": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F3.20": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F3.21": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F3.22": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F4.1": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.2": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.3": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.4": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.5": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.6": {
+    "agree": 4,
+    "disagree": 1,
+    "no_op": 5,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.7": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F4.8": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F4.9": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F4.10": {
+    "agree": 6,
+    "disagree": 0,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F4.11": {
+    "agree": 6,
+    "disagree": 0,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.1": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.2": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F5.3": {
+    "agree": 9,
+    "disagree": 1,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F5.4": {
+    "agree": 10,
+    "disagree": 0,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F5.5": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.6": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.7": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.8": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.9": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.10": {
+    "agree": 9,
+    "disagree": 1,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F5.11": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F5.12": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.13": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F5.14": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 6,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Ruby Expert"
+    ]
+  },
+  "F5.15": {
+    "agree": 4,
+    "disagree": 1,
+    "no_op": 4,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F5.16": {
+    "agree": 3,
+    "disagree": 1,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F5.17": {
+    "agree": 1,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist"
+    ]
+  },
+  "F5.18": {
+    "agree": 1,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist"
+    ]
+  },
+  "F5.19": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 6,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Ruby Expert"
+    ]
+  },
+  "F5.20": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F6.1": {
+    "agree": 2,
+    "disagree": 2,
+    "no_op": 6,
+    "missing": [],
+    "status": "CONTROVERSIAL",
+    "dissenters": [
+      "Pragmatic Enforcer",
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Security Specialist",
+      "Ruby Expert"
+    ]
+  },
+  "F6.2": {
+    "agree": 3,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.3": {
+    "agree": 3,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.4": {
+    "agree": 3,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.5": {
+    "agree": 3,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.6": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F6.7": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Domain Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F6.8": {
+    "agree": 3,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.9": {
+    "agree": 6,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F6.10": {
+    "agree": 5,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Security Specialist",
+      "Pragmatic Enforcer",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F6.11": {
+    "agree": 3,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.12": {
+    "agree": 1,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F6.13": {
+    "agree": 1,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F6.14": {
+    "agree": 1,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F6.15": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F6.16": {
+    "agree": 5,
+    "disagree": 1,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.1": {
+    "agree": 6,
+    "disagree": 0,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.2": {
+    "agree": 6,
+    "disagree": 0,
+    "no_op": 4,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.3": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F7.4": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F7.5": {
+    "agree": 0,
+    "disagree": 1,
+    "no_op": 9,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": []
+  },
+  "F7.6": {
+    "agree": 6,
+    "disagree": 2,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONTROVERSIAL",
+    "dissenters": [
+      "Pragmatic Enforcer",
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.7": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F7.8": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F7.9": {
+    "agree": 10,
+    "disagree": 0,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F7.10": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F7.11": {
+    "agree": 10,
+    "disagree": 0,
+    "no_op": 0,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F7.12": {
+    "agree": 1,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F7.13": {
+    "agree": 1,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F7.14": {
+    "agree": 1,
+    "disagree": 0,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect"
+    ]
+  },
+  "F7.15": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F7.16": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.17": {
+    "agree": 0,
+    "disagree": 1,
+    "no_op": 9,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": []
+  },
+  "F7.18": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.19": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F7.20": {
+    "agree": 1,
+    "disagree": 1,
+    "no_op": 8,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist"
+    ]
+  },
+  "F7.21": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F8.1": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.2": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.3": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.4": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.5": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.6": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.7": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.8": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.9": {
+    "agree": 3,
+    "disagree": 1,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F8.10": {
+    "agree": 7,
+    "disagree": 0,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.11": {
+    "agree": 5,
+    "disagree": 2,
+    "no_op": 3,
+    "missing": [],
+    "status": "CONTROVERSIAL",
+    "dissenters": [
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance"
+    ]
+  },
+  "F8.12": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.13": {
+    "agree": 7,
+    "disagree": 1,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.14": {
+    "agree": 9,
+    "disagree": 0,
+    "no_op": 1,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F8.15": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert",
+      "Cryptography Specialist"
+    ]
+  },
+  "F8.16": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Security Specialist",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.17": {
+    "agree": 4,
+    "disagree": 1,
+    "no_op": 5,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F8.18": {
+    "agree": 8,
+    "disagree": 0,
+    "no_op": 2,
+    "missing": [],
+    "status": "CONSENSUS",
+    "dissenters": [],
+    "agreers": [
+      "Domain Expert",
+      "Security Specialist",
+      "Maintainability Expert",
+      "Performance Specialist",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.19": {
+    "agree": 2,
+    "disagree": 2,
+    "no_op": 5,
+    "missing": [
+      "Maintainability Expert"
+    ],
+    "status": "CONTROVERSIAL",
+    "dissenters": [
+      "Pragmatic Enforcer",
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Security Specialist",
+      "Ruby Expert"
+    ]
+  },
+  "F8.20": {
+    "agree": 4,
+    "disagree": 1,
+    "no_op": 5,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Cryptography Specialist"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F8.21": {
+    "agree": 1,
+    "disagree": 1,
+    "no_op": 6,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Ruby Expert"
+    ]
+  },
+  "F8.22": {
+    "agree": 1,
+    "disagree": 1,
+    "no_op": 6,
+    "missing": [
+      "Maintainability Expert",
+      "Implementation Strategist"
+    ],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Ruby Expert"
+    ]
+  },
+  "F8.23": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F8.24": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F8.25": {
+    "agree": 6,
+    "disagree": 1,
+    "no_op": 3,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Domain Expert",
+      "Maintainability Expert",
+      "Implementation Strategist",
+      "Quality Assurance",
+      "Ruby Expert"
+    ]
+  },
+  "F8.26": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Systems Architect",
+      "Ruby Expert"
+    ]
+  },
+  "F8.27": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  },
+  "F8.28": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F8.29": {
+    "agree": 2,
+    "disagree": 1,
+    "no_op": 7,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [
+      "Pragmatic Enforcer"
+    ],
+    "agreers": [
+      "Implementation Strategist",
+      "Ruby Expert"
+    ]
+  },
+  "F8.30": {
+    "agree": 4,
+    "disagree": 0,
+    "no_op": 6,
+    "missing": [],
+    "status": "SPECIALIST",
+    "dissenters": [],
+    "agreers": [
+      "Systems Architect",
+      "Implementation Strategist",
+      "Pragmatic Enforcer",
+      "Ruby Expert"
+    ]
+  }
+}
