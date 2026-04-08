@@ -181,6 +181,7 @@ Small individually, none block anything. Can land as a single catch-all PR or ri
 | F8.10 | LOW | `lib/bsv/wallet_interface.rb` | Namespace cleanup: delete empty `BSV::WalletInterface` shell. Legacy `BSV::Wallet::Wallet` extraction deferred to Tier B. |
 | F8.14 | HIGH | `wallet_interface/wallet_client.rb:711-729` | `internalize_action` must verify BEEF merkle proofs against block headers before storing. |
 | F8.18 | LOW | `wallet_interface/wallet_client.rb:545-559` | `wire_source_tx_ancestors` unbounded recursion. Add depth cap and cycle detection. |
+| **P305.1** | MED | `wallet_interface/proto_wallet.rb:144` | `ProtoWallet#create_signature` defaults `counterparty: 'self'`; TS defaults to `'anyone'` (see `ts-sdk/src/wallet/ProtoWallet.ts:259`). Silent cross-SDK divergence: Ruby and TS consumers calling `create_signature` without an explicit counterparty get signatures that don't verify against each other. Surfaced during #305 implementation while writing BRC-52 certificate tests (the correct BRC-52 sign path requires `counterparty: 'anyone'`, which Ruby users must pass explicitly). Fix: change Ruby's default to `'anyone'` to match TS. Breaking change for any Ruby consumer relying on the `'self'` default, so must ship with a release note. Only affects `create_signature` (TS's `verify_signature`, `encrypt`, `decrypt`, etc. all default to `'self'` on both sides). |
 
 ## Explicitly deferred from 0.9.0
 
@@ -202,7 +203,7 @@ Note: 0.9.0 ships the "raise first" fail-safe for all eight opcodes via A6. 0.10
 - **F8.11** — WireFormat translator (snake↔camel at JSON boundaries)
 - **F8.12** — `listActions` / `listOutputs` include-flag honouring
 - **F8.13** — `sendWith` / `noSend` / batch broadcast model
-- **F8.16** — `acquire_certificate` issuance via BRC-104 AuthFetch
+- **F8.16** — `acquire_certificate` issuance via BRC-104 AuthFetch. **Partially closed in #305**: the "no signature verification on the issuance path" aspect (noted in F8.16 as "Same issue as F8.15") was fixed as a side effect of the F8.15 hotfix, since both `acquire_via_direct` and `acquire_via_issuance` now call `CertificateSignature.verify!`. What remains in Tier B is the transport switch from ad-hoc JSON POST to BRC-104 AuthFetch with BRC-103-signed requests against the certifier's identity key.
 - **F8.25** — `BSV::Attest` extraction to `bsv-attest` companion gem
 
 ### Backlog (no action, documented in review)
@@ -226,6 +227,28 @@ Note: 0.9.0 ships the "raise first" fail-safe for all eight opcodes via A6. 0.10
   - F7.1/F7.2 raise-first — breaking change for any caller running Chronicle opcodes through the interpreter; advertise 0.10 as the implementation target
 - [ ] Release notes prominently reference the 2026-04-08 compliance review document
 
+## Post-review addenda (findings surfaced during implementation)
+
+Items discovered while implementing the review's findings. Numbered `P<hlr>.<n>` to distinguish from phase-review findings. Added to the relevant cluster above with the cross-reference below.
+
+### P305.1 — `ProtoWallet#create_signature` counterparty default divergence
+
+- **Surfaced during**: sgbett/bsv-ruby-sdk#305 (F8.15 BRC-52 certificate verification)
+- **Severity**: MED
+- **Location**: `lib/bsv/wallet_interface/proto_wallet.rb:144`
+- **Cluster**: A7 (defensive bits)
+- **Description**: Ruby's `ProtoWallet#create_signature` defaults `counterparty` to `'self'`. TypeScript's `ProtoWallet.createSignature` defaults to `'anyone'` (`ts-sdk/src/wallet/ProtoWallet.ts:259`). This is a silent cross-SDK divergence: identical call sites without an explicit counterparty get signatures that cannot cross-verify between Ruby and TS. BRC-52 certificate signing specifically requires `counterparty: 'anyone'` — the review's implementation of F8.15 had to make this explicit in every certificate test to get signatures that verify against TS's canonical `counterparty: certifier_hex` path. It's the same letter-vs-spirit pattern: Ruby's self-tests pass because they sign and verify in the same SDK, but any cross-SDK flow that relies on the default diverges.
+- **Note**: only `createSignature` has this default; TS's `verify_signature`, `encrypt`, `decrypt`, `create_hmac`, and `verify_hmac` all default to `'self'` on both sides. The asymmetry is intentional in TS (signatures are usually verified by others; encryption/HMAC are usually self-to-self), and Ruby should mirror it.
+- **Fix**: change Ruby's default to `'anyone'` in `create_signature`. Breaking change for any Ruby consumer relying on the `'self'` default — add a release note.
+- **Scheduled**: A7 (see the cluster table above)
+
+### F8.16 partial closure — issuance-path signature verification
+
+- **Closed by**: sgbett/bsv-ruby-sdk#305 (F8.15 fix)
+- **Original description**: F8.16 noted two issues with `acquire_via_issuance` — (a) ad-hoc HTTP POST instead of BRC-104 AuthFetch, (b) "doesn't verify the returned signature before storing, same issue as F8.15"
+- **What #305 closed**: aspect (b). Both `acquire_via_direct` and `acquire_via_issuance` now call `BSV::Wallet::CertificateSignature.verify!` before persisting, so a certifier that returns an invalid signature to the issuance HTTP endpoint is rejected with the same `InvalidError` as a tampered direct certificate.
+- **What remains in Tier B**: aspect (a). The HTTP transport for the issuance path is still an ad-hoc JSON POST rather than BRC-104 AuthFetch with BRC-103-signed requests against the certifier's identity key. This is a transport-layer concern deferred with the rest of F8.2/F8.3/F8.6 until the Phase 8 architectural epic.
+
 ## Open questions to resolve as HLRs are written
 
 1. **C1 vector sync strategy**: vendor vectors in-repo (static snapshot) vs git-submodule reference SDKs (live sync)? Recommend static snapshot with documented sync procedure — submodules complicate CI and aren't worth it for a regression test suite.
@@ -239,12 +262,13 @@ Note: 0.9.0 ships the "raise first" fail-safe for all eight opcodes via A6. 0.10
 | Step | Status | Notes |
 |---|---|---|
 | Plan written | ✅ | this document |
+| **A1 HLR (0.8.2 patch)** | ✅ | #305 / PR #306 — F8.15, F1.3, F5.13 shipped; F8.16 verification aspect closed as side effect; P305.1 surfaced |
 | C1 HLR | pending | open next |
 | A2 HLR | pending | after C1 |
 | A3 HLR | pending | after A2 F1.5 |
 | A4 HLR | pending | parallel with A3 |
 | A5 HLR | pending | after A2 F1.5 |
 | A6 HLR | pending | parallel with A3/A4/A5 |
-| A7 HLR | pending | opportunistic |
+| A7 HLR | pending | opportunistic; includes P305.1 |
 
 HLR numbers populated in the **Cluster overview** table at the top of this document as each is opened.
