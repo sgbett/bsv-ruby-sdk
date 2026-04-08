@@ -276,8 +276,9 @@ RSpec.describe BSV::Transaction::MerklePath do
     end
 
     context 'with duplicate ("*") nodes' do
-      # Synthetic 4-leaf tree where the proven tx is at the rightmost
-      # odd-pair position, so its level-0 sibling is itself (duplicated).
+      # Synthetic 3-leaf tree where the proven tx is the last leaf.
+      # The final leaf is duplicated to form the right-hand pair at level 0,
+      # so its sibling in the proof is itself ("*").
       let(:fake_hash) { ->(label) { BSV::Primitives::Digest.sha256(label) } }
       let(:leaves) { (0..2).map { |i| fake_hash.call("t#{i}") } }
       let(:level1) do
