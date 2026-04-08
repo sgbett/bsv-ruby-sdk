@@ -76,7 +76,12 @@ module BSV
         raise if e.is_a?(InvalidError)
 
         raise InvalidError, e.message
-      rescue ArgumentError => e
+      rescue ArgumentError, EncodingError => e
+        # EncodingError covers Encoding::InvalidByteSequenceError and
+        # Encoding::UndefinedConversionError, which `encode_fields`
+        # raises for non-UTF-8 field names or values. Callers of
+        # `acquire_certificate` expect `InvalidError` on bad cert input
+        # — leaking EncodingError would break that contract.
         raise InvalidError, e.message
       end
 
@@ -119,14 +124,15 @@ module BSV
         def encode_fields(fields)
           raise ArgumentError, 'fields must be a Hash' unless fields.is_a?(Hash)
 
+          normalised = normalise_field_keys(fields)
+
           buf = String.new(encoding: Encoding::ASCII_8BIT)
-          sorted_names = fields.keys.map(&:to_s).sort
+          sorted_names = normalised.keys.sort
           buf << BSV::Transaction::VarInt.encode(sorted_names.length)
 
           sorted_names.each do |name|
             name_bytes = name.encode('UTF-8').b
-            value = fields[name] || fields[name.to_sym]
-            value_bytes = value.to_s.encode('UTF-8').b
+            value_bytes = normalised[name].to_s.encode('UTF-8').b
 
             buf << BSV::Transaction::VarInt.encode(name_bytes.bytesize)
             buf << name_bytes
@@ -136,10 +142,42 @@ module BSV
           buf
         end
 
+        # Normalise Hash keys to strings and reject post-normalisation
+        # duplicates (e.g. both `:email` and `'email'`). Without this,
+        # `fields.keys.map(&:to_s)` silently produces duplicate entries
+        # with ambiguous value ordering, which makes the BRC-52 preimage
+        # non-deterministic.
+        def normalise_field_keys(fields)
+          normalised = {}
+          fields.each do |key, value|
+            str_key = key.to_s
+            if normalised.key?(str_key)
+              raise ArgumentError,
+                    "duplicate field name #{str_key.inspect} " \
+                    '(once as string, once as symbol)'
+            end
+
+            normalised[str_key] = value
+          end
+          normalised
+        end
+
         def decode_base64_exact(value, expected_length, field_name)
           raise ArgumentError, "#{field_name} is missing" if value.nil? || value.empty?
 
-          bytes = Base64.decode64(value)
+          # strict_decode64 (vs permissive decode64) rejects whitespace,
+          # non-base64 characters, and non-canonical padding. The rest
+          # of bsv-wallet (e.g. the wire serialiser) uses strict mode,
+          # and the BRC-52 preimage must be unambiguous — a cert with
+          # whitespace-injected type/serial_number would decode to the
+          # right length but produce a different canonical form than
+          # the same data re-submitted cleanly.
+          bytes = begin
+            Base64.strict_decode64(value)
+          rescue ArgumentError => e
+            raise ArgumentError, "#{field_name} is not valid base64: #{e.message}"
+          end
+
           if bytes.bytesize != expected_length
             raise ArgumentError,
                   "#{field_name} must decode to #{expected_length} bytes, got #{bytes.bytesize}"
@@ -164,6 +202,7 @@ module BSV
 
         def hex_to_bytes(hex)
           raise ArgumentError, 'signature must be a hex string' unless hex.is_a?(String) && hex.match?(/\A\h+\z/)
+          raise ArgumentError, 'signature hex length must be even' unless hex.length.even?
 
           [hex].pack('H*').unpack('C*')
         end

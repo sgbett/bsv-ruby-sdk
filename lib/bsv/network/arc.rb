@@ -138,16 +138,35 @@ module BSV
           )
         end
 
+        # A 2xx response without a txid is a malformed ARC reply —
+        # `parse_json` falls back to `{'detail' => raw}` on non-JSON,
+        # which would otherwise produce a `BroadcastResponse` full of
+        # `nil`s and `success? => true`. That's the same silent
+        # success-as-failure class of bug F5.13 closed for explicit
+        # error statuses; closing it here for shape corruption too.
+        unless body['txid']
+          raise BroadcastError.new(
+            'ARC returned a malformed 2xx response',
+            status_code: code
+          )
+        end
+
         build_response(body)
       end
 
       def rejected_status?(body)
-        tx_status = body['txStatus']
+        # Case-insensitive match — the TypeScript reference
+        # (`ts-sdk/src/transaction/broadcasters/ARC.ts:155-166`) explicitly
+        # `.toUpperCase()`s both fields before membership / substring checks.
+        # ARC has a documented history of emitting values outside its own
+        # OpenAPI enum (e.g. `txStatus: "success"` for orphans in TS issue
+        # #105), so case normalisation is the defensive choice.
+        tx_status = body['txStatus'].to_s.upcase
         return true if REJECTED_STATUSES.include?(tx_status)
-        return true if tx_status.is_a?(String) && tx_status.include?(ORPHAN_MARKER)
+        return true if tx_status.include?(ORPHAN_MARKER)
 
-        extra_info = body['extraInfo']
-        return true if extra_info.is_a?(String) && extra_info.include?(ORPHAN_MARKER)
+        extra_info = body['extraInfo'].to_s.upcase
+        return true if extra_info.include?(ORPHAN_MARKER)
 
         false
       end

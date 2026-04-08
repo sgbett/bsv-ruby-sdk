@@ -155,7 +155,7 @@ Metrics/ModuleLength:
     - 'lib/bsv/primitives/ecies.rb'
     - 'lib/bsv/script/opcodes.rb'
     - 'lib/bsv/script/interpreter/operations/**/*'
-    - 'lib/bsv/wallet_interface/wire/**/*'
+    - 'lib/bsv/wallet_interface/**/*'
     - 'lib/bsv/identity/**/*'
     - 'lib/bsv/registry/**/*'
     - 'spec/**/*'

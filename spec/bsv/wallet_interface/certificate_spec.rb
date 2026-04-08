@@ -165,6 +165,61 @@ RSpec.describe 'WalletClient certificate methods' do
       end
     end
 
+    # Follow-up hardening from PR #306 review.
+    describe 'CertificateSignature input validation (#306 review)' do
+      # #2 — strict base64 decode
+      it 'rejects a certificate whose type has whitespace-injected base64' do
+        # strict_decode64 rejects whitespace; decode64 would have accepted it.
+        # The decoded length would still be 32 bytes here, which is exactly
+        # the silent-corruption case strict_decode64 closes.
+        raw32 = "\x01".b * 32
+        valid_type = Base64.strict_encode64(raw32)
+        whitespace_injected = valid_type.chars.each_slice(8).map(&:join).join("\n")
+
+        tampered = direct_args.merge(type: whitespace_injected)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError, /base64/)
+      end
+
+      it 'rejects a certificate whose serial_number has non-base64 characters' do
+        tampered = direct_args.merge(serial_number: 'not valid base64!!@#$%^&*()_+|')
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      # #3 — EncodingError → InvalidError
+      it 'rejects a certificate with non-UTF-8 bytes in a field value as InvalidError' do
+        # A lone 0x80 byte is invalid UTF-8 (continuation byte with no lead).
+        bad_field_value = "\x80".b
+        tampered = direct_args.merge(fields: fields.merge('email' => bad_field_value))
+
+        # Without the EncodingError rescue, this would leak
+        # Encoding::InvalidByteSequenceError / UndefinedConversionError.
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      # #4 — duplicate field names
+      it 'rejects fields containing both symbol and string forms of the same name' do
+        ambiguous = { 'email' => 'one@example.com', email: 'two@example.com' }
+        tampered = direct_args.merge(fields: ambiguous)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError, /duplicate field name/)
+      end
+
+      # #6 — hex_to_bytes even-length guard
+      it 'rejects an odd-length signature hex' do
+        # Chop one hex nibble off an otherwise valid signature.
+        tampered = direct_args.merge(signature: signature[0...-1])
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError, /even/)
+      end
+    end
+
     it 'raises InvalidParameterError for issuance without certifier_url' do
       args = direct_args.merge(acquisition_protocol: 'issuance')
       args.delete(:serial_number)

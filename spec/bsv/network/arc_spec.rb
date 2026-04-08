@@ -238,6 +238,81 @@ RSpec.describe BSV::Network::ARC do
       end
     end
 
+    # Follow-up hardening from PR #306 review — match TS's case-insensitive
+    # detection at `ts-sdk/src/transaction/broadcasters/ARC.ts:155-166`.
+    # ARC's OpenAPI pins txStatus as an UPPERCASE enum, but ARC has a
+    # documented history of emitting values outside its own contract
+    # (TS issue #105), so normalisation is the defensive choice.
+    describe 'case-insensitive failure status detection (#306 review)' do
+      %w[rejected invalid malformed mined_in_stale_block REJECTED Invalid].each do |status|
+        it "raises BroadcastError on txStatus #{status.inspect} (case-insensitive)" do
+          body = { 'txid' => 'abc123', 'txStatus' => status, 'title' => 'rejected' }.to_json
+          http = mock_http.new(200, body)
+          arc = described_class.new('https://arc.example.com', http_client: http)
+
+          expect { arc.broadcast(tx) }
+            .to raise_error(BSV::Network::BroadcastError)
+        end
+      end
+
+      it 'raises BroadcastError when extraInfo contains lowercase "orphan"' do
+        body = {
+          'txid' => 'abc123',
+          'txStatus' => 'SEEN_ON_NETWORK',
+          'title' => 'Orphan',
+          'extraInfo' => 'transaction is an orphan — missing parent tx'
+        }.to_json
+        http = mock_http.new(200, body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError)
+      end
+
+      it 'raises BroadcastError when txStatus contains mixed-case "Orphan"' do
+        body = {
+          'txid' => 'abc123',
+          'txStatus' => 'seen_in_Orphan_mempool'
+        }.to_json
+        http = mock_http.new(200, body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError)
+      end
+    end
+
+    # Follow-up hardening from PR #306 review — guard against malformed
+    # 2xx responses that would otherwise produce a silent "success"
+    # BroadcastResponse full of nils.
+    describe 'malformed 2xx response rejection (#306 review)' do
+      it 'raises BroadcastError on a 2xx response that is not JSON' do
+        http = mock_http.new(200, 'an ARC proxy wrote this plaintext response')
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError, /malformed/)
+      end
+
+      it 'raises BroadcastError on a 2xx JSON response without a txid' do
+        body = { 'txStatus' => 'SEEN_ON_NETWORK' }.to_json # no txid
+        http = mock_http.new(200, body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError, /malformed/)
+      end
+
+      it 'raises BroadcastError on a 2xx JSON response with explicit null txid' do
+        body = { 'txid' => nil, 'txStatus' => 'SEEN_ON_NETWORK' }.to_json
+        http = mock_http.new(200, body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        expect { arc.broadcast(tx) }
+          .to raise_error(BSV::Network::BroadcastError, /malformed/)
+      end
+    end
+
     it 'handles non-JSON response body gracefully' do
       http = mock_http.new(500, 'Internal Server Error')
       arc = described_class.new('https://arc.example.com', http_client: http)
