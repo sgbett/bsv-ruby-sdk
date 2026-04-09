@@ -284,6 +284,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/transaction/live_policy_spec.rb'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
     - 'spec/bsv/registry/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
