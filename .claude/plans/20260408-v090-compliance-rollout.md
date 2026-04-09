@@ -42,10 +42,10 @@ Impact on 0.9: 5 trivial changes (promote `OP_SUBSTR`/`OP_LEFT`/`OP_RIGHT`/`OP_L
 |---|---|---|---|---|---|
 | #307 — C1 | Conformance suite | bsv-sdk | Cross-SDK vector loader + fixture infrastructure | A3, A5, A6 regression tests | — |
 | #310 — A2 | Foundation correctness | bsv-sdk | F4.2, F1.8, F1.5 | A5 (hex), possibly A3 | — |
-| TBD — A3 | BEEF cluster (single PR) | bsv-sdk | F5.1 → F5.2/F5.4/F5.5/F5.6/F5.7/F5.8/F5.9/F5.10/F5.12/F5.3/F5.20 | — | C1, A2 (for hex module if touched) |
-| TBD — A4 | Crypto hardening | bsv-sdk | F2.1, F2.3, F2.2, F2.4, F2.9 | — | — (parallel with A3) |
-| TBD — A5 | Parser correctness | bsv-sdk | F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.10, F3.12, F3.14/F3.21, F3.16 | — | A2 (F1.5 hex module blocks F3.5) |
-| TBD — A6 | Interpreter hardening + Chronicle fail-safe | bsv-sdk | F7.8, F7.9, F7.10, F7.11, F7.16, F7.18, F7.19, F7.1/F7.2 (raise first) | — | — (parallel with A3/A5) |
+| #315 — A3 | BEEF cluster (single PR) | bsv-sdk | F5.1 → F5.2/F5.4/F5.5/F5.6/F5.7/F5.8/F5.9/F5.10/F5.12/F5.3/F5.20 | — | C1, A2 (for hex module if touched) |
+| #316 — A4 | Crypto hardening | bsv-sdk | F2.1, F2.3, F2.2, F2.4, F2.9 | — | — (parallel with A3) |
+| #317 — A5 | Parser correctness | bsv-sdk | F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.10, F3.12, F3.14/F3.21, F3.16 | — | A2 (F1.5 hex module blocks F3.5) |
+| #318 — A6 | Interpreter hardening + Chronicle fail-safe | bsv-sdk | F7.8, F7.9, F7.10, F7.11, F7.16, F7.18, F7.19, F7.1/F7.2 (raise first) | — | — (parallel with A3/A5) |
 | TBD — A7 | Defensive bits (catch-all) | **both** | bsv-sdk: F4.1, F4.3, F4.4, F4.9; bsv-wallet: F8.7, F8.8, F8.10, F8.14, F8.18, P305.1 | — | — |
 
 HLR numbers will be assigned as they are created. This plan updates as each is opened.
@@ -292,10 +292,10 @@ Items discovered while implementing the review's findings. Numbered `P<hlr>.<n>`
 | **A1 HLR (bsv-sdk 0.8.2 + bsv-wallet 0.3.4)** | both | ✅ | #305 / PR #306 — F1.3 + F5.13 (bsv-sdk), F8.15 (bsv-wallet); F8.16 verification aspect closed as side effect; P305.1 surfaced; bsv-wallet.gemspec bsv-sdk dep tightened to `>= 0.8.2` |
 | C1 HLR | bsv-sdk | ✅ | #307 — opened 2026-04-08 |
 | A2 HLR | bsv-sdk | ✅ | #310 — opened 2026-04-09 |
-| A3 HLR | bsv-sdk | pending | after A2 F1.5 |
-| A4 HLR | bsv-sdk | pending | parallel with A3 |
-| A5 HLR | bsv-sdk | pending | after A2 F1.5 |
-| A6 HLR | bsv-sdk | pending | parallel with A3/A4/A5 |
+| A3 HLR | bsv-sdk | ✅ | #315 — opened 2026-04-09 |
+| A4 HLR | bsv-sdk | ✅ | #316 — opened 2026-04-09 |
+| A5 HLR | bsv-sdk | ✅ | #317 — opened 2026-04-09 |
+| A6 HLR | bsv-sdk | ✅ | #318 — opened 2026-04-09 |
 | A7 HLR | both | pending | opportunistic; bsv-sdk bits (F4.x) and bsv-wallet bits (F8.x + P305.1) to be split at PR / commit granularity |
 
 HLR numbers populated in the **Cluster overview** table at the top of this document as each is opened.
