@@ -27,6 +27,10 @@ The SDK is organised into three top-level modules:
 - **[Script](guides/script.md)** — script parsing, opcodes, templates, interpreter
 - **[Transaction](guides/transaction.md)** — building, signing, BEEF serialisation, merkle proofs
 
+## Companion gems
+
+- **[bsv-wallet-postgres](guides/wallet-postgres.md)** — persistent PostgreSQL storage adapter for `bsv-wallet`, for production deployments that need state to survive restarts
+
 ## Quick Links
 
 - [Getting Started](guides/getting-started.md) — first steps with the SDK
