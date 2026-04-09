@@ -1197,16 +1197,16 @@ RSpec.describe BSV::Transaction::Beef do
       root_hex = beef.bumps.first.compute_root.reverse.unpack1('H*')
       height = beef.bumps.first.block_height
 
-      # is_valid_root? is a duck-typed interface, not tied to ChainTracker class
+      # valid_root_for_height? is a duck-typed interface, not tied to ChainTracker class
       tracker = double('ChainTracker') # rubocop:disable RSpec/VerifiedDoubles
-      allow(tracker).to receive(:is_valid_root?).with(root_hex, height).and_return(true)
+      allow(tracker).to receive(:valid_root_for_height?).with(root_hex, height).and_return(true)
 
       expect(beef.verify(tracker)).to be true
     end
 
     it 'returns false when chain tracker rejects a root' do
       tracker = double('ChainTracker') # rubocop:disable RSpec/VerifiedDoubles
-      allow(tracker).to receive(:is_valid_root?).and_return(false)
+      allow(tracker).to receive(:valid_root_for_height?).and_return(false)
 
       expect(beef.verify(tracker)).to be false
     end

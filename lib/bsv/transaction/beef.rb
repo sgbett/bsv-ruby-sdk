@@ -462,9 +462,9 @@ module BSV
                       "(source has #{other.bumps.length} bumps); refusing to write a stale reference"
               end
 
-              # F5.9: construct a new BeefTx and set merkle_path on the tx
-              # without mutating the source beef_tx object.
-              tx = beef_tx.transaction
+              # F5.9: construct a new BeefTx with a dup'd Transaction
+              # so mutations to the merged bundle don't affect the source.
+              tx = beef_tx.transaction.dup
               tx.merkle_path = @bumps[new_idx]
               @transactions << BeefTx.new(
                 format: FORMAT_RAW_TX_AND_BUMP,
@@ -472,7 +472,7 @@ module BSV
                 bump_index: new_idx
               )
             else
-              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction)
+              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction.dup)
             end
           end
         end
@@ -554,8 +554,9 @@ module BSV
       # Calls {#valid?} first for structural checks, then optionally verifies
       # each BUMP's computed merkle root against the chain tracker (F5.3).
       #
-      # @param chain_tracker [#is_valid_root?] optional chain tracker that responds
-      #   to +is_valid_root?(root_hex, block_height)+
+      # @param chain_tracker [#valid_root_for_height?] optional chain tracker
+      #   (see {ChainTracker}) that responds to
+      #   +valid_root_for_height?(root_hex, block_height)+
       # @param allow_txid_only [Boolean] passed to {#valid?}
       # @return [Boolean] true if the bundle is structurally valid and, when a
       #   chain tracker is provided, all BUMP roots are confirmed by the chain
@@ -565,7 +566,7 @@ module BSV
 
         @bumps.each do |bump|
           root_hex = bump.compute_root.reverse.unpack1('H*')
-          return false unless chain_tracker.is_valid_root?(root_hex, bump.block_height)
+          return false unless chain_tracker.valid_root_for_height?(root_hex, bump.block_height)
         end
 
         true
@@ -663,6 +664,8 @@ module BSV
               # Wire stores txid in internal (little-endian) byte order;
               # reverse to display order so BeefTx#txid is consistent with
               # Transaction#txid across all format types.
+              raise ArgumentError, 'truncated BEEF: not enough bytes for TXID_ONLY entry' if offset + 32 > data.bytesize
+
               known_txid = data.byteslice(offset, 32).reverse
               offset += 32
               beef.transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: known_txid)

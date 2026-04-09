@@ -10,7 +10,10 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 
 - **BEEF/BUMP validation and merge hardening** (HLR #315, A3 cluster).
-  Eleven findings addressed across `Beef` and `MerklePath`:
+  Twelve findings addressed across `Beef` and `MerklePath`:
+  - **F5.1** — `BeefTx` TXID_ONLY entries now store txid in display byte
+    order (matching `Transaction#txid`). Wire serialisation reverses at
+    the boundary. Fixes cross-SDK TXID_ONLY interop.
   - **F5.12** — `Beef.from_binary` now raises `ArgumentError` for unknown
     version magic bytes instead of silently accepting them.
   - **F5.10** — `MerklePath` constructor now validates: non-negative
@@ -24,7 +27,7 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
     entry: the BUMP must exist and `compute_root(txid)` must succeed.
   - **F5.3** — New `Beef#verify(chain_tracker = nil, allow_txid_only: false)`
     method: calls `valid?` then optionally verifies each BUMP's root against
-    a chain tracker via `is_valid_root?(root_hex, block_height)`.
+    a chain tracker via `valid_root_for_height?(root_hex, block_height)`.
   - **F5.5** — `sort_transactions!` now preserves unsortable (cyclic)
     transactions in `@txs_not_valid` instead of silently dropping them.
     `to_binary` now calls `sort_transactions!` before serialising.
