@@ -44,7 +44,7 @@ module BSV
       # @param hex [String] hex-encoded script
       # @return [Script]
       def self.from_hex(hex)
-        new([hex].pack('H*'))
+        new(BSV::Primitives::Hex.decode(hex, name: 'script hex'))
       end
 
       # Parse a script from ASM notation.
@@ -61,7 +61,7 @@ module BSV
             buf << [opcode].pack('C')
           else
             # Data push — token is hex
-            data = [token].pack('H*')
+            data = BSV::Primitives::Hex.decode(token, name: 'ASM hex token')
             buf << encode_push_data(data)
           end
         end

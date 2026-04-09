@@ -534,9 +534,9 @@ RSpec.describe BSV::Transaction::Transaction do
                     ))
 
       fee = tx.estimated_fee
-      # 3 unsigned inputs (~148 each) + 1 output (~34) + overhead (~10) ≈ 488 bytes * 0.5
-      expect(fee).to be > 200
-      expect(fee).to be < 500
+      # 3 unsigned inputs (~148 each) + 1 output (~34) + overhead (~10) ≈ 488 bytes * 0.1 sat/byte
+      expect(fee).to be > 40
+      expect(fee).to be < 100
     end
 
     it 'estimates fee for a transaction with an OP_RETURN output' do

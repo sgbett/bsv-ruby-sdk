@@ -7,6 +7,35 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Unreleased
 
+### Changed
+
+- **`Transaction#estimated_fee` default rate aligned and deprecated**
+  ([#310](https://github.com/sgbett/bsv-ruby-sdk/issues/310), F4.2).
+  The default fee rate changed from 0.5 sat/byte (500 sat/kB) to 0.1
+  sat/byte (100 sat/kB), matching the `SatoshisPerKilobyte.new` default.
+  The method now delegates through `SatoshisPerKilobyte` internally and
+  emits a deprecation warning pointing consumers at the fee model API.
+  **Migration:** replace `tx.estimated_fee` with
+  `SatoshisPerKilobyte.new.compute_fee(tx)`. If you relied on the 0.5
+  sat/byte default, pass `value: 500` to the fee model.
+
+### Added
+
+- **`BSV::Primitives::Hex` module** (#310, F1.5). Strict hex
+  decode/encode with validation — raises `ArgumentError` on odd-length
+  or non-hex input instead of silently truncating. All consumer-facing
+  `from_hex` parse paths (`Transaction`, `Beef`, `MerklePath`, `Script`,
+  `PublicKey`, `Signature`, `Builder`) now use `Hex.decode` and reject
+  malformed hex loudly. `Script.from_asm` hex tokens are also validated —
+  previously non-hex tokens were silently packed as garbled bytes.
+
+- **Pure-Ruby RIPEMD-160** (#310, F1.8). Replaces the
+  `OpenSSL::Digest::RIPEMD160` dependency with a pure-Ruby
+  implementation (`BSV::Primitives::Ripemd160`), eliminating the
+  portability failure on OpenSSL 3 builds that don't load the legacy
+  provider. Same precedent as the pure-Ruby secp256k1 port (#253).
+  Verified against all 9 official RIPEMD-160 spec vectors.
+
 ### Testing
 
 - **Cross-SDK conformance vector suite** ([#307](https://github.com/sgbett/bsv-ruby-sdk/issues/307)).
