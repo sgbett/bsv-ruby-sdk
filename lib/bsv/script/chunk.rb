@@ -53,13 +53,32 @@ module BSV
       # Render this chunk as human-readable ASM.
       #
       # Data pushes are shown as hex strings; opcodes are shown by name.
+      # Opcodes with no defined name are rendered as +OP_UNKNOWN<n>+ (e.g.
+      # +OP_UNKNOWN186+) so that the output is unambiguous and round-trippable
+      # via +from_asm+.
+      #
+      # The OP_RETURN opcode is special: it carries the raw tail bytes as its
+      # data payload (absorbed during parsing). To preserve round-trip fidelity
+      # with +from_asm+, the tail is re-parsed into individual push items and
+      # each is rendered as a hex token after +OP_RETURN+.
       #
       # @return [String] ASM representation
       def to_asm
-        if @data
+        if @opcode == Opcodes::OP_RETURN && @data
+          return 'OP_RETURN' if @data.empty?
+
+          # Re-parse the tail bytes into individual chunks (without OP_RETURN
+          # termination) so each push renders as a separate hex token.
+          tail_script = BSV::Script::Script.new(@data)
+          tail_chunks = tail_script.send(:parse_chunks, terminate_on_op_return: false)
+          parts = ['OP_RETURN'] + tail_chunks.map do |ch|
+            ch.data? ? ch.data.unpack1('H*') : (Opcodes.name_for(ch.opcode) || "OP_UNKNOWN#{ch.opcode}")
+          end
+          parts.join(' ')
+        elsif @data
           @data.unpack1('H*')
         else
-          Opcodes.name_for(@opcode) || @opcode.to_s
+          Opcodes.name_for(@opcode) || "OP_UNKNOWN#{@opcode}"
         end
       end
 

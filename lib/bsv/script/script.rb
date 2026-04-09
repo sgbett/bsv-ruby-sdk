@@ -50,19 +50,61 @@ module BSV
       # Parse a script from ASM notation.
       #
       # Opcodes are given by name (e.g. +"OP_DUP"+), data pushes as hex.
+      # Supports the canonical aliases +"0"+ (OP_0) and +"-1"+ (OP_1NEGATE).
+      # Explicit PUSHDATA sequences (+OP_PUSHDATA1 <len> <hex>+, etc.) are
+      # consumed as a unit.
       #
       # @param asm_string [String] space-separated ASM tokens
       # @return [Script]
       def self.from_asm(asm_string)
         buf = ''.b
-        asm_string.split.each do |token|
+        tokens = asm_string.split
+        i = 0
+        while i < tokens.length
+          token = tokens[i]
+
+          # Canonical short-hand aliases
+          if token == '0'
+            buf << [Opcodes::OP_0].pack('C')
+            i += 1
+            next
+          end
+
+          if token == '-1'
+            buf << [Opcodes::OP_1NEGATE].pack('C')
+            i += 1
+            next
+          end
+
           opcode = resolve_opcode(token)
-          if opcode
+
+          if [Opcodes::OP_PUSHDATA1, Opcodes::OP_PUSHDATA2, Opcodes::OP_PUSHDATA4].include?(opcode)
+            # Explicit PUSHDATA sequence: OP_PUSHDATAn <len> <hex>
+            # Consume the following length token and hex token as a unit.
+            raise ArgumentError, "#{token} requires <length> <hex> tokens" unless tokens[i + 1] && tokens[i + 2]
+
+            hex_token = tokens[i + 2]
+            data = BSV::Primitives::Hex.decode(hex_token.to_s, name: 'ASM PUSHDATA hex token')
+            max_len = { Opcodes::OP_PUSHDATA1 => 0xFF, Opcodes::OP_PUSHDATA2 => 0xFFFF, Opcodes::OP_PUSHDATA4 => 0xFFFFFFFF }
+            raise ArgumentError, "data too long for #{token}: #{data.bytesize} > #{max_len[opcode]}" if data.bytesize > max_len[opcode]
+
+            case opcode
+            when Opcodes::OP_PUSHDATA1
+              buf << ([Opcodes::OP_PUSHDATA1, data.bytesize].pack('CC') + data)
+            when Opcodes::OP_PUSHDATA2
+              buf << ([Opcodes::OP_PUSHDATA2].pack('C') + [data.bytesize].pack('v') + data)
+            when Opcodes::OP_PUSHDATA4
+              buf << ([Opcodes::OP_PUSHDATA4].pack('C') + [data.bytesize].pack('V') + data)
+            end
+            i += 3
+          elsif opcode
             buf << [opcode].pack('C')
+            i += 1
           else
             # Data push — token is hex
             data = BSV::Primitives::Hex.decode(token, name: 'ASM hex token')
             buf << encode_push_data(data)
+            i += 1
           end
         end
         new(buf)
@@ -183,27 +225,49 @@ module BSV
       # before the locking condition executes. Used for token protocols
       # where data must be embedded in spendable outputs.
       #
-      # Structure: +[field0] [field1] ... [fieldN] [OP_2DROP...] [OP_DROP?] [lock_script]+
+      # The +lock_position+ parameter controls where the locking script is placed
+      # relative to the push/drop sequence:
+      #
+      # - +:'before'+ (default) — lock script appears *before* the data pushes and
+      #   drops. Matches the ts-sdk default and the canonical PushDrop layout used
+      #   by overlay token protocols.
+      #   Structure: +[lock_script] [field0] ... [fieldN] [OP_2DROP...] [OP_DROP?]+
+      # - +:'after'+ — lock script appears *after* the drops (legacy behaviour).
+      #   Structure: +[field0] ... [fieldN] [OP_2DROP...] [OP_DROP?] [lock_script]+
+      #
+      # **Breaking change (v0.9):** the default changed from +:'after'+ to
+      # +:'before'+ to match the ts-sdk. Callers that relied on the old default
+      # must pass +lock_position: :after+ explicitly.
       #
       # @param fields [Array<String>] data payloads to embed (binary strings)
       # @param lock_script [Script] the underlying locking condition (e.g. P2PKH)
+      # @param lock_position [Symbol] +:before+ (default) or +:after+
       # @return [Script]
-      # @raise [ArgumentError] if fields is empty or lock_script is not a Script
-      def self.pushdrop_lock(fields, lock_script)
+      # @raise [ArgumentError] if fields is empty, lock_script is not a Script,
+      #   or lock_position is not +:before+ or +:after+
+      def self.pushdrop_lock(fields, lock_script, lock_position: :before)
         raise ArgumentError, 'fields must not be empty' if fields.empty?
         raise ArgumentError, 'lock_script must be a Script' unless lock_script.is_a?(Script)
+        raise ArgumentError, "lock_position must be :before or :after, got #{lock_position.inspect}" \
+          unless %i[before after].include?(lock_position)
 
-        chunks = fields.map { |f| encode_minimally(f.b) }
+        field_chunks = fields.map { |f| encode_minimally(f.b) }
 
+        drop_chunks = []
         remaining = fields.length
         while remaining > 1
-          chunks << Chunk.new(opcode: Opcodes::OP_2DROP)
+          drop_chunks << Chunk.new(opcode: Opcodes::OP_2DROP)
           remaining -= 2
         end
-        chunks << Chunk.new(opcode: Opcodes::OP_DROP) if remaining == 1
+        drop_chunks << Chunk.new(opcode: Opcodes::OP_DROP) if remaining == 1
 
-        chunks.concat(lock_script.chunks)
-        from_chunks(chunks)
+        all_chunks = if lock_position == :before
+                       lock_script.chunks + field_chunks + drop_chunks
+                     else
+                       field_chunks + drop_chunks + lock_script.chunks
+                     end
+
+        from_chunks(all_chunks)
       end
 
       # Construct a PushDrop unlocking script.
@@ -382,40 +446,14 @@ module BSV
 
       # Whether this is a PushDrop script.
       #
-      # Detects scripts with one or more data pushes followed by a
-      # OP_DROP/OP_2DROP chain and a recognisable locking condition.
+      # Detects both +lock_position: :before+ and +lock_position: :after+ layouts:
+      #
+      # - +:before+: +[lock_chunks...] [field0] ... [fieldN] [OP_2DROP...] [OP_DROP?]+
+      # - +:after+:  +[field0] ... [fieldN] [OP_2DROP...] [OP_DROP?] [lock_chunks...]+
       #
       # @return [Boolean]
       def pushdrop?
-        c = chunks
-        return false if c.length < 3
-
-        # Find the first DROP/2DROP — everything before is data fields
-        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
-        return false unless drop_start&.positive?
-
-        # All chunks before first drop must be data pushes or minimal push opcodes
-        field_chunks = c[0...drop_start]
-        return false unless field_chunks.all? { |ch| ch.data? || minimal_push_opcode?(ch.opcode) }
-
-        # Count fields and verify the drop sequence
-        num_fields = field_chunks.length
-        expected_drops = []
-        remaining = num_fields
-        while remaining > 1
-          expected_drops << Opcodes::OP_2DROP
-          remaining -= 2
-        end
-        expected_drops << Opcodes::OP_DROP if remaining == 1
-
-        drop_end = drop_start + expected_drops.length
-        return false if drop_end > c.length
-
-        actual_drops = c[drop_start...drop_end].map(&:opcode)
-        return false unless actual_drops == expected_drops
-
-        # Must have at least one chunk after the drops (the lock script)
-        drop_end < c.length
+        pushdrop_layout ? true : false
       end
 
       # Whether this is an RPuzzle script.
@@ -520,12 +558,32 @@ module BSV
 
       # Extract data payloads from an OP_RETURN script.
       #
+      # After F3.1's fix, the parser absorbs all bytes following a top-level
+      # OP_RETURN into a single raw-data chunk. This method re-parses that tail
+      # so callers receive one entry per push (including bare opcodes that appear
+      # as raw bytes in the tail).
+      #
       # @return [Array<String>, nil] array of data pushes, or +nil+ if not OP_RETURN
       def op_return_data
         return unless op_return?
 
+        # Determine where the payload starts (after OP_RETURN or OP_FALSE OP_RETURN)
         start = @bytes.getbyte(0) == Opcodes::OP_RETURN ? 1 : 2
-        Script.new(@bytes.byteslice(start..)).chunks.select(&:data?).map(&:data)
+
+        # Parse the tail bytes as a sub-script to recover individual push items.
+        # The tail was stored as a raw-data chunk by parse_chunks; parsing it again
+        # yields all the contained push operations.
+        #
+        # IMPORTANT: disable OP_RETURN termination during re-parse — the tail
+        # may legitimately contain 0x6a bytes as data, and we don't want the
+        # parser to stop at them.
+        tail_bytes = @bytes.byteslice(start, @bytes.bytesize - start)
+        return [] if tail_bytes.nil? || tail_bytes.empty?
+
+        tail_script = Script.new(tail_bytes)
+        tail_script.send(:parse_chunks, terminate_on_op_return: false).map do |ch|
+          ch.data? ? ch.data : [ch.opcode].pack('C')
+        end
       end
 
       # Extract the hash value from an RPuzzle script.
@@ -548,27 +606,26 @@ module BSV
 
       # Extract the embedded data fields from a PushDrop script.
       #
+      # Works for both +:before+ and +:after+ lock positions.
+      #
       # @return [Array<String>, nil] array of field data, or +nil+ if not PushDrop
       def pushdrop_fields
-        return unless pushdrop?
+        layout = pushdrop_layout
+        return unless layout
 
-        c = chunks
-        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
-        c[0...drop_start].map { |ch| decode_minimal_push(ch) }
+        layout[:field_chunks].map { |ch| decode_minimal_push(ch) }
       end
 
       # Extract the underlying lock script from a PushDrop script.
       #
+      # Works for both +:before+ and +:after+ lock positions.
+      #
       # @return [Script, nil] the lock script portion, or +nil+ if not PushDrop
       def pushdrop_lock_script
-        return unless pushdrop?
+        layout = pushdrop_layout
+        return unless layout
 
-        c = chunks
-        drop_start = c.index { |ch| [Opcodes::OP_DROP, Opcodes::OP_2DROP].include?(ch.opcode) }
-        num_fields = drop_start
-        num_drops = (num_fields / 2) + (num_fields.odd? ? 1 : 0)
-        lock_start = drop_start + num_drops
-        self.class.from_chunks(c[lock_start..])
+        self.class.from_chunks(layout[:lock_chunks])
       end
 
       # Derive Bitcoin addresses from this script.
@@ -620,10 +677,18 @@ module BSV
           end
         end
 
+        # Encode +data+ as the most compact script chunk that still preserves its
+        # value when executed.
+        #
+        # NOTE: A single-byte +[0x00]+ push is intentionally *not* collapsed to
+        # OP_0 here. OP_0 pushes an empty byte array, whereas +[0x00]+ pushes a
+        # one-byte zero — they are semantically distinct values. The ts-sdk has the
+        # same bug (#createMinimallyEncodedScriptChunk conflates them); we fix it
+        # locally and plan to raise it upstream.
         def encode_minimally(data)
           len = data.bytesize
 
-          if len.zero? || (len == 1 && data.getbyte(0).zero?)
+          if len.zero?
             Chunk.new(opcode: Opcodes::OP_0)
           elsif len == 1 && data.getbyte(0).between?(1, 16)
             Chunk.new(opcode: 0x50 + data.getbyte(0))
@@ -643,6 +708,18 @@ module BSV
         def resolve_opcode(token)
           return nil unless token.start_with?('OP_')
 
+          # Handle OP_UNKNOWN<n> tokens emitted by Chunk#to_asm for unrecognised
+          # opcodes — extract the decimal byte value directly.
+          if token.start_with?('OP_UNKNOWN')
+            suffix = token[10..]
+            return nil if suffix.nil? || suffix.empty? || suffix != suffix.to_i.to_s
+
+            n = suffix.to_i
+            return n if n.between?(0, 255)
+
+            return nil
+          end
+
           Opcodes.const_get(token.to_sym)
         rescue NameError
           nil
@@ -650,6 +727,70 @@ module BSV
       end
 
       private
+
+      DROP_OPS = [Opcodes::OP_DROP, Opcodes::OP_2DROP].freeze
+      private_constant :DROP_OPS
+
+      # Analyse the chunk array and return a layout hash if this is a PushDrop
+      # script, or +nil+ if it is not.
+      #
+      # Handles both +:before+ (lock first, fields+drops at end) and +:after+
+      # (fields+drops first, lock at end) orientations by trying both layouts
+      # and returning the first one that satisfies all constraints.
+      #
+      # Returns +{ field_chunks:, lock_chunks:, position: }+ on success.
+      def pushdrop_layout
+        c = chunks
+        return nil if c.length < 3
+
+        # Locate the first DROP/2DROP.
+        drop_start = c.index { |ch| DROP_OPS.include?(ch.opcode) }
+        return nil unless drop_start&.positive?
+
+        # Determine the field range by scanning backwards from drop_start.
+        # Fields are contiguous data pushes or minimal push opcodes immediately
+        # preceding the first DROP/2DROP, regardless of layout orientation.
+        field_range_end = drop_start
+        field_range_start = drop_start
+        while field_range_start.positive? &&
+              (c[field_range_start - 1].data? || minimal_push_opcode?(c[field_range_start - 1].opcode))
+          field_range_start -= 1
+        end
+        return nil if field_range_start == drop_start # No fields found
+
+        field_chunks = c[field_range_start...field_range_end]
+
+        # Verify the drop sequence matches the field count exactly.
+        num_fields = field_chunks.length
+        expected_drops = []
+        remaining = num_fields
+        while remaining > 1
+          expected_drops << Opcodes::OP_2DROP
+          remaining -= 2
+        end
+        expected_drops << Opcodes::OP_DROP if remaining == 1
+
+        drop_end = drop_start + expected_drops.length
+        return nil if drop_end > c.length
+
+        actual_drops = c[drop_start...drop_end].map(&:opcode)
+        return nil unless actual_drops == expected_drops
+
+        # Determine lock chunks and position based on where the fields begin.
+        if field_range_start.zero?
+          # ':after' layout — lock is everything after the drops
+          lock_chunks = c[drop_end..]
+          return nil if lock_chunks.nil? || lock_chunks.empty?
+
+          { field_chunks: field_chunks, lock_chunks: lock_chunks, position: :after }
+        else
+          # ':before' layout — lock is everything before the fields
+          lock_chunks = c[0...field_range_start]
+          return nil if lock_chunks.empty?
+
+          { field_chunks: field_chunks, lock_chunks: lock_chunks, position: :before }
+        end
+      end
 
       def small_int_opcode?(opcode)
         opcode == Opcodes::OP_0 || opcode.between?(Opcodes::OP_1, Opcodes::OP_16)
@@ -672,57 +813,101 @@ module BSV
         end
       end
 
-      def parse_chunks
+      # Parse the raw script bytes into an array of {Chunk} objects.
+      #
+      # Two special behaviours:
+      #
+      # 1. **OP_RETURN termination** (F3.1): when a top-level OP_RETURN (i.e. not
+      #    inside an OP_IF/OP_NOTIF block) is encountered, all remaining bytes are
+      #    absorbed as a single raw-data chunk and parsing stops. This matches the
+      #    ts-sdk behaviour and correctly handles arbitrary trailing bytes in data
+      #    carrier outputs.
+      #
+      # 2. **Lenient truncation** (F3.16): truncated scripts no longer raise.
+      #    Instead, the parser emits a partial chunk array with a trailing
+      #    raw-bytes chunk containing whatever bytes remain. This makes +chunks+
+      #    and byte-level predicates (+p2pkh?+, +op_return?+, etc.) consistent —
+      #    both return a safe "doesn't match any standard type" result for
+      #    truncated inputs.
+      def parse_chunks(terminate_on_op_return: true)
         result = []
         pos = 0
         raw = @bytes
+        conditional_depth = 0
 
         while pos < raw.bytesize
           opcode = raw.getbyte(pos)
           pos += 1
 
-          if opcode.positive? && opcode <= 0x4b
-            raise ArgumentError, "truncated script: need #{opcode} data bytes at offset #{pos}" if pos + opcode > raw.bytesize
+          # OP_RETURN at top level: absorb all remaining bytes as raw tail data
+          # and stop parsing (F3.1).
+          if terminate_on_op_return && opcode == Opcodes::OP_RETURN && conditional_depth.zero?
+            tail = raw.byteslice(pos, raw.bytesize - pos)
+            result << Chunk.new(opcode: opcode, data: tail.empty? ? nil : tail)
+            break
+          end
 
+          # Track conditional depth for the OP_RETURN termination check above.
+          case opcode
+          when Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
+            conditional_depth += 1
+          when Opcodes::OP_ENDIF
+            conditional_depth -= 1 unless conditional_depth.zero?
+          end
+
+          if opcode.positive? && opcode <= 0x4b
+            available = raw.bytesize - pos
+            if available < opcode
+              # Truncated: emit whatever bytes are left as a raw chunk (F3.16).
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, available))
+              break
+            end
             data = raw.byteslice(pos, opcode)
             pos += opcode
             result << Chunk.new(opcode: opcode, data: data)
           elsif opcode == Opcodes::OP_PUSHDATA1
-            raise ArgumentError, "truncated script: OP_PUSHDATA1 missing length byte at offset #{pos}" if pos >= raw.bytesize
-
+            if pos >= raw.bytesize
+              # Truncated: length byte missing — emit remaining bytes as raw.
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, raw.bytesize - pos))
+              break
+            end
             len = raw.getbyte(pos)
             pos += 1
-            if pos + len > raw.bytesize
-              raise ArgumentError,
-                    "truncated script: OP_PUSHDATA1 needs #{len} data bytes at offset #{pos}, got #{raw.bytesize - pos}"
+            available = raw.bytesize - pos
+            if available < len
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, available))
+              break
             end
-
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
           elsif opcode == Opcodes::OP_PUSHDATA2
-            raise ArgumentError, "truncated script: OP_PUSHDATA2 needs 2 length bytes at offset #{pos}" if pos + 2 > raw.bytesize
-
+            if pos + 2 > raw.bytesize
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, raw.bytesize - pos))
+              break
+            end
             len = raw.byteslice(pos, 2).unpack1('v')
             pos += 2
-            if pos + len > raw.bytesize
-              raise ArgumentError,
-                    "truncated script: OP_PUSHDATA2 needs #{len} data bytes at offset #{pos}, got #{raw.bytesize - pos}"
+            available = raw.bytesize - pos
+            if available < len
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, available))
+              break
             end
-
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)
           elsif opcode == Opcodes::OP_PUSHDATA4
-            raise ArgumentError, "truncated script: OP_PUSHDATA4 needs 4 length bytes at offset #{pos}" if pos + 4 > raw.bytesize
-
+            if pos + 4 > raw.bytesize
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, raw.bytesize - pos))
+              break
+            end
             len = raw.byteslice(pos, 4).unpack1('V')
             pos += 4
-            if pos + len > raw.bytesize
-              raise ArgumentError,
-                    "truncated script: OP_PUSHDATA4 needs #{len} data bytes at offset #{pos}, got #{raw.bytesize - pos}"
+            available = raw.bytesize - pos
+            if available < len
+              result << Chunk.new(opcode: opcode, data: raw.byteslice(pos, available))
+              break
             end
-
             data = raw.byteslice(pos, len)
             pos += len
             result << Chunk.new(opcode: opcode, data: data)

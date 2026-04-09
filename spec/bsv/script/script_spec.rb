@@ -86,15 +86,22 @@ RSpec.describe BSV::Script::Script do
       data2 = 'world'.b
       script = described_class.op_return(data1, data2)
 
+      # After F3.1 fix: OP_RETURN at top level absorbs all trailing bytes into its
+      # data field. The chunk array is [OP_FALSE, OP_RETURN(raw_tail)].
       chunks = script.chunks
-      expect(chunks.length).to eq(4) # OP_FALSE, OP_RETURN, data1, data2
+      expect(chunks.length).to eq(2)
       expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_FALSE)
       expect(chunks[1].opcode).to eq(BSV::Script::Opcodes::OP_RETURN)
-      expect(chunks[2].data).to eq(data1)
-      expect(chunks[3].data).to eq(data2)
+      expect(chunks[1].data?).to be true
+
+      # op_return_data re-parses the tail and returns individual push payloads
+      expect(script.op_return_data).to eq([data1, data2])
     end
 
     it 'renders correct ASM' do
+      # After F3.1 + round-trip fix: the tail bytes are re-parsed into
+      # individual pushes. For "\xde\xad" the tail contains one 2-byte push
+      # which renders as its hex data "dead" (not the raw "02dead").
       script = described_class.op_return("\xde\xad".b)
       expect(script.to_asm).to eq('OP_0 OP_RETURN dead')
     end
@@ -469,107 +476,170 @@ RSpec.describe BSV::Script::Script do
   describe '.pushdrop_lock / .pushdrop_unlock' do
     let(:lock_script) { described_class.p2pkh_lock(p2pkh_hash) }
 
-    it 'creates a PushDrop script with a single field' do
-      field = 'hello'.b
-      script = described_class.pushdrop_lock([field], lock_script)
+    # The default lock_position is now :before (lock first, then fields+drops),
+    # matching the ts-sdk convention. The structural tests below use
+    # lock_position: :after explicitly to preserve their index-based assertions.
 
-      chunks = script.chunks
-      # field + OP_DROP + 5 P2PKH chunks = 7
-      expect(chunks.length).to eq(7)
-      expect(chunks[0].data).to eq(field)
-      expect(chunks[1].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
-      expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_DUP)
+    context 'with lock_position: :after (fields first, lock last)' do
+      it 'creates a PushDrop script with a single field' do
+        field = 'hello'.b
+        script = described_class.pushdrop_lock([field], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        # field + OP_DROP + 5 P2PKH chunks = 7
+        expect(chunks.length).to eq(7)
+        expect(chunks[0].data).to eq(field)
+        expect(chunks[1].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
+        expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_DUP)
+      end
+
+      it 'creates a PushDrop script with two fields (one OP_2DROP)' do
+        fields = ['field1'.b, 'field2'.b]
+        script = described_class.pushdrop_lock(fields, lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        # 2 fields + OP_2DROP + 5 P2PKH chunks = 8
+        expect(chunks.length).to eq(8)
+        expect(chunks[0].data).to eq('field1'.b)
+        expect(chunks[1].data).to eq('field2'.b)
+        expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+      end
+
+      it 'creates a PushDrop script with three fields (OP_2DROP + OP_DROP)' do
+        fields = ['a'.b, 'b'.b, 'c'.b]
+        script = described_class.pushdrop_lock(fields, lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        # 3 fields + OP_2DROP + OP_DROP + 5 P2PKH chunks = 10
+        expect(chunks.length).to eq(10)
+        expect(chunks[3].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+        expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
+      end
+
+      it 'creates a PushDrop script with four fields (two OP_2DROPs)' do
+        fields = ['a'.b, 'b'.b, 'c'.b, 'd'.b]
+        script = described_class.pushdrop_lock(fields, lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        # 4 fields + 2*OP_2DROP + 5 P2PKH chunks = 11
+        expect(chunks.length).to eq(11)
+        expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+        expect(chunks[5].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+      end
+
+      it 'encodes empty data as OP_0' do
+        script = described_class.pushdrop_lock([''.b], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_0)
+        expect(chunks[0].data).to be_nil
+      end
+
+      it 'encodes single-byte values 1-16 as OP_N' do
+        script = described_class.pushdrop_lock(["\x05".b], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_5)
+        expect(chunks[0].data).to be_nil
+      end
+
+      it 'encodes single zero byte as a direct 1-byte push (not OP_0)' do
+        # F3.14/F3.21: [0x00] must NOT collapse to OP_0 — semantically different.
+        # OP_0 pushes an empty array; [0x00] pushes a one-byte zero.
+        script = described_class.pushdrop_lock(["\x00".b], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        expect(chunks[0].opcode).to eq(1) # direct 1-byte push
+        expect(chunks[0].data).to eq("\x00".b)
+      end
+
+      it 'encodes 0x81 as OP_1NEGATE' do
+        script = described_class.pushdrop_lock(["\x81".b], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_1NEGATE)
+      end
+
+      it 'handles large data fields with OP_PUSHDATA1' do
+        large_field = "\xff".b * 200
+        script = described_class.pushdrop_lock([large_field], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA1)
+        expect(chunks[0].data).to eq(large_field)
+      end
+
+      it 'handles large data fields with OP_PUSHDATA2' do
+        large_field = "\xff".b * 400
+        script = described_class.pushdrop_lock([large_field], lock_script, lock_position: :after)
+
+        chunks = script.chunks
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA2)
+        expect(chunks[0].data).to eq(large_field)
+      end
+
+      it 'round-trips through binary serialisation' do
+        fields = ['token_id'.b, 'metadata'.b, "\x42".b]
+        script = described_class.pushdrop_lock(fields, lock_script, lock_position: :after)
+
+        parsed = described_class.from_binary(script.to_binary)
+        expect(parsed.to_hex).to eq(script.to_hex)
+        expect(parsed).to be_pushdrop
+      end
     end
 
-    it 'creates a PushDrop script with two fields (one OP_2DROP)' do
-      fields = ['field1'.b, 'field2'.b]
-      script = described_class.pushdrop_lock(fields, lock_script)
+    context 'with lock_position: :before (default — lock first, then fields+drops)' do
+      it 'places the lock script before the fields' do
+        field = 'hello'.b
+        script = described_class.pushdrop_lock([field], lock_script)
 
-      chunks = script.chunks
-      # 2 fields + OP_2DROP + 5 P2PKH chunks = 8
-      expect(chunks.length).to eq(8)
-      expect(chunks[0].data).to eq('field1'.b)
-      expect(chunks[1].data).to eq('field2'.b)
-      expect(chunks[2].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
-    end
+        chunks = script.chunks
+        # 5 P2PKH chunks + field + OP_DROP = 7
+        expect(chunks.length).to eq(7)
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_DUP)
+        expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_CHECKSIG)
+        expect(chunks[5].data).to eq(field)
+        expect(chunks[6].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
+      end
 
-    it 'creates a PushDrop script with three fields (OP_2DROP + OP_DROP)' do
-      fields = ['a'.b, 'b'.b, 'c'.b]
-      script = described_class.pushdrop_lock(fields, lock_script)
+      it 'places the lock script before multiple fields' do
+        fields = ['field1'.b, 'field2'.b]
+        script = described_class.pushdrop_lock(fields, lock_script)
 
-      chunks = script.chunks
-      # 3 fields + OP_2DROP + OP_DROP + 5 P2PKH chunks = 10
-      expect(chunks.length).to eq(10)
-      expect(chunks[3].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
-      expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_DROP)
-    end
+        chunks = script.chunks
+        # 5 P2PKH chunks + 2 fields + OP_2DROP = 8
+        expect(chunks.length).to eq(8)
+        expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_DUP)
+        expect(chunks[5].data).to eq('field1'.b)
+        expect(chunks[6].data).to eq('field2'.b)
+        expect(chunks[7].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
+      end
 
-    it 'creates a PushDrop script with four fields (two OP_2DROPs)' do
-      fields = ['a'.b, 'b'.b, 'c'.b, 'd'.b]
-      script = described_class.pushdrop_lock(fields, lock_script)
+      it 'is detected as pushdrop?' do
+        script = described_class.pushdrop_lock(['data'.b], lock_script)
+        expect(script).to be_pushdrop
+      end
 
-      chunks = script.chunks
-      # 4 fields + 2*OP_2DROP + 5 P2PKH chunks = 11
-      expect(chunks.length).to eq(11)
-      expect(chunks[4].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
-      expect(chunks[5].opcode).to eq(BSV::Script::Opcodes::OP_2DROP)
-    end
+      it 'round-trips through binary serialisation' do
+        fields = ['token_id'.b, 'metadata'.b]
+        script = described_class.pushdrop_lock(fields, lock_script)
 
-    it 'encodes empty data as OP_0' do
-      script = described_class.pushdrop_lock([''.b], lock_script)
+        parsed = described_class.from_binary(script.to_binary)
+        expect(parsed.to_hex).to eq(script.to_hex)
+        expect(parsed).to be_pushdrop
+      end
 
-      chunks = script.chunks
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_0)
-      expect(chunks[0].data).to be_nil
-    end
+      it 'extracts fields correctly via pushdrop_fields' do
+        fields = ['hello'.b, 'world'.b]
+        script = described_class.pushdrop_lock(fields, lock_script)
+        expect(script.pushdrop_fields).to eq(fields)
+      end
 
-    it 'encodes single-byte values 1-16 as OP_N' do
-      script = described_class.pushdrop_lock(["\x05".b], lock_script)
-
-      chunks = script.chunks
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_5)
-      expect(chunks[0].data).to be_nil
-    end
-
-    it 'encodes zero byte as OP_0' do
-      script = described_class.pushdrop_lock(["\x00".b], lock_script)
-
-      chunks = script.chunks
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_0)
-    end
-
-    it 'encodes 0x81 as OP_1NEGATE' do
-      script = described_class.pushdrop_lock(["\x81".b], lock_script)
-
-      chunks = script.chunks
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_1NEGATE)
-    end
-
-    it 'handles large data fields with OP_PUSHDATA1' do
-      large_field = "\xff".b * 200
-      script = described_class.pushdrop_lock([large_field], lock_script)
-
-      chunks = script.chunks
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA1)
-      expect(chunks[0].data).to eq(large_field)
-    end
-
-    it 'handles large data fields with OP_PUSHDATA2' do
-      large_field = "\xff".b * 400
-      script = described_class.pushdrop_lock([large_field], lock_script)
-
-      chunks = script.chunks
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA2)
-      expect(chunks[0].data).to eq(large_field)
-    end
-
-    it 'round-trips through binary serialisation' do
-      fields = ['token_id'.b, 'metadata'.b, "\x42".b]
-      script = described_class.pushdrop_lock(fields, lock_script)
-
-      parsed = described_class.from_binary(script.to_binary)
-      expect(parsed.to_hex).to eq(script.to_hex)
-      expect(parsed).to be_pushdrop
+      it 'extracts the lock script correctly via pushdrop_lock_script' do
+        fields = ['hello'.b]
+        script = described_class.pushdrop_lock(fields, lock_script)
+        expect(script.pushdrop_lock_script.to_hex).to eq(lock_script.to_hex)
+      end
     end
 
     it 'raises on empty fields array' do
@@ -580,6 +650,11 @@ RSpec.describe BSV::Script::Script do
     it 'raises when lock_script is not a Script' do
       expect { described_class.pushdrop_lock(['data'.b], 'not a script') }
         .to raise_error(ArgumentError, /lock_script must be a Script/)
+    end
+
+    it 'raises when lock_position is invalid' do
+      expect { described_class.pushdrop_lock(['data'.b], lock_script, lock_position: :sideways) }
+        .to raise_error(ArgumentError, /lock_position must be :before or :after/)
     end
 
     it 'returns the unlock_script unchanged from pushdrop_unlock' do
@@ -886,29 +961,58 @@ RSpec.describe BSV::Script::Script do
     end
   end
 
+  # F3.16: truncated scripts are parsed leniently — a partial chunk array is
+  # returned instead of raising. The final chunk contains whatever bytes
+  # remained at the truncation point.
   describe 'truncated script parsing' do
-    it 'raises on truncated direct push with missing data bytes' do
-      expect { described_class.new("\x05".b).chunks }.to raise_error(ArgumentError, /truncated script/)
+    it 'returns partial chunks for a truncated direct push (missing data bytes)' do
+      script = described_class.new("\x05".b) # says "push 5 bytes" but only 0 follow
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].opcode).to eq(5)
+      expect(chunks[0].data).to eq(''.b) # zero available bytes
     end
 
-    it 'raises on OP_PUSHDATA1 with missing length byte' do
-      expect { described_class.new("\x4c".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA1/)
+    it 'returns partial chunks for OP_PUSHDATA1 with missing length byte' do
+      script = described_class.new("\x4c".b)
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA1)
+      expect(chunks[0].data).to eq(''.b)
     end
 
-    it 'raises on OP_PUSHDATA2 with missing length bytes' do
-      expect { described_class.new("\x4d".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA2/)
+    it 'returns partial chunks for OP_PUSHDATA2 with missing length bytes' do
+      script = described_class.new("\x4d".b)
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA2)
     end
 
-    it 'raises on OP_PUSHDATA2 with partial length' do
-      expect { described_class.new("\x4d\x01".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA2/)
+    it 'returns partial chunks for OP_PUSHDATA2 with partial length' do
+      script = described_class.new("\x4d\x01".b)
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA2)
     end
 
-    it 'raises on OP_PUSHDATA4 with missing length bytes' do
-      expect { described_class.new("\x4e".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA4/)
+    it 'returns partial chunks for OP_PUSHDATA4 with missing length bytes' do
+      script = described_class.new("\x4e".b)
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA4)
     end
 
-    it 'raises on OP_PUSHDATA4 with partial length' do
-      expect { described_class.new("\x4e\x01\x00".b).chunks }.to raise_error(ArgumentError, /OP_PUSHDATA4/)
+    it 'returns partial chunks for OP_PUSHDATA4 with partial length' do
+      script = described_class.new("\x4e\x01\x00".b)
+      chunks = script.chunks
+      expect(chunks.length).to eq(1)
+      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_PUSHDATA4)
+    end
+
+    it 'does not match any standard type for a truncated script' do
+      script = described_class.new("\x05".b)
+      expect(script).not_to be_p2pkh
+      expect(script).not_to be_op_return
     end
 
     it 'parses a valid OP_PUSHDATA1 script correctly' do

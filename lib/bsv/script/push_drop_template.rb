@@ -151,14 +151,22 @@ module BSV
       # public key) is used directly as the locking key. This is the convention
       # for tokens that any party can verify.
       #
+      # The +lock_position+ parameter controls where the P2PKH locking condition
+      # is placed relative to the data fields. Defaults to +:before+ (lock first,
+      # then fields and drops), matching the ts-sdk convention.
+      #
+      # **Breaking change (v0.9):** the default changed from +:after+ to +:before+.
+      # Callers that relied on the old layout must pass +lock_position: :after+.
+      #
       # @param fields [Array<String>] data payloads to embed (binary strings)
       # @param protocol_id [Array] two-element [security_level, protocol_name]
       # @param key_id [String] key identifier
       # @param counterparty [String] 'self', 'anyone', or a hex public key
       # @param include_signature [Boolean] whether to append an ECDSA field signature
+      # @param lock_position [Symbol] +:before+ (default) or +:after+
       # @return [BSV::Script::Script] the PushDrop locking script
       # @raise [ArgumentError] if fields is empty
-      def lock(fields:, protocol_id:, key_id:, counterparty:, include_signature: true)
+      def lock(fields:, protocol_id:, key_id:, counterparty:, include_signature: true, lock_position: :before)
         raise ArgumentError, 'fields must not be empty' if fields.empty?
 
         # When counterparty is 'anyone', use the generator point directly as the
@@ -187,7 +195,7 @@ module BSV
         pubkey_hash = BSV::Primitives::Digest.hash160(pubkey_bytes)
         p2pkh_lock = BSV::Script::Script.p2pkh_lock(pubkey_hash)
 
-        BSV::Script::Script.pushdrop_lock(all_fields, p2pkh_lock)
+        BSV::Script::Script.pushdrop_lock(all_fields, p2pkh_lock, lock_position: lock_position)
       end
 
       # Return an unlocker for spending a PushDrop token output.

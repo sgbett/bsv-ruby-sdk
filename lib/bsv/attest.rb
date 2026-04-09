@@ -54,14 +54,15 @@ module BSV
         tx = p.fetch_transaction(txid)
 
         tx.outputs.each do |output|
-          chunks = output.locking_script.chunks
-          next if chunks.length < 3
-          next unless chunks[0].opcode == BSV::Script::Opcodes::OP_FALSE
-          next unless chunks[1].opcode == BSV::Script::Opcodes::OP_RETURN
+          script = output.locking_script
+          next unless script.op_return?
 
-          chunks[2..].each do |chunk|
-            return true if chunk.data == digest
-          end
+          # Use op_return_data which correctly re-parses the tail after F3.1's
+          # OP_RETURN termination fix (the raw tail is now in one chunk).
+          items = script.op_return_data
+          next if items.nil?
+
+          return true if items.include?(digest)
         end
 
         raise VerificationError, 'hash not found in transaction outputs'
