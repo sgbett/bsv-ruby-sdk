@@ -18,7 +18,4 @@ group :development, :test do
   gem 'yard-markdown'
 
   gem 'prime'
-
-  # bsv-wallet-postgres test support
-  gem 'database_cleaner-sequel', '~> 2.0'
 end

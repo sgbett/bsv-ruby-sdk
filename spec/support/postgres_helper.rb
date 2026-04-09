@@ -10,21 +10,18 @@
 # Local developers running +bundle exec rake+ without Postgres still
 # get a green suite — the postgres specs just skip.
 
-begin
-  require 'sequel'
-rescue LoadError
-  POSTGRES_TEST_DB = nil
-end
+require 'sequel'
 
-POSTGRES_TEST_DB = begin
-  if ENV['DATABASE_URL'] && defined?(Sequel)
-    db = Sequel.connect(ENV['DATABASE_URL'])
-    db.test_connection
-    db
+POSTGRES_TEST_DB =
+  if ENV['DATABASE_URL']
+    begin
+      db = Sequel.connect(ENV['DATABASE_URL'])
+      db.test_connection
+      db
+    rescue Sequel::DatabaseConnectionError, Sequel::DatabaseError
+      nil
+    end
   end
-rescue Sequel::DatabaseConnectionError, Sequel::DatabaseError, LoadError
-  nil
-end
 
 POSTGRES_WALLET_TABLES = %i[
   wallet_outputs

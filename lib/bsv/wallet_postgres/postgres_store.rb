@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'sequel'
+require 'sequel/extensions/migration'
 require 'json'
 
 module BSV
@@ -60,13 +61,16 @@ module BSV
       # @param db [Sequel::Database]
       # @return [void]
       def self.migrate!(db)
-        require 'sequel/extensions/migration'
         Sequel::Migrator.run(db, MIGRATIONS_DIR)
       end
 
-      # pg_array_ops and pg_json_ops are global Sequel extensions, not
-      # per-database, so they register the +Sequel.pg_array_op+ /
-      # +Sequel.pg_jsonb_op+ helpers used in query building.
+      # Register the global Sequel query-builder helpers used by this class
+      # (+Sequel.pg_array_op+ / +Sequel.pg_jsonb_op+). Unlike the per-database
+      # +pg_array+ / +pg_json+ extensions loaded in +initialize+, +pg_array_ops+
+      # and +pg_json_ops+ are global — they mutate Sequel's top-level namespace
+      # the first time this class body is evaluated (typically on autoload).
+      # This is an intentional side effect: any consumer that has
+      # +require 'bsv-wallet-postgres'+ in their Gemfile has opted in.
       Sequel.extension :pg_array_ops
       Sequel.extension :pg_json_ops
 

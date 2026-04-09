@@ -99,6 +99,31 @@ RSpec.describe BSV::Wallet::PostgresStore, :postgres do
       end
     end
 
+    describe 'jsonb round-trip fidelity' do
+      it 'preserves deeply nested hashes, arrays, and unicode on read' do
+        stored = {
+          basket: 'round-trip',
+          outpoint: 'abc.0',
+          spendable: true,
+          tags: %w[rare gold],
+          satoshis: 1000,
+          description: 'test — with unicode ✓ и 日本語',
+          nested: {
+            deeply: {
+              keyed: {
+                values: [1, 2, { inner: 'x', mixed: [true, nil, 3.14] }]
+              }
+            }
+          }
+        }
+
+        store.store_output(stored)
+        found = store.find_outputs(outpoint: 'abc.0').first
+
+        expect(found).to eq(stored)
+      end
+    end
+
     describe '.migrate!' do
       it 'creates all five wallet tables' do
         described_class.migrate!(db)
