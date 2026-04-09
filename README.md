@@ -109,6 +109,7 @@ puts tx.to_hex
 - **SPV Structures** — Merkle path construction and verification, BEEF (Background Evaluation Extended Format) serialisation and deserialisation.
 - **Network Integration** — ARC broadcaster for transaction submission, WhatsOnChain chain provider for UTXO queries and fee rates.
 - **Wallet** — Simple wallet that sources UTXOs, estimates fees, funds and signs transactions.
+- **Wallet persistence** — `bsv-wallet` ships `MemoryStore` and `FileStore` for local development. For production deployments that need persistent, multi-instance-safe storage, use [`bsv-wallet-postgres`](docs/guides/wallet-postgres.md) — a PostgreSQL-backed `StorageAdapter` implementation.
 
 ## Documentation
 
@@ -120,6 +121,7 @@ Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgb
 - [Primitives](https://sgbett.github.io/bsv-ruby-sdk/guides/primitives/) — keys, signing, encryption, HD keys
 - [Script](https://sgbett.github.io/bsv-ruby-sdk/guides/script/) — construction, templates, detection
 - [Transaction](https://sgbett.github.io/bsv-ruby-sdk/guides/transaction/) — building, signing, BEEF
+- [Wallet Postgres](https://sgbett.github.io/bsv-ruby-sdk/guides/wallet-postgres/) — persistent wallet storage for production
 
 **Additional resources:**
 

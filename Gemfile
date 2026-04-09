@@ -5,6 +5,7 @@ source 'https://rubygems.org'
 gemspec name: 'bsv-sdk'
 gemspec name: 'bsv-attest'
 gemspec name: 'bsv-wallet'
+gemspec name: 'bsv-wallet-postgres'
 
 group :development, :test do
   gem 'rake'

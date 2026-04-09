@@ -10,6 +10,8 @@ RSpec.describe BSV::Wallet::FileStore do
 
   after { FileUtils.rm_rf(tmpdir) }
 
+  it_behaves_like 'a storage adapter'
+
   describe '#initialize' do
     it 'creates the directory if it does not exist' do
       new_dir = File.join(tmpdir, 'nested', 'wallet')

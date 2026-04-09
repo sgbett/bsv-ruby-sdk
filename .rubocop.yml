@@ -12,6 +12,7 @@ Style/Documentation:
 Metrics/BlockLength:
   Exclude:
     - 'lib/bsv/wallet_interface/wire/**/*'
+    - 'lib/bsv/wallet_postgres/migrations/**/*'
     - 'spec/**/*'
 
 Naming/FileName:
@@ -19,6 +20,7 @@ Naming/FileName:
     - 'lib/bsv-sdk.rb'
     - 'lib/bsv-attest.rb'
     - 'lib/bsv-wallet.rb'
+    - 'lib/bsv-wallet-postgres.rb'
 
 # Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
 # a/b are used in secure_compare for constant-time comparison.
@@ -36,6 +38,8 @@ Naming/MethodParameterName:
     - m
     - bn
     - tx
+    - db
+    - ds
     - p1
     - p2
 
@@ -169,6 +173,7 @@ Metrics/ClassLength:
     - 'lib/bsv/transaction/beef.rb'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/wallet_postgres/**/*'
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity/**/*'
@@ -215,6 +220,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
@@ -222,6 +228,7 @@ RSpec/MultipleExpectations:
     - 'spec/bsv/identity/**/*'
     - 'spec/bsv/registry/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/support/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -236,6 +243,8 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/registry/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
+    - 'spec/support/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -244,6 +253,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/transaction/**/*'
     - 'spec/bsv/network/**/*'
     - 'spec/bsv/wallet/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
     - 'spec/bsv/attest_spec.rb'
     - 'spec/bsv/attest/**/*'
     - 'spec/bsv/auth/**/*'
@@ -251,6 +261,7 @@ RSpec/ExampleLength:
     - 'spec/bsv/identity/**/*'
     - 'spec/bsv/registry/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/support/**/*'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
 
@@ -273,6 +284,7 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/transaction/live_policy_spec.rb'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
+    - 'spec/bsv/wallet_postgres/**/*'
     - 'spec/bsv/registry/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
