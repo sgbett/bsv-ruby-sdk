@@ -149,7 +149,7 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   rules. Previously the default was `false`, allowing non-minimally encoded script
   numbers to be silently accepted.
   **Migration:** callers that relied on decoding non-minimal encodings (e.g.
-  `"\x00\x01"` for 256 instead of `"\x00\x01"` properly encoded) will now receive a
+  `"\x80\x00\x01"` for 256 instead of the minimal `"\x00\x01"`) will now receive a
   `ScriptError` with code `:minimal_data`. Pass `require_minimal: false` explicitly
   to restore the previous behaviour where that is intentional.
 
@@ -194,8 +194,6 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   non-empty signatures rather than raising `SIG_NULLFAIL`. NULLFAIL only applies
   when a real verification failure occurs — without a tx there is nothing to verify.
 
-### Changed
-
 - **`Transaction#estimated_fee` default rate aligned and deprecated**
   ([#310](https://github.com/sgbett/bsv-ruby-sdk/issues/310), F4.2).
   The default fee rate changed from 0.5 sat/byte (500 sat/kB) to 0.1
@@ -205,8 +203,6 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   **Migration:** replace `tx.estimated_fee` with
   `SatoshisPerKilobyte.new.compute_fee(tx)`. If you relied on the 0.5
   sat/byte default, pass `value: 500` to the fee model.
-
-### Added
 
 - **`BSV::Primitives::Hex` module** (#310, F1.5). Strict hex
   decode/encode with validation — raises `ArgumentError` on odd-length

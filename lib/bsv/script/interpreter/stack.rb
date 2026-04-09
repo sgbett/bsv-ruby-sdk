@@ -27,8 +27,8 @@ module BSV
       # --- Push ---
 
       def push_bytes(data)
+        check_memory!(data.bytesize)
         bytes = data.b
-        check_memory!(bytes.bytesize)
         @memory_usage += bytes.bytesize
         @items.push(bytes)
       end
@@ -119,9 +119,9 @@ module BSV
         stack_error!("stack too small for dup_n(#{count})") if @items.length < count
 
         start = @items.length - count
-        copies = Array.new(count) { |i| @items[start + i].dup }
-        added = copies.sum(&:bytesize)
+        added = @items[start..].sum(&:bytesize)
         check_memory!(added)
+        copies = Array.new(count) { |i| @items[start + i].dup }
         @memory_usage += added
         @items.concat(copies)
       end
@@ -178,9 +178,9 @@ module BSV
         stack_error!("stack too small for over_n(#{count})") if @items.length < (2 * count)
 
         start = @items.length - (2 * count)
-        copies = Array.new(count) { |i| @items[start + i].dup }
-        added = copies.sum(&:bytesize)
+        added = @items[start, count].sum(&:bytesize)
         check_memory!(added)
+        copies = Array.new(count) { |i| @items[start + i].dup }
         @memory_usage += added
         @items.concat(copies)
       end
