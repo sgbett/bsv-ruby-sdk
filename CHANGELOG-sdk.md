@@ -9,7 +9,6 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-<<<<<<< HEAD
 - **BEEF/BUMP validation and merge hardening** (HLR #315, A3 cluster).
   Twelve findings addressed across `Beef` and `MerklePath`:
   - **F5.1** — `BeefTx` TXID_ONLY entries now store txid in display byte
