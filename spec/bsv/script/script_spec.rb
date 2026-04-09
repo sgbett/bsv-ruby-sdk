@@ -99,10 +99,11 @@ RSpec.describe BSV::Script::Script do
     end
 
     it 'renders correct ASM' do
-      # After F3.1 fix: the raw tail bytes (push opcode + data) are the OP_RETURN
-      # chunk's data, rendered as hex. For "\xde\xad" the tail is "\x02\xde\xad".
+      # After F3.1 + round-trip fix: the tail bytes are re-parsed into
+      # individual pushes. For "\xde\xad" the tail contains one 2-byte push
+      # which renders as its hex data "dead" (not the raw "02dead").
       script = described_class.op_return("\xde\xad".b)
-      expect(script.to_asm).to eq('OP_0 OP_RETURN 02dead')
+      expect(script.to_asm).to eq('OP_0 OP_RETURN dead')
     end
   end
 

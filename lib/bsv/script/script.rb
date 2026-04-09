@@ -81,8 +81,13 @@ module BSV
           if [Opcodes::OP_PUSHDATA1, Opcodes::OP_PUSHDATA2, Opcodes::OP_PUSHDATA4].include?(opcode)
             # Explicit PUSHDATA sequence: OP_PUSHDATAn <len> <hex>
             # Consume the following length token and hex token as a unit.
+            raise ArgumentError, "#{token} requires <length> <hex> tokens" unless tokens[i + 1] && tokens[i + 2]
+
             hex_token = tokens[i + 2]
             data = BSV::Primitives::Hex.decode(hex_token.to_s, name: 'ASM PUSHDATA hex token')
+            max_len = { Opcodes::OP_PUSHDATA1 => 0xFF, Opcodes::OP_PUSHDATA2 => 0xFFFF, Opcodes::OP_PUSHDATA4 => 0xFFFFFFFF }
+            raise ArgumentError, "data too long for #{token}: #{data.bytesize} > #{max_len[opcode]}" if data.bytesize > max_len[opcode]
+
             case opcode
             when Opcodes::OP_PUSHDATA1
               buf << ([Opcodes::OP_PUSHDATA1, data.bytesize].pack('CC') + data)
@@ -568,10 +573,15 @@ module BSV
         # Parse the tail bytes as a sub-script to recover individual push items.
         # The tail was stored as a raw-data chunk by parse_chunks; parsing it again
         # yields all the contained push operations.
+        #
+        # IMPORTANT: disable OP_RETURN termination during re-parse — the tail
+        # may legitimately contain 0x6a bytes as data, and we don't want the
+        # parser to stop at them.
         tail_bytes = @bytes.byteslice(start, @bytes.bytesize - start)
         return [] if tail_bytes.nil? || tail_bytes.empty?
 
-        Script.new(tail_bytes).chunks.map do |ch|
+        tail_script = Script.new(tail_bytes)
+        tail_script.send(:parse_chunks, terminate_on_op_return: false).map do |ch|
           ch.data? ? ch.data : [ch.opcode].pack('C')
         end
       end
@@ -701,7 +711,10 @@ module BSV
           # Handle OP_UNKNOWN<n> tokens emitted by Chunk#to_asm for unrecognised
           # opcodes — extract the decimal byte value directly.
           if token.start_with?('OP_UNKNOWN')
-            n = token[10..].to_i
+            suffix = token[10..]
+            return nil if suffix.nil? || suffix.empty? || suffix != suffix.to_i.to_s
+
+            n = suffix.to_i
             return n if n.between?(0, 255)
 
             return nil
@@ -816,7 +829,7 @@ module BSV
       #    and byte-level predicates (+p2pkh?+, +op_return?+, etc.) consistent —
       #    both return a safe "doesn't match any standard type" result for
       #    truncated inputs.
-      def parse_chunks
+      def parse_chunks(terminate_on_op_return: true)
         result = []
         pos = 0
         raw = @bytes
@@ -828,7 +841,7 @@ module BSV
 
           # OP_RETURN at top level: absorb all remaining bytes as raw tail data
           # and stop parsing (F3.1).
-          if opcode == Opcodes::OP_RETURN && conditional_depth.zero?
+          if terminate_on_op_return && opcode == Opcodes::OP_RETURN && conditional_depth.zero?
             tail = raw.byteslice(pos, raw.bytesize - pos)
             result << Chunk.new(opcode: opcode, data: tail.empty? ? nil : tail)
             break
@@ -839,7 +852,7 @@ module BSV
           when Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
             conditional_depth += 1
           when Opcodes::OP_ENDIF
-            conditional_depth -= 1
+            conditional_depth -= 1 unless conditional_depth.zero?
           end
 
           if opcode.positive? && opcode <= 0x4b

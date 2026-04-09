@@ -58,14 +58,23 @@ module BSV
       # via +from_asm+.
       #
       # The OP_RETURN opcode is special: it carries the raw tail bytes as its
-      # data payload (absorbed during parsing). It is rendered as the opcode name
-      # followed by the tail hex, e.g. +"OP_RETURN 02dead"+.
+      # data payload (absorbed during parsing). To preserve round-trip fidelity
+      # with +from_asm+, the tail is re-parsed into individual push items and
+      # each is rendered as a hex token after +OP_RETURN+.
       #
       # @return [String] ASM representation
       def to_asm
         if @opcode == Opcodes::OP_RETURN && @data
-          tail_hex = @data.unpack1('H*')
-          tail_hex.empty? ? 'OP_RETURN' : "OP_RETURN #{tail_hex}"
+          return 'OP_RETURN' if @data.empty?
+
+          # Re-parse the tail bytes into individual chunks (without OP_RETURN
+          # termination) so each push renders as a separate hex token.
+          tail_script = BSV::Script::Script.new(@data)
+          tail_chunks = tail_script.send(:parse_chunks, terminate_on_op_return: false)
+          parts = ['OP_RETURN'] + tail_chunks.map do |ch|
+            ch.data? ? ch.data.unpack1('H*') : (Opcodes.name_for(ch.opcode) || "OP_UNKNOWN#{ch.opcode}")
+          end
+          parts.join(' ')
         elsif @data
           @data.unpack1('H*')
         else
