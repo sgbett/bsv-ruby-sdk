@@ -145,8 +145,11 @@ RSpec.describe BSV::Transaction::MerklePath do
     end
 
     it 'raises when block heights differ' do
-      mp1 = described_class.new(block_height: 1, path: [[]])
-      mp2 = described_class.new(block_height: 2, path: [[]])
+      # Use real leaves to satisfy the constructor validation added in F5.10
+      mp1 = described_class.from_hex(brc74_hex)
+      mp2 = described_class.from_hex(brc74_hex)
+      # Mutate the block height directly to simulate a different-height path
+      mp2.instance_variable_set(:@block_height, mp1.block_height + 1)
 
       expect { mp1.combine(mp2) }.to raise_error(ArgumentError, /block heights/)
     end
@@ -295,13 +298,10 @@ RSpec.describe BSV::Transaction::MerklePath do
         .to raise_error(ArgumentError, /not found in the Merkle Path/)
     end
 
-    it 'raises when the reconstructed root does not match the source root' do
-      # A truncated BUMP: path has only level 0, but max_offset's bit_length
-      # is larger than path.length, so extract's tree_height calculation
-      # forces an upper-level walk. The source's compute_root only walks one
-      # level (producing an "early" root at level 1), while extract builds a
-      # 2-level compound and walks to a level-2 root. The two differ, and
-      # the root-equality safety net in extract catches it.
+    it 'extracts a single-level compound path with a duplicate sibling (F5.2)' do
+      # A single-level BUMP where path.length == 1 but max_offset.bit_length > 1.
+      # With F5.2 fixed, compute_root correctly walks to the implied tree height,
+      # so extract and the source both compute the same root and extract succeeds.
       pe = described_class::PathElement
       tx_hash = BSV::Primitives::Digest.sha256('truncated_tx')
       source = described_class.new(
@@ -312,8 +312,8 @@ RSpec.describe BSV::Transaction::MerklePath do
         ]
       )
 
-      expect { source.extract([tx_hash]) }
-        .to raise_error(ArgumentError, /does not match source root/)
+      extracted = source.extract([tx_hash])
+      expect(extracted.compute_root(tx_hash)).to eq(source.compute_root(tx_hash))
     end
   end
 
@@ -520,6 +520,121 @@ RSpec.describe BSV::Transaction::MerklePath do
         expect(mp.compute_root_hex(leaves[2].reverse.unpack1('H*')))
           .to eq(root.reverse.unpack1('H*'))
       end
+    end
+  end
+
+  # F5.10 — MerklePath constructor validation
+  describe 'constructor validation (F5.10)' do
+    let(:pe) { described_class::PathElement }
+    let(:valid_leaf) { pe.new(offset: 0, hash: BSV::Primitives::Digest.sha256('tx'), txid: true) }
+    let(:sibling) { pe.new(offset: 1, hash: BSV::Primitives::Digest.sha256('sib')) }
+
+    it 'accepts a valid MerklePath' do
+      expect do
+        described_class.new(block_height: 800_000, path: [[valid_leaf, sibling]])
+      end.not_to raise_error
+    end
+
+    it 'raises when block_height is negative' do
+      expect do
+        described_class.new(block_height: -1, path: [[valid_leaf]])
+      end.to raise_error(ArgumentError, /block_height must be non-negative/)
+    end
+
+    it 'accepts block_height of zero' do
+      expect do
+        described_class.new(block_height: 0, path: [[valid_leaf]])
+      end.not_to raise_error
+    end
+
+    it 'raises when path is empty' do
+      expect do
+        described_class.new(block_height: 1, path: [])
+      end.to raise_error(ArgumentError, /path must be non-empty/)
+    end
+
+    it 'raises when a path level is not an Array' do
+      expect do
+        described_class.new(block_height: 1, path: ['not-an-array'])
+      end.to raise_error(ArgumentError, /must be an Array/)
+    end
+
+    it 'raises when a path element is not a PathElement' do
+      expect do
+        described_class.new(block_height: 1, path: [['not-a-PathElement']])
+      end.to raise_error(ArgumentError, /must be a PathElement/)
+    end
+
+    it 'raises when level 0 has no txid-flagged leaf' do
+      non_txid_leaf = pe.new(offset: 0, hash: BSV::Primitives::Digest.sha256('x'))
+      expect do
+        described_class.new(block_height: 1, path: [[non_txid_leaf]])
+      end.to raise_error(ArgumentError, /txid-flagged/)
+    end
+
+    it 'allows empty upper levels (only level 0 is checked)' do
+      expect do
+        described_class.new(block_height: 1, path: [[valid_leaf, sibling], []])
+      end.not_to raise_error
+    end
+  end
+
+  # F5.2 — compute_root for single-level compound paths
+  describe '#compute_root single-level compound path (F5.2)' do
+    let(:pe) { described_class::PathElement }
+
+    it 'computes the correct root for a 2-tx single-level path (no separate upper levels)' do
+      # A path where both txids sit at level 0 with no explicit level-1 node.
+      # The root must be computed by walking from max_offset.bit_length.
+      leaf0 = BSV::Primitives::Digest.sha256('tx0')
+      leaf1 = BSV::Primitives::Digest.sha256('tx1')
+      expected_root = described_class.merkle_tree_parent(leaf0, leaf1)
+
+      mp = described_class.new(
+        block_height: 900_000,
+        path: [
+          [pe.new(offset: 0, hash: leaf0, txid: true),
+           pe.new(offset: 1, hash: leaf1, txid: true)]
+        ]
+      )
+
+      expect(mp.compute_root(leaf0)).to eq(expected_root)
+      expect(mp.compute_root(leaf1)).to eq(expected_root)
+    end
+
+    it 'produces the same root as computing the merkle parent directly' do
+      leaf0 = BSV::Primitives::Digest.sha256('tx_a')
+      leaf1 = BSV::Primitives::Digest.sha256('tx_b')
+      expected_root = described_class.merkle_tree_parent(leaf0, leaf1)
+
+      # Single-level compound path: both txids at level 0, no explicit level-1 node
+      mp = described_class.new(
+        block_height: 900_000,
+        path: [
+          [pe.new(offset: 0, hash: leaf0, txid: true),
+           pe.new(offset: 1, hash: leaf1, txid: true)]
+        ]
+      )
+
+      expect(mp.compute_root(leaf0)).to eq(expected_root)
+      expect(mp.compute_root(leaf1)).to eq(expected_root)
+    end
+
+    it 'handles duplicate sibling at level 0 (odd leaf count)' do
+      leaf2 = BSV::Primitives::Digest.sha256('tx_odd')
+      # Offset 2 has a duplicate at offset 3; then we need to go up one more level
+      mp = described_class.new(
+        block_height: 960_000,
+        path: [
+          [pe.new(offset: 2, hash: leaf2, txid: true),
+           pe.new(offset: 3, duplicate: true)]
+        ]
+      )
+
+      # compute_root should not raise (single-level path with duplicate sibling)
+      root = mp.compute_root(leaf2)
+      expect(root).to be_a(String)
+      expect(root.bytesize).to eq(32)
     end
   end
 end

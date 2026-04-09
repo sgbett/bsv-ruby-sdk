@@ -1106,6 +1106,383 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
+  # F5.12 — Reject unknown BEEF versions
+  describe '.from_binary / .from_hex version validation (F5.12)' do
+    it 'raises ArgumentError for an unknown version magic' do
+      # 0xDEADBEEF in little-endian: bytes EF BE AD DE
+      bad_data = "\xEF\xBE\xAD\xDE\x00\x00".b
+      expect { described_class.from_binary(bad_data) }
+        .to raise_error(ArgumentError, /unknown BEEF version/)
+    end
+
+    it 'includes the hex value of the bad version in the error message' do
+      bad_data = "\xFF\xFF\xFF\xFF\x00\x00".b
+      expect { described_class.from_binary(bad_data) }
+        .to raise_error(ArgumentError, /0xFFFFFFFF/)
+    end
+
+    it 'accepts BEEF_V1' do
+      expect { described_class.from_hex('0100beef0000') }.not_to raise_error
+    end
+
+    it 'accepts BEEF_V2' do
+      expect { described_class.from_hex('0200beef0000') }.not_to raise_error
+    end
+
+    it 'accepts ATOMIC_BEEF (with valid inner version)' do
+      # ATOMIC_BEEF wraps a V2 inner payload: 4 magic bytes + 32 txid + V2 marker + empty bumps + empty txs
+      subject_txid = "\x00".b * 32
+      inner = "\x02\x00\xBE\xEF".b + "\x00\x00".b # V2 magic + 0 bumps + 0 txs
+      atomic = "\x01\x01\x01\x01".b + subject_txid + inner
+      expect { described_class.from_binary(atomic) }.not_to raise_error
+    end
+
+    it 'raises for unknown inner version inside Atomic BEEF' do
+      subject_txid = "\x00".b * 32
+      bad_inner_version = "\xFF\xFF\xFF\xFF".b
+      inner = bad_inner_version + "\x00\x00".b
+      atomic = "\x01\x01\x01\x01".b + subject_txid + inner
+      expect { described_class.from_binary(atomic) }
+        .to raise_error(ArgumentError, /unknown inner BEEF version/)
+    end
+  end
+
+  # F5.4 — Beef#valid? BUMP cross-checks
+  describe '#valid? BUMP cross-checks (F5.4)' do
+    let(:mp_class) { BSV::Transaction::MerklePath }
+    let(:pe) { mp_class::PathElement }
+
+    it 'returns false when a FORMAT_RAW_TX_AND_BUMP entry has no BUMP' do
+      # Construct a BeefTx that claims RAW_TX_AND_BUMP but the bumps array is empty
+      beef = described_class.new
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
+      # Add a real BUMP (from the brc62 vector) so BeefTx construction succeeds,
+      # but the BUMP won't contain the fresh tx's txid — compute_root will raise.
+      beef.bumps << mp_class.from_hex(described_class.from_hex(brc62_hex).bumps.first.to_hex)
+      # Build an entry whose txid does NOT appear in the BUMP
+      entry = described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: 0)
+      beef.transactions << entry
+
+      # The BUMP exists but the txid is not a leaf — compute_root should raise → valid? false
+      expect(beef.valid?).to be false
+    end
+
+    it 'returns true when all FORMAT_RAW_TX_AND_BUMP entries verify against their BUMPs' do
+      beef = described_class.from_hex(brc62_hex)
+      expect(beef.valid?).to be true
+    end
+  end
+
+  # F5.3 — Beef#verify
+  describe '#verify (F5.3)' do
+    let(:beef) { described_class.from_hex(brc62_hex) }
+
+    it 'returns true with no chain tracker (structural check only)' do
+      expect(beef.verify).to be true
+    end
+
+    it 'returns false for a structurally invalid bundle' do
+      bad_beef = described_class.new
+      tx = BSV::Transaction::Transaction.from_hex(
+        '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
+        '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
+        '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
+      )
+      bad_beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      expect(bad_beef.verify).to be false
+    end
+
+    it 'returns true when chain tracker confirms all roots' do
+      root_hex = beef.bumps.first.compute_root.reverse.unpack1('H*')
+      height = beef.bumps.first.block_height
+
+      # is_valid_root? is a duck-typed interface, not tied to ChainTracker class
+      tracker = double('ChainTracker') # rubocop:disable RSpec/VerifiedDoubles
+      allow(tracker).to receive(:is_valid_root?).with(root_hex, height).and_return(true)
+
+      expect(beef.verify(tracker)).to be true
+    end
+
+    it 'returns false when chain tracker rejects a root' do
+      tracker = double('ChainTracker') # rubocop:disable RSpec/VerifiedDoubles
+      allow(tracker).to receive(:is_valid_root?).and_return(false)
+
+      expect(beef.verify(tracker)).to be false
+    end
+
+    it 'passes allow_txid_only through to valid?' do
+      beef_with_txid_only = described_class.new
+      beef_with_txid_only.transactions << described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_txid: "\x01".b * 32
+      )
+      expect(beef_with_txid_only.verify(nil, allow_txid_only: true)).to be true
+      expect(beef_with_txid_only.verify(nil, allow_txid_only: false)).to be false
+    end
+  end
+
+  # F5.5 — sort_transactions! cycle handling
+  describe '#sort_transactions! cycle handling (F5.5)' do
+    it 'moves cyclic transactions to @txs_not_valid' do
+      # A real txid cycle is impossible (txid is a hash of the tx, which includes
+      # the input prev_tx_id). We test cycle detection by using mocked transaction
+      # objects with stable fake txids that reference each other.
+      #
+      # sort_transactions! logic:
+      #   txid_index[bt.txid] = i  (bt.txid is display order for RAW_TX entries)
+      #   dep_idx = txid_index[input.prev_tx_id.reverse]
+      #   (prev_tx_id is wire/internal; .reverse gives display order for lookup)
+      #
+      # For a cycle: input_a.prev_tx_id.reverse must == txid_b (display).
+      # So: input_a.prev_tx_id (wire) = txid_b.b (same bytes, since we define txid
+      # as a 32-byte string and prev_tx_id is just the reversed form of display txid).
+      txid_a = BSV::Primitives::Digest.sha256('fake_tx_a') # display order
+      txid_b = BSV::Primitives::Digest.sha256('fake_tx_b')
+
+      # prev_tx_id (wire) must satisfy: prev_tx_id.reverse == txid of the other tx
+      # => prev_tx_id = txid.reverse (internal byte order)
+      input_a = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: txid_b.reverse)
+      input_b = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: txid_a.reverse)
+
+      tx_a = instance_double(BSV::Transaction::Transaction, txid: txid_a, inputs: [input_a])
+      tx_b = instance_double(BSV::Transaction::Transaction, txid: txid_b, inputs: [input_b])
+
+      beef = described_class.new
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx_a)
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx_b)
+
+      beef.sort_transactions!
+
+      expect(beef.transactions).to be_empty
+      expect(beef.txs_not_valid).not_to be_nil
+      expect(beef.txs_not_valid.length).to eq(2)
+    end
+
+    it 'does not set @txs_not_valid when there are no cycles' do
+      beef = described_class.from_hex(beef_set_hex)
+      beef.sort_transactions!
+      expect(beef.txs_not_valid).to be_nil
+    end
+
+    it 'is idempotent on sorted data' do
+      beef = described_class.from_hex(beef_set_hex)
+      sorted_txids = beef.transactions.map(&:txid)
+      beef.sort_transactions!
+      beef.sort_transactions!
+      expect(beef.transactions.map(&:txid)).to eq(sorted_txids)
+    end
+  end
+
+  # F5.5/F5.20 — to_binary calls sort_transactions!
+  describe '#to_binary sort integration (F5.5 / F5.20)' do
+    it 'serialises correctly after transactions are inserted in reverse order' do
+      beef = described_class.from_hex(beef_set_hex)
+      beef.transactions.reverse!
+
+      # to_binary should call sort_transactions! internally, producing a valid bundle
+      bytes = beef.to_binary(version: described_class::BEEF_V2)
+      parsed = described_class.from_binary(bytes)
+      expect(parsed.transactions.length).to eq(beef.transactions.length)
+    end
+  end
+
+  # F5.6 — merge_bump retroactive linking
+  describe '#merge_bump retroactive linking (F5.6)' do
+    let(:mp_class) { BSV::Transaction::MerklePath }
+    let(:pe) { mp_class::PathElement }
+
+    it 'upgrades existing FORMAT_RAW_TX entries to FORMAT_RAW_TX_AND_BUMP when BUMP arrives' do
+      beef = described_class.new
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: BSV::Script::Script.new))
+
+      # Add as raw tx first
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
+
+      # Now add a BUMP that covers this txid
+      txid_internal = tx.txid.reverse
+      sibling = BSV::Primitives::Digest.sha256('sibling')
+      bump = mp_class.new(
+        block_height: 800_000,
+        path: [[pe.new(offset: 0, hash: txid_internal, txid: true),
+                pe.new(offset: 1, hash: sibling)]]
+      )
+      beef.merge_bump(bump)
+
+      # The entry should be retroactively upgraded
+      entry = beef.transactions.first
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry.bump_index).to eq(0)
+    end
+
+    it 'does not touch FORMAT_RAW_TX_AND_BUMP entries (already proven)' do
+      source = described_class.from_hex(brc62_hex)
+      proven = source.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      expect(proven).not_to be_empty
+
+      # Re-merging the same BUMP should not change the format
+      bump = source.bumps.first
+      source.merge_bump(bump)
+      proven_after = source.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      expect(proven_after.length).to eq(proven.length)
+    end
+  end
+
+  # F5.7 — merge_transaction / merge_raw_tx upgrade weaker entries
+  describe 'merge upgrade chain (F5.7)' do
+    let(:mp_class) { BSV::Transaction::MerklePath }
+    let(:pe) { mp_class::PathElement }
+    let(:lock) { BSV::Script::Script.new }
+
+    def make_tx
+      t = BSV::Transaction::Transaction.new
+      t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
+      t
+    end
+
+    def make_bump(tx)
+      txid_internal = tx.txid.reverse
+      sibling = BSV::Primitives::Digest.sha256('sibling')
+      mp_class.new(
+        block_height: 800_000,
+        path: [[pe.new(offset: 0, hash: txid_internal, txid: true),
+                pe.new(offset: 1, hash: sibling)]]
+      )
+    end
+
+    it 'upgrades TXID_ONLY to RAW_TX when raw tx is merged' do
+      beef = described_class.new
+      tx = make_tx
+      txid = tx.txid
+
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_txid: txid)
+      expect(beef.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
+
+      beef.merge_transaction(tx)
+
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+    end
+
+    it 'upgrades TXID_ONLY to RAW_TX_AND_BUMP when raw tx + bump merged' do
+      beef = described_class.new
+      tx = make_tx
+      txid = tx.txid
+      tx.merkle_path = make_bump(tx)
+
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_txid: txid)
+      beef.merge_transaction(tx)
+
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+    end
+
+    it 'upgrades RAW_TX to RAW_TX_AND_BUMP when a BUMP becomes available via merge_transaction' do
+      beef = described_class.new
+      tx = make_tx
+      txid = tx.txid
+
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
+
+      # Now merge again with a merkle_path attached
+      tx_with_bump = tx.dup
+      tx_with_bump.merkle_path = make_bump(tx)
+
+      beef.merge_transaction(tx_with_bump)
+
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+    end
+
+    it 'upgrades TXID_ONLY to RAW_TX via merge_raw_tx' do
+      beef = described_class.new
+      tx = make_tx
+      txid = tx.txid
+
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_txid: txid)
+      beef.merge_raw_tx(tx.to_binary)
+
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+    end
+
+    it 'upgrades RAW_TX to RAW_TX_AND_BUMP via merge_raw_tx with bump_index' do
+      beef = described_class.new
+      tx = make_tx
+      txid = tx.txid
+
+      bump = make_bump(tx)
+      beef.bumps << bump
+
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      beef.merge_raw_tx(tx.to_binary, bump_index: 0)
+
+      entry = beef.transactions.find { |bt| bt.txid == txid }
+      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry.bump_index).to eq(0)
+    end
+  end
+
+  # F5.8 — find_bump searches @bumps directly
+  describe '#find_bump searches @bumps directly (F5.8)' do
+    let(:mp_class) { BSV::Transaction::MerklePath }
+    let(:pe) { mp_class::PathElement }
+
+    it 'finds a BUMP via @bumps when there is no transaction-table entry' do
+      beef = described_class.new
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
+      txid_internal = tx.txid.reverse
+
+      sibling = BSV::Primitives::Digest.sha256('sibling')
+      bump = mp_class.new(
+        block_height: 800_000,
+        path: [[pe.new(offset: 0, hash: txid_internal, txid: true),
+                pe.new(offset: 1, hash: sibling)]]
+      )
+      beef.bumps << bump
+
+      # No transaction entry — should still find the BUMP via @bumps scan
+      found = beef.find_bump(tx.txid)
+      expect(found).to be(bump)
+    end
+
+    it 'prefers the transaction-table entry when both exist' do
+      source = described_class.from_hex(brc62_hex)
+      mined = source.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      bump_via_table = source.find_bump(mined.txid)
+      expect(bump_via_table).to be_a(BSV::Transaction::MerklePath)
+    end
+  end
+
+  # F5.9 — merge doesn't mutate source
+  describe '#merge does not mutate source BeefTx objects (F5.9)' do
+    it 'does not alter the source BEEF transactions format' do
+      source = described_class.from_hex(brc62_hex)
+      original_formats = source.transactions.map(&:format)
+
+      target = described_class.new
+      target.merge(source)
+
+      # Source format array must be unchanged
+      expect(source.transactions.map(&:format)).to eq(original_formats)
+    end
+
+    it 'the merged target has independent BeefTx instances from the source' do
+      source = described_class.from_hex(brc62_hex)
+      target = described_class.new
+      target.merge(source)
+
+      source_objects = source.transactions.to_set(&:object_id)
+      target_objects = target.transactions.to_set(&:object_id)
+
+      expect(source_objects & target_objects).to be_empty
+    end
+  end
+
   describe 'Transaction.from_binary_with_offset' do
     it 'returns correct bytes consumed' do
       hex = '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \

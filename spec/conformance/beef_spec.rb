@@ -99,6 +99,47 @@ RSpec.describe BSV::Transaction::Beef do
     it('is structurally valid')     { expect(beef.valid?).to be true }
   end
 
+  # --- F5.1: TXID_ONLY byte-order consistency ---
+  # BeefTx#txid must return display byte order for ALL format types.
+  # Previously, TXID_ONLY entries stored wire-order bytes, making
+  # find_transaction fail and producing a silent cross-SDK divergence.
+
+  describe 'TXID_ONLY byte-order consistency (F5.1)' do
+    it 'make_txid_only preserves display-order txid' do
+      beef = described_class.from_hex(go_brc62_hex)
+      tx = beef.transactions.first
+      display_txid = tx.txid
+
+      beef.make_txid_only(display_txid)
+      txid_only_entry = beef.transactions.find { |bt| bt.format == described_class::FORMAT_TXID_ONLY }
+      expect(txid_only_entry).not_to be_nil
+      expect(txid_only_entry.txid).to eq(display_txid)
+    end
+
+    it 'TXID_ONLY round-trips through V2 serialise/parse' do
+      beef = described_class.from_hex(go_brc62_hex)
+      original_txid = beef.transactions.first.txid
+
+      beef.make_txid_only(original_txid)
+      v2_bytes = beef.to_binary(version: described_class::BEEF_V2)
+      parsed = described_class.from_binary(v2_bytes)
+
+      txid_entry = parsed.transactions.find { |bt| bt.format == described_class::FORMAT_TXID_ONLY }
+      expect(txid_entry).not_to be_nil
+      expect(txid_entry.txid).to eq(original_txid)
+    end
+
+    it 'TXID_ONLY entries are included in known txids set' do
+      beef = described_class.from_hex(go_beef_set_hex)
+      display_txid = beef.transactions.first.txid
+
+      beef.make_txid_only(display_txid)
+      # With allow_txid_only, the converted entry must be findable
+      # by its display-order txid in the known set
+      expect(beef.valid?(allow_txid_only: true)).to be true
+    end
+  end
+
   # --- Atomic BEEF (BRC-95) conformance ---
 
   describe 'Atomic BEEF (BRC-95) conformance' do
@@ -244,10 +285,11 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'invalid version magic is rejected' do
       # Go SDK: binary.LittleEndian.PutUint32(beefBytes[0:4], 0xdeadbeef) → error
+      # F5.12: unknown version bytes must raise ArgumentError rather than
+      # silently producing an empty-transactions bundle.
       bad_hex = 'efbeadde0000'
-      beef = described_class.from_hex(bad_hex)
-      # Neither V1 nor V2, so transactions won't be parsed
-      expect(beef.transactions).to be_empty
+      expect { described_class.from_hex(bad_hex) }
+        .to raise_error(ArgumentError, /unknown BEEF version/)
     end
   end
 end
