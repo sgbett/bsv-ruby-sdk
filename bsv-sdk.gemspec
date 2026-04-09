@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     'homepage_uri' => spec.homepage,
     'source_code_uri' => spec.homepage,
-    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG.md",
+    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG-sdk.md",
     'rubygems_mfa_required' => 'true'
   }
 
@@ -28,6 +28,6 @@ Gem::Specification.new do |spec|
   # lib/bsv-sdk.rb.
   spec.files = Dir.glob(
     'lib/bsv/{primitives,script,transaction,network,wallet,auth,overlay,identity,registry}{.rb,/**/*}'
-  ) + %w[lib/bsv-sdk.rb lib/bsv/version.rb LICENSE README.md CHANGELOG.md]
+  ) + %w[lib/bsv-sdk.rb lib/bsv/version.rb LICENSE README.md CHANGELOG-sdk.md]
   spec.require_paths = ['lib']
 end
