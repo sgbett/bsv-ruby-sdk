@@ -22,7 +22,7 @@ module BSV
     module Hex
       # Matches an even number of hex characters (case-insensitive).
       # Empty string is valid (decodes to empty bytes).
-      HEX_RE = /\A(?:[0-9a-fA-F]{2})*\z/.freeze
+      HEX_RE = /\A(?:[0-9a-fA-F]{2})*\z/n.freeze
       private_constant :HEX_RE
 
       # Test whether +str+ is valid hex (even-length, hex-only).

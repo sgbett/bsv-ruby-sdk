@@ -602,7 +602,7 @@ module BSV
                'Use FeeModels::SatoshisPerKilobyte.new.compute_fee(tx) instead.', uplevel: 1
           self.class.instance_variable_set(:@_estimated_fee_warned, true)
         end
-        FeeModels::SatoshisPerKilobyte.new(value: (satoshis_per_byte * 1000).round).compute_fee(self)
+        FeeModels::SatoshisPerKilobyte.new(value: satoshis_per_byte * 1000).compute_fee(self)
       end
 
       # Estimate the serialised transaction size in bytes.
