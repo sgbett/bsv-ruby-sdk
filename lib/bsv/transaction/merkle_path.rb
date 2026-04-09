@@ -47,7 +47,23 @@ module BSV
 
       # @param block_height [Integer] the block height
       # @param path [Array<Array<PathElement>>] tree levels
+      # @raise [ArgumentError] if block_height is negative, path is empty,
+      #   any level is not an Array, or level 0 has no txid-flagged leaf
       def initialize(block_height:, path:)
+        # F5.10: construction-time invariant checks
+        raise ArgumentError, 'block_height must be non-negative' if block_height.negative?
+        raise ArgumentError, 'path must be non-empty' if path.empty?
+
+        path.each_with_index do |level, i|
+          raise ArgumentError, "path[#{i}] must be an Array" unless level.is_a?(Array)
+
+          level.each_with_index do |elem, j|
+            raise ArgumentError, "path[#{i}][#{j}] must be a PathElement" unless elem.is_a?(PathElement)
+          end
+        end
+
+        raise ArgumentError, 'level 0 of path must contain at least one txid-flagged element' unless path[0].any?(&:txid)
+
         @block_height = block_height
         @path = path
       end
@@ -239,10 +255,25 @@ module BSV
         working = tx_leaf.hash
         index = tx_leaf.offset
 
-        @path.each_with_index do |_level, height|
+        # F5.2: for compound paths where all txids are at level 0 (path.length == 1
+        # or upper levels are empty/trimmed), compute up to the height implied by the
+        # highest offset present in path[0]. This matches the TS SDK computeRoot logic.
+        max_offset = @path[0].map(&:offset).max || 0
+        tree_height = [@path.length, max_offset.bit_length].max
+
+        tree_height.times do |height|
           sibling_offset = (index >> height) ^ 1
           sibling = offset_leaf(indexed, height, sibling_offset)
-          raise ArgumentError, "missing hash at height #{height}" unless sibling
+
+          if sibling.nil?
+            # F5.2: single-level path — the sibling may be beyond the tree because
+            # this is the last odd node at this height. Bitcoin Merkle duplicates it.
+            if @path.length == 1 && (index >> height) == (max_offset >> height)
+              working = self.class.merkle_tree_parent(working, working)
+              next
+            end
+            raise ArgumentError, "missing hash at height #{height}"
+          end
 
           working = if sibling.duplicate
                       self.class.merkle_tree_parent(working, working)

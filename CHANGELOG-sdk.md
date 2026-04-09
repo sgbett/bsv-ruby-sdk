@@ -9,6 +9,40 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **BEEF/BUMP validation and merge hardening** (HLR #315, A3 cluster).
+  Twelve findings addressed across `Beef` and `MerklePath`:
+  - **F5.1** — `BeefTx` TXID_ONLY entries now store txid in display byte
+    order (matching `Transaction#txid`). Wire serialisation reverses at
+    the boundary. Fixes cross-SDK TXID_ONLY interop.
+  - **F5.12** — `Beef.from_binary` now raises `ArgumentError` for unknown
+    version magic bytes instead of silently accepting them.
+  - **F5.10** — `MerklePath` constructor now validates: non-negative
+    `block_height`, non-empty `path`, all levels are `Array<PathElement>`,
+    and level 0 contains at least one `txid: true` element.
+  - **F5.2** — `MerklePath#compute_root` correctly handles single-level
+    compound paths where `max_offset.bit_length > path.length` (matches TS
+    SDK `computeRoot` logic including duplicate-sibling handling for odd
+    rightmost nodes).
+  - **F5.4** — `Beef#valid?` now cross-checks each `FORMAT_RAW_TX_AND_BUMP`
+    entry: the BUMP must exist and `compute_root(txid)` must succeed.
+  - **F5.3** — New `Beef#verify(chain_tracker = nil, allow_txid_only: false)`
+    method: calls `valid?` then optionally verifies each BUMP's root against
+    a chain tracker via `valid_root_for_height?(root_hex, block_height)`.
+  - **F5.5** — `sort_transactions!` now preserves unsortable (cyclic)
+    transactions in `@txs_not_valid` instead of silently dropping them.
+    `to_binary` now calls `sort_transactions!` before serialising.
+  - **F5.6** — `merge_bump` retroactively upgrades existing
+    `FORMAT_RAW_TX` entries to `FORMAT_RAW_TX_AND_BUMP` when the new BUMP
+    covers their txid.
+  - **F5.7** — `merge_transaction` and `merge_raw_tx` now implement the
+    full upgrade chain: `TXID_ONLY → RAW_TX → RAW_TX_AND_BUMP`.
+  - **F5.8** — `find_bump` now also scans `@bumps` directly when the
+    transaction-table has no matching entry.
+  - **F5.9** — `Beef#merge` constructs new `BeefTx` instances rather than
+    sharing (and mutating) source references.
+  - **F5.20** — `to_binary` calls `sort_transactions!` before serialising
+    to ensure correct dependency order.
+
 - **`Transaction#estimated_fee` default rate aligned and deprecated**
   ([#310](https://github.com/sgbett/bsv-ruby-sdk/issues/310), F4.2).
   The default fee rate changed from 0.5 sat/byte (500 sat/kB) to 0.1

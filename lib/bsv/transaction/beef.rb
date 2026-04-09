@@ -117,6 +117,14 @@ module BSV
         version = data.byteslice(offset, 4).unpack1('V')
         offset += 4
 
+        # F5.12: reject unknown version magic bytes
+        unless [BEEF_V1, BEEF_V2, ATOMIC_BEEF].include?(version)
+          raise ArgumentError,
+                format('unknown BEEF version 0x%<ver>08X: expected BEEF_V1 (0x%<v1>08X), ' \
+                       'BEEF_V2 (0x%<v2>08X), or ATOMIC_BEEF (0x%<ab>08X)',
+                       ver: version, v1: BEEF_V1, v2: BEEF_V2, ab: ATOMIC_BEEF)
+        end
+
         beef = new(version: version)
 
         if version == ATOMIC_BEEF
@@ -131,6 +139,14 @@ module BSV
           offset += 32
           inner_version = data.byteslice(offset, 4).unpack1('V')
           offset += 4
+
+          # Validate inner version — must be V1 or V2
+          unless [BEEF_V1, BEEF_V2].include?(inner_version)
+            raise ArgumentError,
+                  format('unknown inner BEEF version 0x%<ver>08X inside Atomic BEEF: expected BEEF_V1 or BEEF_V2',
+                         ver: inner_version)
+          end
+
           beef.version = inner_version
         end
 
@@ -173,6 +189,9 @@ module BSV
           raise ArgumentError,
                 'BEEF V1 (BRC-62) does not support FORMAT_TXID_ONLY entries; pass version: BEEF_V2 to serialise this bundle'
         end
+
+        # F5.5/F5.20: ensure transactions are in dependency order before serialising
+        sort_transactions!
 
         buf = [version].pack('V')
 
@@ -231,13 +250,21 @@ module BSV
 
       # Find the merkle path (BUMP) for a transaction by its txid.
       #
+      # First checks the transaction-table entries, then scans @bumps directly
+      # for a BUMP whose level-0 leaves contain the txid.
+      #
       # @param txid [String] 32-byte txid in display byte order
       # @return [MerklePath, nil] the merkle path, or nil if not found
       def find_bump(txid)
+        # Check transaction-table entries first (fast path)
         bt = @transactions.find { |entry| entry.txid == txid && entry.format == FORMAT_RAW_TX_AND_BUMP }
-        return unless bt
+        return bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index]) if bt
 
-        bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index])
+        # F5.8: also scan @bumps directly for a path containing the txid leaf
+        txid_internal = txid.reverse
+        @bumps.find do |bump|
+          bump.path[0]&.any? { |leaf| leaf.hash == txid_internal }
+        end
       end
 
       # Find a transaction with all source_transactions wired for signing.
@@ -281,37 +308,70 @@ module BSV
       # it is combined (via MerklePath#combine) and the existing index is
       # returned. Otherwise the BUMP is appended.
       #
+      # After the BUMP is stored, any existing FORMAT_RAW_TX transactions whose
+      # txid appears in the new BUMP's level-0 leaves are retroactively upgraded
+      # to FORMAT_RAW_TX_AND_BUMP (F5.6).
+      #
       # @param merkle_path [MerklePath] the BUMP to merge
       # @return [Integer] the index of the (possibly merged) BUMP
       def merge_bump(merkle_path)
         root = merkle_path.compute_root
-        @bumps.each_with_index do |existing, idx|
+        idx = nil
+        @bumps.each_with_index do |existing, i|
           next unless existing.block_height == merkle_path.block_height
 
-          if existing.compute_root == root
-            existing.combine(merkle_path)
-            return idx
-          end
+          next unless existing.compute_root == root
+
+          existing.combine(merkle_path)
+          idx = i
+          break
         end
 
-        @bumps << merkle_path
-        @bumps.length - 1
+        if idx.nil?
+          @bumps << merkle_path
+          idx = @bumps.length - 1
+        end
+
+        # F5.6: retroactively link existing FORMAT_RAW_TX entries whose txid
+        # appears in the new BUMP's level-0 leaves.
+        bump = @bumps[idx]
+        level0_leaves = bump.path[0] || []
+        level0_internal = level0_leaves.map(&:hash).compact.to_set
+        @transactions.each_with_index do |bt, i|
+          next unless bt.format == FORMAT_RAW_TX && bt.transaction
+          next unless level0_internal.include?(bt.transaction.txid.reverse)
+
+          bt.transaction.merkle_path ||= bump
+          @transactions[i] = BeefTx.new(
+            format: FORMAT_RAW_TX_AND_BUMP,
+            transaction: bt.transaction,
+            bump_index: idx
+          )
+        end
+
+        idx
       end
 
       # Add a transaction to this BEEF bundle.
       #
       # Recursively merges the transaction's ancestors (via source_transaction
       # references on inputs) and their merkle paths. Duplicate transactions
-      # (same txid) are not re-added.
+      # (same txid) are upgraded if a stronger format is now available (F5.7):
+      # TXID_ONLY → RAW_TX or RAW_TX_AND_BUMP; RAW_TX → RAW_TX_AND_BUMP.
       #
       # @param tx [Transaction] the transaction to merge
-      # @return [BeefTx] the (possibly existing) BeefTx entry
+      # @return [BeefTx] the (possibly existing or upgraded) BeefTx entry
       def merge_transaction(tx)
         txid = tx.txid
 
-        # Check for existing entry
-        existing = @transactions.find { |bt| bt.txid == txid }
-        return existing if existing
+        # Check for existing entry and upgrade if a stronger format is available
+        existing_idx = @transactions.index { |bt| bt.txid == txid }
+        if existing_idx
+          existing = @transactions[existing_idx]
+          upgraded = upgrade_beef_tx(existing, tx)
+          @transactions[existing_idx] = upgraded if upgraded
+          return @transactions[existing_idx]
+        end
 
         # Recursively merge ancestors first (dependency order)
         tx.inputs.each do |input|
@@ -331,21 +391,33 @@ module BSV
 
       # Add a transaction from raw binary data.
       #
+      # If the transaction already exists, upgrades weaker entries to stronger
+      # formats when a raw tx or bump_index is now available (F5.7).
+      #
       # @param raw_bytes [String] raw transaction binary
       # @param bump_index [Integer, nil] optional BUMP index
-      # @return [BeefTx] the new BeefTx entry
+      # @return [BeefTx] the new or upgraded BeefTx entry
       def merge_raw_tx(raw_bytes, bump_index: nil)
         tx = Transaction.from_binary(raw_bytes)
-        existing = @transactions.find { |bt| bt.txid == tx.txid }
-        return existing if existing
+
+        if bump_index
+          unless bump_index.is_a?(Integer) && bump_index >= 0 && bump_index < @bumps.length
+            raise ArgumentError,
+                  "bump_index #{bump_index.inspect} out of range (have #{@bumps.length} bumps)"
+          end
+
+          tx.merkle_path = @bumps[bump_index]
+        end
+
+        existing_idx = @transactions.index { |bt| bt.txid == tx.txid }
+        if existing_idx
+          existing = @transactions[existing_idx]
+          upgraded = upgrade_beef_tx(existing, tx, bump_index: bump_index)
+          @transactions[existing_idx] = upgraded if upgraded
+          return @transactions[existing_idx]
+        end
 
         entry = if bump_index
-                  unless bump_index.is_a?(Integer) && bump_index >= 0 && bump_index < @bumps.length
-                    raise ArgumentError,
-                          "bump_index #{bump_index.inspect} out of range (have #{@bumps.length} bumps)"
-                  end
-
-                  tx.merkle_path = @bumps[bump_index]
                   BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index)
                 else
                   BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
@@ -356,7 +428,8 @@ module BSV
 
       # Merge all BUMPs and transactions from another BEEF bundle.
       #
-      # BUMP indices are remapped during merge.
+      # BUMP indices are remapped during merge. New BeefTx instances are
+      # constructed rather than sharing references with the source bundle (F5.9).
       #
       # @param other [Beef] the BEEF bundle to merge from
       # @return [self]
@@ -370,7 +443,8 @@ module BSV
           bump_remap[old_idx] = merge_bump(bump)
         end
 
-        # Merge transactions with remapped BUMP indices
+        # Merge transactions with remapped BUMP indices, constructing new
+        # BeefTx instances rather than sharing source references (F5.9).
         other.transactions.each do |beef_tx|
           case beef_tx.format
           when FORMAT_TXID_ONLY
@@ -388,14 +462,17 @@ module BSV
                       "(source has #{other.bumps.length} bumps); refusing to write a stale reference"
               end
 
-              beef_tx.transaction.merkle_path = @bumps[new_idx]
+              # F5.9: construct a new BeefTx with a dup'd Transaction
+              # so mutations to the merged bundle don't affect the source.
+              tx = beef_tx.transaction.dup
+              tx.merkle_path = @bumps[new_idx]
               @transactions << BeefTx.new(
                 format: FORMAT_RAW_TX_AND_BUMP,
-                transaction: beef_tx.transaction,
+                transaction: tx,
                 bump_index: new_idx
               )
             else
-              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction)
+              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction.dup)
             end
           end
         end
@@ -423,14 +500,33 @@ module BSV
       # - all its inputs reference transactions that are themselves valid
       #   within this bundle.
       #
+      # For FORMAT_RAW_TX_AND_BUMP entries, the BUMP linkage and computed root
+      # are also verified (F5.4).
+      #
       # @param allow_txid_only [Boolean] whether TXID-only entries count as valid (default: false)
       # @return [Boolean] true if structurally valid
       def valid?(allow_txid_only: false)
-        known_txids = build_known_txids(allow_txid_only)
-
         # TXID-only entries are invalid unless explicitly allowed
         has_txid_only = @transactions.any? { |bt| bt.format == FORMAT_TXID_ONLY }
         return false if has_txid_only && !allow_txid_only
+
+        # F5.4: verify BUMP linkage and computed root for each proven transaction
+        @transactions.each do |bt|
+          next unless bt.format == FORMAT_RAW_TX_AND_BUMP
+
+          # Must have a BUMP
+          bump = bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index])
+          return false unless bump
+
+          # The txid must appear as a leaf in the BUMP and compute a valid root
+          begin
+            bump.compute_root(bt.transaction.txid.reverse)
+          rescue ArgumentError
+            return false
+          end
+        end
+
+        known_txids = build_known_txids(allow_txid_only)
 
         pending = @transactions.select { |bt| bt.transaction && !known_txids.include?(bt.txid) }
 
@@ -453,10 +549,36 @@ module BSV
         pending.empty?
       end
 
+      # Verify the BEEF bundle against a chain tracker (SPV).
+      #
+      # Calls {#valid?} first for structural checks, then optionally verifies
+      # each BUMP's computed merkle root against the chain tracker (F5.3).
+      #
+      # @param chain_tracker [#valid_root_for_height?] optional chain tracker
+      #   (see {ChainTracker}) that responds to
+      #   +valid_root_for_height?(root_hex, block_height)+
+      # @param allow_txid_only [Boolean] passed to {#valid?}
+      # @return [Boolean] true if the bundle is structurally valid and, when a
+      #   chain tracker is provided, all BUMP roots are confirmed by the chain
+      def verify(chain_tracker = nil, allow_txid_only: false)
+        return false unless valid?(allow_txid_only: allow_txid_only)
+        return true unless chain_tracker
+
+        @bumps.each do |bump|
+          root_hex = bump.compute_root.reverse.unpack1('H*')
+          return false unless chain_tracker.valid_root_for_height?(root_hex, bump.block_height)
+        end
+
+        true
+      end
+
       # Sort transactions in topological (dependency) order in place.
       #
       # After sorting, every transaction's input ancestors appear before it
       # in the array. This is required for correct BEEF serialisation.
+      #
+      # Transactions that form a cycle (i.e. cannot be topologically sorted)
+      # are moved to +@txs_not_valid+ rather than being silently dropped (F5.5).
       #
       # @return [self]
       def sort_transactions!
@@ -494,9 +616,22 @@ module BSV
           end
         end
 
+        # F5.5: preserve unsortable (cyclic) transactions rather than silently dropping them
+        if sorted.length < @transactions.length
+          sorted_set = sorted.to_set(&:txid)
+          @txs_not_valid = @transactions.reject { |bt| sorted_set.include?(bt.txid) }
+        end
+
         @transactions = sorted
         self
       end
+
+      # Returns transactions that could not be sorted due to cycles, or nil.
+      #
+      # Populated by {#sort_transactions!} when cycles are detected (F5.5).
+      #
+      # @return [Array<BeefTx>, nil]
+      attr_reader :txs_not_valid
 
       # --- Private class methods for deserialisation ---
 
@@ -526,7 +661,12 @@ module BSV
 
             case format
             when FORMAT_TXID_ONLY
-              known_txid = data.byteslice(offset, 32)
+              # Wire stores txid in internal (little-endian) byte order;
+              # reverse to display order so BeefTx#txid is consistent with
+              # Transaction#txid across all format types.
+              raise ArgumentError, 'truncated BEEF: not enough bytes for TXID_ONLY entry' if offset + 32 > data.bytesize
+
+              known_txid = data.byteslice(offset, 32).reverse
               offset += 32
               beef.transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: known_txid)
             when FORMAT_RAW_TX_AND_BUMP
@@ -593,6 +733,41 @@ module BSV
 
       private
 
+      # Upgrade an existing BeefTx entry to a stronger format when new information
+      # is available. Returns the upgraded BeefTx, or nil if no upgrade is needed.
+      #
+      # Upgrade chain (F5.7):
+      #   TXID_ONLY → RAW_TX (if tx provided)
+      #   TXID_ONLY → RAW_TX_AND_BUMP (if tx + bump provided)
+      #   RAW_TX    → RAW_TX_AND_BUMP (if bump now available)
+      #
+      # @param existing [BeefTx] the current entry in @transactions
+      # @param tx [Transaction, nil] the raw transaction (may be nil for TXID_ONLY → TXID_ONLY)
+      # @param bump_index [Integer, nil] a BUMP index already validated against @bumps
+      # @return [BeefTx, nil] the upgraded entry, or nil when no upgrade is needed
+      def upgrade_beef_tx(existing, tx, bump_index: nil)
+        # Determine the best available bump_index: prefer supplied one,
+        # fall back to the tx's merged BUMP when tx carries a merkle_path.
+        effective_bump_idx = bump_index
+        effective_bump_idx = merge_bump(tx.merkle_path) if effective_bump_idx.nil? && tx&.merkle_path
+
+        case existing.format
+        when FORMAT_TXID_ONLY
+          if effective_bump_idx
+            BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: effective_bump_idx)
+          elsif tx
+            BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+          end
+        when FORMAT_RAW_TX
+          if effective_bump_idx
+            tx_to_use = tx || existing.transaction
+            tx_to_use.merkle_path ||= @bumps[effective_bump_idx]
+            BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx_to_use, bump_index: effective_bump_idx)
+          end
+        end
+        # FORMAT_RAW_TX_AND_BUMP is already the strongest — no upgrade needed
+      end
+
       # Build a set of txids that are "known" (proven or txid-only).
       def build_known_txids(allow_txid_only)
         known = Set.new
@@ -645,7 +820,8 @@ module BSV
         case beef_tx.format
         when FORMAT_TXID_ONLY
           buf << [FORMAT_TXID_ONLY].pack('C')
-          buf << beef_tx.known_txid
+          # Reverse display-order txid back to wire (internal) byte order.
+          buf << beef_tx.known_txid.reverse
         when FORMAT_RAW_TX_AND_BUMP
           buf << [FORMAT_RAW_TX_AND_BUMP].pack('C')
           buf << VarInt.encode(beef_tx.bump_index)
