@@ -21,6 +21,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and each gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 independently.
 
+## Unreleased — sdk-0.9.0
+
+### Testing
+
+- [sdk] **Cross-SDK conformance vector suite** ([#307](https://github.com/sgbett/bsv-ruby-sdk/issues/307)).
+  Canonical test vectors are now vendored under `spec/conformance/vectors/`
+  and executed as part of the default test run. The initial set covers
+  BRC-42 key derivation (private + public), `SymmetricKey` AES-256-GCM
+  decryption, BIP-143 sighash, legacy sighash, the Bitcoin Core
+  `script_tests.json` corpus, BUMP parse/round-trip, and three canonical
+  BEEF fixtures (BRC-62, BRC-95 / V2 multi-tx, base64). Provenance (source
+  SDK, source path, upstream commit SHA) is tracked in
+  `spec/conformance/vectors/README.md`; the sync procedure lives at
+  `docs/testing/conformance-vectors.md`. Existing inline BRC-42 and BEEF
+  vectors in `spec/conformance/` have been migrated to load from the
+  vendored files, so future syncs are a plain `diff` rather than a Ruby
+  literal edit.
+
+  Four vector families (`sighash_bip143.json`, `sighash_legacy.json`,
+  `script_tests.json`) are vendored but their execution is deferred:
+  legacy sighash is not supported on BSV (kept for reference only);
+  BIP-143 vectors require a non-FORKID sighash entry point that the
+  Ruby SDK correctly rejects, so execution is deferred to the A2 cluster;
+  `script_tests.json` is deferred to A5 (parser) and A6 (interpreter).
+  Each deferred spec documents its gap explicitly.
+
 ## sdk-0.8.2 / wallet-0.3.4 — 2026-04-08
 
 Paired security patch release. Three P0 findings from the
