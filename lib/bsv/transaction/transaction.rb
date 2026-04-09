@@ -599,7 +599,7 @@ module BSV
       def estimated_fee(satoshis_per_byte: 0.1)
         unless self.class.instance_variable_get(:@_estimated_fee_warned)
           warn '[DEPRECATION] BSV::Transaction::Transaction#estimated_fee is deprecated. ' \
-               'Use FeeModels::SatoshisPerKilobyte.new.compute_fee(tx) instead.', uplevel: 1
+               'Use BSV::Transaction::FeeModels::SatoshisPerKilobyte.new.compute_fee(tx) instead.', uplevel: 1
           self.class.instance_variable_set(:@_estimated_fee_warned, true)
         end
         FeeModels::SatoshisPerKilobyte.new(value: satoshis_per_byte * 1000).compute_fee(self)

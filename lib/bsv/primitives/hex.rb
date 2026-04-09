@@ -31,6 +31,8 @@ module BSV
       # @return [Boolean]
       def self.valid?(str)
         str.is_a?(String) && str.match?(HEX_RE)
+      rescue Encoding::CompatibilityError
+        false
       end
 
       # Validate +str+ as hex, raising on failure.

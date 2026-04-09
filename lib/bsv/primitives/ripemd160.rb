@@ -88,7 +88,10 @@ module BSV
       end
 
       # @param data [String] input data
+      # @raise [TypeError] if +data+ is not a String
       def initialize(data)
+        raise TypeError, "no implicit conversion of #{data.class} into String" unless data.is_a?(String)
+
         @data = data.b # force binary encoding
       end
 
