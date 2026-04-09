@@ -24,7 +24,7 @@ so that a `diff` against upstream makes drift trivially visible.
 | `sighash_bip143.json` | go-sdk | `script/interpreter/data/sighash_bip143.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 | `script_tests.json` | go-sdk | `script/interpreter/data/script_tests.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 | `bump.vectors.json` | go-sdk | `transaction/testdata/bump.go` (transliterated) | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `beef.vectors.json` | go-sdk | `transaction/beef_test.go` constants `BRC62Hex`, `BEEF`, `BEEFSet` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
+| `beef.vectors.json` | go-sdk | `transaction/beef_test.go` constants `BRC62Hex`, `BEEF`, `BEEFSet` + `transaction/testdata/bump.go` constant `Issue96BeefHex` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 
 `bump.vectors.json` and `beef.vectors.json` are not byte-identical to upstream
 because upstream stores them inside Go source files rather than as standalone

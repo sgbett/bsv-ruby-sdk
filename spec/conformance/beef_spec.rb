@@ -22,6 +22,8 @@ RSpec.describe BSV::Transaction::Beef do
 
   let(:go_beef_base64) { BEEF_CONFORMANCE_VECTORS.fetch('BEEF') }
 
+  let(:go_issue96_beef_hex) { BEEF_CONFORMANCE_VECTORS.fetch('Issue96BeefHex') }
+
   # --- Format conformance ---
 
   describe 'BRC-62 (V1) conformance' do
@@ -81,6 +83,20 @@ RSpec.describe BSV::Transaction::Beef do
     it('contains 1 BUMP')         { expect(beef.bumps.length).to eq(1) }
     it('contains 9 transactions') { expect(beef.transactions.length).to eq(9) }
     it('is structurally valid')   { expect(beef.valid?).to be true }
+  end
+
+  # --- Issue #96 regression fixture (go-sdk `Issue96BeefHex`) ---
+  # Regression vector for a "no leaves at height: 1" parse failure tracked
+  # in go-sdk issue #96. Five bumps, fourteen transactions. Exercised here
+  # so the Ruby SDK carries the same regression guard.
+
+  describe 'Issue #96 regression fixture conformance' do
+    subject(:beef) { described_class.from_hex(go_issue96_beef_hex) }
+
+    it('version matches BEEF_V1')   { expect(beef.version).to eq(0xEFBE0001) }
+    it('contains 5 BUMPs')          { expect(beef.bumps.length).to eq(5) }
+    it('contains 14 transactions')  { expect(beef.transactions.length).to eq(14) }
+    it('is structurally valid')     { expect(beef.valid?).to be true }
   end
 
   # --- Atomic BEEF (BRC-95) conformance ---
