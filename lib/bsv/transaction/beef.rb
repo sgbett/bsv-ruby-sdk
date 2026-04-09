@@ -153,7 +153,7 @@ module BSV
       # @param hex [String] hex-encoded BEEF data
       # @return [Beef] the parsed BEEF bundle
       def self.from_hex(hex)
-        from_binary([hex].pack('H*'))
+        from_binary(BSV::Primitives::Hex.decode(hex, name: 'BEEF hex'))
       end
 
       # --- Serialisation ---

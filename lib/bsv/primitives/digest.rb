@@ -51,7 +51,7 @@ module BSV
       # @param data [String] binary data to hash
       # @return [String] 20-byte digest
       def ripemd160(data)
-        OpenSSL::Digest::RIPEMD160.digest(data)
+        Ripemd160.digest(data)
       end
 
       # Compute Hash160: RIPEMD-160(SHA-256(data)).

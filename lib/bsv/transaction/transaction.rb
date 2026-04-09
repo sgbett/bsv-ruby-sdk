@@ -174,7 +174,7 @@ module BSV
       # @param hex [String] hex-encoded transaction
       # @return [Transaction] the parsed transaction
       def self.from_hex(hex)
-        from_binary([hex].pack('H*'))
+        from_binary(BSV::Primitives::Hex.decode(hex, name: 'transaction hex'))
       end
 
       # Deserialise a transaction from Extended Format (BRC-30) binary data.
@@ -242,7 +242,7 @@ module BSV
       # @param hex [String] hex-encoded EF transaction
       # @return [Transaction] the parsed transaction with source data on inputs
       def self.from_ef_hex(hex)
-        from_ef([hex].pack('H*'))
+        from_ef(BSV::Primitives::Hex.decode(hex, name: 'EF transaction hex'))
       end
 
       # Deserialise a transaction from binary data at a given offset,
@@ -359,7 +359,7 @@ module BSV
       # @param hex [String] hex-encoded BEEF
       # @return [Transaction] the subject transaction with ancestry wired
       def self.from_beef_hex(hex)
-        from_beef([hex].pack('H*'))
+        from_beef(BSV::Primitives::Hex.decode(hex, name: 'BEEF hex'))
       end
 
       # --- Transaction ID ---
@@ -589,11 +589,20 @@ module BSV
 
       # Estimate the mining fee based on the estimated transaction size.
       #
-      # @param satoshis_per_byte [Numeric] fee rate (default: 0.5 sat/byte)
+      # @deprecated Use {FeeModels::SatoshisPerKilobyte#compute_fee} instead.
+      #   This method delegates through +SatoshisPerKilobyte+ internally
+      #   and will be removed in 1.0.
+      #
+      # @param satoshis_per_byte [Numeric] fee rate (default: 0.1 sat/byte = 100 sat/kB,
+      #   matching the +SatoshisPerKilobyte+ default)
       # @return [Integer] estimated fee in satoshis (rounded up)
-      def estimated_fee(satoshis_per_byte: 0.5)
-        size = estimated_size
-        (size * satoshis_per_byte).ceil
+      def estimated_fee(satoshis_per_byte: 0.1)
+        unless self.class.instance_variable_get(:@_estimated_fee_warned)
+          warn '[DEPRECATION] BSV::Transaction::Transaction#estimated_fee is deprecated. ' \
+               'Use FeeModels::SatoshisPerKilobyte.new.compute_fee(tx) instead.', uplevel: 1
+          self.class.instance_variable_set(:@_estimated_fee_warned, true)
+        end
+        FeeModels::SatoshisPerKilobyte.new(value: (satoshis_per_byte * 1000).round).compute_fee(self)
       end
 
       # Estimate the serialised transaction size in bytes.

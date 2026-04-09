@@ -45,7 +45,7 @@ module BSV
       # @param hex [String] hex-encoded data to push
       # @return [self] for chaining
       def push_hex(hex)
-        push_data([hex].pack('H*'))
+        push_data(BSV::Primitives::Hex.decode(hex, name: 'hex data'))
       end
 
       # Finalise and return the constructed {Script}.

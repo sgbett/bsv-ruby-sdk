@@ -89,7 +89,7 @@ module BSV
       # @param hex [String] hex-encoded DER signature
       # @return [Signature]
       def self.from_hex(hex)
-        from_der([hex].pack('H*'))
+        from_der(Hex.decode(hex, name: 'signature hex'))
       end
 
       # Serialise the signature as a hex-encoded DER string.

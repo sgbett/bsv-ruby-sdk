@@ -115,7 +115,7 @@ module BSV
       # @param hex [String] hex-encoded BUMP data
       # @return [MerklePath] the parsed merkle path
       def self.from_hex(hex)
-        from_binary([hex].pack('H*')).first
+        from_binary(BSV::Primitives::Hex.decode(hex, name: 'merkle path hex')).first
       end
 
       # Construct a MerklePath from a TSC (Bitcoin SV "Transaction Status

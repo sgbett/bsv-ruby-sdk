@@ -145,11 +145,36 @@ RSpec.describe BSV::Transaction::Transaction do
       end
     end
 
-    describe 'backwards compatibility' do
-      it 'estimated_fee still works' do
+    describe 'estimated_fee deprecation (F4.2)' do
+      before { described_class.instance_variable_set(:@_estimated_fee_warned, false) }
+
+      it 'still works and returns an integer' do
         tx = build_tx(input_sats: 100_000, output_sats: 50_000)
         expect(tx.estimated_fee).to be_a(Integer)
         expect(tx.estimated_fee).to be > 0
+      end
+
+      it 'delegates through SatoshisPerKilobyte — both paths agree' do
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000)
+        model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new
+        expect(tx.estimated_fee).to eq(model.compute_fee(tx))
+      end
+
+      it 'respects explicit satoshis_per_byte and delegates correctly' do
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000)
+        model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new(value: 500)
+        expect(tx.estimated_fee(satoshis_per_byte: 0.5)).to eq(model.compute_fee(tx))
+      end
+
+      it 'emits a deprecation warning' do
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000)
+        expect { tx.estimated_fee }.to output(/DEPRECATION.*estimated_fee/).to_stderr
+      end
+
+      it 'emits the warning only once per process' do
+        tx = build_tx(input_sats: 100_000, output_sats: 50_000)
+        expect { tx.estimated_fee }.to output(/DEPRECATION/).to_stderr
+        expect { tx.estimated_fee }.not_to output.to_stderr
       end
     end
 

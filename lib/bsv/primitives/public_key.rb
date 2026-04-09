@@ -46,7 +46,7 @@ module BSV
       # @param hex [String] hex-encoded compressed or uncompressed public key
       # @return [PublicKey]
       def self.from_hex(hex)
-        from_bytes([hex].pack('H*'))
+        from_bytes(Hex.decode(hex, name: 'public key hex'))
       end
 
       # Derive the public key from a {PrivateKey}.
