@@ -20,18 +20,22 @@ module BSV
 
       # Sign a 32-byte message hash with a private key.
       #
-      # By default the signature is low-S normalised per BIP-62 rule 5, as
-      # required by BSV consensus. Pass +force_low_s: true+ to explicitly
-      # enforce normalisation even when calling code cannot guarantee it
-      # (e.g. when wrapping external signing paths).
+      # The signature is always low-S normalised per BIP-62 rule 5, as
+      # required by BSV consensus (+sign_raw+ normalises internally).
+      # The +force_low_s:+ keyword makes this explicit at the call site
+      # for readability — it is currently a no-op because +sign_raw+
+      # already guarantees low-S. It exists so callers can document
+      # intent without relying on implementation details.
       #
       # @param hash [String] 32-byte message digest
       # @param private_key_bn [OpenSSL::BN] the private key scalar
-      # @param force_low_s [Boolean] normalise S to the lower half when true
-      # @return [Signature] a deterministic signature
-      def sign(hash, private_key_bn, force_low_s: false)
+      # @param force_low_s [Boolean] explicit low-S normalisation (currently
+      #   a no-op since +sign_raw+ already guarantees low-S; provided for
+      #   documentation intent at call sites)
+      # @return [Signature] a low-S normalised deterministic signature
+      def sign(hash, private_key_bn, force_low_s: false) # rubocop:disable Lint/UnusedMethodArgument
         sig, _recovery_id = sign_raw(hash, private_key_bn)
-        force_low_s ? sig.to_low_s : sig
+        sig
       end
 
       # Sign a hash and return both the signature and recovery ID.

@@ -60,6 +60,11 @@ RSpec.describe BSV::Primitives::PrivateKey do
       expect(wif).to eq(known_wif)
     end
 
+    it 'rejects the removed compressed: false keyword (F2.4 breaking change)' do
+      key = described_class.from_hex(known_hex)
+      expect { key.to_wif(compressed: false) }.to raise_error(ArgumentError)
+    end
+
     it 'from_wif still accepts legacy uncompressed WIF for import' do
       # Build an uncompressed WIF manually for round-trip testing
       prefix = "\x80".b
