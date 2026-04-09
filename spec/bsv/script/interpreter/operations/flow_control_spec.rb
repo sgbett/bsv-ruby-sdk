@@ -145,8 +145,14 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('', 'OP_1 OP_CHECKSEQUENCEVERIFY')).to be true
     end
 
-    it 'treats NOP4 as NOP' do
-      expect(evaluate('', 'OP_1 OP_NOP4')).to be true
+    # OP_NOP4 is now OP_SUBSTR (0xb3) — a Chronicle slot — and raises
+    # UnimplementedOpcode rather than acting as a NOP.
+    it 'OP_NOP4 (OP_SUBSTR) raises :unimplemented_opcode' do
+      expect do
+        evaluate('', 'OP_1 OP_NOP4')
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:unimplemented_opcode)
+      }
     end
   end
 
@@ -159,11 +165,12 @@ RSpec.describe BSV::Script::Interpreter do
       }
     end
 
-    it 'OP_VER raises when executing' do
+    # OP_VER is now a Chronicle fail-safe — raises :unimplemented_opcode
+    it 'OP_VER raises :unimplemented_opcode when executing' do
       expect do
         evaluate('', 'OP_VER')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:reserved_opcode)
+        expect(e.code).to eq(:unimplemented_opcode)
       }
     end
 
@@ -189,19 +196,21 @@ RSpec.describe BSV::Script::Interpreter do
   end
 
   describe 'always-illegal opcodes (OP_VERIF / OP_VERNOTIF)' do
-    it 'OP_VERIF raises when executing' do
+    # OP_VERIF and OP_VERNOTIF are now Chronicle fail-safes —
+    # they raise :unimplemented_opcode rather than :reserved_opcode.
+    it 'OP_VERIF raises :unimplemented_opcode when executing' do
       expect do
         evaluate('', 'OP_VERIF')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:reserved_opcode)
+        expect(e.code).to eq(:unimplemented_opcode)
       }
     end
 
-    it 'OP_VERNOTIF raises when executing' do
+    it 'OP_VERNOTIF raises :unimplemented_opcode when executing' do
       expect do
         evaluate('', 'OP_VERNOTIF')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:reserved_opcode)
+        expect(e.code).to eq(:unimplemented_opcode)
       }
     end
 

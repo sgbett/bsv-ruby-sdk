@@ -42,9 +42,12 @@ module BSV
       # Conditional opcodes must be processed even in non-executing branches
       # to maintain correct nesting depth.
       CONDITIONAL_OPCODES = [
-        Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_ELSE, Opcodes::OP_ENDIF,
-        Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
+        Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_ELSE, Opcodes::OP_ENDIF
       ].freeze
+
+      # Maximum nesting depth for OP_IF / OP_NOTIF blocks. Prevents interpreter
+      # stack overflow from deeply nested conditionals.
+      MAX_CONDITIONAL_DEPTH = 256
 
       # Evaluate unlock + lock scripts without transaction context.
       #
@@ -166,9 +169,7 @@ module BSV
 
         # --- Flow control ---
         when Opcodes::OP_NOP, Opcodes::OP_NOP1, Opcodes::OP_CHECKLOCKTIMEVERIFY,
-             Opcodes::OP_CHECKSEQUENCEVERIFY, Opcodes::OP_NOP4, Opcodes::OP_NOP5,
-             Opcodes::OP_NOP6, Opcodes::OP_NOP7, Opcodes::OP_NOP8, Opcodes::OP_NOP9,
-             Opcodes::OP_NOP10
+             Opcodes::OP_CHECKSEQUENCEVERIFY, Opcodes::OP_NOP9, Opcodes::OP_NOP10
           op_nop
         when Opcodes::OP_IF then op_if
         when Opcodes::OP_NOTIF then op_notif
@@ -176,10 +177,15 @@ module BSV
         when Opcodes::OP_ENDIF then op_endif
         when Opcodes::OP_VERIFY then op_verify
         when Opcodes::OP_RETURN then op_return
-        when Opcodes::OP_VER, Opcodes::OP_RESERVED, Opcodes::OP_RESERVED1, Opcodes::OP_RESERVED2
+        when Opcodes::OP_RESERVED, Opcodes::OP_RESERVED1, Opcodes::OP_RESERVED2
           op_reserved(opcode)
-        when Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
-          op_ver_conditional(opcode)
+        # Chronicle fail-safe: OP_VER, OP_VERIF, OP_VERNOTIF, and the Chronicle
+        # string/shift slots raise UnimplementedOpcode. Full semantics are
+        # deferred to SDK v0.10.
+        when Opcodes::OP_VER, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF,
+             Opcodes::OP_SUBSTR, Opcodes::OP_LEFT, Opcodes::OP_RIGHT,
+             Opcodes::OP_LSHIFTNUM, Opcodes::OP_RSHIFTNUM
+          op_unimplemented(opcode)
 
         # --- Stack manipulation ---
         when Opcodes::OP_TOALTSTACK then op_toaltstack

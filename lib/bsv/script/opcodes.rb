@@ -125,15 +125,27 @@ module BSV
       OP_CHECKMULTISIG  = 0xae
       OP_CHECKMULTISIGVERIFY = 0xaf
 
-      # Expansion
+      # Expansion / NOP upgrades
       OP_NOP1 = 0xb0
       OP_CHECKLOCKTIMEVERIFY = 0xb1
       OP_CHECKSEQUENCEVERIFY = 0xb2
-      OP_NOP4           = 0xb3
-      OP_NOP5           = 0xb4
-      OP_NOP6           = 0xb5
-      OP_NOP7           = 0xb6
-      OP_NOP8           = 0xb7
+
+      # Chronicle slots (0xb3–0xb7): reserved for future string/shift opcodes.
+      # Full semantics are deferred to SDK v0.10. Scripts using these opcodes
+      # will raise ScriptErrorCode::UNIMPLEMENTED_OPCODE at execution time.
+      OP_SUBSTR         = 0xb3
+      OP_LEFT           = 0xb4
+      OP_RIGHT          = 0xb5
+      OP_LSHIFTNUM      = 0xb6
+      OP_RSHIFTNUM      = 0xb7
+
+      # NOP aliases for the Chronicle slots (preserved for compatibility)
+      OP_NOP4           = OP_SUBSTR
+      OP_NOP5           = OP_LEFT
+      OP_NOP6           = OP_RIGHT
+      OP_NOP7           = OP_LSHIFTNUM
+      OP_NOP8           = OP_RSHIFTNUM
+
       OP_NOP9           = 0xb8
       OP_NOP10          = 0xb9
 

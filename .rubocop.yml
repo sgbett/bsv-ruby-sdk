@@ -288,11 +288,13 @@ RSpec/SpecFilePathFormat:
     - 'spec/bsv/registry/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
+# Hardening specs test multiple classes/modules together and use a string description.
 RSpec/DescribeClass:
   Exclude:
     - 'spec/bsv/transaction/tx_vectors_spec.rb'
     - 'spec/bsv/transaction/sighash_vectors_spec.rb'
     - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+    - 'spec/bsv/script/interpreter/hardening_spec.rb'
     - 'spec/integration/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'

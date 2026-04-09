@@ -143,6 +143,57 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `createMinimallyEncodedScriptChunk` — we fix it locally and plan to raise it
   upstream.
 
+- **`Stack#pop_int` / `Stack#peek_int` now enforce minimal encoding by default**
+  ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318), F7.11).
+  `require_minimal:` now defaults to `true`, matching post-Genesis BSV consensus
+  rules. Previously the default was `false`, allowing non-minimally encoded script
+  numbers to be silently accepted.
+  **Migration:** callers that relied on decoding non-minimal encodings (e.g.
+  `"\x00\x01"` for 256 instead of `"\x00\x01"` properly encoded) will now receive a
+  `ScriptError` with code `:minimal_data`. Pass `require_minimal: false` explicitly
+  to restore the previous behaviour where that is intentional.
+
+- **Chronicle opcodes now raise `ScriptErrorCode::UNIMPLEMENTED_OPCODE`**
+  ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318), F7.1/F7.2).
+  `OP_SUBSTR` (0xb3), `OP_LEFT` (0xb4), `OP_RIGHT` (0xb5), `OP_LSHIFTNUM` (0xb6),
+  `OP_RSHIFTNUM` (0xb7), `OP_VER` (0x62), `OP_VERIF` (0x65), and `OP_VERNOTIF`
+  (0x66) previously executed silently as no-ops or reserved-opcode errors with
+  a different code. Any script that executes one of these opcodes will now raise
+  `ScriptError` with code `:unimplemented_opcode` rather than succeeding silently.
+  Full Chronicle string and numeric-shift semantics are planned for SDK v0.10.
+  **Migration:** scripts relying on these opcodes producing no-op or
+  `RESERVED_OPCODE` behaviour must be updated. Chronicle opcode constants
+  (`OP_SUBSTR`, `OP_LEFT`, etc.) are now defined in `BSV::Script::Opcodes`.
+
+### Added
+
+- **32 MB stack memory limit** ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318),
+  F7.18). The script execution stack now enforces a 32 MB aggregate memory cap,
+  matching the ts-sdk. Every push (including those from `dup_n`, `over_n`, `pick_n`,
+  and `tuck`) checks the limit and raises `ScriptError` with code
+  `:stack_memory_exceeded` if exceeded. This naturally bounds O(n²) opcodes such
+  as `OP_MUL` on large operands.
+
+- **CHECKMULTISIG post-Genesis key-count limit removed** ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318),
+  F7.8). The 20-key cap on `OP_CHECKMULTISIG` has been removed in line with
+  post-Genesis BSV rules. The stack memory limit is now the practical bound.
+
+- **Conditional nesting depth cap** ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318),
+  F7.19). `OP_IF` / `OP_NOTIF` now raise `ScriptError` with code
+  `:unbalanced_conditional` if the nesting depth exceeds 256, preventing interpreter
+  stack overflow from deeply nested conditionals.
+
+- **Hybrid public key prefix rejection** ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318),
+  F7.10). `CHECKSIG` and `CHECKMULTISIG` now explicitly document that hybrid
+  encoding prefix bytes 0x06 and 0x07 are rejected. Only compressed (0x02/0x03)
+  and uncompressed (0x04) keys are valid.
+
+- **CHECKSIG / CHECKMULTISIG no-tx behaviour corrected** ([#318](https://github.com/sgbett/bsv-ruby-sdk/issues/318),
+  F7.9). When no transaction context is provided (e.g. `Interpreter.evaluate`
+  without a tx), `OP_CHECKSIG` and `OP_CHECKMULTISIG` now push `false` for
+  non-empty signatures rather than raising `SIG_NULLFAIL`. NULLFAIL only applies
+  when a real verification failure occurs — without a tx there is nothing to verify.
+
 ### Changed
 
 - **`Transaction#estimated_fee` default rate aligned and deprecated**
