@@ -51,10 +51,13 @@ module BSV
 
             result = verify_checksig(full_sig, pubkey_bytes)
 
-            # NULLFAIL: non-empty signature that failed verification
-            raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification') unless result
+            # NULLFAIL: a non-empty signature that failed actual verification must be
+            # rejected. When there is no transaction context the signature cannot be
+            # verified at all — in that case we push false rather than raising, because
+            # no real verification failure occurred.
+            raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification') if !result && @tx
 
-            @dstack.push_bool(true)
+            @dstack.push_bool(result)
           end
 
           # OP_CHECKSIGVERIFY: OP_CHECKSIG then OP_VERIFY
@@ -65,12 +68,13 @@ module BSV
             raise ScriptError.new(ScriptErrorCode::CHECKSIGVERIFY_FAILED, 'OP_CHECKSIGVERIFY failed')
           end
 
-          # OP_CHECKMULTISIG: verify M-of-N signatures
+          # OP_CHECKMULTISIG: verify M-of-N signatures.
+          #
+          # Post-Genesis BSV removes the 20-key limit. The stack memory cap
+          # (Stack::MAX_MEMORY_BYTES) is the practical upper bound on key count.
           def op_checkmultisig
             num_pubkeys = @dstack.pop_int.to_i32
-            if num_pubkeys.negative? || num_pubkeys > 20
-              raise ScriptError.new(ScriptErrorCode::INVALID_PUBKEY_COUNT, "invalid pubkey count: #{num_pubkeys}")
-            end
+            raise ScriptError.new(ScriptErrorCode::INVALID_PUBKEY_COUNT, "invalid pubkey count: #{num_pubkeys}") if num_pubkeys.negative?
 
             pubkeys = Array.new(num_pubkeys) { @dstack.pop_bytes }
 
@@ -87,8 +91,10 @@ module BSV
 
             success = multisig_match?(signatures, pubkeys)
 
-            # NULLFAIL: if failed, all signatures must be empty
-            unless success
+            # NULLFAIL: if failed and a transaction context is present, all non-empty
+            # signatures represent real verification failures and must be rejected.
+            # Without a tx context no verification occurred, so we push false instead.
+            if !success && @tx
               signatures.each do |sig|
                 raise ScriptError.new(ScriptErrorCode::SIG_NULLFAIL, 'non-empty signature failed verification') unless sig.empty?
               end
@@ -183,7 +189,15 @@ module BSV
             raise ScriptError.new(ScriptErrorCode::SIG_DER, "invalid DER signature: #{e.message}")
           end
 
-          # Validate public key encoding (compressed or uncompressed).
+          # Validate public key encoding.
+          #
+          # Accepted:
+          #   0x02, 0x03 — compressed (33 bytes)
+          #   0x04       — uncompressed (65 bytes)
+          #
+          # Rejected:
+          #   0x06, 0x07 — hybrid encoding (not valid in BSV scripts)
+          #   anything else
           def validate_pubkey_encoding!(bytes)
             return if bytes.bytesize == 33 && [0x02, 0x03].include?(bytes.getbyte(0))
             return if bytes.bytesize == 65 && bytes.getbyte(0) == 0x04

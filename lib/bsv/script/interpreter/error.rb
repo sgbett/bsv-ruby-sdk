@@ -49,6 +49,8 @@ module BSV
       IMPOSSIBLE_ENCODING = :impossible_encoding
       INVALID_OPCODE = :invalid_opcode
       MINIMAL_DATA = :minimal_data
+      STACK_MEMORY_EXCEEDED = :stack_memory_exceeded
+      UNIMPLEMENTED_OPCODE = :unimplemented_opcode
     end
   end
 end

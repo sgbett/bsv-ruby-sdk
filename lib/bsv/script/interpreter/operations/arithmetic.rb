@@ -59,7 +59,12 @@ module BSV
             @dstack.push_int(a - b)
           end
 
-          # OP_MUL: a * b (re-enabled after genesis)
+          # OP_MUL: a * b (re-enabled after genesis).
+          #
+          # The O(n²) memory growth of large-operand multiplication is bounded
+          # by the 32 MB stack memory cap enforced by Stack#push_int, which calls
+          # Stack#push_bytes and raises ScriptErrorCode::STACK_MEMORY_EXCEEDED
+          # before the result can be pushed.
           def op_mul
             b = @dstack.pop_int
             a = @dstack.pop_int

@@ -10,6 +10,13 @@ module BSV
 
           # OP_IF: conditional execution
           def op_if
+            if @cond_stack.length >= MAX_CONDITIONAL_DEPTH
+              raise ScriptError.new(
+                ScriptErrorCode::UNBALANCED_CONDITIONAL,
+                "conditional depth exceeded #{MAX_CONDITIONAL_DEPTH}"
+              )
+            end
+
             if branch_executing?
               @cond_stack.push(@dstack.pop_bool ? :true : :false)
             else
@@ -20,6 +27,13 @@ module BSV
 
           # OP_NOTIF: inverse conditional execution
           def op_notif
+            if @cond_stack.length >= MAX_CONDITIONAL_DEPTH
+              raise ScriptError.new(
+                ScriptErrorCode::UNBALANCED_CONDITIONAL,
+                "conditional depth exceeded #{MAX_CONDITIONAL_DEPTH}"
+              )
+            end
+
             if branch_executing?
               @cond_stack.push(@dstack.pop_bool ? :false : :true)
             else
@@ -73,7 +87,7 @@ module BSV
           # OP_NOP and OP_NOP1..OP_NOP10 (including CLTV/CSV treated as NOP)
           def op_nop; end
 
-          # OP_RESERVED, OP_RESERVED1, OP_RESERVED2, OP_VER: fail when executing
+          # OP_RESERVED, OP_RESERVED1, OP_RESERVED2: fail when executing
           def op_reserved(opcode)
             raise ScriptError.new(
               ScriptErrorCode::RESERVED_OPCODE,
@@ -81,13 +95,15 @@ module BSV
             )
           end
 
-          # OP_VERIF, OP_VERNOTIF: always-illegal after genesis — fail only when executing
-          def op_ver_conditional(opcode)
-            return unless branch_executing?
-
+          # Chronicle fail-safe: OP_VER, OP_VERIF, OP_VERNOTIF and the Chronicle
+          # string/shift slots (OP_SUBSTR, OP_LEFT, OP_RIGHT, OP_LSHIFTNUM,
+          # OP_RSHIFTNUM). Full semantics are deferred to SDK v0.10. Any script
+          # that reaches one of these opcodes will fail loudly rather than
+          # silently succeeding.
+          def op_unimplemented(opcode)
             raise ScriptError.new(
-              ScriptErrorCode::RESERVED_OPCODE,
-              "attempt to execute reserved opcode: 0x#{opcode.to_s(16).rjust(2, '0')}"
+              ScriptErrorCode::UNIMPLEMENTED_OPCODE,
+              "unimplemented opcode: 0x#{opcode.to_s(16).rjust(2, '0')}"
             )
           end
         end
