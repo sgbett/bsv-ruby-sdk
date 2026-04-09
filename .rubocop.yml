@@ -38,6 +38,8 @@ Naming/MethodParameterName:
     - m
     - bn
     - tx
+    - db
+    - ds
     - p1
     - p2
 
@@ -171,6 +173,7 @@ Metrics/ClassLength:
     - 'lib/bsv/transaction/beef.rb'
     - 'lib/bsv/network/**/*'
     - 'lib/bsv/wallet_interface/**/*'
+    - 'lib/bsv/wallet_postgres/**/*'
     - 'lib/bsv/auth/**/*'
     - 'lib/bsv/overlay/**/*'
     - 'lib/bsv/identity/**/*'
