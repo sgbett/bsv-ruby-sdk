@@ -32,9 +32,9 @@ Sequel.migration do
 
     create_table(:wallet_certificates) do
       primary_key :id
-      String :type
-      String :serial_number
-      String :certifier
+      String :type, null: false
+      String :serial_number, null: false
+      String :certifier, null: false
       String :subject
       jsonb :data, null: false
       DateTime :created_at, null: false, default: Sequel::CURRENT_TIMESTAMP
