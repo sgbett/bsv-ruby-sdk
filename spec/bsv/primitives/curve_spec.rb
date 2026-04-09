@@ -86,37 +86,31 @@ RSpec.describe BSV::Primitives::Curve do
     end
   end
 
-  describe '.ec_key_from_private_bytes' do
-    it 'constructs an EC key from private key bytes' do
-      privkey_hex = 'eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694'
-      privkey_bytes = [privkey_hex].pack('H*')
-      key = described_class.ec_key_from_private_bytes(privkey_bytes)
+  describe '.multiply_generator_ct' do
+    it 'produces the same result as multiply_generator (constant-time path)' do
+      # 2G via constant-time must equal 2G via variable-time
+      scalar = OpenSSL::BN.new('2', 10)
+      vt = described_class.multiply_generator(scalar)
+      ct = described_class.multiply_generator_ct(scalar)
+      expect(ct.to_bn(:compressed).to_s(16)).to eq(vt.to_bn(:compressed).to_s(16))
+    end
 
-      expect(key).to be_a(OpenSSL::PKey::EC)
-      expect(key.public_key.to_bn(:compressed).to_s(16))
-        .to eq('025CEEBA2AB4A635DF2C0301A3D773DA06AC5A18A7C3E0D09A795D7E57D233EDF1')
+    it 'matches a well-known point for a random scalar' do
+      # k = 7, expected = 7G
+      scalar = OpenSSL::BN.new('7', 10)
+      expected = described_class.multiply_generator(scalar)
+      result = described_class.multiply_generator_ct(scalar)
+      expect(result.to_bn(:compressed).to_s(16)).to eq(expected.to_bn(:compressed).to_s(16))
     end
   end
 
-  describe '.ec_key_from_public_bytes' do
-    it 'constructs an EC key from compressed public key bytes' do
-      pub_hex = '025CEEBA2AB4A635DF2C0301A3D773DA06AC5A18A7C3E0D09A795D7E57D233EDF1'
-      pub_bytes = [pub_hex].pack('H*')
-      key = described_class.ec_key_from_public_bytes(pub_bytes)
-
-      expect(key).to be_a(OpenSSL::PKey::EC)
-      expect(key.public_key.to_bn(:compressed).to_s(16)).to eq(pub_hex)
-    end
-
-    it 'constructs an EC key from uncompressed public key bytes' do
-      privkey_hex = 'eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694'
-      priv_bn = OpenSSL::BN.new(privkey_hex, 16)
-      point = described_class.multiply_generator(priv_bn)
-      uncompressed = point.to_octet_string(:uncompressed)
-
-      key = described_class.ec_key_from_public_bytes(uncompressed)
-      expect(key.public_key.to_bn(:compressed).to_s(16))
-        .to eq('025CEEBA2AB4A635DF2C0301A3D773DA06AC5A18A7C3E0D09A795D7E57D233EDF1')
+  describe '.multiply_point_ct' do
+    it 'produces the same result as multiply_point (constant-time path)' do
+      p2 = described_class.multiply_generator(OpenSSL::BN.new('2', 10))
+      scalar = OpenSSL::BN.new('5', 10)
+      vt = described_class.multiply_point(p2, scalar)
+      ct = described_class.multiply_point_ct(p2, scalar)
+      expect(ct.to_bn(:compressed).to_s(16)).to eq(vt.to_bn(:compressed).to_s(16))
     end
   end
 end

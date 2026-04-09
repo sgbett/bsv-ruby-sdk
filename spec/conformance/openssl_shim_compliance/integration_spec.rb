@@ -45,6 +45,10 @@ RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
   # Dynamically generate one example per output file.
   # We list the expected files explicitly so a missing file is a failure,
   # not a silent skip.
+  # NOTE: ec_key_priv_* and ec_key_pub_* were removed in the A4 crypto
+  # hardening pass (HLR #316). The DER-parsing BSVShimEC constructor was
+  # deleted as dead code; the integration harness no longer generates
+  # those output files.
   expected_files = %w[
     group_order.bin
     group_generator_compressed.bin
@@ -66,10 +70,6 @@ RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
     to_bn_compressed_mid.bin
     to_bn_hex_1.txt
     to_bn_hex_mid.txt
-    ec_key_priv_1.bin
-    ec_key_priv_mid.bin
-    ec_key_pub_compressed.bin
-    ec_key_pub_uncompressed.bin
   ]
 
   expected_files.each do |filename|

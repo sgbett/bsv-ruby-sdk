@@ -106,13 +106,16 @@ module BSV
       #   alice_pub.derive_shared_secret(bob_priv) ==
       #     bob_pub.derive_shared_secret(alice_priv)
       #
+      # Uses constant-time scalar multiplication to protect the private
+      # key scalar from timing side-channels.
+      #
       # This is the foundational primitive for BRC-42 key derivation,
       # BRC-77/78 messaging, and ECIES encryption.
       #
       # @param private_key [PrivateKey] the other party's private key
       # @return [PublicKey] the shared secret as a public key (curve point)
       def derive_shared_secret(private_key)
-        shared_point = Curve.multiply_point(@point, private_key.bn)
+        shared_point = Curve.multiply_point_ct(@point, private_key.bn)
         PublicKey.new(shared_point)
       end
 
@@ -130,7 +133,7 @@ module BSV
         shared = derive_shared_secret(private_key)
         hmac = Digest.hmac_sha256(shared.compressed, invoice_number.encode('UTF-8'))
         hmac_bn = OpenSSL::BN.new(hmac.unpack1('H*'), 16)
-        hmac_point = Curve.multiply_generator(hmac_bn)
+        hmac_point = Curve.multiply_generator_ct(hmac_bn)
         child_point = Curve.add_points(@point, hmac_point)
         PublicKey.new(child_point)
       end

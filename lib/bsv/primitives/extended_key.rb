@@ -184,7 +184,7 @@ module BSV
                             bn_to_32bytes(child_key_bn)
                           else
                             parent_point = Curve.point_from_bytes(@key)
-                            il_point = Curve.multiply_generator(il_bn)
+                            il_point = Curve.multiply_generator_ct(il_bn)
                             child_point = Curve.add_points(parent_point, il_point)
                             raise ArgumentError, 'invalid child: derived point is at infinity' if child_point.infinity?
 
@@ -296,7 +296,7 @@ module BSV
       def compressed_pubkey_bytes
         if private?
           bn = OpenSSL::BN.new(@key, 2)
-          point = Curve.multiply_generator(bn)
+          point = Curve.multiply_generator_ct(bn)
           point.to_octet_string(:compressed)
         else
           @key

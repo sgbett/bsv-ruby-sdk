@@ -90,6 +90,29 @@ RSpec.describe BSV::Primitives::ECDSA do
     end
   end
 
+  describe '.sign with force_low_s' do
+    it 'produces a low-S signature when force_low_s is false (default)' do
+      hash = BSV::Primitives::Digest.sha256('force_low_s test')
+      sig = described_class.sign(hash, privkey_bn, force_low_s: false)
+      # sign_raw already normalises to low-S, so this should be low-S regardless
+      expect(sig.low_s?).to be true
+    end
+
+    it 'produces a low-S signature when force_low_s is true' do
+      hash = BSV::Primitives::Digest.sha256('force_low_s true')
+      sig = described_class.sign(hash, privkey_bn, force_low_s: true)
+      expect(sig.low_s?).to be true
+    end
+
+    it 'force_low_s: true and force_low_s: false produce equal signatures for same inputs' do
+      # Both paths normalise via sign_raw, so results are identical.
+      hash = BSV::Primitives::Digest.sha256('idempotent')
+      sig_default = described_class.sign(hash, privkey_bn)
+      sig_forced  = described_class.sign(hash, privkey_bn, force_low_s: true)
+      expect(sig_forced).to eq(sig_default)
+    end
+  end
+
   describe '.sign_recoverable' do
     it 'returns a [Signature, Integer] pair' do
       hash = BSV::Primitives::Digest.sha256('hello')

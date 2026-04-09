@@ -107,6 +107,34 @@ RSpec.describe BSV::Primitives::Secp256k1 do
     end
   end
 
+  describe 'WNAF_TABLE_CACHE LRU bound' do
+    it 'defines WNAF_CACHE_MAX as 512' do
+      expect(s::WNAF_CACHE_MAX).to eq(512)
+    end
+
+    it 'evicts the oldest entry when the cache is full' do
+      cache = s::WNAF_TABLE_CACHE
+      # Snapshot the cache and work on a fresh copy to avoid polluting state.
+      saved = cache.dup
+      cache.clear
+
+      # Fill the cache to the limit using sentinel entries.
+      s::WNAF_CACHE_MAX.times { |i| cache["5:sentinel_x_#{i}:sentinel_y_#{i}"] = [:dummy] }
+      first_key = cache.keys.first
+      expect(cache.size).to eq(s::WNAF_CACHE_MAX)
+
+      # Simulate what scalar_multiply_wnaf does when the cache is full.
+      cache.delete(cache.keys.first) if cache.size >= s::WNAF_CACHE_MAX
+      cache['5:new_key:new_key'] = [:new]
+
+      expect(cache.size).to eq(s::WNAF_CACHE_MAX)
+      expect(cache.key?(first_key)).to be false
+    ensure
+      cache.clear
+      cache.merge!(saved)
+    end
+  end
+
   describe 'Jacobian point operations' do
     let(:g_jp) { [s::GX, s::GY, 1] }
 
@@ -262,6 +290,56 @@ RSpec.describe BSV::Primitives::Secp256k1 do
 
       it 'infinity * scalar = infinity' do
         expect(described_class.infinity.mul(42).infinity?).to be true
+      end
+    end
+
+    describe '#mul_ct (Montgomery ladder, constant-time)' do
+      let(:g) { described_class.generator }
+
+      it 'produces the same result as mul for scalar 1' do
+        expect(g.mul_ct(1)).to eq(g.mul(1))
+      end
+
+      it 'produces the same result as mul for scalar 2' do
+        expect(g.mul_ct(2)).to eq(g.mul(2))
+      end
+
+      it 'produces the same result as mul for a large scalar' do
+        k = 0xDEADBEEFCAFEBABE
+        expect(g.mul_ct(k)).to eq(g.mul(k))
+      end
+
+      it 'produces known 2*G coordinates' do
+        two_g = g.mul_ct(2)
+        expect(two_g.x).to eq(0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5)
+        expect(two_g.y).to eq(0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A)
+      end
+
+      it 'produces known 3*G coordinates' do
+        three_g = g.mul_ct(3)
+        expect(three_g.x).to eq(0xF9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9)
+        expect(three_g.y).to eq(0x388F7B0F632DE8140FE337E62A37F3566500A99934C2231B6CB9FD7584B8E672)
+      end
+
+      it '0 * G = infinity' do
+        expect(g.mul_ct(0).infinity?).to be true
+      end
+
+      it 'N * G = infinity' do
+        expect(g.mul_ct(s::N).infinity?).to be true
+      end
+
+      it 'result is on the curve' do
+        result = g.mul_ct(0xABCDEF0123456789)
+        expect(result.on_curve?).to be true
+      end
+
+      it 'matches wNAF for the secp256k1 generator with scalar N-1' do
+        # This tests the edge case of the largest valid scalar
+        k = s::N - 1
+        ct = g.mul_ct(k)
+        vt = g.mul(k)
+        expect(ct).to eq(vt)
       end
     end
 

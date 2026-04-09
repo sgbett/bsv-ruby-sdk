@@ -85,6 +85,19 @@ class BSVShimECPoint
     end
   end
 
+  # Constant-time scalar multiplication via the Montgomery ladder.
+  #
+  # Delegates to {BSV::Primitives::Secp256k1::Point#mul_ct} to ensure
+  # secret-scalar paths execute in constant time.
+  #
+  # @param scalar_bn [OpenSSL::BN, Integer] the secret scalar
+  # @return [BSVShimECPoint]
+  def mul_ct(scalar_bn)
+    scalar = bn_to_int(scalar_bn)
+    result = @secp_point.mul_ct(scalar)
+    self.class.from_secp_point(@group, result)
+  end
+
   def add(other)
     result = @secp_point.add(other.instance_variable_get(:@secp_point))
     self.class.from_secp_point(@group, result)
@@ -121,44 +134,19 @@ class BSVShimECPoint
 end
 
 # Shim EC key wrapping a public key point.
+#
+# The DER-parsing constructor and +parse_der+ class method have been
+# removed. They existed solely to support +Curve.ec_key_from_private_bytes+
+# and +Curve.ec_key_from_public_bytes+, which were deleted in the A4
+# crypto hardening pass (HLR #316). No production code path constructs
+# a +BSVShimEC+ from DER any longer.
 class BSVShimEC
   attr_reader :public_key
 
-  def initialize(der_or_point)
-    if der_or_point.is_a?(BSVShimECPoint)
-      @public_key = der_or_point
-    elsif der_or_point.is_a?(String)
-      @public_key = self.class.parse_der(der_or_point)
-    else
-      raise ArgumentError, "unsupported argument: #{der_or_point.class}"
-    end
-  end
+  def initialize(point)
+    raise ArgumentError, "expected BSVShimECPoint, got #{point.class}" unless point.is_a?(BSVShimECPoint)
 
-  # Parse a DER-encoded EC key and extract the public key point.
-  #
-  # Note: unlike real OpenSSL, this parser does not validate the curve
-  # OID embedded in the DER. This is acceptable because the only callers
-  # are {Curve.ec_key_from_private_bytes} and {Curve.ec_key_from_public_bytes},
-  # which construct the DER internally with a hardcoded secp256k1 OID.
-  # No production code path passes externally-supplied DER to this method.
-  # This method exists solely to maintain interface compatibility with the
-  # original OpenSSL-backed Curve module and may be removed in a future
-  # refactor that eliminates the ec_key_from_* methods.
-  def self.parse_der(der)
-    der = der.b
-    seq = OpenSSL::ASN1.decode(der)
-
-    if seq.value[0].is_a?(OpenSSL::ASN1::Integer) && seq.value[0].value == 1
-      priv_bytes = seq.value[1].value
-      scalar = BSV::Primitives::Secp256k1.bytes_to_int(priv_bytes)
-      secp_point = BSV::Primitives::Secp256k1::Point.generator.mul(scalar)
-    else
-      pub_bytes = seq.value[1].value
-      pub_bytes = pub_bytes[1..] if pub_bytes.getbyte(0).zero? && pub_bytes.length > 33
-      secp_point = BSV::Primitives::Secp256k1::Point.from_bytes(pub_bytes)
-    end
-    group = BSVShimECGroup.new('secp256k1')
-    BSVShimECPoint.from_secp_point(group, secp_point)
+    @public_key = point
   end
 end
 

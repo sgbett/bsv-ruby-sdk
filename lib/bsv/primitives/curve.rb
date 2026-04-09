@@ -25,7 +25,10 @@ module BSV
 
       module_function
 
-      # Multiply the generator point by a scalar.
+      # Multiply the generator point by a scalar (variable-time, wNAF).
+      #
+      # Suitable for public scalars only (e.g. verify paths). For secret
+      # scalars use {multiply_generator_ct}.
       #
       # @param scalar_bn [OpenSSL::BN] the scalar multiplier
       # @return [OpenSSL::PKey::EC::Point] the resulting curve point
@@ -33,13 +36,39 @@ module BSV
         G.mul(scalar_bn)
       end
 
-      # Multiply an arbitrary curve point by a scalar.
+      # Multiply the generator point by a secret scalar (constant-time).
+      #
+      # Uses the Montgomery ladder to avoid timing side-channels on the
+      # scalar. Use for key generation and signing.
+      #
+      # @param scalar_bn [OpenSSL::BN] the secret scalar multiplier
+      # @return [OpenSSL::PKey::EC::Point] the resulting curve point
+      def multiply_generator_ct(scalar_bn)
+        G.mul_ct(scalar_bn)
+      end
+
+      # Multiply an arbitrary curve point by a scalar (variable-time, wNAF).
+      #
+      # Suitable for public scalars only. For secret scalars use
+      # {multiply_point_ct}.
       #
       # @param point [OpenSSL::PKey::EC::Point] the point to multiply
       # @param scalar_bn [OpenSSL::BN] the scalar multiplier
       # @return [OpenSSL::PKey::EC::Point] the resulting curve point
       def multiply_point(point, scalar_bn)
         point.mul(scalar_bn)
+      end
+
+      # Multiply an arbitrary curve point by a secret scalar (constant-time).
+      #
+      # Uses the Montgomery ladder to avoid timing side-channels on the
+      # scalar. Use for ECDH shared-secret derivation.
+      #
+      # @param point [OpenSSL::PKey::EC::Point] the base point
+      # @param scalar_bn [OpenSSL::BN] the secret scalar multiplier
+      # @return [OpenSSL::PKey::EC::Point] the resulting curve point
+      def multiply_point_ct(point, scalar_bn)
+        point.mul_ct(scalar_bn)
       end
 
       # Add two curve points together.
@@ -77,38 +106,6 @@ module BSV
       # @return [OpenSSL::PKey::EC::Point] the decoded curve point
       def point_from_bytes(bytes)
         OpenSSL::PKey::EC::Point.new(GROUP, OpenSSL::BN.new(bytes, 2))
-      end
-
-      # Build an +OpenSSL::PKey::EC+ key object from raw private key bytes.
-      #
-      # @param private_bytes [String] 32-byte big-endian private key
-      # @return [OpenSSL::PKey::EC] an EC key with both private and public components
-      def ec_key_from_private_bytes(private_bytes)
-        priv_bn = OpenSSL::BN.new(private_bytes, 2)
-        pub_point = multiply_generator(priv_bn)
-
-        asn1 = OpenSSL::ASN1::Sequence.new([
-                                             OpenSSL::ASN1::Integer.new(1),
-                                             OpenSSL::ASN1::OctetString.new(private_bytes),
-                                             OpenSSL::ASN1::ObjectId.new('secp256k1', 0, :EXPLICIT),
-                                             OpenSSL::ASN1::BitString.new(pub_point.to_octet_string(:compressed), 1, :EXPLICIT)
-                                           ])
-        OpenSSL::PKey::EC.new(asn1.to_der)
-      end
-
-      # Build an +OpenSSL::PKey::EC+ key object from raw public key bytes.
-      #
-      # @param public_bytes [String] compressed (33) or uncompressed (65) public key bytes
-      # @return [OpenSSL::PKey::EC] an EC key with only the public component
-      def ec_key_from_public_bytes(public_bytes)
-        asn1 = OpenSSL::ASN1::Sequence.new([
-                                             OpenSSL::ASN1::Sequence.new([
-                                                                           OpenSSL::ASN1::ObjectId.new('id-ecPublicKey'),
-                                                                           OpenSSL::ASN1::ObjectId.new('secp256k1')
-                                                                         ]),
-                                             OpenSSL::ASN1::BitString.new(public_bytes)
-                                           ])
-        OpenSSL::PKey::EC.new(asn1.to_der)
       end
     end
   end

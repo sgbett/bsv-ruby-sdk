@@ -52,11 +52,26 @@ RSpec.describe BSV::Primitives::PrivateKey do
       expect(described_class.from_wif(wif).to_hex).to eq(known_hex)
     end
 
-    it 'round-trips WIF (mainnet uncompressed)' do
+    it 'always produces compressed WIF (F2.4: uncompressed export removed)' do
       key = described_class.from_hex(known_hex)
-      wif = key.to_wif(compressed: false)
-      expect(wif).to start_with('5')
-      expect(described_class.from_wif(wif).to_hex).to eq(known_hex)
+      wif = key.to_wif
+      # Compressed mainnet WIF starts with 'K' or 'L'
+      expect(wif).to match(/\A[KL]/)
+      expect(wif).to eq(known_wif)
+    end
+
+    it 'rejects the removed compressed: false keyword (F2.4 breaking change)' do
+      key = described_class.from_hex(known_hex)
+      expect { key.to_wif(compressed: false) }.to raise_error(ArgumentError)
+    end
+
+    it 'from_wif still accepts legacy uncompressed WIF for import' do
+      # Build an uncompressed WIF manually for round-trip testing
+      prefix = "\x80".b
+      payload = prefix + [known_hex].pack('H*') # no 0x01 suffix
+      uncompressed_wif = BSV::Primitives::Base58.check_encode(payload)
+      expect(uncompressed_wif).to start_with('5')
+      expect(described_class.from_wif(uncompressed_wif).to_hex).to eq(known_hex)
     end
 
     it 'round-trips WIF (testnet compressed)' do

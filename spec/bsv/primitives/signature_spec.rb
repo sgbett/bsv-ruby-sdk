@@ -35,6 +35,22 @@ RSpec.describe BSV::Primitives::Signature do
         .to raise_error(ArgumentError)
     end
 
+    it 'rejects multi-byte DER length encoding (BIP-66 strict DER, 0x81 prefix)' do
+      # 0x81 as the length byte signals "1 extra length byte follows" in ASN.1.
+      # BIP-66 strict DER forbids multi-byte lengths entirely.
+      # Sequence: 0x30 0x81 0x06 0x02 0x01 0x01 0x02 0x01 0x01
+      der = "\x30\x81\x06\x02\x01\x01\x02\x01\x01".b
+      expect { described_class.from_der(der) }
+        .to raise_error(ArgumentError, /non-canonical DER length/)
+    end
+
+    it 'rejects DER length with 0x82 (two-byte extended length)' do
+      # 0x82 means "2 extra length bytes follow". Also forbidden.
+      der = "\x30\x82\x00\x06\x02\x01\x01\x02\x01\x01".b
+      expect { described_class.from_der(der) }
+        .to raise_error(ArgumentError, /non-canonical DER length/)
+    end
+
     it 'raises on negative R' do
       expect { described_class.from_der("\x30\x06\x02\x01\x80\x02\x01\x01".b) }
         .to raise_error(ArgumentError, /negative/)
