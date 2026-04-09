@@ -2,7 +2,7 @@
 id: 2026-0002
 ghsa_id: GHSA-9hfr-gw99-8rhx
 ghsa_url: https://github.com/sgbett/bsv-ruby-sdk/security/advisories/GHSA-9hfr-gw99-8rhx
-cve_id: TBD
+cve_id: CVE-2026-40069
 status: published
 title: bsv-sdk ARC broadcaster treats INVALID/MALFORMED/ORPHAN responses as successful broadcasts
 package: bsv-sdk
