@@ -36,4 +36,4 @@ The SDK is organised into three top-level modules:
 - [Getting Started](guides/getting-started.md) — first steps with the SDK
 - [API Reference](reference/) — auto-generated from source
 - [GitHub](https://github.com/sgbett/bsv-ruby-sdk) — source code and issues
-- [Changelog](https://github.com/sgbett/bsv-ruby-sdk/blob/master/CHANGELOG.md) — release history
+- Changelogs: [sdk](https://github.com/sgbett/bsv-ruby-sdk/blob/master/CHANGELOG-sdk.md) · [wallet](https://github.com/sgbett/bsv-ruby-sdk/blob/master/CHANGELOG-wallet.md) · [wallet-postgres](https://github.com/sgbett/bsv-ruby-sdk/blob/master/CHANGELOG-wallet-postgres.md) · [attest](https://github.com/sgbett/bsv-ruby-sdk/blob/master/CHANGELOG-attest.md)
