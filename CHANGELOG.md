@@ -2,20 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-This repository ships two gems with independent versioning:
+This repository ships several gems with independent versioning:
 
 - **`bsv-sdk`** — the declarative SDK (primitives, script, transaction, etc.)
 - **`bsv-wallet`** — the BRC-100 wallet interface gem (depends on `bsv-sdk`)
+- **`bsv-wallet-postgres`** — PostgreSQL-backed `StorageAdapter` for `bsv-wallet`
+- **`bsv-attest`** — data attestation helpers built on top of `bsv-sdk`
 
-The two gems may release on different schedules. Section headers identify
-which gem(s) released, e.g.:
+Gems may release on different schedules. Section headers identify which
+gem(s) released, e.g.:
 
 - `## sdk-0.7.0 / wallet-0.3.0 — 2026-04-06` — both gems released together
 - `## sdk-0.6.1 — 2026-04-05` — sdk-only release
 - `## wallet-0.3.3 — 2026-04-06` — wallet-only release
 
-Every bullet is prefixed with `[sdk]` or `[wallet]` to disambiguate which gem
-the change belongs to, regardless of which header it sits under.
+Every bullet is prefixed with `[sdk]`, `[wallet]`, `[wallet-postgres]`, or
+`[attest]` to disambiguate which gem the change belongs to, regardless of
+which header it sits under.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and each gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
@@ -46,6 +49,63 @@ independently.
   Ruby SDK correctly rejects, so execution is deferred to the A2 cluster;
   `script_tests.json` is deferred to A5 (parser) and A6 (interpreter).
   Each deferred spec documents its gap explicitly.
+
+## wallet-postgres-0.1.0 — 2026-04-09
+
+Initial release of `bsv-wallet-postgres`, a PostgreSQL-backed
+`BSV::Wallet::StorageAdapter` implementation. Unblocks production
+deployments of `bsv-wallet` where state has to survive container
+restarts, and makes multi-instance wallet services possible for the
+first time.
+
+### Added
+
+- [wallet-postgres] **`BSV::Wallet::PostgresStore`** — full
+  `StorageAdapter` implementation over Sequel + Postgres. Passes the
+  same shared conformance suite that MemoryStore and FileStore pass
+  (53 examples), plus 10 postgres-specific specs covering upsert
+  semantics, GIN tag queries, JSONB attribute containment, concurrent
+  inserts, and migration idempotency.
+
+- [wallet-postgres] **Shipped Sequel migration** at
+  `lib/bsv/wallet_postgres/migrations/001_create_wallet_tables.rb`.
+  Five tables (wallet_outputs, wallet_actions, wallet_certificates,
+  wallet_proofs, wallet_transactions) with JSONB data columns,
+  dedicated indexed columns for filter paths, and GIN indexes on the
+  `tags` / `labels` arrays.
+
+- [wallet-postgres] **`PostgresStore.migrate!(db)`** convenience
+  wrapper over `Sequel::Migrator.run` so consumers can apply the
+  shipped schema with a single call. Operators who prefer their own
+  migration framework can copy the migration file instead.
+
+- [wallet] **Shared conformance suite** for `StorageAdapter`
+  implementations at `spec/support/shared_examples_for_storage_adapter.rb`.
+  `MemoryStore` and `FileStore` now both drive their behavioural
+  tests through `it_behaves_like 'a storage adapter'`, and the
+  extraction backfilled previously-missing coverage (certificate
+  `:attributes` filter, `count_certificates`, proof and transaction
+  round-trip, pagination ordering).
+
+- [wallet-postgres] **Docs** at `docs/guides/wallet-postgres.md` with
+  a 30-second quickstart, schema overview, and production
+  considerations (pool sizing, multi-instance, backups,
+  thread-safety).
+
+### Infrastructure
+
+- **CI postgres service**. The GitHub Actions test job now runs a
+  Postgres 16 container and exposes `DATABASE_URL` to rspec, so the
+  `:postgres`-tagged specs run against a live database on every
+  Ruby matrix row (2.7 → 3.4). Local developers without Postgres
+  still get a green suite — those specs skip gracefully.
+
+### Dependencies
+
+- `bsv-wallet-postgres` runtime: `bsv-wallet >= 0.3.4, < 1.0`,
+  `sequel ~> 5`, `pg ~> 1`. The wallet floor matches the pinning style
+  `bsv-wallet` uses for its `bsv-sdk` dependency so security releases
+  propagate.
 
 ## sdk-0.8.2 / wallet-0.3.4 — 2026-04-08
 
