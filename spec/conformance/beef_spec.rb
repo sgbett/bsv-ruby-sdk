@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'base64'
 
 # Protocol conformance: BEEF serialisation (BRC-62/95/96)
 #
@@ -18,6 +19,8 @@ RSpec.describe BSV::Transaction::Beef do
   let(:go_brc62_hex) { BEEF_CONFORMANCE_VECTORS.fetch('BRC62Hex') }
 
   let(:go_beef_set_hex) { BEEF_CONFORMANCE_VECTORS.fetch('BEEFSet') }
+
+  let(:go_beef_base64) { BEEF_CONFORMANCE_VECTORS.fetch('BEEF') }
 
   # --- Format conformance ---
 
@@ -64,6 +67,20 @@ RSpec.describe BSV::Transaction::Beef do
     it 'V2 round-trips through serialise/parse' do
       expect(beef.to_binary(version: described_class::BEEF_V2).unpack1('H*')).to eq(go_beef_set_hex)
     end
+  end
+
+  # --- Base64 V1 fixture (go-sdk `const BEEF`) ---
+  # A distinct, larger V1 BEEF payload the go-sdk test suite carries as a
+  # base64 string. Exercised here so the vendored fixture has executable
+  # coverage rather than sitting unused in the vector file.
+
+  describe 'V1 base64 fixture conformance' do
+    subject(:beef) { described_class.from_binary(Base64.strict_decode64(go_beef_base64)) }
+
+    it('version matches BEEF_V1') { expect(beef.version).to eq(0xEFBE0001) }
+    it('contains 1 BUMP')         { expect(beef.bumps.length).to eq(1) }
+    it('contains 9 transactions') { expect(beef.transactions.length).to eq(9) }
+    it('is structurally valid')   { expect(beef.valid?).to be true }
   end
 
   # --- Atomic BEEF (BRC-95) conformance ---
