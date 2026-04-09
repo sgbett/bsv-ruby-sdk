@@ -18,11 +18,11 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     'homepage_uri' => spec.homepage,
     'source_code_uri' => spec.homepage,
-    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG.md",
+    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG-wallet-postgres.md",
     'rubygems_mfa_required' => 'true'
   }
 
-  spec.files = Dir.glob('lib/bsv/wallet_postgres{.rb,/**/*}') + %w[lib/bsv-wallet-postgres.rb LICENSE]
+  spec.files = Dir.glob('lib/bsv/wallet_postgres{.rb,/**/*}') + %w[lib/bsv-wallet-postgres.rb LICENSE CHANGELOG-wallet-postgres.md]
   spec.require_paths = ['lib']
 
   # bsv-wallet-postgres is released alongside bsv-wallet; the floor rises

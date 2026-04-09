@@ -17,11 +17,11 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     'homepage_uri' => spec.homepage,
     'source_code_uri' => spec.homepage,
-    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG.md",
+    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG-wallet.md",
     'rubygems_mfa_required' => 'true'
   }
 
-  spec.files = Dir.glob('lib/bsv/wallet_interface{.rb,/**/*}') + %w[lib/bsv-wallet.rb LICENSE]
+  spec.files = Dir.glob('lib/bsv/wallet_interface{.rb,/**/*}') + %w[lib/bsv-wallet.rb LICENSE CHANGELOG-wallet.md]
   spec.require_paths = ['lib']
 
   spec.add_dependency 'base64', '~> 0.2'

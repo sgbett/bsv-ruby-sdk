@@ -127,7 +127,7 @@ Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgb
 
 - [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/) — auto-generated from YARD annotations
 - [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) — runnable usage examples
-- [CHANGELOG](CHANGELOG.md) — release history
+- Changelogs: [sdk](CHANGELOG-sdk.md) · [wallet](CHANGELOG-wallet.md) · [wallet-postgres](CHANGELOG-wallet-postgres.md) · [attest](CHANGELOG-attest.md)
 
 **Protocol reference:**
 

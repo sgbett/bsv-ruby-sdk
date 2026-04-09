@@ -18,11 +18,11 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     'homepage_uri' => spec.homepage,
     'source_code_uri' => spec.homepage,
-    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG.md",
+    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG-attest.md",
     'rubygems_mfa_required' => 'true'
   }
 
-  spec.files = Dir.glob('lib/bsv/attest{.rb,/**/*}') + %w[lib/bsv-attest.rb LICENSE]
+  spec.files = Dir.glob('lib/bsv/attest{.rb,/**/*}') + %w[lib/bsv-attest.rb LICENSE CHANGELOG-attest.md]
   spec.require_paths = ['lib']
 
   spec.add_dependency 'bsv-sdk'
