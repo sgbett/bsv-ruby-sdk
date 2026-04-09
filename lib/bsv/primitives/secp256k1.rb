@@ -340,13 +340,21 @@ module BSV
       # @!visibility private
       # Multiply a point by a scalar using the Montgomery ladder.
       #
-      # Executes a constant number of field operations regardless of the
-      # scalar value, eliminating data-dependent timing variation. Use
-      # this for ALL secret-scalar paths (key generation, signing, ECDH).
+      # Executes a fixed number of iterations (256) with one +jp_double+
+      # and one +jp_add+ per iteration regardless of the scalar value.
+      # Use this for ALL secret-scalar paths (key generation, signing,
+      # ECDH, BIP-32 derivation).
       #
-      # The ladder processes all 256 bits unconditionally; the branch on
-      # +bit+ selects which register to double vs add, but both paths
-      # always perform one double and one add per iteration.
+      # *Best-effort constant-time in interpreted Ruby.* The branch on
+      # +bit+ selects which register receives each operation, and both
+      # operations always execute. However, Ruby's interpreter, GC, and
+      # the early-return branches in +jp_add+/+jp_double+ (for infinity
+      # edge cases) mean true constant-time execution is not achievable
+      # without native code. This matches the ts-sdk's TypeScript
+      # implementation, which has the same structural properties. For
+      # production deployments requiring side-channel resistance beyond
+      # what an interpreted language can offer, use a native secp256k1
+      # library (e.g. libsecp256k1 via FFI).
       #
       # Internal method — use {Point#mul_ct} instead. Not part of the
       # public API.

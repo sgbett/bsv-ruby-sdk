@@ -61,9 +61,10 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   wNAF (`mul`) is retained for public-scalar paths (signature verification).
   Benchmarked at ~2× slower than wNAF, within the expected 2–3× bound.
 
-- **`WNAF_TABLE_CACHE` is now LRU-bounded at 512 entries** (#316, F2.1).
-  Prevents unbounded memory growth in long-running server processes that
-  operate on many distinct base points.
+- **`WNAF_TABLE_CACHE` is now bounded at 512 entries** (#316, F2.1).
+  Evicts the oldest entry (FIFO) when the limit is reached. Prevents
+  unbounded memory growth in long-running server processes that operate
+  on many distinct base points.
 
 - **`Signature.from_der` rejects multi-byte DER length encoding** (#316,
   F2.3). Signatures with a length byte where bit 7 is set (e.g. `0x81`,
@@ -85,6 +86,8 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   method, which are also removed. The `BSVShimEC` DER-parsing constructor
   (`OpenSSL::PKey::EC.new(der_string)`) is no longer supported; pass a
   `BSVShimECPoint` directly.
+
+### Changed
 
 - **`Transaction#estimated_fee` default rate aligned and deprecated**
   ([#310](https://github.com/sgbett/bsv-ruby-sdk/issues/310), F4.2).

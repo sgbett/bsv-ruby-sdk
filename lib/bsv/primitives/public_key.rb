@@ -133,7 +133,7 @@ module BSV
         shared = derive_shared_secret(private_key)
         hmac = Digest.hmac_sha256(shared.compressed, invoice_number.encode('UTF-8'))
         hmac_bn = OpenSSL::BN.new(hmac.unpack1('H*'), 16)
-        hmac_point = Curve.multiply_generator(hmac_bn)
+        hmac_point = Curve.multiply_generator_ct(hmac_bn)
         child_point = Curve.add_points(@point, hmac_point)
         PublicKey.new(child_point)
       end
