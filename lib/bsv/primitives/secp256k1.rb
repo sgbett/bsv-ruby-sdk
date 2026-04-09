@@ -253,19 +253,29 @@ module BSV
       end
 
       # -------------------------------------------------------------------
-      # Windowed-NAF scalar multiplication
+      # Windowed-NAF scalar multiplication (variable-time, public scalars)
       # -------------------------------------------------------------------
 
       # @!visibility private
+      # Maximum number of entries kept in the wNAF precomputation cache.
+      # Bounds memory usage for long-running processes (e.g. servers).
+      WNAF_CACHE_MAX = 512
+
+      # @!visibility private
       # Cache for precomputed wNAF tables, keyed by "window:x:y".
+      # Evicts oldest entry when the LRU limit is reached.
       WNAF_TABLE_CACHE = {} # rubocop:disable Style/MutableConstant
 
       # @!visibility private
       # Multiply a point by a scalar using windowed-NAF.
       #
-      # Internal method — use {Point#mul} instead. Exposed as a module
-      # function only so the nested Point class can call it; not part of
-      # the public API.
+      # Variable-time algorithm — suitable only for public scalars (e.g.
+      # signature verification). Secret-scalar paths MUST use
+      # {scalar_multiply_ct} instead.
+      #
+      # Internal method — use {Point#mul} or {Point#mul_ct} instead.
+      # Exposed as a module function only so the nested Point class can
+      # call it; not part of the public API.
       #
       # @param k [Integer] the scalar (must be in [1, N))
       # @param px [Integer] affine x-coordinate of the base point
@@ -279,6 +289,9 @@ module BSV
         tbl = WNAF_TABLE_CACHE[cache_key]
 
         if tbl.nil?
+          # Evict the oldest entry when the cache is full (simple LRU).
+          WNAF_TABLE_CACHE.delete(WNAF_TABLE_CACHE.keys.first) if WNAF_TABLE_CACHE.size >= WNAF_CACHE_MAX
+
           tbl_size = 1 << (window - 1) # e.g. w=5 -> 16 entries
           tbl = Array.new(tbl_size)
           tbl[0] = [px, py, 1]
@@ -318,6 +331,49 @@ module BSV
           q = jp_add(q, addend)
         end
         q
+      end
+
+      # -------------------------------------------------------------------
+      # Montgomery ladder scalar multiplication (constant-time, secret scalars)
+      # -------------------------------------------------------------------
+
+      # @!visibility private
+      # Multiply a point by a scalar using the Montgomery ladder.
+      #
+      # Executes a constant number of field operations regardless of the
+      # scalar value, eliminating data-dependent timing variation. Use
+      # this for ALL secret-scalar paths (key generation, signing, ECDH).
+      #
+      # The ladder processes all 256 bits unconditionally; the branch on
+      # +bit+ selects which register to double vs add, but both paths
+      # always perform one double and one add per iteration.
+      #
+      # Internal method — use {Point#mul_ct} instead. Not part of the
+      # public API.
+      #
+      # @param k [Integer] secret scalar (must be in [1, N))
+      # @param px [Integer] affine x-coordinate of the base point
+      # @param py [Integer] affine y-coordinate of the base point
+      # @return [Array(Integer, Integer, Integer)] result as Jacobian point
+      def scalar_multiply_ct(k, px, py)
+        return JP_INFINITY if k.zero?
+
+        # r0 accumulates the result; r1 = r0 + base_point at all times.
+        r0 = JP_INFINITY
+        r1 = [px, py, 1]
+
+        256.times do |i|
+          bit = (k >> (255 - i)) & 1
+          if bit.zero?
+            r1 = jp_add(r0, r1)
+            r0 = jp_double(r0)
+          else
+            r0 = jp_add(r0, r1)
+            r1 = jp_double(r1)
+          end
+        end
+
+        r0
       end
 
       # Negate a Jacobian point.
@@ -444,7 +500,10 @@ module BSV
           end
         end
 
-        # Scalar multiplication: self * scalar.
+        # Scalar multiplication: self * scalar (variable-time, wNAF).
+        #
+        # Suitable for public scalars only (e.g. signature verification).
+        # For secret-scalar paths use {#mul_ct}.
         #
         # @param scalar [Integer] the scalar multiplier
         # @return [Point] the resulting point
@@ -455,6 +514,27 @@ module BSV
           return self.class.infinity if scalar.zero?
 
           jp = Secp256k1.scalar_multiply_wnaf(scalar, @x, @y)
+          affine = Secp256k1.jp_to_affine(jp)
+          return self.class.infinity if affine.nil?
+
+          self.class.new(affine[0], affine[1])
+        end
+
+        # Constant-time scalar multiplication: self * scalar (Montgomery ladder).
+        #
+        # Processes all 256 bits unconditionally so execution time does not
+        # depend on the scalar value. Use this for secret-scalar paths:
+        # key generation, signing, and ECDH shared-secret derivation.
+        #
+        # @param scalar [Integer] the secret scalar multiplier
+        # @return [Point] the resulting point
+        def mul_ct(scalar)
+          return self.class.infinity if scalar.zero? || infinity?
+
+          scalar %= N
+          return self.class.infinity if scalar.zero?
+
+          jp = Secp256k1.scalar_multiply_ct(scalar, @x, @y)
           affine = Secp256k1.jp_to_affine(jp)
           return self.class.infinity if affine.nil?
 

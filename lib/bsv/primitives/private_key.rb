@@ -108,21 +108,28 @@ module BSV
 
       # Serialise the private key in Wallet Import Format (WIF).
       #
+      # Always produces a compressed WIF (the 0x01 compression flag is
+      # appended). BSV exclusively uses compressed public keys; uncompressed
+      # WIF export is not supported ("construct only what's valid").
+      #
+      # The +from_wif+ parser continues to accept both compressed and
+      # uncompressed WIF for import compatibility with legacy wallets.
+      #
       # @param network [Symbol] +:mainnet+ or +:testnet+
-      # @param compressed [Boolean] whether to flag for compressed public key derivation
-      # @return [String] Base58Check-encoded WIF string
-      def to_wif(network: :mainnet, compressed: true)
+      # @return [String] Base58Check-encoded WIF string (compressed format)
+      def to_wif(network: :mainnet)
         prefix = network == :mainnet ? MAINNET_PREFIX : TESTNET_PREFIX
-        payload = prefix + to_bytes
-        payload += "\x01".b if compressed
-        Base58.check_encode(payload)
+        Base58.check_encode(prefix + to_bytes + "\x01".b)
       end
 
       # Derive the corresponding public key.
       #
+      # Uses constant-time scalar multiplication to protect the private
+      # key scalar from timing side-channels during derivation.
+      #
       # @return [PublicKey] the public key for this private key
       def public_key
-        @public_key ||= PublicKey.new(Curve.multiply_generator(@bn))
+        @public_key ||= PublicKey.new(Curve.multiply_generator_ct(@bn))
       end
 
       # Derive an ECDH shared secret with another party's public key.
@@ -132,13 +139,16 @@ module BSV
       #   alice_priv.derive_shared_secret(bob_pub) ==
       #     bob_priv.derive_shared_secret(alice_pub)
       #
+      # Uses constant-time scalar multiplication to protect the private
+      # key scalar from timing side-channels.
+      #
       # This is the foundational primitive for BRC-42 key derivation,
       # BRC-77/78 messaging, and ECIES encryption.
       #
       # @param public_key [PublicKey] the other party's public key
       # @return [PublicKey] the shared secret as a public key (curve point)
       def derive_shared_secret(public_key)
-        shared_point = Curve.multiply_point(public_key.point, @bn)
+        shared_point = Curve.multiply_point_ct(public_key.point, @bn)
         PublicKey.new(shared_point)
       end
 

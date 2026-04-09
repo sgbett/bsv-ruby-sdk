@@ -38,6 +38,11 @@ module BSV
         raise ArgumentError, 'signature too short' if bytes.length < 8
         raise ArgumentError, 'invalid sequence tag' unless bytes[0] == 0x30
 
+        # BIP-66 strict DER: length must be a single byte (0x00–0x7F).
+        # Multi-byte length encoding (where the high bit of bytes[1] is set,
+        # e.g. 0x81, 0x82 …) is not permitted in ECDSA signatures.
+        raise ArgumentError, 'non-canonical DER length (multi-byte encoding not allowed)' if bytes[1] & 0x80 != 0
+
         total_len = bytes[1]
         raise ArgumentError, 'length mismatch' unless total_len == bytes.length - 2
 

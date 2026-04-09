@@ -137,28 +137,11 @@ write_text(output_dir, 'to_bn_hex_1.txt', p1.to_bn(:compressed).to_s(16))
 write_text(output_dir, 'to_bn_hex_mid.txt', p_mid.to_bn(:compressed).to_s(16))
 
 # --- EC key from DER ---
-
-# Private key → public key
-[['1', scalar_1], ['mid', scalar_mid]].each do |label, scalar|
-  priv_bytes = bn_to_32(scalar)
-  pub_point = g.mul(scalar)
-  pub_compressed = pub_point.to_octet_string(:compressed)
-  der = build_private_der(priv_bytes, pub_compressed)
-  key = OpenSSL::PKey::EC.new(der)
-  write(output_dir, "ec_key_priv_#{label}.bin", key.public_key.to_octet_string(:compressed))
-end
-
-# Public key round-trip (compressed)
-pub_compressed = p_mid.to_octet_string(:compressed)
-der = build_public_der(pub_compressed)
-key = OpenSSL::PKey::EC.new(der)
-write(output_dir, 'ec_key_pub_compressed.bin', key.public_key.to_octet_string(:compressed))
-
-# Public key round-trip (uncompressed)
-pub_uncompressed = p_mid.to_octet_string(:uncompressed)
-der = build_public_der(pub_uncompressed)
-key = OpenSSL::PKey::EC.new(der)
-write(output_dir, 'ec_key_pub_uncompressed.bin', key.public_key.to_octet_string(:compressed))
+#
+# NOTE: the ec_key_from_* helpers and the DER-parsing BSVShimEC constructor
+# were removed in the A4 crypto hardening pass (HLR #316). The ec_key_priv_*
+# and ec_key_pub_* output files are no longer generated. The integration_spec
+# list of expected files has been updated accordingly.
 
 # --- Done ---
 

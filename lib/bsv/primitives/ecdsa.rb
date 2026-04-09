@@ -20,12 +20,18 @@ module BSV
 
       # Sign a 32-byte message hash with a private key.
       #
+      # By default the signature is low-S normalised per BIP-62 rule 5, as
+      # required by BSV consensus. Pass +force_low_s: true+ to explicitly
+      # enforce normalisation even when calling code cannot guarantee it
+      # (e.g. when wrapping external signing paths).
+      #
       # @param hash [String] 32-byte message digest
       # @param private_key_bn [OpenSSL::BN] the private key scalar
-      # @return [Signature] a low-S normalised signature
-      def sign(hash, private_key_bn)
+      # @param force_low_s [Boolean] normalise S to the lower half when true
+      # @return [Signature] a deterministic signature
+      def sign(hash, private_key_bn, force_low_s: false)
         sig, _recovery_id = sign_raw(hash, private_key_bn)
-        sig
+        force_low_s ? sig.to_low_s : sig
       end
 
       # Sign a hash and return both the signature and recovery ID.
@@ -119,7 +125,9 @@ module BSV
           k = nonce_rfc6979(private_key_bn, hash)
           k_inv = k.mod_inverse(Curve::N)
 
-          r_point = Curve.multiply_generator(k)
+          # Use constant-time multiplication for the secret nonce k to
+          # prevent timing side-channels during signing.
+          r_point = Curve.multiply_generator_ct(k)
           r = Curve.point_x(r_point) % Curve::N
           raise 'calculated R is zero' if r.zero?
 
