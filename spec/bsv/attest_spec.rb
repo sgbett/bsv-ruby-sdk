@@ -70,11 +70,13 @@ RSpec.describe BSV::Attest do
       tx = response.transaction
 
       op_return_output = tx.outputs.first
-      chunks = op_return_output.locking_script.chunks
+      script = op_return_output.locking_script
 
-      expect(chunks[0].opcode).to eq(BSV::Script::Opcodes::OP_FALSE)
-      expect(chunks[1].opcode).to eq(BSV::Script::Opcodes::OP_RETURN)
-      expect(chunks[2].data).to eq(BSV::Primitives::Digest.sha256('test data'))
+      # After F3.1 fix: the parser absorbs all bytes after OP_RETURN into the
+      # OP_RETURN chunk's data. Use op_return_data to extract individual payloads.
+      expect(script.op_return?).to be true
+      items = script.op_return_data
+      expect(items).to include(BSV::Primitives::Digest.sha256('test data'))
     end
 
     it 'raises ArgumentError without wallet' do

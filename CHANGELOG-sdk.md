@@ -9,6 +9,7 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+<<<<<<< HEAD
 - **BEEF/BUMP validation and merge hardening** (HLR #315, A3 cluster).
   Twelve findings addressed across `Beef` and `MerklePath`:
   - **F5.1** — `BeefTx` TXID_ONLY entries now store txid in display byte
@@ -86,6 +87,62 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   method, which are also removed. The `BSVShimEC` DER-parsing constructor
   (`OpenSSL::PKey::EC.new(der_string)`) is no longer supported; pass a
   `BSVShimECPoint` directly.
+
+- **`Script::Script.pushdrop_lock` default `lock_position` changed to `:before`**
+  ([#317](https://github.com/sgbett/bsv-ruby-sdk/issues/317), F3.12).
+  The `lock_position:` keyword argument has been added to `pushdrop_lock` and
+  `PushDropTemplate#lock`. The default is now `:before` (lock script first,
+  then data fields and drops), matching the ts-sdk convention used by overlay
+  token protocols. The previous implicit behaviour was equivalent to `:after`.
+  **Migration:** callers that built PushDrop outputs using the old default must
+  add `lock_position: :after` to preserve their existing on-chain script layout.
+  Scripts already on-chain are unaffected — the parser detects both layouts.
+
+- **`Script#parse_chunks` is now lenient on truncated scripts** (#317, F3.16).
+  Previously, calling `#chunks` on a truncated script raised `ArgumentError`.
+  Now the parser returns a partial chunk array with a trailing raw-bytes chunk,
+  consistent with `p2pkh?`, `op_return?`, and other byte-level predicates that
+  already returned `false` rather than raising. Callers that rescue
+  `ArgumentError` from `#chunks` should update their rescue logic.
+
+- **`Script::Script.op_return` and OP_RETURN parsing** (#317, F3.1, F3.10).
+  The parser now terminates at a top-level `OP_RETURN` and absorbs all trailing
+  bytes into a single raw-data chunk (matching ts-sdk). `Chunk#to_asm` renders
+  these as `OP_RETURN <tail_hex>` rather than separate push chunks. The
+  `#op_return_data` method re-parses the tail internally, so it still returns
+  individual data items. Code that inspected `script.chunks[2..]` after an
+  `OP_RETURN` must switch to `script.op_return_data`.
+
+### Added
+
+- **Extended NOP range `OP_NOP11`–`OP_NOP77`** (#317, F3.2). Opcodes
+  `0xba`–`0xfc` are now defined as named constants so that `to_asm` /
+  `from_asm` can round-trip scripts containing them.
+
+- **Canonical ASM aliases `"0"` and `"-1"`** (#317, F3.3). `Script.from_asm`
+  now accepts `"0"` as an alias for `OP_0` and `"-1"` as an alias for
+  `OP_1NEGATE`, matching the ts-sdk's `fromASM` behaviour.
+
+- **Explicit PUSHDATA sequences in `from_asm`** (#317, F3.4). Token sequences
+  of the form `OP_PUSHDATA1 <len> <hex>`, `OP_PUSHDATA2 <len> <hex>`, and
+  `OP_PUSHDATA4 <len> <hex>` are now consumed as a unit by `from_asm`.
+
+- **`OP_UNKNOWN<n>` ASM rendering for unlisted opcodes** (#317, F3.6).
+  `Chunk#to_asm` now emits `OP_UNKNOWN<n>` (e.g. `OP_UNKNOWN186`) for opcodes
+  with no defined constant, making the output unambiguous and round-trippable
+  via `from_asm`.
+
+- **`PushDropTemplate#lock` supports `lock_position:`** (#317, F3.12). The
+  `lock_position:` keyword argument (`:before` default / `:after`) is now
+  forwarded from `PushDropTemplate#lock` to `Script.pushdrop_lock`.
+
+### Fixed
+
+- **`encode_minimally` no longer collapses `[0x00]` to `OP_0`** (#317,
+  F3.14/F3.21). `OP_0` pushes an empty byte array; pushing a single zero byte
+  `[0x00]` is semantically different. The ts-sdk has the same bug in
+  `createMinimallyEncodedScriptChunk` — we fix it locally and plan to raise it
+  upstream.
 
 ### Changed
 
