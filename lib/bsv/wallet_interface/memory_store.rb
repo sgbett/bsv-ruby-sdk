@@ -100,6 +100,35 @@ module BSV
         end
       end
 
+      # Atomically locks the specified outpoints as +:pending+.
+      #
+      # Holds the mutex for the entire operation so no other thread can
+      # read or transition these outputs between the check and the lock.
+      #
+      # @param outpoints [Array<String>] outpoint identifiers to lock
+      # @param reference [String] caller-supplied pending reference
+      # @param no_send [Boolean] true if this is a no_send lock
+      # @return [Array<String>] outpoints successfully locked
+      def lock_utxos(outpoints, reference:, no_send: false)
+        now = Time.now.utc.iso8601
+        locked = []
+
+        @mutex.synchronize do
+          outpoints.each do |op|
+            output = @outputs.find { |o| o[:outpoint] == op }
+            next unless output && effective_state(output) == :spendable
+
+            output[:state] = :pending
+            output[:pending_since] = now
+            output[:pending_reference] = reference
+            no_send ? output[:no_send] = true : output.delete(:no_send)
+            locked << op
+          end
+        end
+
+        locked
+      end
+
       # Returns only outputs whose effective state is +:spendable+.
       #
       # Legacy outputs that carry no +:state+ key are treated as spendable

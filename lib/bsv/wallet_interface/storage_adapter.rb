@@ -87,6 +87,21 @@ module BSV
         raise NotImplementedError, "#{self.class}#update_output_state not implemented"
       end
 
+      # Atomically finds outputs by outpoint and marks them as +:pending+.
+      #
+      # This prevents TOCTOU races where two threads select the same UTXO
+      # between +find_spendable_outputs+ and +update_output_state+.
+      # Only outputs still in +:spendable+ state are locked; any that have
+      # already transitioned are skipped.
+      #
+      # @param outpoints [Array<String>] outpoint identifiers to lock
+      # @param reference [String] caller-supplied pending reference
+      # @param no_send [Boolean] true if this is a no_send lock
+      # @return [Array<String>] outpoints that were successfully locked
+      def lock_utxos(outpoints, reference:, no_send: false)
+        raise NotImplementedError, "#{self.class}#lock_utxos not implemented"
+      end
+
       # Returns only outputs whose effective state is +:spendable+.
       #
       # @param basket [String, nil] restrict to this basket when provided

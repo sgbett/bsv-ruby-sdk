@@ -66,6 +66,12 @@ module BSV
         result
       end
 
+      def lock_utxos(outpoints, reference:, no_send: false)
+        locked = super
+        save_outputs unless locked.empty?
+        locked
+      end
+
       def store_certificate(cert_data)
         result = super
         save_certificates

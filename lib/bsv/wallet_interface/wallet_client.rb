@@ -607,12 +607,20 @@ module BSV
 
         no_send = args.dig(:options, :no_send)
 
-        # Generate a unique reference for this auto-fund attempt and lock the
-        # selected UTXOs as pending to prevent concurrent double-spend.
+        # Atomically lock the selected UTXOs as pending to prevent concurrent
+        # double-spend (closes the TOCTOU window between find and lock).
         fund_ref = "auto-fund-#{SecureRandom.hex(16)}"
         selected_outpoints = selection[:inputs].map { |u| u[:outpoint] }
-        selected_outpoints.each do |op|
-          @storage.update_output_state(op, :pending, pending_reference: fund_ref, no_send: no_send)
+        locked = @storage.lock_utxos(selected_outpoints, reference: fund_ref, no_send: no_send)
+
+        # If another thread grabbed some UTXOs between selection and locking,
+        # release what we did lock and raise — the caller can retry.
+        if locked.size < selected_outpoints.size
+          release_pending_utxos(locked, fund_ref)
+          raise InsufficientFundsError.new(
+            required: target,
+            available: locked.sum { |op| selection[:inputs].find { |u| u[:outpoint] == op }&.fetch(:satoshis, 0) || 0 }
+          )
         end
 
         begin
