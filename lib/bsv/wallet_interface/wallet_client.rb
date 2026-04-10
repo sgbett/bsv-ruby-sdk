@@ -143,7 +143,11 @@ module BSV
         raise WalletError, 'Transaction not found for the given reference' unless @pending.key?(reference)
 
         pending_entry = @pending.delete(reference)
+        # Release locked input UTXOs back to :spendable.
         release_pending_utxos(pending_entry[:locked_outpoints], reference) if pending_entry[:locked_outpoints]
+        # Remove change outputs created by the aborted transaction —
+        # they reference an unbroadcast tx and must not remain in storage.
+        Array(pending_entry[:change_outpoints]).each { |op| @storage.delete_output(op) }
         { aborted: true }
       end
 
@@ -641,19 +645,32 @@ module BSV
 
           if no_send
             # Leave inputs as :pending — the caller will either broadcast via
-            # send_with_ancestors or cancel via abort_action.
-            change_outpoints = []
+            # send_with or cancel via abort_action.
             store_change_outputs(txid, tx, change_outputs, tx_hex)
-            # Record the change outpoint positions for the caller.
+
+            # Record change outpoint positions, then mark them :pending so they
+            # are not auto-selected by a concurrent create_action. This matches
+            # the TS SDK where noSend outputs have spendable: false.
+            change_outpoints = []
             change_outputs.each do |spec|
               idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
-              change_outpoints << "#{txid}.#{idx}" if idx
+              next unless idx
+
+              op = "#{txid}.#{idx}"
+              change_outpoints << op
+              @storage.update_output_state(op, :pending, pending_reference: fund_ref, no_send: true)
             end
+
             store_action(tx, args, status: 'nosend')
             store_tracked_outputs(txid, tx, caller_outputs)
 
-            # Register in @pending so abort_action can release the locked inputs.
-            @pending[fund_ref] = { tx: tx, args: args, locked_outpoints: selected_outpoints }
+            # Register in @pending so abort_action can release inputs and
+            # remove change outputs.
+            @pending[fund_ref] = {
+              tx: tx, args: args,
+              locked_outpoints: selected_outpoints,
+              change_outpoints: change_outpoints
+            }
 
             beef_binary = tx.to_beef
             { txid: txid, tx: beef_binary.unpack('C*'), reference: fund_ref, no_send_change: change_outpoints }

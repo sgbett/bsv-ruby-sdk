@@ -483,10 +483,40 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       actions = storage.find_actions({})
       expect(actions.last[:status]).to eq('nosend')
     end
+
+    it 'marks change outputs as :pending (not :spendable)' do
+      result
+      change_ops = result[:no_send_change]
+      expect(change_ops).not_to be_empty
+
+      # Change outputs should NOT appear in spendable outputs
+      spendable = storage.find_spendable_outputs
+      spendable_outpoints = spendable.map { |o| o[:outpoint] }
+      change_ops.each do |op|
+        expect(spendable_outpoints).not_to include(op)
+      end
+    end
+
+    it 'does not allow auto-fund to select no_send change outputs' do
+      result
+      # The original input is :pending and the change is :pending,
+      # so the wallet should have nothing spendable for auto-fund.
+      expect do
+        wallet.create_action({
+                               description: 'should fail — no spendable UTXOs',
+                               auto_fund: true,
+                               outputs: [{
+                                 locking_script: p2pkh_hex,
+                                 satoshis: 100,
+                                 output_description: 'attempt to spend pending change'
+                               }]
+                             })
+      end.to raise_error(BSV::Wallet::InsufficientFundsError)
+    end
   end
 
   # ---------------------------------------------------------------------------
-  # 12. abort_action after no_send — pending inputs released
+  # 12. abort_action after no_send — pending inputs released, change removed
   # ---------------------------------------------------------------------------
   describe 'abort_action releases pending inputs from a no_send transaction' do
     let!(:seeded) { seed_payment_output(wallet, satoshis: 10_000) }
@@ -512,6 +542,30 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       spendable = storage.find_spendable_outputs
       spendable_outpoints = spendable.map { |o| o[:outpoint] }
       expect(spendable_outpoints).to include(seeded[:outpoint])
+    end
+
+    it 'removes change outputs from storage on abort' do
+      result = wallet.create_action({
+                                      description: description,
+                                      outputs: [{
+                                        locking_script: p2pkh_hex,
+                                        satoshis: 1000,
+                                        output_description: 'no_send for abort cleanup test'
+                                      }],
+                                      options: { no_send: true }
+                                    })
+
+      change_ops = result[:no_send_change]
+      expect(change_ops).not_to be_empty
+
+      wallet.abort_action({ reference: result[:reference] })
+
+      # Change outputs should no longer exist in storage at all
+      all_outputs = storage.find_outputs({ include_spent: true, limit: 1000, offset: 0 })
+      all_outpoints = all_outputs.map { |o| o[:outpoint] }
+      change_ops.each do |op|
+        expect(all_outpoints).not_to include(op)
+      end
     end
   end
 
