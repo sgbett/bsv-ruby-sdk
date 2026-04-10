@@ -699,9 +699,12 @@ module BSV
       # @param num_caller_outputs [Integer] number of caller-specified outputs
       # @return [Array<Hash>] finalised change output descriptors (may be empty)
       def converge_change(selection, num_caller_outputs)
+        pool_opts = load_pool_opts
+
         change_outputs = auto_change_generator.generate(
           excess_satoshis: selection[:excess],
-          num_existing_outputs: num_caller_outputs
+          num_existing_outputs: num_caller_outputs,
+          **pool_opts
         )
 
         # Recalculate fee with the actual output count (caller + change).
@@ -720,8 +723,20 @@ module BSV
 
         auto_change_generator.generate(
           excess_satoshis: adjusted_excess,
-          num_existing_outputs: num_caller_outputs
+          num_existing_outputs: num_caller_outputs,
+          **pool_opts
         )
+      end
+
+      # Loads pool health options for ChangeGenerator from stored settings.
+      #
+      # @return [Hash] keyword args for ChangeGenerator#generate
+      def load_pool_opts
+        params = @storage.find_setting('change_params')
+        return {} unless params
+
+        pool_size = @storage.find_spendable_outputs.size
+        { pool_size: pool_size, change_params: params }
       end
 
       # Builds the Transaction object for an auto-funded action.

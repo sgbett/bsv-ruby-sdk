@@ -77,7 +77,7 @@ module BSV
       # When transitioning away from +:pending+, the adapter must clear any
       # stored +:pending_since+ and +:pending_reference+ metadata.
       #
-      # @param _outpoint [String] the outpoint identifier (e.g. "txid:vout")
+      # @param _outpoint [String] the outpoint identifier (e.g. "txid.vout")
       # @param _new_state [Symbol] one of +:spendable+, +:pending+, +:spent+
       # @param _pending_reference [String, nil] caller-supplied label for a pending lock
       # @param _no_send [Boolean, nil] true if the lock belongs to a no_send transaction;

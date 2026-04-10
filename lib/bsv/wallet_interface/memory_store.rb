@@ -282,7 +282,8 @@ module BSV
       #   - +spendable: false+           → +:spent+
       #   - +spendable: true+ (or absent) → +:spendable+
       def effective_state(output)
-        return output[:state].to_sym if output.key?(:state)
+        state = output[:state]
+        return state.to_sym if state
 
         output[:spendable] == false ? :spent : :spendable
       end
