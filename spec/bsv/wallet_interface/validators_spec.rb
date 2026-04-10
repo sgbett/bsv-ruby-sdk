@@ -27,8 +27,8 @@ RSpec.describe BSV::Wallet::Validators do
       expect { described_class.validate_protocol_id!([0, 'a' * 401]) }.to raise_error(BSV::Wallet::InvalidParameterError)
     end
 
-    it 'rejects names with uppercase letters' do
-      expect { described_class.validate_protocol_id!([0, 'Hello World']) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    it 'accepts names with uppercase letters (normalised to lowercase before validation)' do
+      expect { described_class.validate_protocol_id!([0, 'Hello World']) }.not_to raise_error
     end
 
     it 'rejects names with consecutive spaces' do
@@ -66,6 +66,39 @@ RSpec.describe BSV::Wallet::Validators do
     it 'rejects "specific linkage revelation" names over 430 chars' do
       name = "specific linkage revelation #{'a' * 403}"
       expect { described_class.validate_protocol_id!([0, name]) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    # F8.7 — normalisation before validation
+    it 'normalises the name by stripping surrounding whitespace before validating' do
+      expect { described_class.validate_protocol_id!([0, '  hello world  ']) }.not_to raise_error
+    end
+
+    it 'treats a name differing only in case and whitespace identically after normalisation' do
+      expect { described_class.validate_protocol_id!([0, ' MyProtocol ']) }.not_to raise_error
+      expect { described_class.validate_protocol_id!([0, 'myprotocol']) }.not_to raise_error
+    end
+  end
+
+  # F8.8 — permission rule constants are discoverable
+  describe 'permission rule constants' do
+    it 'exposes RESERVED_PROTOCOL_PREFIXES' do
+      expect(described_class::RESERVED_PROTOCOL_PREFIXES).to include('admin', 'p ')
+    end
+
+    it 'exposes RESERVED_PROTOCOL_SUFFIX' do
+      expect(described_class::RESERVED_PROTOCOL_SUFFIX).to eq(' protocol')
+    end
+
+    it 'exposes RESERVED_BASKET_PREFIXES' do
+      expect(described_class::RESERVED_BASKET_PREFIXES).to include('admin', 'p ')
+    end
+
+    it 'exposes RESERVED_BASKET_SUFFIX' do
+      expect(described_class::RESERVED_BASKET_SUFFIX).to eq(' basket')
+    end
+
+    it 'exposes RESERVED_BASKET_NAME' do
+      expect(described_class::RESERVED_BASKET_NAME).to eq('default')
     end
   end
 

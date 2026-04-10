@@ -164,6 +164,29 @@ RSpec.describe BSV::Wallet::ProtoWallet do
       result = wallet.create_signature(crypto_args.merge(hash_to_directly_sign: hash))
       expect(result[:signature]).to be_a(Array)
     end
+
+    # P305.1 — default counterparty changed from 'self' to 'anyone' (matches ts-sdk)
+    it 'defaults counterparty to "anyone" when not provided' do
+      args_without_counterparty = { protocol_id: protocol_id, key_id: key_id, data: data_bytes }
+      args_with_anyone = crypto_args.merge(counterparty: 'anyone', data: data_bytes)
+
+      result_default = wallet.create_signature(args_without_counterparty)
+      result_anyone = wallet.create_signature(args_with_anyone)
+
+      # Both should produce a signature (the key derivation path is the same)
+      expect(result_default[:signature]).to eq(result_anyone[:signature])
+    end
+
+    it 'does NOT default counterparty to "self"' do
+      args_without_counterparty = { protocol_id: protocol_id, key_id: key_id, data: data_bytes }
+      args_with_self = crypto_args.merge(counterparty: 'self', data: data_bytes)
+
+      result_default = wallet.create_signature(args_without_counterparty)
+      result_self = wallet.create_signature(args_with_self)
+
+      # Different key derivation paths → different signatures
+      expect(result_default[:signature]).not_to eq(result_self[:signature])
+    end
   end
 
   describe '#verify_signature' do

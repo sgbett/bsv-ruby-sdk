@@ -4,6 +4,7 @@ require 'securerandom'
 require 'base64'
 require 'net/http'
 require 'json'
+require 'set'
 require 'uri'
 
 module BSV
@@ -180,6 +181,13 @@ module BSV
         validate_internalize_action!(args)
         beef_binary = args[:tx].pack('C*')
         beef = BSV::Transaction::Beef.from_binary(beef_binary)
+
+        # F8.14: verify the BEEF bundle before trusting its contents.
+        # Pass the chain provider if it supports SPV root verification;
+        # otherwise fall back to structural validation via valid?.
+        chain_tracker = @chain_provider.respond_to?(:valid_root_for_height?) ? @chain_provider : nil
+        raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(chain_tracker)
+
         tx = extract_subject_transaction(beef)
 
         store_proofs_from_beef(beef)
@@ -400,6 +408,10 @@ module BSV
         { total_certificates: total, certificates: certs.map { |c| cert_without_keyring(c) } }
       end
 
+      # Maximum ancestor depth to traverse when wiring source transactions.
+      # Guards against stack overflow on pathologically deep or cyclic chains.
+      ANCESTOR_DEPTH_CAP = 64
+
       private
 
       # --- Validation ---
@@ -542,18 +554,28 @@ module BSV
         input.source_transaction = source_tx
       end
 
-      def wire_source_tx_ancestors(tx)
+      def wire_source_tx_ancestors(tx, visited: nil, depth: 0)
+        return if depth >= ANCESTOR_DEPTH_CAP
+
+        visited ||= Set.new
+        tx_txid = tx.txid_hex
+        return if visited.include?(tx_txid)
+
+        visited.add(tx_txid)
+
         tx.inputs.each do |inp|
           next if inp.source_transaction
 
           ancestor_txid_hex = inp.prev_tx_id.reverse.unpack1('H*')
+          next if visited.include?(ancestor_txid_hex)
+
           tx_hex = @storage.find_transaction(ancestor_txid_hex)
           next unless tx_hex
 
           ancestor_tx = BSV::Transaction::Transaction.from_hex(tx_hex)
           proof = @proof_store.resolve_proof(ancestor_txid_hex)
           ancestor_tx.merkle_path = proof if proof
-          wire_source_tx_ancestors(ancestor_tx) unless ancestor_tx.merkle_path
+          wire_source_tx_ancestors(ancestor_tx, visited: visited, depth: depth + 1) unless ancestor_tx.merkle_path
           inp.source_transaction = ancestor_tx
         end
       end

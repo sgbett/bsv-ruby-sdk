@@ -141,7 +141,7 @@ module BSV
       # @param originator [String, nil] FQDN of the originating application
       # @return [Hash] { signature: Array<Integer> } DER-encoded signature as byte array
       def create_signature(args, originator: nil)
-        counterparty = args[:counterparty] || 'self'
+        counterparty = args[:counterparty] || 'anyone'
         priv_key = @key_deriver.derive_private_key(args[:protocol_id], args[:key_id], counterparty)
 
         hash = if args[:hash_to_directly_sign]
