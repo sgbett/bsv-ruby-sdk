@@ -586,7 +586,11 @@ module BSV
             output = input.source_transaction.outputs[input.prev_tx_out_index]
             input.source_satoshis = output.satoshis if output
           end
-          raise ArgumentError, "input #{idx} has nil source_satoshis — set it or wire source_transaction before computing totals" if input.source_satoshis.nil?
+          next unless input.source_satoshis.nil?
+
+          raise ArgumentError,
+                "input #{idx} has nil source_satoshis — " \
+                'set it or wire source_transaction before computing totals'
         end
         @inputs.sum(&:source_satoshis)
       end
