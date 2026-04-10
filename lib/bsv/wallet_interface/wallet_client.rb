@@ -600,7 +600,7 @@ module BSV
       # @param caller_outputs [Array<Hash>] the caller-specified output specs
       # @return [Hash] finalised result with :txid and :tx
       def auto_fund_and_create(args, caller_outputs)
-        @storage.release_stale_pending!
+        release_stale_if_due
         target = caller_outputs.sum { |o| o[:satoshis] || 0 }
         all_spendable = @storage.find_spendable_outputs
         available = all_spendable.select do |o|
@@ -1067,6 +1067,18 @@ module BSV
       #
       # @param outpoints [Array<String>] list of outpoints to release
       # @param ref [String] the reference used when locking
+      # Rate-limits stale pending recovery to avoid O(n) scans on every
+      # auto-fund call. Skips if called again within +STALE_CHECK_INTERVAL+.
+      STALE_CHECK_INTERVAL = 30
+
+      def release_stale_if_due
+        now = Time.now.utc
+        return if @last_stale_check && (now - @last_stale_check) < STALE_CHECK_INTERVAL
+
+        @storage.release_stale_pending!
+        @last_stale_check = now
+      end
+
       def release_pending_utxos(outpoints, ref)
         Array(outpoints).each do |op|
           outputs = @storage.find_outputs({ outpoint: op, include_spent: true, limit: 1, offset: 0 })
