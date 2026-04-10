@@ -86,10 +86,10 @@ RSpec.describe BSV::Wallet::FeeModel do
 
   describe '#compute' do
     it 'delegates to SatoshisPerKilobyte with the configured rate' do
-      model = described_class.new(sats_per_kb: 100)
       sdk_model = instance_double(BSV::Transaction::FeeModels::SatoshisPerKilobyte, compute_fee: 42)
       allow(BSV::Transaction::FeeModels::SatoshisPerKilobyte)
         .to receive(:new).with(value: 100).and_return(sdk_model)
+      model = described_class.new(sats_per_kb: 100)
 
       transaction = instance_double(BSV::Transaction::Transaction)
       expect(model.compute(transaction)).to eq(42)

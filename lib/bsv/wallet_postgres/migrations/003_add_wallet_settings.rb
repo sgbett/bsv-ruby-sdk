@@ -14,7 +14,7 @@ Sequel.migration do
     create_table(:wallet_settings) do
       String :key, primary_key: true
       String :value, text: true, null: false
-      DateTime :updated_at, null: false, default: Sequel::CURRENT_TIMESTAMP
+      DateTime :created_at, null: false, default: Sequel::CURRENT_TIMESTAMP
     end
   end
 end

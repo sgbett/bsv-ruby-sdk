@@ -31,11 +31,19 @@ module BSV
       # Fixed overhead in bytes for version (4) and lock_time (4).
       FIXED_OVERHEAD = 8
 
+      # Approximate overhead including typical 1-byte varints for input/output
+      # counts. Retained for backward compatibility with code that referenced
+      # +FeeModel::OVERHEAD+.
+      OVERHEAD = 10
+
       # @return [Integer] the satoshis-per-kilobyte rate used for estimation
       attr_reader :sats_per_kb
 
       # @param sats_per_kb [Integer] fee rate in satoshis per kilobyte (default: 1)
+      # @raise [ArgumentError] if sats_per_kb is zero or negative
       def initialize(sats_per_kb: 1)
+        raise ArgumentError, 'sats_per_kb must be greater than zero' unless sats_per_kb.positive?
+
         @sats_per_kb = sats_per_kb
         @sdk_model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new(value: sats_per_kb)
       end
@@ -66,6 +74,9 @@ module BSV
       def estimate_for_tx(tx)
         @sdk_model.compute_fee(tx)
       end
+
+      # Alias for {#estimate_for_tx} — matches the SDK's +compute_fee+ naming.
+      alias compute estimate_for_tx
 
       # Minimum viable change output value at the configured rate.
       #

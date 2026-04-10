@@ -110,11 +110,10 @@ RSpec.describe BSV::Wallet::FeeEstimator do
       end
     end
 
-    context 'when the calculated fee rounds down to zero' do
-      it 'returns at least 1 satoshi' do
-        # With a 0 sat/kB rate, ceil(anything * 0) = 0, but minimum is 1.
-        zero_rate_estimator = described_class.new(sats_per_kb: 0)
-        expect(zero_rate_estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(1)
+    context 'when sats_per_kb is zero' do
+      it 'raises ArgumentError' do
+        expect { described_class.new(sats_per_kb: 0) }
+          .to raise_error(ArgumentError, /greater than zero/)
       end
     end
 
@@ -183,11 +182,10 @@ RSpec.describe BSV::Wallet::FeeEstimator do
       end
     end
 
-    context 'with 0 sat/kB' do
-      # cost = ceil(192/1000 * 0) = 0; dust_floor = max(1, 0 * 2) = 1
-      it 'returns at least 1 satoshi' do
-        estimator = described_class.new(sats_per_kb: 0)
-        expect(estimator.dust_floor).to eq(1)
+    context 'with negative sats_per_kb' do
+      it 'raises ArgumentError' do
+        expect { described_class.new(sats_per_kb: -1) }
+          .to raise_error(ArgumentError, /greater than zero/)
       end
     end
 
