@@ -46,7 +46,7 @@ Impact on 0.9: 5 trivial changes (promote `OP_SUBSTR`/`OP_LEFT`/`OP_RIGHT`/`OP_L
 | #316 — A4 | Crypto hardening | bsv-sdk | F2.1, F2.3, F2.2, F2.4, F2.9 | — | — (parallel with A3) |
 | #317 — A5 | Parser correctness | bsv-sdk | F3.1, F3.2, F3.3, F3.4, F3.5, F3.6, F3.10, F3.12, F3.14/F3.21, F3.16 | — | A2 (F1.5 hex module blocks F3.5) |
 | #318 — A6 | Interpreter hardening + Chronicle fail-safe | bsv-sdk | F7.8, F7.9, F7.10, F7.11, F7.16, F7.18, F7.19, F7.1/F7.2 (raise first) | — | — (parallel with A3/A5) |
-| TBD — A7 | Defensive bits (catch-all) | **both** | bsv-sdk: F4.1, F4.3, F4.4, F4.9; bsv-wallet: F8.7, F8.8, F8.10, F8.14, F8.18, P305.1 | — | — |
+| #323 — A7 | Defensive bits (catch-all) | **both** | bsv-sdk: F4.1, F4.3, F4.4, F4.9; bsv-wallet: F8.7, F8.8, F8.10, F8.14, F8.18, P305.1 | — | — |
 
 HLR numbers will be assigned as they are created. This plan updates as each is opened.
 
@@ -296,6 +296,6 @@ Items discovered while implementing the review's findings. Numbered `P<hlr>.<n>`
 | A4 HLR | bsv-sdk | ✅ | #316 — opened 2026-04-09 |
 | A5 HLR | bsv-sdk | ✅ | #317 — opened 2026-04-09 |
 | A6 HLR | bsv-sdk | ✅ | #318 — opened 2026-04-09 |
-| A7 HLR | both | pending | opportunistic; bsv-sdk bits (F4.x) and bsv-wallet bits (F8.x + P305.1) to be split at PR / commit granularity |
+| A7 HLR | both | ✅ | #323 — opened 2026-04-10 |
 
 HLR numbers populated in the **Cluster overview** table at the top of this document as each is opened.

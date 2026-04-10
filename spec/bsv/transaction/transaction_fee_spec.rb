@@ -271,10 +271,10 @@ RSpec.describe BSV::Transaction::Transaction do
         expect(amounts1).to eq(amounts2)
       end
 
-      it 'removes change outputs when available equals number of change outputs' do
-        # available = 51002 - 50000 - 1000 = 2, change_count = 2
-        # 2 <= 2 → remove change outputs
-        tx = build_tx(input_sats: 51_002, output_sats: 50_000, change_count: 2)
+      it 'removes change outputs when available is zero' do
+        # F4.1: change outputs are now only removed when available <= 0.
+        # available = 51000 - 50000 - 1000 = 0 → remove change outputs
+        tx = build_tx(input_sats: 51_000, output_sats: 50_000, change_count: 2)
         tx.fee(1000, change_distribution: :random)
         expect(tx.outputs.select(&:change)).to be_empty
       end

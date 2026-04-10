@@ -128,12 +128,12 @@ RSpec.describe BSV::Wallet::Wallet do
       dummy_tx = BSV::Transaction::Transaction.new
       dummy_tx.add_output(make_p2pkh_output(10_000))
       dummy_tx.add_output(make_p2pkh_output(0)) # dummy change
-      dummy_tx.add_input(
-        BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x00" * 32,
-          prev_tx_out_index: 0
-        )
+      dummy_input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: "\x00" * 32,
+        prev_tx_out_index: 0
       )
+      dummy_input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
+      dummy_tx.add_input(dummy_input)
       fee_with_change = dummy_tx.estimated_fee(satoshis_per_byte: 0.1)
 
       # UTXO covers output + fee (with change) exactly — no room for actual change

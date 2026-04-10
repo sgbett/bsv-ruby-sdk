@@ -456,6 +456,12 @@ module BSV
       # @param sighash_type [Integer] sighash flags (default: ALL|FORKID)
       # @return [self] for chaining
       def sign(input_index, private_key, sighash_type = Sighash::ALL_FORK_ID)
+        # F4.9: validate outputs have satoshis before signing — a nil satoshis
+        # value would produce a corrupt sighash preimage.
+        @outputs.each_with_index do |output, idx|
+          raise ArgumentError, "output #{idx} has nil satoshis — set before signing" if output.satoshis.nil?
+        end
+
         hash = sighash(input_index, sighash_type)
         signature = private_key.sign(hash)
         sig_with_hashtype = signature.to_der + [sighash_type].pack('C')
@@ -575,7 +581,12 @@ module BSV
       # @return [Integer] total input value in satoshis
       def total_input_satoshis
         @inputs.each_with_index do |input, idx|
-          raise ArgumentError, "input #{idx} has nil source_satoshis — set it before computing totals" if input.source_satoshis.nil?
+          # F4.4: fall back through source_transaction if source_satoshis is nil.
+          if input.source_satoshis.nil? && input.source_transaction
+            output = input.source_transaction.outputs[input.prev_tx_out_index]
+            input.source_satoshis = output.satoshis if output
+          end
+          raise ArgumentError, "input #{idx} has nil source_satoshis — set it or wire source_transaction before computing totals" if input.source_satoshis.nil?
         end
         @inputs.sum(&:source_satoshis)
       end
@@ -621,7 +632,12 @@ module BSV
                     script_len = input.unlocking_script_template.estimated_length(self, index)
                     32 + 4 + VarInt.encode(script_len).bytesize + script_len + 4
                   else
-                    UNSIGNED_P2PKH_INPUT_SIZE
+                    # F4.3: raise instead of silently assuming 148-byte P2PKH.
+                    # Matches TS/Go which require either an unlocking script or
+                    # a template for size estimation.
+                    raise ArgumentError,
+                          "input #{index} has no unlocking script or template — " \
+                          'cannot estimate size (set unlocking_script_template first)'
                   end
         end
         size += VarInt.encode(@outputs.length).bytesize
@@ -795,7 +811,10 @@ module BSV
         non_change_sats = @outputs.reject(&:change).sum(&:satoshis)
         available = input_sats - non_change_sats - fee_sats
 
-        if available <= change_outputs.length
+        # F4.1: drop change outputs only when no change is available.
+        # Previously compared against change_outputs.length, which dropped
+        # outputs even when positive change existed (e.g. 1 sat with 1 output).
+        if available <= 0
           @outputs.reject!(&:change)
           return
         end

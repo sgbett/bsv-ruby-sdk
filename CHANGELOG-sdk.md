@@ -9,6 +9,25 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **Change distribution threshold fixed** (#323, F4.1). `distribute_change`
+  now drops change outputs only when `available <= 0`, not when
+  `available <= change_outputs.length`. Previously 1 satoshi of available
+  change with 1 output was incorrectly dropped.
+
+- **`estimated_size` raises on inputs without template** (#323, F4.3).
+  Previously fell back to a 148-byte P2PKH estimate. Now raises
+  `ArgumentError` matching TS/Go behaviour. **Migration:** set
+  `unlocking_script_template` on all inputs before calling `estimated_size`
+  or `estimated_fee`.
+
+- **`total_input_satoshis` falls back through `source_transaction`** (#323,
+  F4.4). If `source_satoshis` is nil but `source_transaction` is wired,
+  the satoshis are extracted from the referenced output automatically.
+
+- **`Transaction#sign` validates output satoshis** (#323, F4.9). Raises
+  `ArgumentError` if any output has nil satoshis, preventing a corrupt
+  sighash preimage.
+
 - **BEEF/BUMP validation and merge hardening** (HLR #315, A3 cluster).
   Twelve findings addressed across `Beef` and `MerklePath`:
   - **F5.1** — `BeefTx` TXID_ONLY entries now store txid in display byte
