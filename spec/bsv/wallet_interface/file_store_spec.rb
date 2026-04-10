@@ -117,4 +117,42 @@ RSpec.describe BSV::Wallet::FileStore do
       expect(store.count_outputs({ basket: 'count test' })).to eq(3)
     end
   end
+
+  describe 'UTXO state tracking persistence' do
+    it 'persists a state change across reload' do
+      store.store_output({ outpoint: 'tx0:0', satoshis: 500, state: :spendable })
+      store.update_output_state('tx0:0', :pending)
+
+      reloaded = described_class.new(dir: tmpdir)
+      results = reloaded.find_spendable_outputs
+      expect(results).to be_empty
+    end
+
+    it 'persists :spent state across reload' do
+      store.store_output({ outpoint: 'tx0:0', satoshis: 200, state: :spendable })
+      store.update_output_state('tx0:0', :spent)
+
+      reloaded = described_class.new(dir: tmpdir)
+      results = reloaded.find_spendable_outputs
+      expect(results).to be_empty
+    end
+
+    it 'persists state restored to :spendable across reload' do
+      store.store_output({ outpoint: 'tx0:0', satoshis: 300, state: :pending })
+      store.update_output_state('tx0:0', :spendable)
+
+      reloaded = described_class.new(dir: tmpdir)
+      results = reloaded.find_spendable_outputs
+      expect(results.length).to eq(1)
+      expect(results.first[:satoshis]).to eq(300)
+    end
+
+    it 'does not leave .tmp files after update_output_state' do
+      store.store_output({ outpoint: 'tx0:0', satoshis: 100, state: :spendable })
+      store.update_output_state('tx0:0', :pending)
+
+      tmp_files = Dir.glob(File.join(tmpdir, '*.tmp'))
+      expect(tmp_files).to be_empty
+    end
+  end
 end

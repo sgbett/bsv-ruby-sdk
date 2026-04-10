@@ -46,7 +46,17 @@ module BSV
       # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
-      def initialize(key, storage: FileStore.new, network: 'mainnet', chain_provider: NullChainProvider.new, proof_store: nil, http_client: nil)
+      def initialize(
+        key,
+        storage: FileStore.new,
+        network: 'mainnet',
+        chain_provider: NullChainProvider.new,
+        proof_store: nil,
+        http_client: nil,
+        fee_estimator: nil,
+        coin_selector: nil,
+        change_generator: nil
+      )
         super(key)
         @storage = storage
         @network = network
@@ -54,23 +64,41 @@ module BSV
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
         @pending = {}
+        @injected_fee_estimator    = fee_estimator
+        @injected_coin_selector    = coin_selector
+        @injected_change_generator = change_generator
       end
 
       # --- Transaction Operations ---
 
       # Creates a new Bitcoin transaction.
       #
-      # If all inputs carry unlocking_script values, the transaction is
-      # finalised immediately and returned with :txid and :tx (BEEF bytes).
-      # If any input specifies only unlocking_script_length, the transaction
-      # is held pending and returned as a signable_transaction for external
-      # signing via {#sign_action}.
+      # When the +:auto_fund+ option is +true+ (and +:outputs+ are provided
+      # but no +:inputs+), the wallet automatically selects UTXOs from the
+      # default basket, estimates fees, generates change, and returns a
+      # complete signed transaction (auto-fund mode).
+      #
+      # Without +:auto_fund+, if all inputs carry unlocking_script values,
+      # the transaction is finalised immediately and returned with :txid and
+      # :tx (BEEF bytes). If any input specifies only unlocking_script_length,
+      # the transaction is held pending and returned as a signable_transaction
+      # for external signing via {#sign_action}.
       #
       # @param args [Hash] transaction parameters
+      # @option args [Boolean] :auto_fund when +true+, automatically selects
+      #   UTXOs and generates change; requires +:outputs+ and no +:inputs+
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] finalised result or signable_transaction
       def create_action(args, _originator: nil)
         validate_create_action!(args)
+
+        outputs = args[:outputs] || []
+        inputs  = args[:inputs]
+
+        if (inputs.nil? || inputs.empty?) && !outputs.empty? && (args[:auto_fund] || spendable_pool_eligible?)
+          return auto_fund_and_create(args, outputs)
+        end
+
         beef = parse_input_beef(args[:input_beef])
         tx = build_transaction(args, beef)
 
@@ -102,6 +130,10 @@ module BSV
 
       # Aborts a pending signable transaction.
       #
+      # If the pending entry holds UTXO references (stored by auto-fund), any
+      # outputs locked as +:pending+ with that reference are released back to
+      # +:spendable+ so they become eligible for future coin selection.
+      #
       # @param args [Hash]
       # @option args [String] :reference base64 reference to abort
       # @param _originator [String, nil] FQDN of the originating application
@@ -110,7 +142,12 @@ module BSV
         reference = args[:reference]
         raise WalletError, 'Transaction not found for the given reference' unless @pending.key?(reference)
 
-        @pending.delete(reference)
+        pending_entry = @pending.delete(reference)
+        # Release locked input UTXOs back to :spendable.
+        release_pending_utxos(pending_entry[:locked_outpoints], reference) if pending_entry[:locked_outpoints]
+        # Remove change outputs created by the aborted transaction —
+        # they reference an unbroadcast tx and must not remain in storage.
+        Array(pending_entry[:change_outpoints]).each { |op| @storage.delete_output(op) }
         { aborted: true }
       end
 
@@ -232,6 +269,105 @@ module BSV
       # @return [Hash] { version: String } in vendor-major.minor.patch format
       def get_version(_args = {}, _originator: nil)
         { version: "bsv-wallet-#{BSV::WalletInterface::VERSION}" }
+      end
+
+      # Discovers on-chain UTXOs for the wallet's identity address and imports
+      # any that are not already present in storage.
+      #
+      # Each imported output is stored in the 'default' basket with state
+      # +:spendable+ and +derivation_type: :identity+. The +:identity+
+      # derivation type signals to the auto-fund signing path that the root
+      # private key should be used directly (these outputs lack BRC-29
+      # derivation metadata).
+      #
+      # The method is idempotent — calling it twice with the same UTXO set
+      # produces no duplicates.
+      #
+      # @return [Integer] number of new UTXOs imported
+      def sync_utxos
+        address = identity_address
+        utxos = @chain_provider.get_utxos(address)
+        return 0 if utxos.empty?
+
+        imported = 0
+        utxos.each do |utxo|
+          outpoint = "#{utxo[:tx_hash]}.#{utxo[:tx_pos]}"
+          next if output_exists?(outpoint)
+
+          tx_hex = @chain_provider.get_transaction(utxo[:tx_hash])
+          tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+
+          pos = utxo[:tx_pos]
+          unless pos.is_a?(Integer) && pos >= 0 && pos < tx.outputs.length
+            raise WalletError, "Invalid tx_pos #{pos.inspect} for #{utxo[:tx_hash]} (#{tx.outputs.length} outputs)"
+          end
+
+          locking_script_hex = tx.outputs[pos].locking_script.to_hex
+
+          @storage.store_output({
+                                  outpoint: outpoint,
+                                  satoshis: utxo[:value],
+                                  locking_script: locking_script_hex,
+                                  basket: 'default',
+                                  tags: [],
+                                  derivation_type: :identity,
+                                  state: :spendable,
+                                  source_tx_hex: tx_hex
+                                })
+          @storage.store_transaction(utxo[:tx_hash], tx_hex)
+          imported += 1
+        end
+
+        imported
+      end
+
+      # --- UTXO Pool & Settings ---
+
+      # Returns the total spendable satoshis across all baskets (or a named basket).
+      #
+      # Includes every output in +:spendable+ state — regardless of whether the
+      # wallet holds the signing key. This answers "how much does this wallet hold?",
+      # not "how much can it auto-spend?". Use {#spendable_balance} for the latter.
+      #
+      # @param basket [String, nil] the basket to total, or +nil+ for all baskets
+      # @return [Integer] sum of all spendable output values
+      def balance(basket: nil)
+        @storage.find_spendable_outputs(basket: basket).sum { |o| o[:satoshis].to_i }
+      end
+
+      # Returns the total satoshis of outputs the wallet can automatically spend.
+      #
+      # Only outputs carrying full BRC-29 derivation metadata
+      # (+derivation_prefix+, +derivation_suffix+, +sender_identity_key+) are
+      # counted — these are the outputs the wallet can sign without external input.
+      # Basket-only outputs (e.g. tokens without derivation data) contribute to
+      # {#balance} but not here.
+      #
+      # @param basket [String, nil] restrict to a named basket, or +nil+ for all
+      # @return [Integer] total auto-spendable satoshis
+      def spendable_balance(basket: nil)
+        @storage.find_spendable_outputs(basket: basket)
+                .select { |o| (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) || o[:derivation_type] == :identity }
+                .sum { |o| o[:satoshis].to_i }
+      end
+
+      # Configures the target UTXO pool parameters for change generation.
+      #
+      # When set, the auto-fund path will use these parameters to decide how
+      # many change outputs to produce:
+      #   - If the pool is below +:count+, more change outputs are generated
+      #     (up to +max_outputs+) to build up the UTXO pool.
+      #   - If the pool is at or above +:count+, fewer outputs are generated
+      #     (1-2) to avoid fragmenting the pool unnecessarily.
+      #
+      # @param count [Integer] desired number of spendable UTXOs in 'default' basket
+      # @param satoshis [Integer] desired average value per UTXO in satoshis
+      # @raise [InvalidParameterError] if +count+ or +satoshis+ are not positive integers
+      def set_wallet_change_params(count:, satoshis:)
+        raise InvalidParameterError.new('count', 'a positive Integer') unless count.is_a?(Integer) && count.positive?
+        raise InvalidParameterError.new('satoshis', 'a positive Integer') unless satoshis.is_a?(Integer) && satoshis.positive?
+
+        @storage.store_setting('change_params', { count: count, satoshis: satoshis })
       end
 
       # --- Authentication ---
@@ -414,6 +550,343 @@ module BSV
 
       private
 
+      # --- Identity helpers ---
+
+      # Derives the wallet's identity P2PKH address.
+      #
+      # The network string 'mainnet'/'testnet' is mapped to the PublicKey
+      # address method's +:network+ symbol (:mainnet/:testnet).
+      #
+      # @return [String] Base58Check-encoded P2PKH address
+      def identity_address
+        net = @network == 'testnet' ? :testnet : :mainnet
+        @key_deriver.root_key.public_key.address(network: net)
+      end
+
+      # Returns true if an output with the given outpoint is already in storage,
+      # regardless of its state (spendable, spent, or pending).
+      # @param outpoint [String] outpoint in "txid.index" format
+      # @return [Boolean]
+      def output_exists?(outpoint)
+        @storage.find_outputs({ outpoint: outpoint, include_spent: true, limit: 1, offset: 0 }).any?
+      end
+
+      # Returns true if the spendable pool contains any state-managed outputs.
+      #
+      # State-managed outputs are those with an explicit +:state+ field
+      # (as opposed to the legacy +:spendable+ boolean used by
+      # {#store_tracked_outputs} for basket token insertions). This distinction
+      # allows auto-funding to trigger on payment receipts and chain UTXOs while
+      # bypassing the gate for basket tracking outputs stored in no-input
+      # transactions, which do not carry a spending key derivable by auto-fund.
+      #
+      # When no state-managed outputs are present, +create_action+ falls through
+      # to the standard (no-input) path rather than attempting coin selection.
+      # Callers needing forced auto-fund on an empty pool (e.g. explicit
+      # +auto_fund: true+) bypass this check via the flag.
+      #
+      # @return [Boolean]
+      def spendable_pool_eligible?
+        @storage.find_spendable_outputs.any? { |o| o.key?(:state) }
+      end
+
+      # --- Auto-fund helpers ---
+
+      # Orchestrates the full auto-fund flow: coin selection, fee convergence,
+      # transaction building, signing, and state persistence.
+      #
+      # Selected UTXOs are immediately locked as +:pending+ (with a unique
+      # reference) before building the transaction. If signing or finalisation
+      # raises an error the lock is released and the UTXOs are returned to
+      # +:spendable+ so they can be used by a subsequent attempt.
+      #
+      # @param args [Hash] original create_action params
+      # @param caller_outputs [Array<Hash>] the caller-specified output specs
+      # @return [Hash] finalised result with :txid and :tx
+      def auto_fund_and_create(args, caller_outputs)
+        release_stale_if_due
+        target = caller_outputs.sum { |o| o[:satoshis] || 0 }
+        all_spendable = @storage.find_spendable_outputs
+        available = all_spendable.select do |o|
+          (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) ||
+            o[:derivation_type] == :identity
+        end
+
+        selection = auto_fund_select(available, target, caller_outputs.size)
+        change_outputs = converge_change(selection, caller_outputs.size)
+
+        no_send = args.dig(:options, :no_send)
+
+        # Atomically lock the selected UTXOs as pending to prevent concurrent
+        # double-spend (closes the TOCTOU window between find and lock).
+        fund_ref = "auto-fund-#{SecureRandom.hex(16)}"
+        selected_outpoints = selection[:inputs].map { |u| u[:outpoint] }
+        locked = @storage.lock_utxos(selected_outpoints, reference: fund_ref, no_send: no_send)
+
+        # If another thread grabbed some UTXOs between selection and locking,
+        # release what we did lock and raise — the caller can retry.
+        if locked.size < selected_outpoints.size
+          release_pending_utxos(locked, fund_ref)
+          raise InsufficientFundsError.new(
+            required: target,
+            available: locked.sum { |op| selection[:inputs].find { |u| u[:outpoint] == op }&.fetch(:satoshis, 0) || 0 }
+          )
+        end
+
+        begin
+          tx = build_auto_funded_transaction(selection[:inputs], caller_outputs, change_outputs, args)
+          tx.sign_all
+
+          txid = tx.txid_hex
+          tx_hex = tx.to_hex
+
+          # Persist the transaction first; only promote state once all writes succeed.
+          @storage.store_transaction(txid, tx_hex)
+
+          if no_send
+            # Leave inputs as :pending — the caller will either broadcast via
+            # send_with or cancel via abort_action.
+            store_change_outputs(txid, tx, change_outputs, tx_hex)
+
+            # Record change outpoint positions, then mark them :pending so they
+            # are not auto-selected by a concurrent create_action. This matches
+            # the TS SDK where noSend outputs have spendable: false.
+            change_outpoints = []
+            change_outputs.each do |spec|
+              idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
+              next unless idx
+
+              op = "#{txid}.#{idx}"
+              change_outpoints << op
+              @storage.update_output_state(op, :pending, pending_reference: fund_ref, no_send: true)
+            end
+
+            store_action(tx, args, status: 'nosend')
+            store_tracked_outputs(txid, tx, caller_outputs)
+
+            # Register in @pending so abort_action can release inputs and
+            # remove change outputs.
+            @pending[fund_ref] = {
+              tx: tx, args: args,
+              locked_outpoints: selected_outpoints,
+              change_outpoints: change_outpoints
+            }
+
+            beef_binary = tx.to_beef
+            { txid: txid, tx: beef_binary.unpack('C*'), reference: fund_ref, no_send_change: change_outpoints }
+          else
+            store_action(tx, args, status: 'completed')
+            store_change_outputs(txid, tx, change_outputs, tx_hex)
+            store_tracked_outputs(txid, tx, caller_outputs)
+
+            # Promote from :pending to :spent now that all storage writes are done.
+            selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
+
+            beef_binary = tx.to_beef
+            { txid: txid, tx: beef_binary.unpack('C*') }
+          end
+        rescue StandardError
+          # Release the pending lock so the UTXOs are available for retry.
+          release_pending_utxos(selected_outpoints, fund_ref)
+          raise
+        end
+      end
+
+      # Runs coin selection, raising {InsufficientFundsError} on failure.
+      #
+      # @param available [Array<Hash>] spendable UTXOs
+      # @param target [Integer] total satoshis required by caller outputs
+      # @param num_outputs [Integer] number of caller outputs
+      # @return [Hash] coin selection result
+      def auto_fund_select(available, target, num_outputs)
+        auto_coin_selector.select(
+          available: available,
+          target_satoshis: target,
+          num_outputs: num_outputs
+        )
+      end
+
+      # Iteratively converges on a fee-stable set of change outputs.
+      #
+      # After initial selection, adding change outputs increases the transaction
+      # size and therefore the fee. This method recalculates the fee with the
+      # final output count and adjusts the excess until stable.
+      #
+      # @param selection [Hash] initial coin selection result
+      # @param num_caller_outputs [Integer] number of caller-specified outputs
+      # @return [Array<Hash>] finalised change output descriptors (may be empty)
+      def converge_change(selection, num_caller_outputs)
+        pool_opts = load_pool_opts
+
+        change_outputs = auto_change_generator.generate(
+          excess_satoshis: selection[:excess],
+          num_existing_outputs: num_caller_outputs,
+          **pool_opts
+        )
+
+        # Recalculate fee with the actual output count (caller + change).
+        total_outputs = num_caller_outputs + change_outputs.size
+        revised_fee = auto_fee_estimator.estimate(
+          p2pkh_inputs: selection[:inputs].size,
+          p2pkh_outputs: total_outputs
+        )
+
+        fee_delta = revised_fee - selection[:fee]
+        return change_outputs if fee_delta.zero?
+
+        # Adjust the excess to account for the revised fee and regenerate change.
+        adjusted_excess = selection[:excess] - fee_delta
+        return [] if adjusted_excess <= 0
+
+        auto_change_generator.generate(
+          excess_satoshis: adjusted_excess,
+          num_existing_outputs: num_caller_outputs,
+          **pool_opts
+        )
+      end
+
+      # Loads pool health options for ChangeGenerator from stored settings.
+      #
+      # @return [Hash] keyword args for ChangeGenerator#generate
+      def load_pool_opts
+        params = @storage.find_setting('change_params')
+        return {} unless params
+
+        pool_size = @storage.find_spendable_outputs.size
+        { pool_size: pool_size, change_params: params }
+      end
+
+      # Builds the Transaction object for an auto-funded action.
+      #
+      # Inputs are wired with source data from storage and assigned P2PKH
+      # unlocking templates using the derived private key. Outputs are built
+      # from the caller specs followed by any change outputs.
+      #
+      # @param selected_utxos [Array<Hash>] UTXOs chosen by coin selection
+      # @param caller_outputs [Array<Hash>] caller-specified output specs
+      # @param change_outputs [Array<Hash>] change output descriptors from ChangeGenerator
+      # @param args [Hash] original create_action params (for version/lock_time)
+      # @return [BSV::Transaction::Transaction]
+      def build_auto_funded_transaction(selected_utxos, caller_outputs, change_outputs, args)
+        version   = args.fetch(:version, 1)
+        lock_time = args.fetch(:lock_time, 0)
+        tx = BSV::Transaction::Transaction.new(version: version, lock_time: lock_time)
+
+        selected_utxos.each { |utxo| add_auto_funded_input(tx, utxo) }
+        caller_outputs.each { |spec| add_output_from_spec(tx, spec) }
+        change_outputs.each { |spec| add_output_from_spec(tx, spec) }
+
+        # Randomise unless explicitly disabled
+        shuffle_outputs(tx) if args.dig(:options, :randomize_outputs) != false && (caller_outputs.size + change_outputs.size) > 1
+
+        tx
+      end
+
+      # Adds a single auto-funded input to the transaction, wiring source data
+      # and attaching a P2PKH unlocking template using the derived private key.
+      #
+      # @param tx [BSV::Transaction::Transaction]
+      # @param utxo [Hash] UTXO hash from storage
+      def add_auto_funded_input(tx, utxo)
+        txid_hex, index_str = utxo[:outpoint].split('.')
+        output_index = index_str.to_i
+
+        input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(txid_hex),
+          prev_tx_out_index: output_index,
+          sequence: 0xFFFFFFFF
+        )
+
+        wire_source_from_storage(input, utxo[:outpoint])
+
+        priv = if utxo[:derivation_type] == :identity
+                  @key_deriver.root_key
+                else
+                  @key_deriver.derive_private_key(
+                    ChangeGenerator::BRC29_PROTOCOL_ID,
+                    "#{utxo[:derivation_prefix]} #{utxo[:derivation_suffix]}",
+                    utxo[:sender_identity_key]
+                  )
+                end
+        input.unlocking_script_template = BSV::Transaction::P2PKH.new(priv)
+
+        tx.add_input(input)
+      end
+
+      # Adds a TransactionOutput to tx from an output spec hash.
+      # Tags the output with its spec so store_tracked_outputs can find it
+      # by object identity after shuffling.
+      #
+      # @param tx [BSV::Transaction::Transaction]
+      # @param spec [Hash] output descriptor with :satoshis and :locking_script
+      def add_output_from_spec(tx, spec)
+        locking_script = if spec[:locking_script].is_a?(BSV::Script::Script)
+                           spec[:locking_script]
+                         else
+                           BSV::Script::Script.from_hex(spec[:locking_script])
+                         end
+        output = BSV::Transaction::TransactionOutput.new(
+          satoshis: spec[:satoshis],
+          locking_script: locking_script
+        )
+        output.instance_variable_set(:@_spec, spec)
+        tx.add_output(output)
+      end
+
+      # Persists change outputs in storage as new spendable UTXOs.
+      #
+      # Each output is stored with full BRC-29 derivation metadata so the
+      # wallet can derive the spending key later, and with +:state+ +:spendable+
+      # so it is eligible for future coin selection.
+      #
+      # @param txid [String] hex txid of the signed transaction
+      # @param tx [BSV::Transaction::Transaction]
+      # @param change_specs [Array<Hash>] change descriptors from {ChangeGenerator}
+      # @param tx_hex [String] serialised transaction hex (used as source)
+      def store_change_outputs(txid, tx, change_specs, tx_hex)
+        change_specs.each do |spec|
+          actual_idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
+          next unless actual_idx
+
+          locking_script_hex = if spec[:locking_script].is_a?(BSV::Script::Script)
+                                 spec[:locking_script].to_hex
+                               else
+                                 spec[:locking_script]
+                               end
+
+          @storage.store_output({
+                                  outpoint: "#{txid}.#{actual_idx}",
+                                  satoshis: spec[:satoshis],
+                                  locking_script: locking_script_hex,
+                                  basket: nil,
+                                  tags: [],
+                                  derivation_prefix: spec[:derivation_prefix],
+                                  derivation_suffix: spec[:derivation_suffix],
+                                  sender_identity_key: spec[:sender_identity_key],
+                                  state: :spendable,
+                                  source_tx_hex: tx_hex
+                                })
+        end
+      end
+
+      # Lazy accessors for auto-fund components. Created on first use so the
+      # wallet is not penalised when the auto-fund path is never exercised.
+
+      def auto_fee_estimator
+        @auto_fee_estimator ||= @injected_fee_estimator || FeeEstimator.new
+      end
+
+      def auto_coin_selector
+        @auto_coin_selector ||= @injected_coin_selector || CoinSelector.new(fee_estimator: auto_fee_estimator)
+      end
+
+      def auto_change_generator
+        @auto_change_generator ||= @injected_change_generator || ChangeGenerator.new(
+          key_deriver: @key_deriver,
+          fee_estimator: auto_fee_estimator
+        )
+      end
+
       # --- Validation ---
 
       def validate_create_action!(args)
@@ -533,7 +1006,10 @@ module BSV
       end
 
       def wire_source_from_storage(input, outpoint)
-        results = @storage.find_outputs({ outpoint: outpoint, limit: 1 })
+        # Use include_spent: true so that outputs in :pending or :spent state
+        # can still be wired — the lock was just placed by the auto-fund flow
+        # and the source transaction data is still needed for signing.
+        results = @storage.find_outputs({ outpoint: outpoint, include_spent: true, limit: 1 })
         stored = results.first
         return unless stored
 
@@ -613,6 +1089,36 @@ module BSV
         @pending[reference] = { tx: tx, args: args, beef: beef }
         tx_bytes = tx.to_binary
         { signable_transaction: { tx: tx_bytes.unpack('C*'), reference: reference } }
+      end
+
+      # Reverts a set of outpoints from +:pending+ back to +:spendable+.
+      #
+      # Only releases an outpoint if its stored +:pending_reference+ matches
+      # +ref+, to avoid accidentally unlocking UTXOs locked by a different
+      # concurrent operation.
+      #
+      # @param outpoints [Array<String>] list of outpoints to release
+      # @param ref [String] the reference used when locking
+      # Rate-limits stale pending recovery to avoid O(n) scans on every
+      # auto-fund call. Skips if called again within +STALE_CHECK_INTERVAL+.
+      STALE_CHECK_INTERVAL = 30
+
+      def release_stale_if_due
+        now = Time.now.utc
+        return if @last_stale_check && (now - @last_stale_check) < STALE_CHECK_INTERVAL
+
+        @storage.release_stale_pending!
+        @last_stale_check = now
+      end
+
+      def release_pending_utxos(outpoints, ref)
+        Array(outpoints).each do |op|
+          outputs = @storage.find_outputs({ outpoint: op, include_spent: true, limit: 1, offset: 0 })
+          next if outputs.empty?
+          next unless outputs.first[:pending_reference] == ref
+
+          @storage.update_output_state(op, :spendable)
+        end
       end
 
       def finalize_action(tx, args)
@@ -762,7 +1268,7 @@ module BSV
 
         # BRC-29: derive the expected P2PKH key for this payment
         derived_pub = @key_deriver.derive_public_key(
-          [2, '3241645161d8'],
+          ChangeGenerator::BRC29_PROTOCOL_ID,
           "#{prefix} #{suffix}",
           sender_key,
           for_self: true

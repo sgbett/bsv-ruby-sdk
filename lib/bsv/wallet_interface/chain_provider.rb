@@ -32,6 +32,20 @@ module BSV
       def get_header(_height)
         raise NotImplementedError, "#{self.class}#get_header not implemented"
       end
+
+      # Returns unspent transaction outputs for the given address.
+      # @param _address [String] BSV address
+      # @return [Array<Hash>] array of hashes with :tx_hash, :tx_pos, :value keys
+      def get_utxos(_address)
+        raise NotImplementedError, "#{self.class}#get_utxos not implemented"
+      end
+
+      # Returns the raw transaction hex for the given txid.
+      # @param _txid [String] transaction ID (hex)
+      # @return [String] raw transaction hex string
+      def get_transaction(_txid)
+        raise NotImplementedError, "#{self.class}#get_transaction not implemented"
+      end
     end
   end
 end

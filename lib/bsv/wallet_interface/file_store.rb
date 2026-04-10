@@ -60,6 +60,18 @@ module BSV
         result
       end
 
+      def update_output_state(outpoint, new_state, pending_reference: nil, no_send: nil)
+        result = super
+        save_outputs
+        result
+      end
+
+      def lock_utxos(outpoints, reference:, no_send: false)
+        locked = super
+        save_outputs unless locked.empty?
+        locked
+      end
+
       def store_certificate(cert_data)
         result = super
         save_certificates
@@ -82,6 +94,11 @@ module BSV
         save_transactions
       end
 
+      def store_setting(key, value)
+        super
+        save_settings
+      end
+
       private
 
       def proofs_path
@@ -99,7 +116,7 @@ module BSV
                        'Other users may be able to access wallet data.')
         end
 
-        [actions_path, outputs_path, certificates_path, proofs_path, transactions_path].each do |path|
+        [actions_path, outputs_path, certificates_path, proofs_path, transactions_path, settings_path].each do |path|
           next unless File.exist?(path)
 
           file_mode = File.stat(path).mode & 0o777
@@ -112,6 +129,10 @@ module BSV
 
       def actions_path
         File.join(@dir, 'actions.json')
+      end
+
+      def settings_path
+        File.join(@dir, 'settings.json')
       end
 
       def outputs_path
@@ -128,6 +149,7 @@ module BSV
         @certificates = load_file(certificates_path)
         @proofs = load_proofs_file
         @transactions = load_transactions_file
+        @settings = load_settings_file
       end
 
       def load_file(path)
@@ -181,6 +203,22 @@ module BSV
         return {} unless File.exist?(transactions_path)
 
         data = JSON.parse(File.read(transactions_path))
+        data.is_a?(Hash) ? data : {}
+      rescue JSON::ParserError
+        {}
+      end
+
+      def save_settings
+        json = JSON.pretty_generate(stringify_keys_deep(@settings))
+        tmp = "#{settings_path}.tmp"
+        File.open(tmp, File::WRONLY | File::CREAT | File::TRUNC, 0o600) { |f| f.write(json) }
+        File.rename(tmp, settings_path)
+      end
+
+      def load_settings_file
+        return {} unless File.exist?(settings_path)
+
+        data = JSON.parse(File.read(settings_path))
         data.is_a?(Hash) ? data : {}
       rescue JSON::ParserError
         {}
