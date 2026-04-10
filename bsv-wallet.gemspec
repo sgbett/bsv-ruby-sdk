@@ -31,7 +31,7 @@ Gem::Specification.new do |spec|
   # allowed bsv-sdk 0.4.x–0.9.x, but wallet hasn't been tested against
   # anything below current (0.8.x) in months. Pinning the floor at
   # 0.8.2 ensures consumers installing bsv-wallet 0.3.4 (which ships
-  # the F8.15 security fix for issue #305) also pick up the F1.3
-  # and F5.13 bsv-sdk security fixes that ship together with it.
-  spec.add_dependency 'bsv-sdk', '>= 0.8.2', '< 1.0'
+  # Floor raised with each paired release so consumers of bsv-wallet
+  # also pick up the corresponding bsv-sdk correctness fixes.
+  spec.add_dependency 'bsv-sdk', '>= 0.9.0', '< 1.0'
 end
