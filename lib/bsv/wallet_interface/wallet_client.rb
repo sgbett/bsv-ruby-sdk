@@ -337,7 +337,7 @@ module BSV
       # @return [Integer] total auto-spendable satoshis
       def spendable_balance(basket: nil)
         @storage.find_spendable_outputs(basket: basket)
-                .select { |o| o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key] }
+                .select { |o| (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) || o[:derivation_type] == :identity }
                 .sum { |o| o[:satoshis].to_i }
       end
 
@@ -599,7 +599,7 @@ module BSV
         all_spendable = @storage.find_spendable_outputs
         available = all_spendable.select do |o|
           (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) ||
-            o[:identity_key_utxo]
+            o[:derivation_type] == :identity
         end
 
         selection = auto_fund_select(available, target, caller_outputs.size)
@@ -753,11 +753,15 @@ module BSV
 
         wire_source_from_storage(input, utxo[:outpoint])
 
-        priv = @key_deriver.derive_private_key(
-          ChangeGenerator::BRC29_PROTOCOL_ID,
-          "#{utxo[:derivation_prefix]} #{utxo[:derivation_suffix]}",
-          utxo[:sender_identity_key]
-        )
+        priv = if utxo[:derivation_type] == :identity
+                  @key_deriver.root_key
+                else
+                  @key_deriver.derive_private_key(
+                    ChangeGenerator::BRC29_PROTOCOL_ID,
+                    "#{utxo[:derivation_prefix]} #{utxo[:derivation_suffix]}",
+                    utxo[:sender_identity_key]
+                  )
+                end
         input.unlocking_script_template = BSV::Transaction::P2PKH.new(priv)
 
         tx.add_input(input)
