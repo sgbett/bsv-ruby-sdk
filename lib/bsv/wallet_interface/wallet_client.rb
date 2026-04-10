@@ -1236,7 +1236,7 @@ module BSV
 
         # BRC-29: derive the expected P2PKH key for this payment
         derived_pub = @key_deriver.derive_public_key(
-          [2, '3241645161d8'],
+          ChangeGenerator::BRC29_PROTOCOL_ID,
           "#{prefix} #{suffix}",
           sender_key,
           for_self: true
