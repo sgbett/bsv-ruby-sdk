@@ -17,6 +17,14 @@ module BSV
       def get_header(_height)
         raise UnsupportedActionError, 'get_header_for_height (no chain provider configured)'
       end
+
+      def get_utxos(_address)
+        raise UnsupportedActionError, 'get_utxos (no chain provider configured)'
+      end
+
+      def get_transaction(_txid)
+        raise UnsupportedActionError, 'get_transaction (no chain provider configured)'
+      end
     end
   end
 end

@@ -2,10 +2,16 @@
 
 module BSV
   module Wallet
-    # In-memory storage adapter for testing.
+    # In-memory storage adapter for testing and single-process use.
     #
     # Stores actions, outputs, and certificates in plain Ruby arrays.
-    # Not thread-safe; intended for test use only.
+    #
+    # Thread safety: a +Mutex+ serialises all state-mutating operations so that
+    # concurrent threads cannot select and mark the same UTXO as pending.
+    # This makes MemoryStore safe within a single Ruby process.
+    #
+    # NOTE: FileStore is NOT process-safe — concurrent processes share no
+    # in-memory lock and may read stale state from disk.
     class MemoryStore
       include StorageAdapter
 
@@ -15,6 +21,8 @@ module BSV
         @certificates = []
         @proofs = {}
         @transactions = {}
+        @settings = {}
+        @mutex = Mutex.new
       end
 
       def store_action(action_data)
@@ -49,6 +57,100 @@ module BSV
 
         @outputs.delete_at(idx)
         true
+      end
+
+      # Transitions the state of an existing output.
+      #
+      # When +new_state+ is +:pending+, a +:pending_since+ (ISO 8601 UTC) and
+      # +:pending_reference+ are attached to the output so stale locks can be
+      # detected via {#release_stale_pending!}.
+      #
+      # Pass +no_send: true+ to mark the lock as belonging to a +no_send+
+      # transaction; these locks are exempt from automatic stale recovery and
+      # must be released explicitly via +abort_action+.
+      #
+      # When transitioning away from +:pending+, all pending metadata is cleared.
+      #
+      # This method is wrapped in a mutex to prevent concurrent transitions on
+      # the same output from two threads.
+      #
+      # @param outpoint [String] the outpoint identifier
+      # @param new_state [Symbol] +:spendable+, +:pending+, or +:spent+
+      # @param pending_reference [String, nil] caller-supplied label for the lock
+      # @param no_send [Boolean, nil] true if the lock is for a no_send transaction
+      # @raise [BSV::Wallet::WalletError] if the outpoint is not found
+      def update_output_state(outpoint, new_state, pending_reference: nil, no_send: nil)
+        @mutex.synchronize do
+          output = @outputs.find { |o| o[:outpoint] == outpoint }
+          raise WalletError, "Output not found: #{outpoint}" unless output
+
+          output[:state] = new_state
+
+          if new_state == :pending
+            output[:pending_since]     = Time.now.utc.iso8601
+            output[:pending_reference] = pending_reference
+            no_send ? output[:no_send] = true : output.delete(:no_send)
+          else
+            output.delete(:pending_since)
+            output.delete(:pending_reference)
+            output.delete(:no_send)
+          end
+
+          output
+        end
+      end
+
+      # Returns only outputs whose effective state is +:spendable+.
+      #
+      # Legacy outputs that carry no +:state+ key are treated as spendable
+      # when +spendable:+ is not explicitly +false+.
+      #
+      # This method is wrapped in the same mutex as {#update_output_state} so
+      # that a thread cannot select a UTXO that another thread is simultaneously
+      # marking as pending.
+      #
+      # @param basket [String, nil] restrict to this basket when provided
+      # @param min_satoshis [Integer, nil] exclude outputs below this value
+      # @param sort_order [Symbol] +:asc+ or +:desc+ (default +:desc+, largest first)
+      # @return [Array<Hash>]
+      def find_spendable_outputs(basket: nil, min_satoshis: nil, sort_order: :desc)
+        @mutex.synchronize do
+          results = @outputs.select { |o| effective_state(o) == :spendable }
+          results = results.select { |o| o[:basket] == basket } if basket
+          results = results.select { |o| (o[:satoshis] || 0) >= min_satoshis } if min_satoshis
+          results.sort_by { |o| sort_order == :asc ? (o[:satoshis] || 0) : -(o[:satoshis] || 0) }
+        end
+      end
+
+      # Releases pending locks that have been held longer than +timeout+ seconds.
+      #
+      # Each output in +:pending+ state whose +:pending_since+ timestamp is older
+      # than +timeout+ seconds is reverted to +:spendable+ and its pending
+      # metadata is cleared.
+      #
+      # @param timeout [Integer] lock age in seconds before it is considered stale (default 300)
+      # @return [Integer] number of outputs released
+      def release_stale_pending!(timeout: 300)
+        cutoff = Time.now.utc - timeout
+        released = 0
+
+        @mutex.synchronize do
+          @outputs.each do |output|
+            next unless effective_state(output) == :pending
+            next if output[:no_send]
+            next unless output[:pending_since]
+
+            locked_at = Time.parse(output[:pending_since])
+            next unless locked_at < cutoff
+
+            output[:state] = :spendable
+            output.delete(:pending_since)
+            output.delete(:pending_reference)
+            released += 1
+          end
+        end
+
+        released
       end
 
       def store_certificate(cert_data)
@@ -90,6 +192,22 @@ module BSV
         true
       end
 
+      # Persists a named wallet setting.
+      #
+      # @param key [String] the setting name
+      # @param value [Object] the setting value (must be JSON-serialisable)
+      def store_setting(key, value)
+        @settings[key] = value
+      end
+
+      # Retrieves a named wallet setting.
+      #
+      # @param key [String] the setting name
+      # @return [Object, nil] the stored value, or nil if not found
+      def find_setting(key)
+        @settings[key]
+      end
+
       private
 
       def filter_actions(query)
@@ -122,7 +240,22 @@ module BSV
             end
           end
         end
-        query[:include_spent] ? results : results.reject { |o| o[:spendable] == false }
+        query[:include_spent] ? results : results.select { |o| effective_state(o) == :spendable }
+      end
+
+      # Resolves the effective state of an output from either the new +:state+
+      # field or the legacy +:spendable+ boolean, giving +:state+ precedence.
+      #
+      # The +:state+ value may be a Symbol or a String (the latter arises after
+      # a JSON round-trip in FileStore); both are normalised to a Symbol here.
+      #
+      # Legacy mapping:
+      #   - +spendable: false+           → +:spent+
+      #   - +spendable: true+ (or absent) → +:spendable+
+      def effective_state(output)
+        return output[:state].to_sym if output.key?(:state)
+
+        output[:spendable] == false ? :spent : :spendable
       end
 
       def filter_certificates(query)

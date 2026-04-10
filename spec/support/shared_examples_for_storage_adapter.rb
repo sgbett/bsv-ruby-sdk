@@ -394,4 +394,30 @@ RSpec.shared_examples 'a storage adapter' do
       expect(results).to be_empty
     end
   end
+
+  describe 'settings' do
+    describe '#store_setting and #find_setting' do
+      it 'persists a setting and retrieves it by key' do
+        store.store_setting('change_params', '{"count":3}')
+        expect(store.find_setting('change_params')).to eq('{"count":3}')
+      end
+
+      it 'returns nil for an unknown key' do
+        expect(store.find_setting('nonexistent')).to be_nil
+      end
+
+      it 'overwrites an existing setting on re-store' do
+        store.store_setting('change_params', '{"count":1}')
+        store.store_setting('change_params', '{"count":5}')
+        expect(store.find_setting('change_params')).to eq('{"count":5}')
+      end
+
+      it 'stores multiple independent settings without interference' do
+        store.store_setting('change_params', '{"count":3}')
+        store.store_setting('other_setting', 'hello')
+        expect(store.find_setting('change_params')).to eq('{"count":3}')
+        expect(store.find_setting('other_setting')).to eq('hello')
+      end
+    end
+  end
 end

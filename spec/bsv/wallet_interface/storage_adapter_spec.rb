@@ -37,6 +37,14 @@ RSpec.describe BSV::Wallet::StorageAdapter do
     expect { adapter.find_transaction('txid') }.to raise_error(NotImplementedError)
   end
 
+  it 'raises NotImplementedError for #update_output_state' do
+    expect { adapter.update_output_state('abc.0', :pending) }.to raise_error(NotImplementedError)
+  end
+
+  it 'raises NotImplementedError for #find_spendable_outputs' do
+    expect { adapter.find_spendable_outputs }.to raise_error(NotImplementedError)
+  end
+
   it 'includes the class name in NotImplementedError messages' do
     expect { adapter.store_action({}) }.to raise_error(NotImplementedError, /store_action/)
   end
