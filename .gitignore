@@ -15,6 +15,7 @@ doc/
 .claude/settings.local.json
 .claude/agents/
 .claude/agent-memory/
+.claude/worktrees/
 
 # IDE
 .idea/
