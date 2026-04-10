@@ -492,13 +492,14 @@ RSpec.describe BSV::Transaction::Transaction do
   end
 
   describe '#estimated_fee' do
-    it 'estimates fee for unsigned inputs' do
+    it 'estimates fee for unsigned inputs with template' do
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
         prev_tx_id: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(BSV::Primitives::PrivateKey.generate)
       tx.add_input(input)
 
       pubkey_hash = ("\x00".b * 20)
@@ -519,12 +520,14 @@ RSpec.describe BSV::Transaction::Transaction do
       tx = described_class.new
       pubkey_hash = "\x00".b * 20
 
+      dummy_key = BSV::Primitives::PrivateKey.generate
       3.times do |i|
         input = BSV::Transaction::TransactionInput.new(
           prev_tx_id: "\x00".b * 32,
           prev_tx_out_index: i
         )
         input.source_satoshis = 50_000
+        input.unlocking_script_template = BSV::Transaction::P2PKH.new(dummy_key)
         tx.add_input(input)
       end
 
@@ -546,6 +549,7 @@ RSpec.describe BSV::Transaction::Transaction do
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(BSV::Primitives::PrivateKey.generate)
       tx.add_input(input)
 
       tx.add_output(BSV::Transaction::TransactionOutput.new(
@@ -569,6 +573,7 @@ RSpec.describe BSV::Transaction::Transaction do
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(BSV::Primitives::PrivateKey.generate)
       tx.add_input(input)
 
       tx.add_output(BSV::Transaction::TransactionOutput.new(
@@ -596,6 +601,7 @@ RSpec.describe BSV::Transaction::Transaction do
       )
       input.source_satoshis = 100_000
       input.source_locking_script = locking_script
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
       tx.add_input(input)
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 90_000, locking_script: locking_script))
 
@@ -661,6 +667,7 @@ RSpec.describe BSV::Transaction::Transaction do
       )
       input.source_satoshis = 1_000_000
       input.source_locking_script = locking_script
+      input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
       tx.add_input(input)
 
       # OP_RETURN data output

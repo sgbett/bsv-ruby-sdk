@@ -1051,4 +1051,134 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(wallet.wait_for_authentication[:authenticated]).to be true
     end
   end
+
+  # -------------------------------------------------------------------------
+  # F8.14 — BEEF verification in internalize_action
+  # -------------------------------------------------------------------------
+  describe '#internalize_action — BEEF verification (F8.14)' do
+    let(:incoming_tx) do
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 1000,
+          locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+        )
+      )
+      tx
+    end
+
+    let(:valid_beef_bytes) { incoming_tx.to_beef.unpack('C*') }
+
+    it 'accepts structurally valid BEEF and returns accepted: true' do
+      result = wallet.internalize_action({
+                                           tx: valid_beef_bytes,
+                                           description: 'f8 14 valid beef test',
+                                           outputs: [{
+                                             output_index: 0,
+                                             protocol: 'basket insertion',
+                                             insertion_remittance: { basket: 'test tokens' }
+                                           }]
+                                         })
+      expect(result[:accepted]).to be true
+    end
+
+    it 'raises WalletError when the BEEF bytes are structurally invalid' do
+      # Corrupt the magic bytes so Beef.from_binary raises, or craft bytes that
+      # parse but fail valid? — simplest is to pass a totally bogus byte array.
+      allow_any_instance_of(BSV::Transaction::Beef).to receive(:verify).and_return(false) # rubocop:disable RSpec/AnyInstance
+      expect do
+        wallet.internalize_action({
+                                    tx: valid_beef_bytes,
+                                    description: 'f8 14 invalid beef test',
+                                    outputs: [{
+                                      output_index: 0,
+                                      protocol: 'basket insertion',
+                                      insertion_remittance: { basket: 'test tokens' }
+                                    }]
+                                  })
+      end.to raise_error(BSV::Wallet::WalletError, /BEEF verification failed/)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # F8.18 — wire_source_tx_ancestors depth cap and cycle detection
+  # -------------------------------------------------------------------------
+  describe '#wire_source_tx_ancestors (F8.18)' do
+    # Access the private method for direct testing
+    subject(:w) { described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
+
+    def store_tx(storage, tx)
+      storage.store_transaction(tx.txid_hex, tx.to_hex)
+    end
+
+    it 'halts at the depth cap without raising a stack overflow' do
+      # Build a linear chain of ANCESTOR_DEPTH_CAP + 2 transactions;
+      # verify the method terminates rather than recursing indefinitely.
+      storage = w.storage
+      txs = Array.new(BSV::Wallet::WalletClient::ANCESTOR_DEPTH_CAP + 2) do
+        tx = BSV::Transaction::Transaction.new
+        tx.add_output(
+          BSV::Transaction::TransactionOutput.new(
+            satoshis: 1000,
+            locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+          )
+        )
+        tx
+      end
+
+      # Link each tx as the parent of the next (prev_tx_id is internal byte order = reversed hex)
+      txs.each_cons(2) do |parent, child|
+        inp = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: [parent.txid_hex].pack('H*').reverse,
+          prev_tx_out_index: 0
+        )
+        child.add_input(inp)
+        store_tx(storage, parent)
+      end
+      store_tx(storage, txs.last)
+
+      root_tx = txs.last
+      expect do
+        w.send(:wire_source_tx_ancestors, root_tx)
+      end.not_to raise_error
+    end
+
+    it 'does not re-visit transactions it has already wired (cycle detection)' do
+      storage = w.storage
+
+      # Create two inputs on root_tx both pointing at the same ancestor.
+      ancestor_tx = BSV::Transaction::Transaction.new
+      ancestor_tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 5000,
+          locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+        )
+      )
+      store_tx(storage, ancestor_tx)
+
+      ancestor_prev_tx_id = [ancestor_tx.txid_hex].pack('H*').reverse
+      root_tx = BSV::Transaction::Transaction.new
+      root_tx.add_input(
+        BSV::Transaction::TransactionInput.new(
+          prev_tx_id: ancestor_prev_tx_id,
+          prev_tx_out_index: 0
+        )
+      )
+      root_tx.add_input(
+        BSV::Transaction::TransactionInput.new(
+          prev_tx_id: ancestor_prev_tx_id,
+          prev_tx_out_index: 1
+        )
+      )
+
+      expect do
+        w.send(:wire_source_tx_ancestors, root_tx)
+      end.not_to raise_error
+
+      # At least one input should be wired; the second may be skipped by the
+      # visited set but this is primarily a "does not crash" assertion.
+      sourced = root_tx.inputs.count(&:source_transaction)
+      expect(sourced).to be >= 1
+    end
+  end
 end

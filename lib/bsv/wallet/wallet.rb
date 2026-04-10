@@ -84,6 +84,7 @@ module BSV
         )
         input.source_satoshis = utxo.satoshis
         input.source_locking_script = locking_script
+        input.unlocking_script_template = BSV::Transaction::P2PKH.new(@private_key)
         input
       end
 

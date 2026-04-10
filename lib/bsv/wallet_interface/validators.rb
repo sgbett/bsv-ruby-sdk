@@ -3,6 +3,23 @@
 module BSV
   module Wallet
     module Validators
+      # Reserved protocol name prefixes (BRC-44 and BRC-98).
+      # Names beginning with any of these strings are disallowed.
+      RESERVED_PROTOCOL_PREFIXES = ['admin', 'p '].freeze
+
+      # Suffix that is disallowed on protocol names.
+      RESERVED_PROTOCOL_SUFFIX = ' protocol'
+
+      # Reserved basket name prefixes.
+      # Basket names beginning with any of these strings are disallowed.
+      RESERVED_BASKET_PREFIXES = ['admin', 'p '].freeze
+
+      # Suffix that is disallowed on basket names.
+      RESERVED_BASKET_SUFFIX = ' basket'
+
+      # Basket name that is globally reserved and cannot be used.
+      RESERVED_BASKET_NAME = 'default'
+
       module_function
 
       # BRC-100 protocol ID rules:
@@ -14,6 +31,10 @@ module BSV
       # - must not end with ' protocol'
       # - must not start with 'admin' (BRC-44)
       # - must not start with 'p ' (BRC-98 reserved)
+      #
+      # The name is normalised (stripped and downcased) before validation so
+      # that ' MyProtocol ' and 'myprotocol' are treated identically and do not
+      # silently fork to different key-derivation paths (F8.7).
       def validate_protocol_id!(protocol_id)
         unless protocol_id.is_a?(Array) && protocol_id.length == 2
           raise InvalidParameterError.new('protocol_id',
@@ -24,13 +45,19 @@ module BSV
         raise InvalidParameterError.new('protocol_id security level', '0, 1, or 2') unless [0, 1, 2].include?(level)
         raise InvalidParameterError.new('protocol_id name', 'a String') unless name.is_a?(String)
 
+        name = name.strip.downcase
+
         max_length = name.start_with?('specific linkage revelation') ? 430 : 400
         raise InvalidParameterError.new('protocol_id name', "between 5 and #{max_length} characters") if name.length < 5 || name.length > max_length
         raise InvalidParameterError.new('protocol_id name', 'lowercase letters, numbers, and spaces only') unless name.match?(/\A[a-z0-9 ]+\z/)
         raise InvalidParameterError.new('protocol_id name', 'free of consecutive spaces') if name.include?('  ')
-        raise InvalidParameterError.new('protocol_id name', 'not ending with " protocol"') if name.end_with?(' protocol')
-        raise InvalidParameterError.new('protocol_id name', 'not starting with "admin"') if name.start_with?('admin')
-        raise InvalidParameterError.new('protocol_id name', 'not starting with "p "') if name.start_with?('p ')
+        if name.end_with?(RESERVED_PROTOCOL_SUFFIX)
+          raise InvalidParameterError.new('protocol_id name', "not ending with \"#{RESERVED_PROTOCOL_SUFFIX}\"")
+        end
+
+        RESERVED_PROTOCOL_PREFIXES.each do |prefix|
+          raise InvalidParameterError.new('protocol_id name', "not starting with \"#{prefix}\"") if name.start_with?(prefix)
+        end
       end
 
       # Key ID: 1-800 bytes
@@ -67,10 +94,12 @@ module BSV
         raise InvalidParameterError.new('basket', 'between 5 and 300 characters') if basket.length < 5 || basket.length > 300
         raise InvalidParameterError.new('basket', 'lowercase letters, numbers, and spaces only') unless basket.match?(/\A[a-z0-9 ]+\z/)
         raise InvalidParameterError.new('basket', 'free of consecutive spaces') if basket.include?('  ')
-        raise InvalidParameterError.new('basket', 'not ending with " basket"') if basket.end_with?(' basket')
-        raise InvalidParameterError.new('basket', 'not starting with "admin"') if basket.start_with?('admin')
-        raise InvalidParameterError.new('basket', 'not equal to "default"') if basket == 'default'
-        raise InvalidParameterError.new('basket', 'not starting with "p "') if basket.start_with?('p ')
+        raise InvalidParameterError.new('basket', "not ending with \"#{RESERVED_BASKET_SUFFIX}\"") if basket.end_with?(RESERVED_BASKET_SUFFIX)
+
+        RESERVED_BASKET_PREFIXES.each do |prefix|
+          raise InvalidParameterError.new('basket', "not starting with \"#{prefix}\"") if basket.start_with?(prefix)
+        end
+        raise InvalidParameterError.new('basket', "not equal to \"#{RESERVED_BASKET_NAME}\"") if basket == RESERVED_BASKET_NAME
       end
 
       # Label: 1-300 characters

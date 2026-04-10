@@ -9,6 +9,51 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Protocol-ID normalisation** (F8.7): `Validators.validate_protocol_id!` now
+  strips and downcases the name before applying rules, so `' MyProtocol '` and
+  `'myprotocol'` are treated identically and cannot silently fork to different
+  key-derivation paths.
+- **Permission-rule constants** (F8.8): Reserved prefix/suffix strings are now
+  named constants on `BSV::Wallet::Validators` (`RESERVED_PROTOCOL_PREFIXES`,
+  `RESERVED_PROTOCOL_SUFFIX`, `RESERVED_BASKET_PREFIXES`, `RESERVED_BASKET_SUFFIX`,
+  `RESERVED_BASKET_NAME`), making them discoverable and documentable.
+- **BEEF verification in `internalize_action`** (F8.14): The BEEF bundle is now
+  verified via `Beef#verify` before any outputs are stored. If the bundle is
+  structurally invalid, a `WalletError` is raised rather than storing unverified
+  data. When the chain provider supports `valid_root_for_height?`, full SPV
+  verification is performed.
+- **Depth cap and cycle detection in `wire_source_tx_ancestors`** (F8.18):
+  Recursion is now bounded by `WalletClient::ANCESTOR_DEPTH_CAP` (64 levels)
+  and a visited-txid `Set`, preventing stack overflow on deep or cyclic
+  transaction ancestry chains.
+
+### Changed
+
+- **`ProtoWallet#create_signature` default counterparty** (P305.1): The default
+  value for `counterparty` has changed from `'self'` to `'anyone'`, matching the
+  behaviour of `ts-sdk`'s `ProtoWallet.createSignature`. Callers that rely on
+  the `'self'` derivation path when omitting `counterparty:` must now pass
+  `counterparty: 'self'` explicitly.
+
+### Migration notes
+
+**P305.1 — `create_signature` counterparty default change (breaking)**
+
+Previously, calling `wallet.create_signature({ protocol_id: ..., key_id: ...,
+data: ... })` without a `counterparty:` key would derive using `'self'`. It now
+derives using `'anyone'`. This changes the resulting private key and therefore
+the signature. If your application omits `counterparty:`, add
+`counterparty: 'self'` to preserve the old behaviour.
+
+**F8.14 — BEEF verification now mandatory in `internalize_action`**
+
+Calls to `internalize_action` that previously succeeded with a malformed or
+unverifiable BEEF will now raise `BSV::Wallet::WalletError`. In practice this
+only affects callers passing synthetic or hand-crafted BEEF bytes; legitimate
+BEEF produced by `create_action` or broadcast round-trips will continue to work.
+
+### Added
+
 - **Shared conformance suite** for `StorageAdapter`
   implementations at `spec/support/shared_examples_for_storage_adapter.rb`.
   `MemoryStore` and `FileStore` now both drive their behavioural
