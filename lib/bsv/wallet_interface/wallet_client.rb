@@ -292,7 +292,13 @@ module BSV
 
           tx_hex = @chain_provider.get_transaction(utxo[:tx_hash])
           tx = BSV::Transaction::Transaction.from_hex(tx_hex)
-          locking_script_hex = tx.outputs[utxo[:tx_pos]].locking_script.to_hex
+
+          pos = utxo[:tx_pos]
+          unless pos.is_a?(Integer) && pos >= 0 && pos < tx.outputs.length
+            raise WalletError, "Invalid tx_pos #{pos.inspect} for #{utxo[:tx_hash]} (#{tx.outputs.length} outputs)"
+          end
+
+          locking_script_hex = tx.outputs[pos].locking_script.to_hex
 
           @storage.store_output({
                                   outpoint: outpoint,
