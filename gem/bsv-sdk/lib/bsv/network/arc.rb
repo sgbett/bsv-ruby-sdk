@@ -15,6 +15,16 @@ module BSV
     # The HTTP client is injectable for testability. It must respond to
     # #request(uri, request) and return an object with #code and #body.
     class ARC
+      # Returns an ARC instance pointed at the GorillaPool public ARC endpoint.
+      #
+      # @param testnet [Boolean] when true, uses the GorillaPool testnet endpoint
+      # @param opts [Hash] forwarded to {#initialize} (e.g. +api_key:+, +callback_url:+)
+      # @return [ARC]
+      def self.default(testnet: false, **opts)
+        url = testnet ? 'https://testnet.arc.gorillapool.io' : 'https://arc.gorillapool.io'
+        new(url, **opts)
+      end
+
       # ARC response statuses that indicate the transaction was NOT accepted.
       # Matches the TypeScript SDK's ARC broadcaster failure set (issue #305,
       # finding F5.13). Prior to this fix, Ruby only recognised REJECTED and

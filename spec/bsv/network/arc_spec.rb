@@ -390,4 +390,38 @@ RSpec.describe BSV::Network::ARC do
       expect(http.last_uri.to_s).to eq('https://arc.example.com/v1/tx')
     end
   end
+
+  describe '.default' do
+    it 'returns an ARC instance pointed at the mainnet GorillaPool endpoint' do
+      arc = described_class.default
+
+      expect(arc).to be_a(described_class)
+      # Verify the URL by posting a broadcast and inspecting the request URI
+      http = mock_http.new(200, success_body)
+      mainnet_arc = described_class.default(http_client: http)
+      mainnet_arc.broadcast(tx)
+      expect(http.last_uri.host).to eq('arc.gorillapool.io')
+    end
+
+    it 'returns an ARC instance pointed at the testnet GorillaPool endpoint' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.default(testnet: true, http_client: http)
+      arc.broadcast(tx)
+      expect(http.last_uri.host).to eq('testnet.arc.gorillapool.io')
+    end
+
+    it 'passes api_key through to the underlying instance' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.default(api_key: 'x', http_client: http)
+      arc.broadcast(tx)
+      expect(http.last_request['Authorization']).to eq('Bearer x')
+    end
+
+    it 'passes callback_url through to the underlying instance' do
+      http = mock_http.new(200, success_body)
+      arc = described_class.default(callback_url: 'https://example.com/cb', http_client: http)
+      arc.broadcast(tx)
+      expect(http.last_request['X-CallbackUrl']).to eq('https://example.com/cb')
+    end
+  end
 end
