@@ -176,9 +176,14 @@ module BSV
       def update_output_state(outpoint, new_state, pending_reference: nil, no_send: nil)
         state_str = new_state.to_s
 
+        # Keep legacy spendable boolean in sync so filter_outputs and other
+        # queries that haven't migrated to the state column still work.
+        spendable_bool = new_state == :spendable
+
         if new_state == :pending
           updates = {
             state: state_str,
+            spendable: spendable_bool,
             pending_since: Sequel.lit('NOW()'),
             pending_reference: pending_reference,
             no_send: no_send ? true : false,
@@ -190,6 +195,7 @@ module BSV
         else
           updates = {
             state: state_str,
+            spendable: spendable_bool,
             pending_since: nil,
             pending_reference: nil,
             no_send: false
@@ -232,6 +238,7 @@ module BSV
                .returning(:outpoint)
                .update(
                  state: 'pending',
+                 spendable: false,
                  pending_since: Sequel.lit('NOW()'),
                  pending_reference: reference,
                  no_send: no_send ? true : false,
@@ -264,6 +271,7 @@ module BSV
                .returning(:outpoint)
                .update(
                  state: 'spendable',
+                 spendable: true,
                  pending_since: nil,
                  pending_reference: nil,
                  no_send: false,
@@ -386,7 +394,7 @@ module BSV
         ds = ds.where(outpoint: query[:outpoint]) if query[:outpoint]
         ds = ds.where(basket: query[:basket]) if query[:basket]
         ds = apply_array_filter(ds, :tags, query[:tags], query[:tag_query_mode])
-        ds = ds.where(spendable: true) unless query[:include_spent]
+        ds = ds.where(Sequel.lit('(state = ? OR (state IS NULL AND spendable = TRUE))', 'spendable')) unless query[:include_spent]
         ds
       end
 
