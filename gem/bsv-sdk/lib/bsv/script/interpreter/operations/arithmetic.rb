@@ -5,7 +5,7 @@ module BSV
     class Interpreter
       module Operations
         # Arithmetic and comparison operations including restored post-Genesis
-        # opcodes: MUL, DIV, MOD, LSHIFT, RSHIFT.
+        # opcodes: MUL, DIV, MOD, LSHIFT, RSHIFT, and Chronicle opcodes: 2MUL, 2DIV.
         module Arithmetic
           private
 
@@ -190,12 +190,47 @@ module BSV
             @dstack.push_int(ScriptNumber.new(x >= min && x < max ? 1 : 0))
           end
 
-          # OP_2MUL, OP_2DIV: disabled opcodes
-          def op_disabled(opcode)
-            raise ScriptError.new(
-              ScriptErrorCode::DISABLED_OPCODE,
-              "attempt to execute disabled opcode: 0x#{opcode.to_s(16).rjust(2, '0')}"
-            )
+          # OP_2MUL: multiply top of stack by 2 (restored in Chronicle)
+          def op_2mul
+            n = @dstack.pop_int
+            @dstack.push_int(n * ScriptNumber.new(2))
+          end
+
+          # OP_2DIV: integer-divide top of stack by 2, truncating toward zero (restored in Chronicle)
+          def op_2div
+            n = @dstack.pop_int
+            @dstack.push_int(n / ScriptNumber.new(2))
+          end
+
+          # OP_LSHIFTNUM: numeric left shift (Chronicle opcode 0xb6)
+          #
+          # Pops n then value; pushes value.value << n.to_i32.
+          # Raises INVALID_INPUT_LENGTH if the shift amount is negative.
+          def op_lshiftnum
+            n = @dstack.pop_int
+            value = @dstack.pop_int
+            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'shift amount negative') if n.to_i32.negative?
+
+            @dstack.push_int(ScriptNumber.new(value.value << n.to_i32))
+          end
+
+          # OP_RSHIFTNUM: numeric arithmetic right shift (Chronicle opcode 0xb7)
+          #
+          # Pops n then value; pushes the arithmetic right shift of value by n bits.
+          # Raises INVALID_INPUT_LENGTH if the shift amount is negative.
+          #
+          # IMPORTANT: Ruby's Integer#>> sign-extends negative numbers (-1 >> 1 == -1).
+          # Bitcoin consensus requires -(abs(value) >> n) for negative values, so that
+          # -1 >> 1 == 0 (not -1) and -16 >> 2 == -4. This matches the Go and TS SDKs.
+          def op_rshiftnum
+            n = @dstack.pop_int
+            value = @dstack.pop_int
+            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'shift amount negative') if n.to_i32.negative?
+
+            shift = n.to_i32
+            val = value.value
+            shifted = val.negative? ? -(val.abs >> shift) : (val >> shift)
+            @dstack.push_int(ScriptNumber.new(shifted))
           end
 
           # --- Byte-array shift helpers ---

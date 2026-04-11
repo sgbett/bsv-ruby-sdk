@@ -406,25 +406,64 @@ RSpec.describe BSV::Script::Interpreter do
     end
   end
 
-  describe 'disabled opcodes' do
-    it 'OP_2MUL raises disabled_opcode' do
+  describe 'OP_2MUL (Chronicle)' do
+    it 'multiplies 1 by 2' do
+      expect(evaluate('', 'OP_1 OP_2MUL OP_2 OP_EQUAL')).to be true
+    end
+
+    it 'multiplies 0 by 2' do
+      expect(evaluate('', 'OP_0 OP_2MUL OP_0 OP_EQUAL')).to be true
+    end
+
+    it 'multiplies 8 by 2 to give 16' do
+      expect(evaluate('', 'OP_8 OP_2MUL OP_16 OP_EQUAL')).to be true
+    end
+
+    it 'preserves sign: -1 * 2 = -2' do
+      # -2 encodes as 0x82 in script number format
+      expect(evaluate('', 'OP_1NEGATE OP_2MUL OP_2 OP_NEGATE OP_EQUAL')).to be true
+    end
+
+    it 'raises invalid_stack_operation on empty stack' do
       expect do
-        evaluate('', 'OP_1 OP_2MUL')
+        evaluate('', 'OP_2MUL')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:disabled_opcode)
+        expect(e.code).to eq(:invalid_stack_operation)
       }
     end
 
-    it 'OP_2DIV raises disabled_opcode' do
-      expect do
-        evaluate('', 'OP_1 OP_2DIV')
-      end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:disabled_opcode)
-      }
-    end
-
-    it 'disabled opcodes are skipped in non-executing branch' do
+    it 'is skipped in non-executing branch' do
       expect(evaluate('OP_1', 'OP_0 OP_IF OP_2MUL OP_ENDIF')).to be true
+    end
+  end
+
+  describe 'OP_2DIV (Chronicle)' do
+    it 'divides 2 by 2 to give 1' do
+      expect(evaluate('', 'OP_2 OP_2DIV OP_1 OP_EQUAL')).to be true
+    end
+
+    it 'divides 16 by 2 to give 8' do
+      expect(evaluate('', 'OP_16 OP_2DIV OP_8 OP_EQUAL')).to be true
+    end
+
+    it 'truncates toward zero: 1 / 2 = 0' do
+      expect(evaluate('', 'OP_1 OP_2DIV OP_0 OP_EQUAL')).to be true
+    end
+
+    it 'divides 0 by 2 to give 0' do
+      expect(evaluate('', 'OP_0 OP_2DIV OP_0 OP_EQUAL')).to be true
+    end
+
+    it 'raises invalid_stack_operation on empty stack' do
+      expect do
+        evaluate('', 'OP_2DIV')
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:invalid_stack_operation)
+      }
+    end
+
+    it 'is skipped in non-executing branch' do
+      expect(evaluate('OP_1', 'OP_0 OP_IF OP_2DIV OP_ENDIF')).to be true
     end
   end
 end

@@ -95,16 +95,91 @@ module BSV
             )
           end
 
-          # Chronicle fail-safe: OP_VER, OP_VERIF, OP_VERNOTIF and the Chronicle
-          # string/shift slots (OP_SUBSTR, OP_LEFT, OP_RIGHT, OP_LSHIFTNUM,
-          # OP_RSHIFTNUM). Full semantics are deferred to SDK v0.10. Any script
-          # that reaches one of these opcodes will fail loudly rather than
-          # silently succeeding.
-          def op_unimplemented(opcode)
-            raise ScriptError.new(
-              ScriptErrorCode::UNIMPLEMENTED_OPCODE,
-              "unimplemented opcode: 0x#{opcode.to_s(16).rjust(2, '0')}"
-            )
+          # OP_VER: push 4-byte little-endian transaction version onto the stack.
+          #
+          # Requires a transaction context (@tx must not be nil). Raises
+          # MISSING_TX_CONTEXT when called from Interpreter.evaluate (no-tx path).
+          #
+          # The version is always encoded as exactly 4 bytes (LE uint32), never as
+          # a ScriptNumber. Version 1 → 01000000, version 2 → 02000000.
+          def op_ver
+            if @tx.nil?
+              raise ScriptError.new(
+                ScriptErrorCode::MISSING_TX_CONTEXT,
+                'OP_VER requires transaction context'
+              )
+            end
+
+            @dstack.push_bytes(tx_version_bytes)
+          end
+
+          # OP_VERIF: version-conditional branch — executes like OP_IF but compares
+          # the top stack item against the 4-byte LE transaction version rather than
+          # interpreting the item as a boolean.
+          #
+          # In an executing branch: pops bytes from the stack. If the bytes are
+          # exactly 4 bytes and match the current transaction version, the true
+          # branch executes; otherwise the false/else branch executes.
+          #
+          # In a non-executing branch: pushes +:false+ to track nesting depth
+          # without touching the data stack.
+          #
+          # If @tx is nil, +tx_version_matches?+ returns false — the else branch
+          # is always taken (not an error, unlike OP_VER).
+          def op_verif
+            if @cond_stack.length >= MAX_CONDITIONAL_DEPTH
+              raise ScriptError.new(
+                ScriptErrorCode::UNBALANCED_CONDITIONAL,
+                "conditional depth exceeded #{MAX_CONDITIONAL_DEPTH}"
+              )
+            end
+
+            if branch_executing?
+              data = @dstack.pop_bytes
+              @cond_stack.push(tx_version_matches?(data) ? :true : :false)
+            else
+              @cond_stack.push(:false)
+            end
+            @else_stack.push(false)
+          end
+
+          # OP_VERNOTIF: inverse version-conditional branch — executes like OP_NOTIF
+          # but compares against the 4-byte LE transaction version.
+          #
+          # In an executing branch: match → false branch (else), no match → true branch.
+          # In a non-executing branch: pushes +:false+ for nesting tracking only.
+          def op_vernotif
+            if @cond_stack.length >= MAX_CONDITIONAL_DEPTH
+              raise ScriptError.new(
+                ScriptErrorCode::UNBALANCED_CONDITIONAL,
+                "conditional depth exceeded #{MAX_CONDITIONAL_DEPTH}"
+              )
+            end
+
+            if branch_executing?
+              data = @dstack.pop_bytes
+              @cond_stack.push(tx_version_matches?(data) ? :false : :true)
+            else
+              @cond_stack.push(:false)
+            end
+            @else_stack.push(false)
+          end
+
+          # Returns the transaction version as a 4-byte little-endian binary
+          # string. Used by OP_VER, OP_VERIF, and OP_VERNOTIF.
+          def tx_version_bytes
+            [@tx.version].pack('V')
+          end
+
+          # Compares raw bytes against the current transaction version.
+          # Returns false if:
+          # - +data+ is not exactly 4 bytes
+          # - @tx is nil (no transaction context)
+          # - the bytes do not match the 4-byte LE encoding of @tx.version
+          def tx_version_matches?(data)
+            return false if @tx.nil? || data.bytesize != 4
+
+            data == tx_version_bytes
           end
         end
       end

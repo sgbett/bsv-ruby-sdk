@@ -40,9 +40,13 @@ module BSV
       attr_reader :dstack, :astack
 
       # Conditional opcodes must be processed even in non-executing branches
-      # to maintain correct nesting depth.
+      # to maintain correct nesting depth. OP_VERIF and OP_VERNOTIF are included
+      # here because they open conditional blocks (like OP_IF/OP_NOTIF) and must
+      # be dispatched to track nesting depth even when the branch is not executing.
+      # This matches the Go SDK's IsConditional() function.
       CONDITIONAL_OPCODES = [
-        Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_ELSE, Opcodes::OP_ENDIF
+        Opcodes::OP_IF, Opcodes::OP_NOTIF, Opcodes::OP_ELSE, Opcodes::OP_ENDIF,
+        Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
       ].freeze
 
       # Maximum nesting depth for OP_IF / OP_NOTIF blocks. Prevents interpreter
@@ -179,13 +183,9 @@ module BSV
         when Opcodes::OP_RETURN then op_return
         when Opcodes::OP_RESERVED, Opcodes::OP_RESERVED1, Opcodes::OP_RESERVED2
           op_reserved(opcode)
-        # Chronicle fail-safe: OP_VER, OP_VERIF, OP_VERNOTIF, and the Chronicle
-        # string/shift slots raise UnimplementedOpcode. Full semantics are
-        # deferred to SDK v0.10.
-        when Opcodes::OP_VER, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF,
-             Opcodes::OP_SUBSTR, Opcodes::OP_LEFT, Opcodes::OP_RIGHT,
-             Opcodes::OP_LSHIFTNUM, Opcodes::OP_RSHIFTNUM
-          op_unimplemented(opcode)
+        when Opcodes::OP_VER then op_ver
+        when Opcodes::OP_VERIF then op_verif
+        when Opcodes::OP_VERNOTIF then op_vernotif
 
         # --- Stack manipulation ---
         when Opcodes::OP_TOALTSTACK then op_toaltstack
@@ -214,6 +214,9 @@ module BSV
         when Opcodes::OP_NUM2BIN then op_num2bin
         when Opcodes::OP_BIN2NUM then op_bin2num
         when Opcodes::OP_SIZE then op_size
+        when Opcodes::OP_SUBSTR then op_substr
+        when Opcodes::OP_LEFT then op_left
+        when Opcodes::OP_RIGHT then op_right
 
         # --- Bitwise ---
         when Opcodes::OP_EQUAL then op_equal
@@ -226,8 +229,8 @@ module BSV
         # --- Arithmetic ---
         when Opcodes::OP_1ADD then op_1add
         when Opcodes::OP_1SUB then op_1sub
-        when Opcodes::OP_2MUL, Opcodes::OP_2DIV
-          op_disabled(opcode)
+        when Opcodes::OP_2MUL then op_2mul
+        when Opcodes::OP_2DIV then op_2div
         when Opcodes::OP_NEGATE then op_negate
         when Opcodes::OP_ABS then op_abs
         when Opcodes::OP_NOT then op_not
@@ -239,6 +242,8 @@ module BSV
         when Opcodes::OP_MOD then op_mod
         when Opcodes::OP_LSHIFT then op_lshift
         when Opcodes::OP_RSHIFT then op_rshift
+        when Opcodes::OP_LSHIFTNUM then op_lshiftnum
+        when Opcodes::OP_RSHIFTNUM then op_rshiftnum
         when Opcodes::OP_BOOLAND then op_booland
         when Opcodes::OP_BOOLOR then op_boolor
         when Opcodes::OP_NUMEQUAL then op_numequal
