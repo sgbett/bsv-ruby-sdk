@@ -5,6 +5,34 @@ All notable changes to the `bsv-wallet-postgres` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.0 — 2026-04-12
+
+### Added
+
+- **Migration 004** — adds `satoshis`, `pending_since`, `pending_reference`,
+  `no_send` columns and a partial index on `(state, basket)` for spendable
+  rows (#353)
+- **`find_spendable_outputs(basket:, min_satoshis:, sort_order:)`** — query
+  spendable outputs with backward-compatible COALESCE for legacy rows (#354)
+- **`update_output_state(outpoint, new_state, ...)`** — transition output
+  state with JSONB data synchronisation (#354)
+- **`lock_utxos(outpoints, reference:, no_send:)`** — atomic
+  `UPDATE ... WHERE state = 'spendable' RETURNING` pattern for concurrent
+  safety (#355)
+- **`release_stale_pending!(timeout:)`** — recover stuck pending outputs,
+  exempting `no_send` locks (#355)
+- **PostgresStore settings methods** — `store_setting` / `find_setting`
+
+### Fixed
+
+- **Spendable boolean sync** — `update_output_state`, `lock_utxos`, and
+  `release_stale_pending!` now keep the legacy `spendable` column in sync
+  with the `state` column; `filter_outputs` uses dual-column WHERE clause
+
+### Changed
+
+- Directory restructure — source moved to `gem/bsv-wallet-postgres/`
+
 ## 0.1.0 — 2026-04-09
 
 Initial release of `bsv-wallet-postgres`, a PostgreSQL-backed
