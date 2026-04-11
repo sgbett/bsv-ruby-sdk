@@ -135,6 +135,80 @@ module BSV
         @db[:wallet_outputs].where(outpoint: outpoint).delete.positive?
       end
 
+      # Returns outputs whose effective state is +:spendable+.
+      #
+      # Legacy rows with +state = NULL+ are treated as spendable when the
+      # +spendable+ boolean is true (or absent), matching MemoryStore's
+      # effective_state logic.
+      #
+      # @param basket [String, nil] restrict to this basket when provided
+      # @param min_satoshis [Integer, nil] exclude outputs below this value
+      # @param sort_order [Symbol] +:asc+ or +:desc+ (default +:desc+, largest first)
+      # @return [Array<Hash>]
+      def find_spendable_outputs(basket: nil, min_satoshis: nil, sort_order: :desc)
+        ds = @db[:wallet_outputs]
+             .where(Sequel.lit('(state = ? OR (state IS NULL AND spendable = TRUE))', 'spendable'))
+        ds = ds.where(basket: basket) if basket
+        if min_satoshis
+          ds = ds.where(
+            Sequel.lit('COALESCE(satoshis, (data->>?)::bigint, 0) >= ?', 'satoshis', min_satoshis)
+          )
+        end
+        satoshis_expr = Sequel.lit('COALESCE(satoshis, (data->>?)::bigint, 0)', 'satoshis')
+        ds = ds.order(sort_order == :asc ? Sequel.asc(satoshis_expr) : Sequel.desc(satoshis_expr))
+        ds.all.map { |r| symbolise_keys(r[:data]) }
+      end
+
+      # Transitions the state of an existing output.
+      #
+      # When +new_state+ is +:pending+, sets +pending_since+, +pending_reference+,
+      # and +no_send+, and merges those values into the JSONB +data+ blob.
+      #
+      # When transitioning away from +:pending+, clears the pending metadata
+      # columns and removes the corresponding keys from the JSONB blob.
+      #
+      # @param outpoint [String] the outpoint identifier
+      # @param new_state [Symbol] +:spendable+, +:pending+, or +:spent+
+      # @param pending_reference [String, nil] caller-supplied label for a pending lock
+      # @param no_send [Boolean, nil] true if the lock belongs to a no_send transaction
+      # @raise [BSV::Wallet::WalletError] if the outpoint is not found
+      # @return [Hash] the updated output hash
+      def update_output_state(outpoint, new_state, pending_reference: nil, no_send: nil)
+        state_str = new_state.to_s
+
+        if new_state == :pending
+          updates = {
+            state: state_str,
+            pending_since: Sequel.lit('NOW()'),
+            pending_reference: pending_reference,
+            no_send: no_send ? true : false,
+            data: Sequel.lit(
+              "data || jsonb_build_object('state', ?, 'pending_since', NOW()::text, 'pending_reference', ?, 'no_send', ?)",
+              state_str, pending_reference, no_send ? true : false
+            )
+          }
+        else
+          updates = {
+            state: state_str,
+            pending_since: nil,
+            pending_reference: nil,
+            no_send: false
+          }
+          # Remove pending keys from JSONB blob, update state
+          updates[:data] = Sequel.lit(
+            "(data - 'pending_since' - 'pending_reference' - 'no_send') || jsonb_build_object('state', ?)",
+            state_str
+          )
+        end
+
+        ds = @db[:wallet_outputs].where(outpoint: outpoint)
+        rows_updated = ds.update(updates)
+        raise WalletError, "Output not found: #{outpoint}" if rows_updated.zero?
+
+        row = ds.first
+        symbolise_keys(row[:data])
+      end
+
       # --- Certificates ---
 
       def store_certificate(cert_data)
