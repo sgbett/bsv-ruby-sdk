@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# MCP stdio protocol: stdout is the JSON-RPC channel — do not write to it.
+# All diagnostic output must use $stderr (warn, $stderr.puts, etc.).
+
+require_relative '../lib/bsv-sdk'
+
+config = BSV::MCP::Config.new
+BSV::MCP::Server.start(config)

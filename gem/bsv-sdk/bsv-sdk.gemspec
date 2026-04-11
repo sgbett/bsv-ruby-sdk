@@ -22,10 +22,15 @@ Gem::Specification.new do |spec|
     'rubygems_mfa_required' => 'true'
   }
 
+  spec.bindir      = 'bin'
+  spec.executables = ['bsv-mcp']
+
   # Dir.chdir(__dir__) makes the glob resolve relative to this gemspec,
   # not the working directory — so `gem build` works from any CWD.
   spec.files = Dir.chdir(__dir__) do
-    Dir.glob('lib/**/*')
+    Dir.glob('lib/**/*') + Dir.glob('bin/*')
   end + %w[LICENSE README.md CHANGELOG.md]
   spec.require_paths = ['lib']
+
+  spec.add_dependency 'mcp', '~> 0.12'
 end

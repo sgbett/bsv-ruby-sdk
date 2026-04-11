@@ -12,4 +12,5 @@ module BSV
   autoload :Overlay,     'bsv/overlay'
   autoload :Identity,    'bsv/identity'
   autoload :Registry,    'bsv/registry'
+  autoload :MCP,         'bsv/mcp'
 end
