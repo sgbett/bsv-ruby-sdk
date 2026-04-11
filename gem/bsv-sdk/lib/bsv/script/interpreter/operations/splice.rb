@@ -95,7 +95,7 @@ module BSV
               )
             end
 
-            @dstack.push_bytes(data.byteslice(offset, len) || ''.b)
+            @dstack.push_bytes(data.byteslice(offset, len))
           end
 
           # OP_LEFT: extract the leftmost N bytes
@@ -111,7 +111,7 @@ module BSV
               )
             end
 
-            @dstack.push_bytes(data.byteslice(0, len) || ''.b)
+            @dstack.push_bytes(data.byteslice(0, len))
           end
 
           # OP_RIGHT: extract the rightmost N bytes
@@ -127,7 +127,7 @@ module BSV
               )
             end
 
-            @dstack.push_bytes(data.byteslice(data.bytesize - len, len) || ''.b)
+            @dstack.push_bytes(data.byteslice(data.bytesize - len, len))
           end
         end
       end

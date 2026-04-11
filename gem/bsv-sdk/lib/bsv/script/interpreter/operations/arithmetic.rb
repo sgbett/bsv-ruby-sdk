@@ -209,9 +209,10 @@ module BSV
           def op_lshiftnum
             n = @dstack.pop_int
             value = @dstack.pop_int
-            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'shift amount negative') if n.to_i32.negative?
+            shift = n.to_i32
+            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'shift amount negative') if shift.negative?
 
-            @dstack.push_int(ScriptNumber.new(value.value << n.to_i32))
+            @dstack.push_int(ScriptNumber.new(value.value << shift))
           end
 
           # OP_RSHIFTNUM: numeric arithmetic right shift (Chronicle opcode 0xb7)
@@ -225,9 +226,9 @@ module BSV
           def op_rshiftnum
             n = @dstack.pop_int
             value = @dstack.pop_int
-            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'shift amount negative') if n.to_i32.negative?
-
             shift = n.to_i32
+            raise ScriptError.new(ScriptErrorCode::INVALID_INPUT_LENGTH, 'shift amount negative') if shift.negative?
+
             val = value.value
             shifted = val.negative? ? -(val.abs >> shift) : (val >> shift)
             @dstack.push_int(ScriptNumber.new(shifted))

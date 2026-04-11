@@ -132,6 +132,16 @@ RSpec.describe 'Chronicle opcodes' do
       }
     end
 
+    # Empty data with offset=0 fails because offset < bytesize (0 < 0) is false.
+    # This matches Go SDK semantics.
+    it 'raises invalid_input_length on empty data even with offset=0 len=0' do
+      expect do
+        evaluate('', 'OP_0 OP_0 OP_0 OP_SUBSTR')
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:invalid_input_length)
+      }
+    end
+
     it 'raises invalid_stack_operation on empty stack' do
       expect do
         evaluate('', 'OP_SUBSTR')
