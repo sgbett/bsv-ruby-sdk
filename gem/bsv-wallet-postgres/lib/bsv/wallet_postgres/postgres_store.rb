@@ -109,7 +109,14 @@ module BSV
         @db[:wallet_outputs]
           .insert_conflict(
             target: :outpoint,
-            update: { basket: row[:basket], tags: row[:tags], spendable: row[:spendable], data: row[:data] }
+            update: {
+              basket: row[:basket],
+              tags: row[:tags],
+              spendable: row[:spendable],
+              state: row[:state],
+              satoshis: row[:satoshis],
+              data: row[:data]
+            }
           )
           .insert(row)
         output_data
@@ -207,11 +214,14 @@ module BSV
 
       def output_row(data)
         spendable = data[:spendable] != false # nil treated as spendable, like MemoryStore
+        state = data[:state]&.to_s
         {
           outpoint: data[:outpoint],
           basket: data[:basket],
           tags: Sequel.pg_array(Array(data[:tags]), :text),
           spendable: spendable,
+          state: state,
+          satoshis: data[:satoshis],
           data: Sequel.pg_jsonb(data.to_h)
         }
       end
