@@ -11,16 +11,16 @@ Style/Documentation:
 
 Metrics/BlockLength:
   Exclude:
-    - 'lib/bsv/wallet_interface/wire/**/*'
-    - 'lib/bsv/wallet_postgres/migrations/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/wire/**/*'
+    - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/migrations/**/*'
     - 'spec/**/*'
 
 Naming/FileName:
   Exclude:
-    - 'lib/bsv-sdk.rb'
-    - 'lib/bsv-attest.rb'
-    - 'lib/bsv-wallet.rb'
-    - 'lib/bsv-wallet-postgres.rb'
+    - 'gem/bsv-sdk/lib/bsv-sdk.rb'
+    - 'gem/bsv-attest/lib/bsv-attest.rb'
+    - 'gem/bsv-wallet/lib/bsv-wallet.rb'
+    - 'gem/bsv-wallet-postgres/lib/bsv-wallet-postgres.rb'
 
 # Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
 # a/b are used in secure_compare for constant-time comparison.
@@ -46,7 +46,7 @@ Naming/MethodParameterName:
 # BRC-100 method names use get_ prefix (get_height, get_header, etc.) — protocol names.
 Naming/AccessorMethodName:
   Exclude:
-    - 'lib/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
     - 'spec/bsv/wallet_interface/**/*'
 
 # verify(), verify_proof(), and cast_bool() are standard cryptographic/protocol API names.
@@ -71,124 +71,60 @@ Naming/PredicatePrefix:
 # splitting into tiny methods would harm readability and auditability.
 Metrics/AbcSize:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/**/*'
-    - 'lib/bsv/transaction/**/*'
-    - 'lib/bsv/network/**/*'
-    - 'lib/bsv/wallet/**/*'
-    - 'lib/bsv/attest.rb'
-    - 'lib/bsv/attest/**/*'
-    - 'lib/bsv/wallet_interface.rb'
-    - 'lib/bsv/wallet_interface/**/*'
-    - 'lib/bsv/auth.rb'
-    - 'lib/bsv/auth/**/*'
-    - 'lib/bsv/overlay.rb'
-    - 'lib/bsv/overlay/**/*'
-    - 'lib/bsv/identity.rb'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry.rb'
-    - 'lib/bsv/registry/**/*'
+    - 'gem/*/lib/**/*'
     - 'spec/**/*'
 
 Metrics/MethodLength:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/**/*'
-    - 'lib/bsv/transaction/**/*'
-    - 'lib/bsv/network/**/*'
-    - 'lib/bsv/wallet/**/*'
-    - 'lib/bsv/attest.rb'
-    - 'lib/bsv/attest/**/*'
-    - 'lib/bsv/wallet_interface.rb'
-    - 'lib/bsv/wallet_interface/**/*'
-    - 'lib/bsv/auth.rb'
-    - 'lib/bsv/auth/**/*'
-    - 'lib/bsv/overlay.rb'
-    - 'lib/bsv/overlay/**/*'
-    - 'lib/bsv/identity.rb'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry.rb'
-    - 'lib/bsv/registry/**/*'
+    - 'gem/*/lib/**/*'
     - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/**/*'
-    - 'lib/bsv/transaction/**/*'
-    - 'lib/bsv/network/**/*'
-    - 'lib/bsv/wallet/**/*'
-    - 'lib/bsv/attest.rb'
-    - 'lib/bsv/attest/**/*'
-    - 'lib/bsv/wallet_interface.rb'
-    - 'lib/bsv/wallet_interface/**/*'
-    - 'lib/bsv/auth.rb'
-    - 'lib/bsv/auth/**/*'
-    - 'lib/bsv/overlay.rb'
-    - 'lib/bsv/overlay/**/*'
-    - 'lib/bsv/identity.rb'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry.rb'
-    - 'lib/bsv/registry/**/*'
+    - 'gem/*/lib/**/*'
     - 'spec/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/**/*'
-    - 'lib/bsv/transaction/**/*'
-    - 'lib/bsv/network/**/*'
-    - 'lib/bsv/wallet/**/*'
-    - 'lib/bsv/attest.rb'
-    - 'lib/bsv/attest/**/*'
-    - 'lib/bsv/wallet_interface.rb'
-    - 'lib/bsv/wallet_interface/**/*'
-    - 'lib/bsv/auth.rb'
-    - 'lib/bsv/auth/**/*'
-    - 'lib/bsv/overlay.rb'
-    - 'lib/bsv/overlay/**/*'
-    - 'lib/bsv/identity.rb'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry.rb'
-    - 'lib/bsv/registry/**/*'
+    - 'gem/*/lib/**/*'
     - 'spec/**/*'
 
 Metrics/ModuleLength:
   Exclude:
-    - 'lib/bsv/primitives/ecdsa.rb'
-    - 'lib/bsv/primitives/ecies.rb'
-    - 'lib/bsv/script/opcodes.rb'
-    - 'lib/bsv/script/interpreter/operations/**/*'
-    - 'lib/bsv/wallet_interface/**/*'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry/**/*'
+    - 'gem/bsv-sdk/lib/bsv/primitives/ecdsa.rb'
+    - 'gem/bsv-sdk/lib/bsv/primitives/ecies.rb'
+    - 'gem/bsv-sdk/lib/bsv/script/opcodes.rb'
+    - 'gem/bsv-sdk/lib/bsv/script/interpreter/operations/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
+    - 'gem/bsv-sdk/lib/bsv/identity/**/*'
+    - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'spec/**/*'
 
 Metrics/ClassLength:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/**/*'
-    - 'lib/bsv/transaction/transaction.rb'
-    - 'lib/bsv/transaction/merkle_path.rb'
-    - 'lib/bsv/transaction/beef.rb'
-    - 'lib/bsv/network/**/*'
-    - 'lib/bsv/wallet_interface/**/*'
-    - 'lib/bsv/wallet_postgres/**/*'
-    - 'lib/bsv/auth/**/*'
-    - 'lib/bsv/overlay/**/*'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry/**/*'
+    - 'gem/bsv-sdk/lib/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/lib/bsv/script/**/*'
+    - 'gem/bsv-sdk/lib/bsv/transaction/transaction.rb'
+    - 'gem/bsv-sdk/lib/bsv/transaction/merkle_path.rb'
+    - 'gem/bsv-sdk/lib/bsv/transaction/beef.rb'
+    - 'gem/bsv-sdk/lib/bsv/network/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/**/*'
+    - 'gem/bsv-sdk/lib/bsv/auth/**/*'
+    - 'gem/bsv-sdk/lib/bsv/overlay/**/*'
+    - 'gem/bsv-sdk/lib/bsv/identity/**/*'
+    - 'gem/bsv-sdk/lib/bsv/registry/**/*'
 
 Metrics/ParameterLists:
   Exclude:
-    - 'lib/bsv/primitives/**/*'
-    - 'lib/bsv/script/**/*'
-    - 'lib/bsv/transaction/**/*'
-    - 'lib/bsv/network/**/*'
-    - 'lib/bsv/overlay/**/*'
-    - 'lib/bsv/identity/**/*'
-    - 'lib/bsv/registry/**/*'
-    - 'lib/bsv/wallet_interface/**/*'
+    - 'gem/bsv-sdk/lib/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/lib/bsv/script/**/*'
+    - 'gem/bsv-sdk/lib/bsv/transaction/**/*'
+    - 'gem/bsv-sdk/lib/bsv/network/**/*'
+    - 'gem/bsv-sdk/lib/bsv/overlay/**/*'
+    - 'gem/bsv-sdk/lib/bsv/identity/**/*'
+    - 'gem/bsv-sdk/lib/bsv/registry/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -196,11 +132,11 @@ Metrics/ParameterLists:
 # originator: keyword on all methods (local-only wallet, no originator policy).
 Lint/UnusedMethodArgument:
   Exclude:
-    - 'lib/bsv/wallet_interface/proto_wallet.rb'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/proto_wallet.rb'
 
 Lint/BooleanSymbol:
   Exclude:
-    - 'lib/bsv/script/interpreter/**/*'
+    - 'gem/bsv-sdk/lib/bsv/script/interpreter/**/*'
 
 Layout/LineLength:
   Max: 150
@@ -269,7 +205,7 @@ RSpec/ExampleLength:
 # Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
 Naming/VariableNumber:
   Exclude:
-    - 'lib/bsv/wallet_interface/wire/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet_interface/wire/**/*'
     - 'spec/**/*'
 
 # Interpreter sub-specs and conformance specs legitimately describe parent
