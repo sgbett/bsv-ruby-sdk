@@ -146,4 +146,5 @@ For the full picture including edge cases and rationale, see **[Naming Conventio
 - **[Script Guide](script.md)** — script construction, templates, detection
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
 - **[Network Guide](network.md)** — broadcasting, chain tracking, SPV verification
+- **[MCP Server Guide](mcp.md)** — use BSV operations as AI assistant tools via Claude Code
 - **[Naming Conventions](naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs

@@ -170,7 +170,51 @@ The SDK (`bsv-sdk`) is **declarative** — it defines data structures, serialisa
 | Auto-fund transactions | `bsv-wallet` — `WalletClient#auto_fund_and_create` |
 | Attest documents on-chain | `bsv-attest` — `BSV::Attest` |
 
+## MCP Server
+
+The SDK ships with a built-in MCP (Model Context Protocol) server that exposes core BSV operations as tools for AI assistants like Claude Code.
+
+### Setup
+
+Add to your Claude Code MCP configuration (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "bsv-sdk": {
+      "command": "bundle",
+      "args": ["exec", "bsv-mcp"],
+      "cwd": "/path/to/your/project"
+    }
+  }
+}
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `generate_key` | Generate a new random BSV keypair |
+| `decode_tx` | Parse and inspect a raw transaction hex |
+| `fetch_utxos` | Fetch UTXOs for an address from WhatsOnChain |
+| `fetch_tx` | Fetch a transaction by txid from WhatsOnChain |
+| `check_balance` | Check the balance of an address or WIF |
+| `broadcast_p2pkh` | Build, sign, and broadcast a P2PKH payment |
+
+### Configuration
+
+Environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BSV_NETWORK` | `main` | Network: `main` or `test` |
+| `BSV_ARC_URL` | GorillaPool | Custom ARC endpoint URL |
+| `BSV_ARC_API_KEY` | *(none)* | ARC API key for authenticated access |
+
+See the **[MCP Server Guide](mcp.md)** for full setup instructions, testnet configuration, and example workflows.
+
 ## What's Next
 
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
 - **[Getting Started](getting-started.md)** — key generation, basic transaction construction
+- **[MCP Server Guide](mcp.md)** — using BSV tools from AI assistants
