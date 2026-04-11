@@ -101,6 +101,46 @@ module BSV
         handle_broadcast_response(response)
       end
 
+      # Submit multiple transactions to ARC in a single batch request.
+      #
+      # Each transaction is encoded as Extended Format (BRC-30) hex where
+      # possible, falling back to plain raw-tx hex per transaction independently.
+      #
+      # Returns a mixed array of {BroadcastResponse} and {BroadcastError} objects
+      # — one element per submitted transaction in the same order. Per-transaction
+      # rejections are returned as {BroadcastError} values rather than raised, so
+      # callers can inspect the full result set even when some transactions fail.
+      # Only HTTP-level errors (non-2xx) raise a {BroadcastError} for the whole
+      # batch.
+      #
+      # @param txs [Array<Transaction>] transactions to broadcast
+      # @param wait_for [String, nil] ARC wait condition (see {#broadcast})
+      # @param skip_fee_validation [Boolean, nil] when truthy, sends
+      #   +X-SkipFeeValidation: true+ for the batch request
+      # @param skip_script_validation [Boolean, nil] when truthy, sends
+      #   +X-SkipScriptValidation: true+ for the batch request
+      # @return [Array<BroadcastResponse, BroadcastError>]
+      # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
+      #   malformed (non-array) response body
+      def broadcast_many(txs, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
+        return [] if txs.empty?
+
+        uri = URI("#{@url}/v1/txs")
+        request = Net::HTTP::Post.new(uri)
+        request['Content-Type'] = 'application/json'
+        request['XDeployment-ID'] = @deployment_id
+        request['X-WaitFor'] = wait_for if wait_for
+        request['X-CallbackUrl'] = @callback_url if @callback_url
+        request['X-CallbackToken'] = @callback_token if @callback_token
+        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
+        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
+        apply_auth_header(request)
+        request.body = JSON.generate(txs.map { |tx| { rawTx: raw_tx_hex(tx) } })
+
+        response = execute(uri, request)
+        handle_batch_response(response)
+      end
+
       # Query the status of a previously submitted transaction.
       # Returns BroadcastResponse on success, raises BroadcastError on failure.
       def status(txid)
@@ -208,6 +248,39 @@ module BSV
           timestamp: body['timestamp'],
           competing_txs: body['competingTxs']
         )
+      end
+
+      def handle_batch_response(response)
+        code = response.code.to_i
+        unless (200..299).cover?(code)
+          body = parse_json(response.body)
+          raise BroadcastError.new(
+            body['detail'] || body['title'] || "HTTP #{code}",
+            status_code: code
+          )
+        end
+
+        results = JSON.parse(response.body)
+        unless results.is_a?(Array)
+          raise BroadcastError.new(
+            'ARC returned a malformed batch response',
+            status_code: code
+          )
+        end
+
+        results.map { |body| build_response_or_error(body) }
+      end
+
+      def build_response_or_error(body)
+        if rejected_status?(body)
+          BroadcastError.new(
+            body['detail'] || body['title'] || body['txStatus'],
+            status_code: 200,
+            txid: body['txid']
+          )
+        else
+          build_response(body)
+        end
       end
     end
   end
