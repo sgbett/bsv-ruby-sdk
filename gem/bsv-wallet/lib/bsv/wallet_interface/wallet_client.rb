@@ -610,7 +610,7 @@ module BSV
       def auto_fund_and_create(args, caller_outputs)
         release_stale_if_due
         target = caller_outputs.sum { |o| o[:satoshis] || 0 }
-        all_spendable = @storage.find_spendable_outputs
+        all_spendable = @storage.find_spendable_outputs(basket: 'default')
         available = all_spendable.select do |o|
           (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) ||
             o[:derivation_type] == :identity
@@ -756,7 +756,7 @@ module BSV
         params = @storage.find_setting('change_params')
         return {} unless params
 
-        pool_size = @storage.find_spendable_outputs.size
+        pool_size = @storage.find_spendable_outputs(basket: 'default').size
         { pool_size: pool_size, change_params: params }
       end
 
@@ -862,7 +862,7 @@ module BSV
                                   outpoint: "#{txid}.#{actual_idx}",
                                   satoshis: spec[:satoshis],
                                   locking_script: locking_script_hex,
-                                  basket: nil,
+                                  basket: 'default',
                                   tags: [],
                                   derivation_prefix: spec[:derivation_prefix],
                                   derivation_suffix: spec[:derivation_suffix],
