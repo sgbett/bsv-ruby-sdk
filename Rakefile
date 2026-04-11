@@ -2,6 +2,7 @@
 
 # Gem releases are handled by the /release Claude Code skill.
 # See CLAUDE.md for the release workflow and tag conventions.
+
 require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)

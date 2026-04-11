@@ -343,7 +343,7 @@ On confirmation, update the file.
 
 Show the staged diff:
 ```bash
-git diff HEAD gem/$GEM_KEY/lib gem/$GEM_KEY/CHANGELOG.md
+git diff HEAD $GEM_DIR/lib $GEM_DIR/CHANGELOG.md
 ```
 
 Wait for confirmation, then commit:
@@ -421,14 +421,14 @@ Recovery guidance if the user declines or push fails:
 The gemspec uses `Dir.chdir(__dir__)` for file globbing, so build must run from inside the gem directory:
 
 ```bash
-cd gem/$GEM_KEY && gem build $GEM_NAME.gemspec
+cd $GEM_DIR && gem build $GEM_NAME.gemspec
 ```
 
-This will produce `gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem`.
+This will produce `$GEM_DIR/$GEM_NAME-$NEW_VERSION.gem`.
 
 **Sanity check** — inspect the `.gem` contents:
 ```bash
-gem contents --spec gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem 2>/dev/null || tar -tzf gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem
+gem contents --spec $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem 2>/dev/null || tar -tzf $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem
 ```
 
 Verify:
@@ -449,11 +449,11 @@ Display:
 ```
 The gem has been built at:
 
-  gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem
+  $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem
 
 To publish to RubyGems, run this command yourself:
 
-  gem push gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem
+  gem push $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem
 
 This requires your RubyGems API key (run `gem signin` if not already authenticated).
 
@@ -473,14 +473,14 @@ gh release create "${TAG_PREFIX}${NEW_VERSION}" \
   --target master
 
 gh release upload "${TAG_PREFIX}${NEW_VERSION}" \
-  "gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem"
+  "$GEM_DIR/$GEM_NAME-$NEW_VERSION.gem"
 ```
 
 Recovery guidance if this fails:
 > GitHub release creation failed. The gem has been pushed to RubyGems (if you confirmed that step).
 > To create the release manually:
 >   gh release create ${TAG_PREFIX}${NEW_VERSION} --title "$GEM_NAME $NEW_VERSION" --notes "..."
->   gh release upload ${TAG_PREFIX}${NEW_VERSION} gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem
+>   gh release upload ${TAG_PREFIX}${NEW_VERSION} $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem
 
 ---
 
@@ -517,6 +517,6 @@ Next steps:
 | Commit | Files modified, not committed | Fix issue and re-stage, or `git checkout --` to discard |
 | Tag | Committed, not tagged | `git tag ${TAG_PREFIX}${NEW_VERSION}` manually |
 | Push | Local only | `git push origin master && git push origin ${TAG_PREFIX}${NEW_VERSION}` |
-| Build | Committed, tagged, pushed | `cd gem/$GEM_KEY && gem build $GEM_NAME.gemspec` |
-| RubyGems push | Built, not on RubyGems | `gem push gem/$GEM_KEY/$GEM_NAME-$NEW_VERSION.gem` |
+| Build | Committed, tagged, pushed | `cd $GEM_DIR && gem build $GEM_NAME.gemspec` |
+| RubyGems push | Built, not on RubyGems | `gem push $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem` |
 | GitHub release | On RubyGems, no GH release | `gh release create ...` manually |
