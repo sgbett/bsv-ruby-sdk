@@ -278,6 +278,11 @@ module BSV
             status_code: 200,
             txid: body['txid']
           )
+        elsif !body['txid']
+          BroadcastError.new(
+            'ARC returned a malformed 2xx response',
+            status_code: 200
+          )
         else
           build_response(body)
         end

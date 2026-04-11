@@ -527,6 +527,17 @@ RSpec.describe BSV::Network::ARC do
         .to raise_error(BSV::Network::BroadcastError, /malformed batch response/)
     end
 
+    it 'returns BroadcastError for batch items missing txid' do
+      body = [{ 'txStatus' => 'SEEN_ON_NETWORK', 'title' => 'ok' }].to_json
+      http = mock_http.new(200, body)
+      arc = described_class.new('https://arc.example.com', http_client: http)
+
+      results = arc.broadcast_many([tx])
+
+      expect(results[0]).to be_a(BSV::Network::BroadcastError)
+      expect(results[0].message).to match(/malformed/)
+    end
+
     it 'uses EF hex for each tx when available' do
       http = mock_http.new(200, single_batch)
       arc = described_class.new('https://arc.example.com', http_client: http)

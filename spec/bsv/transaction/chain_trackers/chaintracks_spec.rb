@@ -40,6 +40,13 @@ RSpec.describe BSV::Transaction::ChainTrackers::Chaintracks do
       expect(tracker.valid_root_for_height?('0000' * 16, 0)).to be false
     end
 
+    it 'returns false when response is missing merkleRoot field' do
+      body = { 'height' => 0, 'hash' => 'abc' }.to_json
+      allow(http_client).to receive(:request).and_return(mock_response(200, body))
+
+      expect(tracker.valid_root_for_height?(merkle_root, 0)).to be false
+    end
+
     it 'returns false on 404 (block not found)' do
       allow(http_client).to receive(:request).and_return(mock_response(404, 'Not Found'))
 

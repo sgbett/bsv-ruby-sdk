@@ -43,7 +43,10 @@ module BSV
           return false if response.nil?
 
           data = JSON.parse(response.body)
-          data['merkleRoot'].downcase == root.downcase
+          merkle_root = data['merkleRoot']
+          return false unless merkle_root
+
+          merkle_root.downcase == root.downcase
         end
 
         # Return the current blockchain height.
