@@ -101,6 +101,87 @@ RSpec.describe BSV::Wallet::KeyDeriver do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Cross-SDK pinned vectors (#263)
+  #
+  # Root key: PrivateKey(42)
+  # Counterparty: 'anyone'
+  # Verified byte-identical against ts-sdk (KeyDeriver + PrivateKey(42))
+  # ---------------------------------------------------------------------------
+  describe 'cross-SDK pinned vectors (counterparty: anyone)' do
+    let(:root_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
+    let(:pinned_deriver) { described_class.new(root_key) }
+
+    it 'root public key matches ts-sdk' do
+      expect(root_key.public_key.to_hex).to eq(
+        '02fe8d1eb1bcb3432b1db5833ff5f2226d9cb5e65cee430558c18ed3a3c86ce1af'
+      )
+    end
+
+    [
+      {
+        protocol_id: [0, 'hello world'], key_id: 'test key 1',
+        public_key: '036943654f83bb283f607630b9d18003f0d09d496dbe15ea699498e6cb6c79ad65',
+        public_key_for_self: '02b442eea548fa8228a9c8fe7700fc39b3688630a947dcf7c4a8768ea6598f7cab',
+        private_key: '40e576dccb8bf047652158953551eb653c5fa4e8ca43f70949bb0c06fc8a64d9'
+      },
+      {
+        protocol_id: [1, 'hello world'], key_id: 'test key 1',
+        public_key: '0346256a9541add301eaa4cdb7cac010f2ef32f374de9379ddc9af155d4b0b3073',
+        public_key_for_self: '02a7c8149060bd4bde0dcf640dff7e84e98c8bc1ea3e7730a89883d8c225d2f073',
+        private_key: '963eb70add24829be5264b7c546f1be733c406b479b4558d200060845dcc692f'
+      },
+      {
+        protocol_id: [2, '3241645161d8'], key_id: 'default',
+        public_key: '021ec609ed0ebfcb6a15e1c17c14a1c2926afbb5309dc827d88b28ae97538ceffa',
+        public_key_for_self: '02baab7fb5c522863cdf07b3c698f87a6ff1d5b2202d77b0b9eb580bd11e185f66',
+        private_key: '74d31daaba5b1efe74ce9ef4e9e759f9ca61c34b36fd6bf3aff1abca4eaffd6c'
+      },
+      {
+        protocol_id: [0, 'hello world'], key_id: 'key2',
+        public_key: '0332195fdb3bc3dd581d5272c5e9097e8edce40883bf76d9ccd88517438bc86d3e',
+        public_key_for_self: '024377249dd049e09d9a7732be9702e0709022e129da7fa3ff050d8d423b08b198',
+        private_key: '6cd3e3ba75b46567705cb245569bc39c175668be4deb4413258a953dbe6b9de6'
+      }
+    ].each do |v|
+      context "with protocol=#{v[:protocol_id].inspect}, key=#{v[:key_id].inspect}" do
+        it 'derive_public_key matches ts-sdk' do
+          pub = pinned_deriver.derive_public_key(v[:protocol_id], v[:key_id], 'anyone')
+          expect(pub.to_hex).to eq(v[:public_key])
+        end
+
+        it 'derive_public_key(for_self: true) matches ts-sdk' do
+          pub = pinned_deriver.derive_public_key(v[:protocol_id], v[:key_id], 'anyone', for_self: true)
+          expect(pub.to_hex).to eq(v[:public_key_for_self])
+        end
+
+        it 'derive_private_key matches ts-sdk' do
+          priv = pinned_deriver.derive_private_key(v[:protocol_id], v[:key_id], 'anyone')
+          expect(priv.to_hex).to eq(v[:private_key])
+        end
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Protocol name normalisation (#262)
+  # ---------------------------------------------------------------------------
+  describe 'protocol name normalisation' do
+    let(:pinned_deriver) { described_class.new(BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42))) }
+
+    it 'normalises protocol name to lowercase' do
+      pub_upper = pinned_deriver.derive_public_key([0, 'Hello World'], 'test key 1', 'anyone')
+      pub_lower = pinned_deriver.derive_public_key([0, 'hello world'], 'test key 1', 'anyone')
+      expect(pub_upper.to_hex).to eq(pub_lower.to_hex)
+    end
+
+    it 'strips whitespace from protocol name' do
+      pub_padded = pinned_deriver.derive_public_key([0, '  hello world  '], 'test key 1', 'anyone')
+      pub_clean = pinned_deriver.derive_public_key([0, 'hello world'], 'test key 1', 'anyone')
+      expect(pub_padded.to_hex).to eq(pub_clean.to_hex)
+    end
+  end
+
   describe '#derive_symmetric_key' do
     it 'returns a SymmetricKey instance' do
       sym = deriver.derive_symmetric_key(protocol_id, key_id, 'self')

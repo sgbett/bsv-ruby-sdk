@@ -137,7 +137,7 @@ module BSV
       # @param key_id [String]
       # @return [String]
       def compute_invoice_number(protocol_id, key_id)
-        "#{protocol_id[0]}-#{protocol_id[1]}-#{key_id}"
+        "#{protocol_id[0]}-#{protocol_id[1].downcase.strip}-#{key_id}"
       end
     end
   end
