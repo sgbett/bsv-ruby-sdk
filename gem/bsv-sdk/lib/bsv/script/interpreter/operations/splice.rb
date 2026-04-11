@@ -80,6 +80,55 @@ module BSV
             data = @dstack.pop_bytes
             @dstack.push_bytes(ScriptNumber.minimally_encode(data))
           end
+
+          # OP_SUBSTR: extract a substring by offset and length
+          # Stack: [... data offset len] -> [... data[offset, len]]
+          def op_substr
+            len    = @dstack.pop_int.to_i32
+            offset = @dstack.pop_int.to_i32
+            data   = @dstack.pop_bytes
+
+            unless offset >= 0 && offset < data.bytesize && len >= 0 && len <= data.bytesize - offset
+              raise ScriptError.new(
+                ScriptErrorCode::INVALID_INPUT_LENGTH,
+                "invalid OP_SUBSTR range: offset=#{offset} len=#{len} for data of length #{data.bytesize}"
+              )
+            end
+
+            @dstack.push_bytes(data.byteslice(offset, len))
+          end
+
+          # OP_LEFT: extract the leftmost N bytes
+          # Stack: [... data len] -> [... data[0, len]]
+          def op_left
+            len  = @dstack.pop_int.to_i32
+            data = @dstack.pop_bytes
+
+            unless len.between?(0, data.bytesize)
+              raise ScriptError.new(
+                ScriptErrorCode::INVALID_INPUT_LENGTH,
+                "invalid OP_LEFT length: #{len} for data of length #{data.bytesize}"
+              )
+            end
+
+            @dstack.push_bytes(data.byteslice(0, len))
+          end
+
+          # OP_RIGHT: extract the rightmost N bytes
+          # Stack: [... data len] -> [... data[size-len, len]]
+          def op_right
+            len  = @dstack.pop_int.to_i32
+            data = @dstack.pop_bytes
+
+            unless len.between?(0, data.bytesize)
+              raise ScriptError.new(
+                ScriptErrorCode::INVALID_INPUT_LENGTH,
+                "invalid OP_RIGHT length: #{len} for data of length #{data.bytesize}"
+              )
+            end
+
+            @dstack.push_bytes(data.byteslice(data.bytesize - len, len))
+          end
         end
       end
     end

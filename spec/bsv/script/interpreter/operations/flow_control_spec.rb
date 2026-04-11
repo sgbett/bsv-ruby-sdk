@@ -145,13 +145,13 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('', 'OP_1 OP_CHECKSEQUENCEVERIFY')).to be true
     end
 
-    # OP_NOP4 is now OP_SUBSTR (0xb3) — a Chronicle slot — and raises
-    # UnimplementedOpcode rather than acting as a NOP.
-    it 'OP_NOP4 (OP_SUBSTR) raises :unimplemented_opcode' do
+    # OP_NOP4 is an alias for OP_SUBSTR (0xb3) — now implemented as a
+    # Chronicle splice opcode, not a NOP. It requires three stack items.
+    it 'OP_NOP4 (OP_SUBSTR) executes as OP_SUBSTR, not as a NOP' do
       expect do
         evaluate('', 'OP_1 OP_NOP4')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:unimplemented_opcode)
+        expect(e.code).to eq(:invalid_stack_operation)
       }
     end
   end
@@ -165,12 +165,13 @@ RSpec.describe BSV::Script::Interpreter do
       }
     end
 
-    # OP_VER is now a Chronicle fail-safe — raises :unimplemented_opcode
-    it 'OP_VER raises :unimplemented_opcode when executing' do
+    # OP_VER is now implemented: pushes 4-byte LE tx version.
+    # Without transaction context (Interpreter.evaluate), raises :missing_tx_context.
+    it 'OP_VER raises :missing_tx_context when called without transaction context' do
       expect do
         evaluate('', 'OP_VER')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:unimplemented_opcode)
+        expect(e.code).to eq(:missing_tx_context)
       }
     end
 
@@ -195,31 +196,45 @@ RSpec.describe BSV::Script::Interpreter do
     end
   end
 
-  describe 'always-illegal opcodes (OP_VERIF / OP_VERNOTIF)' do
-    # OP_VERIF and OP_VERNOTIF are now Chronicle fail-safes —
-    # they raise :unimplemented_opcode rather than :reserved_opcode.
-    it 'OP_VERIF raises :unimplemented_opcode when executing' do
+  describe 'OP_VERIF / OP_VERNOTIF (version-conditional branching)' do
+    # These opcodes require transaction context to compare against the tx version.
+    # Without a transaction, tx_version_matches? returns false (else branch taken).
+
+    it 'OP_VERIF raises :invalid_stack_operation on empty stack (executing branch)' do
       expect do
-        evaluate('', 'OP_VERIF')
+        evaluate('', 'OP_VERIF OP_1 OP_ELSE OP_0 OP_ENDIF')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:unimplemented_opcode)
+        expect(e.code).to eq(:invalid_stack_operation)
       }
     end
 
-    it 'OP_VERNOTIF raises :unimplemented_opcode when executing' do
+    it 'OP_VERNOTIF raises :invalid_stack_operation on empty stack (executing branch)' do
       expect do
-        evaluate('', 'OP_VERNOTIF')
+        evaluate('', 'OP_VERNOTIF OP_1 OP_ELSE OP_0 OP_ENDIF')
       end.to raise_error(BSV::Script::ScriptError) { |e|
-        expect(e.code).to eq(:unimplemented_opcode)
+        expect(e.code).to eq(:invalid_stack_operation)
       }
     end
 
-    it 'OP_VERIF is silent in non-executing branch (after genesis)' do
-      expect(evaluate('OP_1', 'OP_0 OP_IF OP_VERIF OP_ENDIF')).to be true
+    it 'OP_VERIF without tx context always takes else branch (not an error)' do
+      # Without tx, tx_version_matches? returns false → else branch → stack has 1
+      expect(evaluate('', 'OP_0 OP_VERIF OP_0 OP_ELSE OP_1 OP_ENDIF')).to be true
     end
 
-    it 'OP_VERNOTIF is silent in non-executing branch (after genesis)' do
-      expect(evaluate('OP_1', 'OP_0 OP_IF OP_VERNOTIF OP_ENDIF')).to be true
+    it 'OP_VERNOTIF without tx context always takes true branch (not an error)' do
+      # Without tx, tx_version_matches? returns false → VERNOTIF true branch → stack has 1
+      expect(evaluate('', 'OP_0 OP_VERNOTIF OP_1 OP_ELSE OP_0 OP_ENDIF')).to be true
+    end
+
+    it 'OP_VERIF is tracked for nesting depth in non-executing branch' do
+      # OP_0 means outer IF is false; inner VERIF is in a non-executing branch and
+      # must be tracked for nesting (so its ENDIF is consumed correctly).
+      # After both ENDIFs, stack has OP_1 from unlock.
+      expect(evaluate('OP_1', 'OP_0 OP_IF OP_VERIF OP_ENDIF OP_ENDIF')).to be true
+    end
+
+    it 'OP_VERNOTIF is tracked for nesting depth in non-executing branch' do
+      expect(evaluate('OP_1', 'OP_0 OP_IF OP_VERNOTIF OP_ENDIF OP_ENDIF')).to be true
     end
   end
 end

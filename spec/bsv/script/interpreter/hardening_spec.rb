@@ -376,35 +376,12 @@ RSpec.describe 'A6 Interpreter Hardening' do
   end
 
   # ---------------------------------------------------------------------------
-  # F7.1/F7.2 — Chronicle opcode fail-safe
+  # F7.1/F7.2 — Chronicle opcode constants
+  # All Chronicle opcodes (OP_SUBSTR, OP_LEFT, OP_RIGHT, OP_LSHIFTNUM,
+  # OP_RSHIFTNUM, OP_VER, OP_VERIF, OP_VERNOTIF) are now implemented.
   # ---------------------------------------------------------------------------
 
-  describe 'F7.1/F7.2: Chronicle opcode fail-safe' do
-    chronicle_opcodes = {
-      'OP_SUBSTR (0xb3)' => BSV::Script::Opcodes::OP_SUBSTR,
-      'OP_LEFT (0xb4)' => BSV::Script::Opcodes::OP_LEFT,
-      'OP_RIGHT (0xb5)' => BSV::Script::Opcodes::OP_RIGHT,
-      'OP_LSHIFTNUM (0xb6)' => BSV::Script::Opcodes::OP_LSHIFTNUM,
-      'OP_RSHIFTNUM (0xb7)' => BSV::Script::Opcodes::OP_RSHIFTNUM,
-      'OP_VER (0x62)' => BSV::Script::Opcodes::OP_VER,
-      'OP_VERIF (0x65)' => BSV::Script::Opcodes::OP_VERIF,
-      'OP_VERNOTIF (0x66)' => BSV::Script::Opcodes::OP_VERNOTIF
-    }
-
-    chronicle_opcodes.each do |name, byte|
-      it "raises :unimplemented_opcode for #{name}" do
-        script = BSV::Script::Script.from_binary([
-          BSV::Script::Opcodes::OP_1, byte
-        ].pack('C*'))
-
-        expect do
-          BSV::Script::Interpreter.evaluate(empty_script, script)
-        end.to raise_error(BSV::Script::ScriptError) { |e|
-          expect(e.code).to eq(:unimplemented_opcode)
-        }
-      end
-    end
-
+  describe 'F7.1/F7.2: Chronicle opcode constants' do
     it 'Chronicle opcode constants are defined in BSV::Script::Opcodes' do
       expect(BSV::Script::Opcodes::OP_SUBSTR).to eq(0xb3)
       expect(BSV::Script::Opcodes::OP_LEFT).to eq(0xb4)

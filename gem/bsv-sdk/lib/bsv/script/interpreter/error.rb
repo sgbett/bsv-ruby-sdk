@@ -51,6 +51,7 @@ module BSV
       MINIMAL_DATA = :minimal_data
       STACK_MEMORY_EXCEEDED = :stack_memory_exceeded
       UNIMPLEMENTED_OPCODE = :unimplemented_opcode
+      MISSING_TX_CONTEXT = :missing_tx_context
     end
   end
 end
