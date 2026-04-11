@@ -13,7 +13,7 @@ Metrics/BlockLength:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/wire/**/*'
     - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/migrations/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 Naming/FileName:
   Exclude:
@@ -47,7 +47,7 @@ Naming/MethodParameterName:
 Naming/AccessorMethodName:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
-    - 'spec/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
 
 # verify(), verify_proof(), and cast_bool() are standard cryptographic/protocol API names.
 # is_authenticated is the BRC-100 wire-protocol method name and cannot be renamed.
@@ -72,22 +72,22 @@ Naming/PredicatePrefix:
 Metrics/AbcSize:
   Exclude:
     - 'gem/*/lib/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 Metrics/MethodLength:
   Exclude:
     - 'gem/*/lib/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
     - 'gem/*/lib/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
     - 'gem/*/lib/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 Metrics/ModuleLength:
   Exclude:
@@ -98,7 +98,7 @@ Metrics/ModuleLength:
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 Metrics/ClassLength:
   Exclude:
@@ -142,133 +142,133 @@ Lint/BooleanSymbol:
 Layout/LineLength:
   Max: 150
   Exclude:
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 RSpec/ContextWording:
   Exclude:
-    - 'spec/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
 
 # Specs for low-level modules legitimately need multiple assertions
 # per example and longer examples for thorough test coverage.
 RSpec/MultipleExpectations:
   Exclude:
-    - 'spec/bsv/primitives/**/*'
-    - 'spec/bsv/script/**/*'
-    - 'spec/bsv/transaction/**/*'
-    - 'spec/bsv/network/**/*'
-    - 'spec/bsv/wallet/**/*'
-    - 'spec/bsv/wallet_postgres/**/*'
-    - 'spec/bsv/attest_spec.rb'
-    - 'spec/bsv/attest/**/*'
-    - 'spec/bsv/auth/**/*'
-    - 'spec/bsv/overlay/**/*'
-    - 'spec/bsv/identity/**/*'
-    - 'spec/bsv/registry/**/*'
-    - 'spec/bsv/mcp/**/*'
-    - 'spec/bsv/wallet_interface/**/*'
-    - 'spec/support/**/*'
-    - 'spec/integration/**/*'
-    - 'spec/conformance/**/*'
+    - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/spec/bsv/script/**/*'
+    - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
+    - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
+    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
+    - 'gem/bsv-attest/spec/bsv/attest_spec.rb'
+    - 'gem/bsv-attest/spec/bsv/attest/**/*'
+    - 'gem/bsv-sdk/spec/bsv/auth/**/*'
+    - 'gem/bsv-sdk/spec/bsv/overlay/**/*'
+    - 'gem/bsv-sdk/spec/bsv/identity/**/*'
+    - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
+    - 'gem/*/spec/support/**/*'
+    - 'gem/bsv-sdk/spec/integration/**/*'
+    - 'gem/bsv-sdk/spec/conformance/**/*'
 
 RSpec/MultipleMemoizedHelpers:
   Exclude:
-    - 'spec/bsv/primitives/**/*'
-    - 'spec/bsv/script/**/*'
-    - 'spec/bsv/transaction/**/*'
-    - 'spec/bsv/auth/**/*'
-    - 'spec/bsv/overlay/**/*'
-    - 'spec/bsv/identity/**/*'
-    - 'spec/bsv/registry/**/*'
-    - 'spec/bsv/mcp/**/*'
-    - 'spec/conformance/**/*'
-    - 'spec/bsv/wallet_interface/**/*'
-    - 'spec/bsv/wallet_postgres/**/*'
-    - 'spec/support/**/*'
+    - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/spec/bsv/script/**/*'
+    - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
+    - 'gem/bsv-sdk/spec/bsv/auth/**/*'
+    - 'gem/bsv-sdk/spec/bsv/overlay/**/*'
+    - 'gem/bsv-sdk/spec/bsv/identity/**/*'
+    - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/spec/conformance/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
+    - 'gem/*/spec/support/**/*'
 
 RSpec/ExampleLength:
   Exclude:
-    - 'spec/bsv/primitives/**/*'
-    - 'spec/bsv/script/**/*'
-    - 'spec/bsv/transaction/**/*'
-    - 'spec/bsv/network/**/*'
-    - 'spec/bsv/wallet/**/*'
-    - 'spec/bsv/wallet_postgres/**/*'
-    - 'spec/bsv/attest_spec.rb'
-    - 'spec/bsv/attest/**/*'
-    - 'spec/bsv/auth/**/*'
-    - 'spec/bsv/overlay/**/*'
-    - 'spec/bsv/identity/**/*'
-    - 'spec/bsv/registry/**/*'
-    - 'spec/bsv/mcp/**/*'
-    - 'spec/bsv/wallet_interface/**/*'
-    - 'spec/support/**/*'
-    - 'spec/integration/**/*'
-    - 'spec/conformance/**/*'
+    - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/spec/bsv/script/**/*'
+    - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
+    - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
+    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
+    - 'gem/bsv-attest/spec/bsv/attest_spec.rb'
+    - 'gem/bsv-attest/spec/bsv/attest/**/*'
+    - 'gem/bsv-sdk/spec/bsv/auth/**/*'
+    - 'gem/bsv-sdk/spec/bsv/overlay/**/*'
+    - 'gem/bsv-sdk/spec/bsv/identity/**/*'
+    - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
+    - 'gem/*/spec/support/**/*'
+    - 'gem/bsv-sdk/spec/integration/**/*'
+    - 'gem/bsv-sdk/spec/conformance/**/*'
 
 # Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
 # Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
 Naming/VariableNumber:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/wire/**/*'
-    - 'spec/**/*'
+    - 'gem/*/spec/**/*'
 
 # Interpreter sub-specs and conformance specs legitimately describe parent
 # classes or use string descriptions for cross-cutting vector suites.
 RSpec/SpecFilePathFormat:
   Exclude:
-    - 'spec/bsv/transaction/p2pkh_spec.rb'
-    - 'spec/bsv/script/interpreter/**/*'
-    - 'spec/bsv/primitives/shamir/**/*'
-    - 'spec/bsv/transaction/benford_number/**/*'
-    - 'spec/bsv/script/op_cat_spec.rb'
-    - 'spec/bsv/transaction/live_policy_spec.rb'
-    - 'spec/conformance/**/*'
-    - 'spec/bsv/wallet_interface/**/*'
-    - 'spec/bsv/wallet_postgres/**/*'
-    - 'spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/transaction/p2pkh_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/script/interpreter/**/*'
+    - 'gem/bsv-sdk/spec/bsv/primitives/shamir/**/*'
+    - 'gem/bsv-sdk/spec/bsv/transaction/benford_number/**/*'
+    - 'gem/bsv-sdk/spec/bsv/script/op_cat_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/transaction/live_policy_spec.rb'
+    - 'gem/bsv-sdk/spec/conformance/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
+    - 'gem/bsv-sdk/spec/bsv/registry/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 # Hardening specs test multiple classes/modules together and use a string description.
 RSpec/DescribeClass:
   Exclude:
-    - 'spec/bsv/transaction/tx_vectors_spec.rb'
-    - 'spec/bsv/transaction/sighash_vectors_spec.rb'
-    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
-    - 'spec/bsv/script/interpreter/hardening_spec.rb'
-    - 'spec/integration/**/*'
-    - 'spec/conformance/**/*'
-    - 'spec/bsv/wallet_interface/**/*'
-    - 'spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/transaction/tx_vectors_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/transaction/sighash_vectors_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/script/interpreter/hardening_spec.rb'
+    - 'gem/bsv-sdk/spec/integration/**/*'
+    - 'gem/bsv-sdk/spec/conformance/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
+    - 'gem/bsv-sdk/spec/bsv/registry/**/*'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
 Lint/ConstantDefinitionInBlock:
   Exclude:
-    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
 
 RSpec/LeakyConstantDeclaration:
   Exclude:
-    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
 
 # Dynamic test generation produces describe blocks populated at runtime.
 RSpec/EmptyExampleGroup:
   Exclude:
-    - 'spec/bsv/script/interpreter/script_vectors_spec.rb'
+    - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
 
 # wallet_interface spec file covers multiple top-level modules in one file.
 RSpec/MultipleDescribes:
   Exclude:
-    - 'spec/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
 
 # Dynamic each loops with the same template string produce unique descriptions at runtime.
 RSpec/RepeatedDescription:
   Exclude:
-    - 'spec/bsv/wallet_interface/**/*'
+    - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
 
 # Integration tests use before(:context) which requires instance variables.
 RSpec/BeforeAfterAll:
   Exclude:
-    - 'spec/integration/**/*'
+    - 'gem/bsv-sdk/spec/integration/**/*'
 
 RSpec/InstanceVariable:
   Exclude:
-    - 'spec/integration/**/*'
+    - 'gem/bsv-sdk/spec/integration/**/*'

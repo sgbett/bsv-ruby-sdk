@@ -40,7 +40,7 @@ jobs:
           bundler-cache: true
 
       - name: Run specs
-        run: bundle exec rspec
+        run: bundle exec rake
         env:
           COVERAGE: ${{ matrix.ruby-version == '3.4' && 'true' || '' }}
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/bsv_wallet_test
