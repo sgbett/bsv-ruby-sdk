@@ -34,6 +34,28 @@ module BSV
           @s_prime = s_prime
           @z = z
         end
+
+        # Deserialise a proof from its binary representation.
+        #
+        # The format is: R (33 bytes) + S' (33 bytes) + z (remaining bytes).
+        # The z scalar is variable-length to accommodate both the Ruby SDK's
+        # fixed 32-byte encoding and the TS SDK's minimal encoding (which
+        # omits leading zero bytes). See issue #203.
+        #
+        # @param data [String] binary proof data (>= 67 bytes)
+        # @return [Proof]
+        # @raise [ArgumentError] if data is too short
+        def self.from_binary(data)
+          data = data.b
+          raise ArgumentError, "proof too short: #{data.bytesize} bytes (minimum 67)" if data.bytesize < 67
+
+          r = PublicKey.from_bytes(data.byteslice(0, 33))
+          s_prime = PublicKey.from_bytes(data.byteslice(33, 33))
+          z_bytes = data.byteslice(66, data.bytesize - 66)
+          z = OpenSSL::BN.new(z_bytes, 2)
+
+          new(r, s_prime, z)
+        end
       end
 
       module_function
