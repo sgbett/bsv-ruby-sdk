@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-Bundler::GemHelper.install_tasks(name: 'bsv-sdk')
-Bundler::GemHelper.install_tasks(name: 'bsv-attest')
-Bundler::GemHelper.install_tasks(name: 'bsv-wallet')
-Bundler::GemHelper.install_tasks(name: 'bsv-wallet-postgres')
+Bundler::GemHelper.install_tasks(name: 'bsv-sdk',             dir: 'gem/bsv-sdk')
+Bundler::GemHelper.install_tasks(name: 'bsv-attest',          dir: 'gem/bsv-attest')
+Bundler::GemHelper.install_tasks(name: 'bsv-wallet',          dir: 'gem/bsv-wallet')
+Bundler::GemHelper.install_tasks(name: 'bsv-wallet-postgres', dir: 'gem/bsv-wallet-postgres')
 require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)
@@ -46,7 +46,7 @@ namespace :docs do
     output_dir = 'docs/reference'
     FileUtils.rm_rf(output_dir)
     FileUtils.mkdir_p(output_dir)
-    sh 'bundle exec yardoc --plugin markdown --format markdown --output-dir docs/reference lib/**/*.rb'
+    sh 'bundle exec yardoc --plugin markdown --format markdown --output-dir docs/reference gem/*/lib/**/*.rb'
     generate_reference_index(output_dir)
   end
 

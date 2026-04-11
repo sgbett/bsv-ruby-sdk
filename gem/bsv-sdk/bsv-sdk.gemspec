@@ -18,16 +18,14 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     'homepage_uri' => spec.homepage,
     'source_code_uri' => spec.homepage,
-    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG-sdk.md",
+    'changelog_uri' => "#{spec.homepage}/blob/master/gem/bsv-sdk/CHANGELOG.md",
     'rubygems_mfa_required' => 'true'
   }
 
-  # Explicit module list — bsv-attest and bsv-wallet are separate gems with
-  # their own gemspecs and must not be bundled into bsv-sdk. Adding a new
-  # top-level SDK module means adding it here AND to the autoload list in
-  # lib/bsv-sdk.rb.
-  spec.files = Dir.glob(
-    'lib/bsv/{primitives,script,transaction,network,wallet,auth,overlay,identity,registry}{.rb,/**/*}'
-  ) + %w[lib/bsv-sdk.rb lib/bsv/version.rb LICENSE README.md CHANGELOG-sdk.md]
+  # Dir.chdir(__dir__) makes the glob resolve relative to this gemspec,
+  # not the working directory — so `gem build` works from any CWD.
+  spec.files = Dir.chdir(__dir__) do
+    Dir.glob('lib/**/*')
+  end + %w[LICENSE README.md CHANGELOG.md]
   spec.require_paths = ['lib']
 end
