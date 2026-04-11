@@ -20,7 +20,7 @@ bundle exec rspec spec/bsv_spec.rb          # run a single spec file
 bundle exec rspec spec/bsv_spec.rb:4        # run a single example by line
 bundle exec rubocop                          # lint
 bundle exec rubocop -A                       # lint with autocorrect
-gem build gem/bsv-sdk/bsv-sdk.gemspec        # build gem
+cd gem/bsv-sdk && gem build bsv-sdk.gemspec  # build gem (must run from inside gem/<name>/)
 ```
 
 ## Ruby Version Compatibility
@@ -89,18 +89,36 @@ Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base
 - All files use `# frozen_string_literal: true`
 - RuboCop targets Ruby 2.7; single-quoted strings preferred
 
-## Releasing Companion Gems
+## Releasing Gems
+
+Use `/release <key>` as the canonical release mechanism. The skill guides you through pre-flight checks, version bumping, changelog generation, tagging, pushing, gem build, RubyGems push, and GitHub release creation — one gem at a time.
 
 The repo ships multiple gems with upstream/downstream dependencies:
 
 ```
 bsv-sdk → bsv-wallet → bsv-wallet-postgres
+         → bsv-attest
 ```
+
+### Tag Prefix Conventions
+
+| Gem | Key | Tag prefix | Example |
+|-----|-----|-----------|---------|
+| `bsv-sdk` | `sdk` | `v` | `v0.10.0` |
+| `bsv-wallet` | `wallet` | `wallet-v` | `wallet-v0.5.1` |
+| `bsv-wallet-postgres` | `wallet-postgres` | `wallet-postgres-v` | `wallet-postgres-v0.2.0` |
+| `bsv-attest` | `attest` | `attest-v` | `attest-v0.1.0` |
+
+### RubyGems
+
+The `/release` skill builds the gem and instructs you to push manually — RubyGems credentials are yours to control. The skill cannot push to RubyGems on your behalf.
+
+### Downstream Compatibility
 
 When releasing `bsv-wallet` (or any gem that defines abstract interface methods):
 
 1. **Check downstream gems** — if new methods were added to `StorageAdapter` (or any abstract base), every concrete adapter (`PostgresStore`, etc.) must implement them before release.
-2. **Raise dependency floors** — downstream gemspecs must pin `>= new_version` so Bundler cannot resolve a combination that compiles at runtime.
+2. **Raise dependency floors** — downstream gemspecs must pin `>= new_version` so Bundler cannot resolve a combination that breaks at runtime.
 3. **Release together** — downstream adapter gems should be updated and released in the same cycle as the interface gem, not left for a follow-up.
 
 Failure to do this causes silent Bundler resolution success followed by `NoMethodError` at runtime (see #351).
