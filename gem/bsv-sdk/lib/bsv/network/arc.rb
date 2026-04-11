@@ -86,15 +86,9 @@ module BSV
       #   rejected/orphan +txStatus+
       def broadcast(tx, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
         uri = URI("#{@url}/v1/tx")
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request['XDeployment-ID'] = @deployment_id
-        request['X-WaitFor'] = wait_for if wait_for
-        request['X-CallbackUrl'] = @callback_url if @callback_url
-        request['X-CallbackToken'] = @callback_token if @callback_token
-        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
-        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
-        apply_auth_header(request)
+        request = build_post_request(uri, wait_for: wait_for,
+                                          skip_fee_validation: skip_fee_validation,
+                                          skip_script_validation: skip_script_validation)
         request.body = JSON.generate(rawTx: raw_tx_hex(tx))
 
         response = execute(uri, request)
@@ -126,15 +120,9 @@ module BSV
         return [] if txs.empty?
 
         uri = URI("#{@url}/v1/txs")
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request['XDeployment-ID'] = @deployment_id
-        request['X-WaitFor'] = wait_for if wait_for
-        request['X-CallbackUrl'] = @callback_url if @callback_url
-        request['X-CallbackToken'] = @callback_token if @callback_token
-        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
-        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
-        apply_auth_header(request)
+        request = build_post_request(uri, wait_for: wait_for,
+                                          skip_fee_validation: skip_fee_validation,
+                                          skip_script_validation: skip_script_validation)
         request.body = JSON.generate(txs.map { |tx| { rawTx: raw_tx_hex(tx) } })
 
         response = execute(uri, request)
@@ -162,6 +150,19 @@ module BSV
         tx.to_ef_hex
       rescue ArgumentError
         tx.to_hex
+      end
+
+      def build_post_request(uri, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
+        request = Net::HTTP::Post.new(uri)
+        request['Content-Type'] = 'application/json'
+        request['XDeployment-ID'] = @deployment_id
+        request['X-WaitFor'] = wait_for if wait_for
+        request['X-CallbackUrl'] = @callback_url if @callback_url
+        request['X-CallbackToken'] = @callback_token if @callback_token
+        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
+        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
+        apply_auth_header(request)
+        request
       end
 
       def apply_auth_header(request)
@@ -252,23 +253,23 @@ module BSV
 
       def handle_batch_response(response)
         code = response.code.to_i
+        body = parse_json(response.body)
+
         unless (200..299).cover?(code)
-          body = parse_json(response.body)
           raise BroadcastError.new(
             body['detail'] || body['title'] || "HTTP #{code}",
             status_code: code
           )
         end
 
-        results = JSON.parse(response.body)
-        unless results.is_a?(Array)
+        unless body.is_a?(Array)
           raise BroadcastError.new(
             'ARC returned a malformed batch response',
             status_code: code
           )
         end
 
-        results.map { |body| build_response_or_error(body) }
+        body.map { |item| build_response_or_error(item) }
       end
 
       def build_response_or_error(body)

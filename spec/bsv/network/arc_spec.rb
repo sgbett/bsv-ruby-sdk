@@ -601,13 +601,11 @@ RSpec.describe BSV::Network::ARC do
 
   describe '.default' do
     it 'returns an ARC instance pointed at the mainnet GorillaPool endpoint' do
-      arc = described_class.default
+      http = mock_http.new(200, success_body)
+      arc = described_class.default(http_client: http)
 
       expect(arc).to be_a(described_class)
-      # Verify the URL by posting a broadcast and inspecting the request URI
-      http = mock_http.new(200, success_body)
-      mainnet_arc = described_class.default(http_client: http)
-      mainnet_arc.broadcast(tx)
+      arc.broadcast(tx)
       expect(http.last_uri.host).to eq('arc.gorillapool.io')
     end
 
