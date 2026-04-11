@@ -181,6 +181,18 @@ module BSV
         @db[:wallet_transactions].where(txid: txid).get(:tx_hex)
       end
 
+      # --- Settings ---
+
+      def store_setting(key, value)
+        @db[:wallet_settings]
+          .insert_conflict(target: :key, update: { value: value })
+          .insert(key: key, value: value)
+      end
+
+      def find_setting(key)
+        @db[:wallet_settings].where(key: key).get(:value)
+      end
+
       private
 
       # --- Row builders ---

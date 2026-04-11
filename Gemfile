@@ -2,10 +2,10 @@
 
 source 'https://rubygems.org'
 
-gemspec name: 'bsv-sdk'
-gemspec name: 'bsv-attest'
-gemspec name: 'bsv-wallet'
-gemspec name: 'bsv-wallet-postgres'
+gemspec path: 'gem/bsv-sdk'
+gemspec path: 'gem/bsv-attest'
+gemspec path: 'gem/bsv-wallet'
+gemspec path: 'gem/bsv-wallet-postgres'
 
 group :development, :test do
   gem 'rake'

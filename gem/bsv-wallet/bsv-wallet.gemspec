@@ -17,20 +17,17 @@ Gem::Specification.new do |spec|
   spec.metadata = {
     'homepage_uri' => spec.homepage,
     'source_code_uri' => spec.homepage,
-    'changelog_uri' => "#{spec.homepage}/blob/master/CHANGELOG-wallet.md",
+    'changelog_uri' => "#{spec.homepage}/blob/master/gem/bsv-wallet/CHANGELOG.md",
     'rubygems_mfa_required' => 'true'
   }
 
-  spec.files = Dir.glob('lib/bsv/wallet_interface{.rb,/**/*}') + %w[lib/bsv-wallet.rb LICENSE CHANGELOG-wallet.md]
+  spec.files = Dir.chdir(__dir__) do
+    Dir.glob('lib/**/*')
+  end + %w[LICENSE CHANGELOG.md]
   spec.require_paths = ['lib']
 
   spec.add_dependency 'base64', '~> 0.2'
 
-  # bsv-wallet and bsv-sdk are released in lockstep from the same
-  # repository. The `~> 0.4` constraint this replaces was stale — it
-  # allowed bsv-sdk 0.4.x–0.9.x, but wallet hasn't been tested against
-  # anything below current (0.8.x) in months. Pinning the floor at
-  # 0.8.2 ensures consumers installing bsv-wallet 0.3.4 (which ships
   # Floor raised with each paired release so consumers of bsv-wallet
   # also pick up the corresponding bsv-sdk correctness fixes.
   spec.add_dependency 'bsv-sdk', '>= 0.9.0', '< 1.0'
