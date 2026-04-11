@@ -322,6 +322,56 @@ RSpec.describe BSV::Network::ARC do
         expect(error.status_code).to eq(500)
       end
     end
+
+    describe 'skip-validation headers (#340)' do
+      it 'sends X-SkipFeeValidation header when skip_fee_validation: true' do
+        http = mock_http.new(200, success_body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        arc.broadcast(tx, skip_fee_validation: true)
+
+        expect(http.last_request['X-SkipFeeValidation']).to eq('true')
+      end
+
+      it 'sends X-SkipScriptValidation header when skip_script_validation: true' do
+        http = mock_http.new(200, success_body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        arc.broadcast(tx, skip_script_validation: true)
+
+        expect(http.last_request['X-SkipScriptValidation']).to eq('true')
+      end
+
+      it 'omits X-SkipFeeValidation and X-SkipScriptValidation when not set' do
+        http = mock_http.new(200, success_body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        arc.broadcast(tx)
+
+        expect(http.last_request['X-SkipFeeValidation']).to be_nil
+        expect(http.last_request['X-SkipScriptValidation']).to be_nil
+      end
+
+      it 'omits X-SkipFeeValidation and X-SkipScriptValidation when set to false' do
+        http = mock_http.new(200, success_body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        arc.broadcast(tx, skip_fee_validation: false, skip_script_validation: false)
+
+        expect(http.last_request['X-SkipFeeValidation']).to be_nil
+        expect(http.last_request['X-SkipScriptValidation']).to be_nil
+      end
+
+      it 'can set both skip headers simultaneously' do
+        http = mock_http.new(200, success_body)
+        arc = described_class.new('https://arc.example.com', http_client: http)
+
+        arc.broadcast(tx, skip_fee_validation: true, skip_script_validation: true)
+
+        expect(http.last_request['X-SkipFeeValidation']).to eq('true')
+        expect(http.last_request['X-SkipScriptValidation']).to eq('true')
+      end
+    end
   end
 
   describe '#status' do

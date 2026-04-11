@@ -73,10 +73,18 @@ module BSV
       #   'SEEN_ON_NETWORK', or 'MINED'. When set, ARC holds the
       #   connection open until the transaction reaches the requested
       #   state (or times out). Defaults to nil (no wait).
+      # @param skip_fee_validation [Boolean, nil] when truthy, sends the
+      #   +X-SkipFeeValidation: true+ header, asking ARC to bypass its
+      #   minimum-fee check. Useful for zero-fee data transactions or
+      #   during local testing. Defaults to nil (fee validation applies).
+      # @param skip_script_validation [Boolean, nil] when truthy, sends the
+      #   +X-SkipScriptValidation: true+ header, asking ARC to bypass
+      #   script correctness checks. Defaults to nil (script validation
+      #   applies).
       # @return [BroadcastResponse]
       # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
       #   rejected/orphan +txStatus+
-      def broadcast(tx, wait_for: nil)
+      def broadcast(tx, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
         uri = URI("#{@url}/v1/tx")
         request = Net::HTTP::Post.new(uri)
         request['Content-Type'] = 'application/json'
@@ -84,6 +92,8 @@ module BSV
         request['X-WaitFor'] = wait_for if wait_for
         request['X-CallbackUrl'] = @callback_url if @callback_url
         request['X-CallbackToken'] = @callback_token if @callback_token
+        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
+        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
         apply_auth_header(request)
         request.body = JSON.generate(rawTx: raw_tx_hex(tx))
 
