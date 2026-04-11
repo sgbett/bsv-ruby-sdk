@@ -15,6 +15,16 @@ module BSV
     # The HTTP client is injectable for testability. It must respond to
     # #request(uri, request) and return an object with #code and #body.
     class ARC
+      # Returns an ARC instance pointed at the GorillaPool public ARC endpoint.
+      #
+      # @param testnet [Boolean] when true, uses the GorillaPool testnet endpoint
+      # @param opts [Hash] forwarded to {#initialize} (e.g. +api_key:+, +callback_url:+)
+      # @return [ARC]
+      def self.default(testnet: false, **opts)
+        url = testnet ? 'https://testnet.arc.gorillapool.io' : 'https://arc.gorillapool.io'
+        new(url, **opts)
+      end
+
       # ARC response statuses that indicate the transaction was NOT accepted.
       # Matches the TypeScript SDK's ARC broadcaster failure set (issue #305,
       # finding F5.13). Prior to this fix, Ruby only recognised REJECTED and
@@ -63,22 +73,60 @@ module BSV
       #   'SEEN_ON_NETWORK', or 'MINED'. When set, ARC holds the
       #   connection open until the transaction reaches the requested
       #   state (or times out). Defaults to nil (no wait).
+      # @param skip_fee_validation [Boolean, nil] when truthy, sends the
+      #   +X-SkipFeeValidation: true+ header, asking ARC to bypass its
+      #   minimum-fee check. Useful for zero-fee data transactions or
+      #   during local testing. Defaults to nil (fee validation applies).
+      # @param skip_script_validation [Boolean, nil] when truthy, sends the
+      #   +X-SkipScriptValidation: true+ header, asking ARC to bypass
+      #   script correctness checks. Defaults to nil (script validation
+      #   applies).
       # @return [BroadcastResponse]
       # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
       #   rejected/orphan +txStatus+
-      def broadcast(tx, wait_for: nil)
+      def broadcast(tx, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
         uri = URI("#{@url}/v1/tx")
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request['XDeployment-ID'] = @deployment_id
-        request['X-WaitFor'] = wait_for if wait_for
-        request['X-CallbackUrl'] = @callback_url if @callback_url
-        request['X-CallbackToken'] = @callback_token if @callback_token
-        apply_auth_header(request)
+        request = build_post_request(uri, wait_for: wait_for,
+                                          skip_fee_validation: skip_fee_validation,
+                                          skip_script_validation: skip_script_validation)
         request.body = JSON.generate(rawTx: raw_tx_hex(tx))
 
         response = execute(uri, request)
         handle_broadcast_response(response)
+      end
+
+      # Submit multiple transactions to ARC in a single batch request.
+      #
+      # Each transaction is encoded as Extended Format (BRC-30) hex where
+      # possible, falling back to plain raw-tx hex per transaction independently.
+      #
+      # Returns a mixed array of {BroadcastResponse} and {BroadcastError} objects
+      # — one element per submitted transaction in the same order. Per-transaction
+      # rejections are returned as {BroadcastError} values rather than raised, so
+      # callers can inspect the full result set even when some transactions fail.
+      # Only HTTP-level errors (non-2xx) raise a {BroadcastError} for the whole
+      # batch.
+      #
+      # @param txs [Array<Transaction>] transactions to broadcast
+      # @param wait_for [String, nil] ARC wait condition (see {#broadcast})
+      # @param skip_fee_validation [Boolean, nil] when truthy, sends
+      #   +X-SkipFeeValidation: true+ for the batch request
+      # @param skip_script_validation [Boolean, nil] when truthy, sends
+      #   +X-SkipScriptValidation: true+ for the batch request
+      # @return [Array<BroadcastResponse, BroadcastError>]
+      # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
+      #   malformed (non-array) response body
+      def broadcast_many(txs, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
+        return [] if txs.empty?
+
+        uri = URI("#{@url}/v1/txs")
+        request = build_post_request(uri, wait_for: wait_for,
+                                          skip_fee_validation: skip_fee_validation,
+                                          skip_script_validation: skip_script_validation)
+        request.body = JSON.generate(txs.map { |tx| { rawTx: raw_tx_hex(tx) } })
+
+        response = execute(uri, request)
+        handle_batch_response(response)
       end
 
       # Query the status of a previously submitted transaction.
@@ -102,6 +150,19 @@ module BSV
         tx.to_ef_hex
       rescue ArgumentError
         tx.to_hex
+      end
+
+      def build_post_request(uri, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
+        request = Net::HTTP::Post.new(uri)
+        request['Content-Type'] = 'application/json'
+        request['XDeployment-ID'] = @deployment_id
+        request['X-WaitFor'] = wait_for if wait_for
+        request['X-CallbackUrl'] = @callback_url if @callback_url
+        request['X-CallbackToken'] = @callback_token if @callback_token
+        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
+        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
+        apply_auth_header(request)
+        request
       end
 
       def apply_auth_header(request)
@@ -188,6 +249,44 @@ module BSV
           timestamp: body['timestamp'],
           competing_txs: body['competingTxs']
         )
+      end
+
+      def handle_batch_response(response)
+        code = response.code.to_i
+        body = parse_json(response.body)
+
+        unless (200..299).cover?(code)
+          raise BroadcastError.new(
+            body['detail'] || body['title'] || "HTTP #{code}",
+            status_code: code
+          )
+        end
+
+        unless body.is_a?(Array)
+          raise BroadcastError.new(
+            'ARC returned a malformed batch response',
+            status_code: code
+          )
+        end
+
+        body.map { |item| build_response_or_error(item) }
+      end
+
+      def build_response_or_error(body)
+        if rejected_status?(body)
+          BroadcastError.new(
+            body['detail'] || body['title'] || body['txStatus'],
+            status_code: 200,
+            txid: body['txid']
+          )
+        elsif !body['txid']
+          BroadcastError.new(
+            'ARC returned a malformed 2xx response',
+            status_code: 200
+          )
+        else
+          build_response(body)
+        end
       end
     end
   end
