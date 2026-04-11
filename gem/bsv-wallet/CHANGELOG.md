@@ -5,6 +5,26 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 — 2026-04-11
+
+### Fixed
+
+- **Auto-fund coin selection and change use default basket** (#344):
+  coin selection and change generation now correctly target the `default`
+  basket, matching TS SDK behaviour. Previously, auto-funded transactions
+  could select UTXOs from or generate change into the wrong basket.
+- **Normalise protocol name in KeyDeriver** (#262, #263): `compute_invoice_number`
+  now applies `.downcase.strip` to the protocol name before building the
+  invoice string, matching TS and Go SDK behaviour. Mixed-case or
+  whitespace-padded protocol names previously derived different keys.
+
+### Changed
+
+- **SDK dependency floor raised** to `bsv-sdk >= 0.10.0` (from 0.9.0)
+  to pick up the KeyDeriver normalisation fix in the SDK layer.
+
+---
+
 ## 0.5.0 — 2026-04-11
 
 Native UTXO management, coin selection, and automatic change handling.
