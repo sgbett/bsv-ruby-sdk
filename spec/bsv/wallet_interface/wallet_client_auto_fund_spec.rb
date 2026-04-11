@@ -102,14 +102,14 @@ RSpec.describe 'WalletClient auto-fund mode' do
       expect(storage.find_transaction(txid)).to be_a(String)
     end
 
-    it 'stores a change output as :spendable with no basket assignment' do
+    it 'stores a change output as :spendable in the default basket' do
       result
-      # Change outputs are not assigned to a basket — they are free-floating
-      # spendable outputs identifiable only by their BRC-29 derivation metadata.
-      change = storage.find_spendable_outputs.select { |o| o[:derivation_prefix] }
+      # Change outputs are stored in the default basket so they are selectable
+      # by subsequent auto-fund calls.
+      change = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
       expect(change).not_to be_empty
       expect(change.first[:satoshis]).to be_positive
-      expect(change.first[:basket]).to be_nil
+      expect(change.first[:basket]).to eq('default')
     end
 
     it 'stores change with derivation metadata' do
@@ -227,8 +227,8 @@ RSpec.describe 'WalletClient auto-fund mode' do
                              }]
                            })
 
-      # Change outputs have no basket assignment; query all spendable outputs.
-      spendable = storage.find_spendable_outputs
+      # Change outputs are stored in the default basket.
+      spendable = storage.find_spendable_outputs(basket: 'default')
       # The original 10 000-sat UTXO must not appear; change output should.
       sats_values = spendable.map { |o| o[:satoshis] }
       expect(sats_values).not_to include(10_000)
@@ -309,9 +309,9 @@ RSpec.describe 'WalletClient auto-fund mode' do
                                      })
       expect(result1[:txid]).to match(/\A[0-9a-f]{64}\z/)
 
-      # At this point the original UTXO is spent; change is a free-floating
-      # spendable output (no basket assignment) with BRC-29 derivation metadata.
-      change = storage.find_spendable_outputs.select { |o| o[:derivation_prefix] }
+      # At this point the original UTXO is spent; change is a spendable output
+      # in the default basket with BRC-29 derivation metadata.
+      change = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
       expect(change).not_to be_empty
 
       # Second action: auto-funded from the change.
@@ -346,6 +346,93 @@ RSpec.describe 'WalletClient auto-fund mode' do
                                }]
                              })
       end.to raise_error(BSV::Wallet::InsufficientFundsError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # Basket isolation: auto-fund must never touch custom baskets
+  # -------------------------------------------------------------------------
+  describe 'basket isolation' do
+    let(:action_opts) do
+      {
+        description: description,
+        auto_fund: true,
+        outputs: [{
+          locking_script: recipient_lock_hex,
+          satoshis: 1_000,
+          output_description: 'payment'
+        }]
+      }
+    end
+
+    it 'does not consume outputs from custom baskets' do
+      tokens_utxo = seed_utxo(satoshis: 10_000, basket: 'tokens')
+      seed_utxo(satoshis: 10_000, basket: 'default')
+
+      wallet.create_action(action_opts)
+
+      # The 'tokens' UTXO must remain untouched.
+      tokens_remaining = storage.find_spendable_outputs(basket: 'tokens')
+      expect(tokens_remaining.any? { |o| o[:outpoint] == tokens_utxo[:outpoint] }).to be true
+    end
+
+    it 'raises InsufficientFundsError when only a custom basket has funds' do
+      seed_utxo(satoshis: 10_000, basket: 'tokens')
+
+      expect do
+        wallet.create_action(action_opts)
+      end.to raise_error(BSV::Wallet::InsufficientFundsError)
+
+      # The 'tokens' UTXO must remain untouched.
+      expect(storage.find_spendable_outputs(basket: 'tokens').size).to eq(1)
+    end
+
+    it 'stores change output in the default basket' do
+      seed_utxo(satoshis: 10_000, basket: 'default')
+
+      wallet.create_action(action_opts)
+
+      change = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
+      expect(change).not_to be_empty
+      expect(change.first[:basket]).to eq('default')
+      expect(change.first[:satoshis]).to be_positive
+    end
+
+    it 'change is usable by subsequent auto-fund' do
+      seed_utxo(satoshis: 50_000, basket: 'default')
+
+      # First action consumes the seeded UTXO and produces change in 'default'.
+      result1 = wallet.create_action(action_opts)
+      expect(result1[:txid]).to match(/\A[0-9a-f]{64}\z/)
+
+      # Second action must be able to spend the change output.
+      result2 = wallet.create_action({
+                                       description: 'second action',
+                                       auto_fund: true,
+                                       outputs: [{
+                                         locking_script: recipient_lock_hex,
+                                         satoshis: 500,
+                                         output_description: 'second payment'
+                                       }]
+                                     })
+      expect(result2[:txid]).to match(/\A[0-9a-f]{64}\z/)
+      expect(result2[:txid]).not_to eq(result1[:txid])
+    end
+
+    it 'pool size counts only default basket outputs' do
+      # Seed 3 outputs in 'default' and 2 in 'tokens'.
+      3.times { seed_utxo(satoshis: 5_000, basket: 'default') }
+      2.times { seed_utxo(satoshis: 5_000, basket: 'tokens') }
+
+      # Set change params with a pool target larger than the default basket count.
+      wallet.set_wallet_change_params(count: 6, satoshis: 1_000)
+
+      wallet.create_action(action_opts)
+
+      # Because pool_size reflects only the 3 default-basket UTXOs (below the
+      # target of 6), the change generator should produce multiple change outputs.
+      change_outputs = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
+      expect(change_outputs.size).to be > 1
     end
   end
 end

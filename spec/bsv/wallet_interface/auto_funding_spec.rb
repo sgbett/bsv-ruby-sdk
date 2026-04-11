@@ -42,6 +42,7 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
                                   outpoint: outpoint,
                                   satoshis: satoshis,
                                   locking_script: locking_script.to_hex,
+                                  basket: 'default',
                                   state: :spendable,
                                   spendable: true,
                                   derivation_prefix: prefix,
@@ -122,11 +123,11 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       expect(change[:sender_identity_key]).to be_a(String)
     end
 
-    it 'change output is not assigned to a basket' do
+    it 'change output is stored in the default basket' do
       result
-      spendable = storage.find_spendable_outputs
+      spendable = storage.find_spendable_outputs(basket: 'default')
       change = spendable.find { |o| o[:derivation_prefix] }
-      expect(change[:basket]).to be_nil
+      expect(change[:basket]).to eq('default')
     end
 
     it 'stores the action as completed' do
