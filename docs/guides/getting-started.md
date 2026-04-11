@@ -35,6 +35,7 @@ The SDK is organised into three modules:
 | `BSV::Primitives` | Keys, signing, hashing, encryption, HD keys |
 | `BSV::Script` | Script parsing, construction, templates |
 | `BSV::Transaction` | Building, signing, serialisation, BEEF |
+| `BSV::Network` | Broadcasting, chain tracking, SPV verification |
 
 ## Generate a Key Pair
 
@@ -92,9 +93,10 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 # Sign the input
 tx.sign(0, private_key)
 
-# Serialise for broadcast
-hex = tx.to_hex
-txid = tx.txid_hex
+# Broadcast via Arcade (GorillaPool)
+arc = BSV::Network::ARC.default
+response = arc.broadcast(tx)
+puts response.txid
 ```
 
 ## Using Templates for Signing
@@ -143,4 +145,5 @@ For the full picture including edge cases and rationale, see **[Naming Conventio
 - **[Primitives Guide](primitives.md)** — key management, signing, encryption, HD keys
 - **[Script Guide](script.md)** — script construction, templates, detection
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
+- **[Network Guide](network.md)** — broadcasting, chain tracking, SPV verification
 - **[Naming Conventions](naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
