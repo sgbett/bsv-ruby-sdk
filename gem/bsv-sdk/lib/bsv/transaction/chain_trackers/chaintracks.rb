@@ -28,7 +28,7 @@ module BSV
         # @param http_client [#request, nil] injectable HTTP client for testing
         def initialize(url: MAINNET_URL, api_key: nil, http_client: nil)
           super()
-          @url = url
+          @url = url.chomp('/')
           @api_key = api_key
           @http_client = http_client
         end
