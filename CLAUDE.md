@@ -20,7 +20,7 @@ bundle exec rspec spec/bsv_spec.rb          # run a single spec file
 bundle exec rspec spec/bsv_spec.rb:4        # run a single example by line
 bundle exec rubocop                          # lint
 bundle exec rubocop -A                       # lint with autocorrect
-gem build bsv-sdk.gemspec                    # build gem
+gem build gem/bsv-sdk/bsv-sdk.gemspec        # build gem
 ```
 
 ## Ruby Version Compatibility

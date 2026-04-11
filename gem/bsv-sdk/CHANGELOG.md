@@ -5,6 +5,43 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0 — 2026-04-11
+
+### Added
+
+- **Chronicle opcode support** (HLR #328). All 10 Chronicle-restored opcodes
+  now execute with correct semantics, replacing the 0.9.0 "raise first"
+  fail-safes:
+  - **Splice:** OP_SUBSTR, OP_LEFT, OP_RIGHT
+  - **Arithmetic:** OP_LSHIFTNUM, OP_RSHIFTNUM (sign-preserving right shift)
+  - **Arithmetic:** OP_2MUL, OP_2DIV (restored from disabled)
+  - **Flow control:** OP_VER (push 4-byte LE tx version), OP_VERIF/OP_VERNOTIF
+    (version-conditional branching, added to CONDITIONAL_OPCODES)
+  - `MISSING_TX_CONTEXT` error code for OP_VER without transaction context
+
+- **Arcade integration** (HLR #329):
+  - `BSV::Transaction::ChainTrackers::Chaintracks` — chain tracker using
+    Arcade's Chaintracks v2 API for SPV verification
+  - `ChainTrackers.default(testnet:)` — factory returning a Chaintracks
+    instance pointed at Arcade
+  - `ARC.default(testnet:)` — factory returning an ARC broadcaster pointed
+    at GorillaPool, matching TS/Go/Py SDK defaults
+  - `ARC#broadcast_many(txs)` — batch broadcast via POST `/v1/txs`, returns
+    mixed array of `BroadcastResponse`/`BroadcastError`
+  - Skip-validation headers (`skip_fee_validation:`, `skip_script_validation:`)
+    on `broadcast` and `broadcast_many`
+
+### Changed
+
+- **Directory restructure** (PR #327). Source files moved to per-gem
+  directories: `gem/bsv-sdk/`, `gem/bsv-wallet/`, `gem/bsv-attest/`.
+  No change to gem names or require paths.
+
+### Removed
+
+- **`op_disabled` handler** — OP_2MUL/OP_2DIV are now restored; the handler
+  is no longer needed.
+
 ## 0.9.0 — 2026-04-10
 
 ### Changed

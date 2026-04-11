@@ -23,13 +23,17 @@ key = BSV::Primitives::PrivateKey.from_bytes(bytes)
 ### Exporting
 
 ```ruby
-key.to_wif                          # mainnet, compressed
-key.to_wif(compressed: false)       # mainnet, uncompressed
+key.to_wif                          # mainnet, compressed (always)
 key.to_wif(network: :testnet)       # testnet
 
 key.to_hex                          # 64-char hex string
 key.to_bytes                        # 32-byte binary
 ```
+
+!!! note "Compressed only"
+    `to_wif` always produces compressed WIF. BSV exclusively uses compressed
+    public keys, so exporting uncompressed WIF is not supported. `from_wif`
+    still accepts both formats for import compatibility with legacy wallets.
 
 ## Public Keys
 
