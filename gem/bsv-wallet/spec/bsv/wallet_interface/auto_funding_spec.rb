@@ -293,12 +293,10 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
   # ---------------------------------------------------------------------------
   describe 'no change when excess is zero or sub-dust' do
     it 'produces no change output when excess is below the dust floor' do
-      # FeeEstimator at 1 sat/kB: dust_floor = 1 sat (2 × ceil(192/1000 × 1))
-      # At such a tiny fee rate, any excess >= 1 sat qualifies as change.
-      # Use a tight satoshi value where excess would be 0 by construction.
-      # With 1 sat/kB, a 1-input 2-output tx costs ceil(226/1000 * 1) = 1 sat fee
-      # Seed with exactly target + fee (1000 + 1 = 1001)
-      seed_payment_output(wallet, satoshis: 1001)
+      # FeeEstimator at 100 sat/kB: a 1-input 2-output tx is ~226 bytes
+      # Fee: ceil(226/1000 * 100) = 23 sats
+      # Seed with exactly target + fee (1000 + 23 = 1023)
+      seed_payment_output(wallet, satoshis: 1023)
 
       result = wallet.create_action({
                                       description: 'exact coverage spend test',

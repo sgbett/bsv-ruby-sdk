@@ -5,9 +5,9 @@ require 'bsv-wallet'
 
 RSpec.describe BSV::Wallet::FeeEstimator do
   describe '#initialize' do
-    it 'defaults to 1 sat/kB' do
+    it 'defaults to 100 sat/kB (ARC mining policy)' do
       estimator = described_class.new
-      expect(estimator.sats_per_kb).to eq(1)
+      expect(estimator.sats_per_kb).to eq(100)
     end
 
     it 'accepts a custom rate' do
@@ -35,12 +35,12 @@ RSpec.describe BSV::Wallet::FeeEstimator do
   describe '#estimate' do
     subject(:estimator) { described_class.new }
 
-    context 'with 1 input and 1 output at 1 sat/kB' do
+    context 'with 1 input and 1 output at default 100 sat/kB' do
       # Hand-calculation: 148 + 34 + 4(version) + 1(varint inputs) + 1(varint outputs) + 4(locktime)
       #                 = 148 + 34 + 10 = 192 bytes
-      # Fee: ceil(192 / 1000.0 * 1) = ceil(0.192) = 1 satoshi
-      it 'returns 1 satoshi' do
-        expect(estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(1)
+      # Fee: ceil(192 / 1000.0 * 100) = ceil(19.2) = 20 satoshis
+      it 'returns 20 satoshis' do
+        expect(estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(20)
       end
 
       it 'byte size is exactly 192' do
@@ -50,12 +50,12 @@ RSpec.describe BSV::Wallet::FeeEstimator do
       end
     end
 
-    context 'with 2 inputs and 3 outputs at 1 sat/kB' do
+    context 'with 2 inputs and 3 outputs at default 100 sat/kB' do
       # Hand-calculation: 2*148 + 3*34 + 4 + 1 + 1 + 4
       #                 = 296 + 102 + 10 = 408 bytes
-      # Fee: ceil(408 / 1000.0 * 1) = ceil(0.408) = 1 satoshi
-      it 'returns 1 satoshi' do
-        expect(estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(1)
+      # Fee: ceil(408 / 1000.0 * 100) = ceil(40.8) = 41 satoshis
+      it 'returns 41 satoshis' do
+        expect(estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(41)
       end
 
       it 'byte size is exactly 408 at 1000 sat/kB' do
@@ -163,13 +163,13 @@ RSpec.describe BSV::Wallet::FeeEstimator do
   end
 
   describe '#dust_floor' do
-    context 'with 1 sat/kB (default rate)' do
+    context 'with 100 sat/kB (default rate)' do
       # spend_one_p2pkh_bytes = 1*148 + 1*34 + 4 + 1 + 1 + 4 = 192 bytes
-      # cost = ceil(192/1000 * 1) = 1
-      # dust_floor = max(1, 1 * 2) = 2
-      it 'returns 2 satoshis' do
+      # cost = ceil(192/1000 * 100) = 20
+      # dust_floor = max(1, 20 * 2) = 40
+      it 'returns 40 satoshis' do
         estimator = described_class.new
-        expect(estimator.dust_floor).to eq(2)
+        expect(estimator.dust_floor).to eq(40)
       end
     end
 

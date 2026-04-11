@@ -8,13 +8,13 @@ module BSV
     # fee estimation given only input and output counts. Once a real {Transaction} is
     # available, delegates directly to the underlying SDK fee model via {#estimate_for_tx}.
     #
-    # The default rate is 1 sat/kB — the current BSV network standard. The SDK's own
-    # {SatoshisPerKilobyte} defaults to 100 sat/kB; this class intentionally differs.
+    # The default rate is 100 sat/kB, matching the ARC mining policy endpoint
+    # and the SDK's own {SatoshisPerKilobyte} default.
     #
     # @example Pre-construction estimate
     #   estimator = BSV::Wallet::FeeEstimator.new
     #   fee = estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)
-    #   # => 1 (at 1 sat/kB, ceil(408/1000 * 1) = 1)
+    #   # => 41 (at 100 sat/kB, ceil(408/1000 * 100) = 41)
     #
     # @example Custom rate
     #   estimator = BSV::Wallet::FeeEstimator.new(sats_per_kb: 50)
@@ -39,9 +39,9 @@ module BSV
       # @return [Integer] the satoshis-per-kilobyte rate used for estimation
       attr_reader :sats_per_kb
 
-      # @param sats_per_kb [Integer] fee rate in satoshis per kilobyte (default: 1)
+      # @param sats_per_kb [Integer] fee rate in satoshis per kilobyte (default: 100)
       # @raise [ArgumentError] if sats_per_kb is zero or negative
-      def initialize(sats_per_kb: 1)
+      def initialize(sats_per_kb: 100)
         raise ArgumentError, 'sats_per_kb must be greater than zero' unless sats_per_kb.positive?
 
         @sats_per_kb = sats_per_kb
