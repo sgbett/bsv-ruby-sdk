@@ -1,0 +1,157 @@
+# BSV Ruby SDK
+
+[![CI](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/sgbett/bsv-ruby-sdk/branch/master/graph/badge.svg)](https://codecov.io/gh/sgbett/bsv-ruby-sdk)
+[![Gem Version](https://img.shields.io/gem/v/bsv-sdk)](https://rubygems.org/gems/bsv-sdk)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-red)](https://rubygems.org/gems/bsv-sdk)
+
+Welcome to the BSV Blockchain Libraries Project, the comprehensive Ruby SDK designed to provide an updated and unified layer for developing scalable applications on the BSV Blockchain. This SDK addresses the limitations of previous tools by offering a fresh, peer-to-peer approach, adhering to SPV, and ensuring privacy and scalability.
+
+## Table of Contents
+
+1. [Acknowledgements](#acknowledgements)
+2. [Objective](#objective)
+3. [Getting Started](#getting-started)
+4. [Features & Deliverables](#features--deliverables)
+5. [Documentation](#documentation)
+6. [Contribution Guidelines](#contribution-guidelines)
+7. [Support & Contacts](#support--contacts)
+8. [Licence](#licence)
+
+## Acknowledgements
+
+This Ruby SDK is a port of the official BSV Blockchain SDKs, which serve as its reference implementations. Primitives, script handling, and transaction logic are directly translated from them, adapted for Ruby idioms and conventions.
+
+The reference SDKs:
+
+- [TypeScript SDK](https://github.com/bsv-blockchain/ts-sdk)
+- [Go SDK](https://github.com/bsv-blockchain/go-sdk)
+- [Python SDK](https://github.com/bsv-blockchain/py-sdk)
+
+These are maintained under the BSV Blockchain organisation and backed by the Bitcoin Association. The debt to their contributors is substantial — their clear, robust code made this port both feasible and consistent.
+
+## Objective
+
+The BSV Blockchain Libraries Project aims to structure and maintain a middleware layer of the BSV Blockchain technology stack. By facilitating the development and maintenance of core libraries, it serves as an essential toolkit for developers looking to build on the BSV Blockchain.
+
+This Ruby SDK brings maximum compatibility with the official SDK family to the Ruby ecosystem. It was born from a practical need: building an attestation gem ([bsv-attest](https://rubygems.org/gems/bsv-attest)) required a complete, idiomatic Ruby implementation of BSV primitives, script handling, and transaction construction. Rather than wrapping FFI bindings or shelling out to other languages, the SDK implements everything in pure Ruby. Elliptic curve operations (secp256k1) use a native Ruby implementation ported from the TypeScript reference SDK; OpenSSL is used only for hashing, HMAC, and symmetric encryption.
+
+<!-- TODO: Update bsv-attest link once gem documentation is published (see #48) -->
+
+## Getting Started
+
+### Requirements
+
+- Ruby >= 2.7
+- No external dependencies beyond Ruby's standard library (`openssl` for hashing, HMAC, PBKDF2, and AES)
+
+### Installation
+
+Add to your Gemfile:
+
+```ruby
+gem 'bsv-sdk'
+```
+
+Or install directly:
+
+```bash
+gem install bsv-sdk
+```
+
+### Basic Usage
+
+Create and sign a P2PKH transaction:
+
+```ruby
+require 'bsv-sdk'
+
+# Generate a new private key (or load from WIF)
+priv_key = BSV::Primitives::PrivateKey.generate
+
+# Derive the public key hash for locking scripts
+pubkey_hash = priv_key.public_key.hash160
+locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
+
+# Create a transaction spending a UTXO
+tx = BSV::Transaction::Transaction.new
+
+# Add an input referencing a previous transaction output
+input = BSV::Transaction::TransactionInput.new(
+  prev_tx_id: source_txid_bytes,   # 32-byte binary txid of the UTXO
+  prev_tx_out_index: 0
+)
+input.source_satoshis = 100_000
+input.source_locking_script = locking_script
+tx.add_input(input)
+
+# Add an output sending to the same address (for demonstration)
+tx.add_output(BSV::Transaction::TransactionOutput.new(
+  satoshis: 90_000,
+  locking_script: locking_script
+))
+
+# Sign the input using the P2PKH template
+template = BSV::Transaction::P2PKH.new(priv_key)
+tx.inputs[0].unlocking_script = template.sign(tx, 0)
+
+# The signed transaction is ready to broadcast
+puts tx.to_hex
+```
+
+## Features & Deliverables
+
+- **Cryptographic Primitives** — ECDSA signing with RFC 6979 deterministic nonces, Schnorr signatures, ECIES encryption/decryption, Bitcoin Signed Messages. Elliptic curve operations use a [pure Ruby secp256k1 implementation](docs/about/secp256k1.md) ported from the TypeScript reference SDK.
+- **Key Management** — BIP-32 HD key derivation, BIP-39 mnemonic generation (12/24-word phrases), WIF import/export, Base58Check encoding/decoding.
+- **Script Layer** — Complete opcode set, script parsing and serialisation, type detection and predicates (`p2pkh?`, `p2pk?`, `p2sh?`, `multisig?`, `op_return?`), data extraction (pubkey hashes, script hashes, addresses), and a fluent builder API.
+- **Script Templates** — Ready-made locking and unlocking script generators for P2PKH, P2PK, P2MS (multisig), and OP_RETURN.
+- **Transaction Construction** — Input/output building, BIP-143 sighash computation (all SIGHASH types with FORKID), P2PKH signing, fee estimation.
+- **SPV Structures** — Merkle path construction and verification, BEEF (Background Evaluation Extended Format) serialisation and deserialisation.
+- **Network Integration** — ARC broadcaster for transaction submission, WhatsOnChain chain provider for UTXO queries and fee rates.
+- **Wallet** — Simple wallet that sources UTXOs, estimates fees, funds and signs transactions.
+- **Wallet persistence** — `bsv-wallet` ships `MemoryStore` and `FileStore` for local development. For production deployments that need persistent, multi-instance-safe storage, use [`bsv-wallet-postgres`](docs/guides/wallet-postgres.md) — a PostgreSQL-backed `StorageAdapter` implementation.
+
+## Documentation
+
+Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgbett.github.io/bsv-ruby-sdk/)**.
+
+**Guides:**
+
+- [Getting Started](https://sgbett.github.io/bsv-ruby-sdk/guides/getting-started/) — installation, first transaction
+- [Primitives](https://sgbett.github.io/bsv-ruby-sdk/guides/primitives/) — keys, signing, encryption, HD keys
+- [Script](https://sgbett.github.io/bsv-ruby-sdk/guides/script/) — construction, templates, detection
+- [Transaction](https://sgbett.github.io/bsv-ruby-sdk/guides/transaction/) — building, signing, BEEF
+- [Wallet Postgres](https://sgbett.github.io/bsv-ruby-sdk/guides/wallet-postgres/) — persistent wallet storage for production
+
+**Additional resources:**
+
+- [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/) — auto-generated from YARD annotations
+- [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) — runnable usage examples
+- Changelogs: [sdk](CHANGELOG-sdk.md) · [wallet](CHANGELOG-wallet.md) · [wallet-postgres](CHANGELOG-wallet-postgres.md) · [attest](CHANGELOG-attest.md)
+
+**Protocol reference:**
+
+The [BSV Protocol Documentation](https://hub.bsvblockchain.org/bitcoin-protocol-documentation) on the BSV Hub is the canonical protocol reference — covering transaction format, script opcodes, sighash flags, BEEF/SPV structures, and BRC specifications. The project includes an [MCP](https://modelcontextprotocol.io/) configuration (`.mcp.json`) that connects [Claude Code](https://docs.anthropic.com/en/docs/claude-code) to the hub's search endpoint, giving AI-assisted development sessions direct access to protocol specs during implementation.
+
+## Contribution Guidelines
+
+Contributions are welcome — bug reports, feature requests, and pull requests.
+
+1. **Fork & Clone** — Fork this repository and clone it locally.
+2. **Set Up** — Run `bundle install` to install dependencies.
+3. **Branch** — Create a new branch for your changes.
+4. **Test** — Ensure all specs pass with `bundle exec rake` and lint passes with `bundle exec rubocop`.
+5. **Commit** — Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
+6. **Pull Request** — Open a pull request against `master`.
+
+## Support & Contacts
+
+Maintainer: Simon Bettison
+
+For questions, bug reports, or feature requests, please [open an issue](https://github.com/sgbett/bsv-ruby-sdk/issues) on GitHub.
+
+## Licence
+
+[Open BSV Licence Version 5](LICENCE)
+
+Thank you for being a part of the BSV Blockchain Libraries Project. Let's build the future of BSV Blockchain together!
