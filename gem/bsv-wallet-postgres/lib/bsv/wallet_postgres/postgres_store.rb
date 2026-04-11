@@ -209,6 +209,72 @@ module BSV
         symbolise_keys(row[:data])
       end
 
+      # Atomically marks a set of outpoints as +:pending+.
+      #
+      # Uses +UPDATE ... WHERE state = 'spendable' ... RETURNING outpoint+ so that
+      # the check-and-set is atomic at the database level. A concurrent caller that
+      # wins the race will have already changed the state to 'pending', so the
+      # second caller's WHERE clause will not match and will return nothing. No
+      # explicit row-level locking is needed — the UPDATE itself takes the lock.
+      #
+      # Legacy rows with +state = NULL AND spendable = TRUE+ are also eligible.
+      #
+      # @param outpoints [Array<String>] outpoint identifiers to lock
+      # @param reference [String] caller-supplied pending reference
+      # @param no_send [Boolean] true if this is a no_send lock
+      # @return [Array<String>] outpoints that were actually locked
+      def lock_utxos(outpoints, reference:, no_send: false)
+        return [] if outpoints.empty?
+
+        rows = @db[:wallet_outputs]
+               .where(outpoint: outpoints)
+               .where(Sequel.lit('(state = ? OR (state IS NULL AND spendable = TRUE))', 'spendable'))
+               .returning(:outpoint)
+               .update(
+                 state: 'pending',
+                 pending_since: Sequel.lit('NOW()'),
+                 pending_reference: reference,
+                 no_send: no_send ? true : false,
+                 data: Sequel.lit(
+                   "data || jsonb_build_object('state', 'pending', 'pending_since', NOW()::text, " \
+                   "'pending_reference', ?, 'no_send', ?)",
+                   reference, no_send ? true : false
+                 )
+               )
+
+        rows.map { |r| r[:outpoint] }
+      end
+
+      # Releases stale pending locks back to +:spendable+.
+      #
+      # Any output in +:pending+ state whose +pending_since+ is older than
+      # +timeout+ seconds is reset to +spendable+ and its pending metadata is
+      # cleared. Outputs with +no_send = true+ are exempt and remain pending.
+      # Outputs with +pending_since = NULL+ are also skipped — they are treated
+      # as freshly locked (NULL means "just acquired but no timestamp yet").
+      #
+      # @param timeout [Integer] age in seconds before a lock is considered stale (default 300)
+      # @return [Integer] number of outputs released
+      def release_stale_pending!(timeout: 300)
+        rows = @db[:wallet_outputs]
+               .where(state: 'pending')
+               .where(Sequel.lit('no_send IS NOT TRUE'))
+               .where(Sequel.lit('pending_since IS NOT NULL'))
+               .where(Sequel.lit('pending_since < (NOW() - INTERVAL ?)', "#{timeout} seconds"))
+               .returning(:outpoint)
+               .update(
+                 state: 'spendable',
+                 pending_since: nil,
+                 pending_reference: nil,
+                 no_send: false,
+                 data: Sequel.lit(
+                   "(data - 'pending_since' - 'pending_reference' - 'no_send') || jsonb_build_object('state', 'spendable')"
+                 )
+               )
+
+        rows.length
+      end
+
       # --- Certificates ---
 
       def store_certificate(cert_data)
