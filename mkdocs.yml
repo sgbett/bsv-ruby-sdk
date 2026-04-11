@@ -51,6 +51,7 @@ nav:
       - Script: guides/script.md
       - Transaction: guides/transaction.md
       - Network: guides/network.md
+      - MCP Server: guides/mcp.md
       - Naming Conventions: guides/naming-conventions.md
       - Wallet Postgres: guides/wallet-postgres.md
   - About:

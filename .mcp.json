@@ -1,5 +1,10 @@
 {
   "mcpServers": {
+    "bsv-sdk": {
+      "command": "bundle",
+      "args": ["exec", "bsv-mcp"],
+      "cwd": "/opt/ruby/bsv-ruby-sdk/gem/bsv-sdk"
+    },
     "bsv-protocol-docs": {
       "type": "http",
       "url": "https://hub.bsvblockchain.org/bitcoin-protocol-documentation/~gitbook/mcp"
