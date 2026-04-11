@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # rubocop:disable RSpec/MultipleDescribes
 
 RSpec.describe BSV::Transaction::ChainTrackers::Chaintracks do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::VarInt do
   describe '.encode' do
     it 'encodes values 0-252 as a single byte' do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe 'BSV::Identity::IdentityParser' do
   subject(:parser) { BSV::Identity::IdentityParser }
 

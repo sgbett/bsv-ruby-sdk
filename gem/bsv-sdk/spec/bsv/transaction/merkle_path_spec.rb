@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::MerklePath do
   # Go SDK test vector (BRC-74)
   let(:brc74_hex) do

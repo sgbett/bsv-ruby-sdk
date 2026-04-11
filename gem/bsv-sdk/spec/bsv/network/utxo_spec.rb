@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Network::UTXO do
   subject(:utxo) do
     described_class.new(tx_hash: 'abcd1234', tx_pos: 0, satoshis: 50_000, height: 800_000)

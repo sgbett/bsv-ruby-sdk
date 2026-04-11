@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe 'BSV::Registry::Constants' do
   describe 'topic names' do
     it 'defines TOPIC_BASKET' do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Network::BroadcastError do
   it 'is a StandardError' do
     expect(described_class).to be < StandardError

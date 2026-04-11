@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Script::Opcodes do
   describe 'constants' do
     it 'defines OP_0 as 0x00' do

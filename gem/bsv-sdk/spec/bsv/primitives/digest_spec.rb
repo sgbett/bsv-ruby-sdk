@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::Digest do
   describe '.sha256' do
     it 'hashes "abc" correctly' do

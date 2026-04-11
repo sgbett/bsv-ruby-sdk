@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::ECIES do
   # TypeScript SDK test vector keys
   let(:alice_privkey) { BSV::Primitives::PrivateKey.from_hex('77e06abc52bf065cb5164c5deca839d0276911991a2730be4d8d0a0307de7ceb') }

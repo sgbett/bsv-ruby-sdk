@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Constants defined at spec-file scope to avoid Lint/ConstantDefinitionInBlock.
 REGISTRY_SPEC_IDENTITY_KEY   = "02#{'ab' * 32}"
 REGISTRY_SPEC_TXID           = 'cd' * 32

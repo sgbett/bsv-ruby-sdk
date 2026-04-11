@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Defensive parsing tests: ensure every from_binary method raises ArgumentError
 # with a descriptive message when given truncated input, rather than producing
 # NoMethodError or returning corrupt data.

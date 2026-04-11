@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
   subject(:tool) { BSV::MCP::Tools::CheckBalance }
 

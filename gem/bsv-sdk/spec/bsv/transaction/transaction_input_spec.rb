@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::TransactionInput do
   let(:txid_hex) { 'a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458' }
   let(:txid_internal) { described_class.txid_from_hex(txid_hex) }

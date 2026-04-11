@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::Transaction do
   describe '#fee' do
     let(:priv) { BSV::Primitives::PrivateKey.generate }

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::Transaction do
   describe 'Extended Format (EF) serialisation' do
     # Go SDK test vector — a signed P2PKH transaction with 1 input, 1 output

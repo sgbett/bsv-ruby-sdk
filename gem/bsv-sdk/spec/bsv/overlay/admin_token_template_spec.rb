@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 require 'bsv-sdk'
 require 'bsv-wallet'
 

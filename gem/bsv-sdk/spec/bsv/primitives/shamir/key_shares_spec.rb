@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::KeyShares do
   let(:point_a) { BSV::Primitives::PointInFiniteField.new(OpenSSL::BN.new('0'), OpenSSL::BN.new('1')) }
   let(:point_b) { BSV::Primitives::PointInFiniteField.new(OpenSSL::BN.new('1'), OpenSSL::BN.new('2')) }

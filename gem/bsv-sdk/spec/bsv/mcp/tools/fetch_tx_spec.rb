@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe 'BSV::MCP::Tools::FetchTx' do
   subject(:tool) { BSV::MCP::Tools::FetchTx }
 

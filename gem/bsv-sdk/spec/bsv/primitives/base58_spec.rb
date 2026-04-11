@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::Base58 do
   describe '.encode / .decode' do
     it 'round-trips arbitrary bytes' do

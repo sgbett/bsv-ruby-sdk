@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Official BIP-39 test vectors from trezor/python-mnemonic
 # All use passphrase "TREZOR" for seed derivation
 module MnemonicTestVectors

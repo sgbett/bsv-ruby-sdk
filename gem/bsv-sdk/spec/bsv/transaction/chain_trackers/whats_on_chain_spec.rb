@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
   let(:http_client) { instance_double(Net::HTTP) }
   let(:tracker) { described_class.new(http_client: http_client) }

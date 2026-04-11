@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Wallet::InsufficientFundsError do
   it 'is a StandardError subclass' do
     expect(described_class).to be < StandardError

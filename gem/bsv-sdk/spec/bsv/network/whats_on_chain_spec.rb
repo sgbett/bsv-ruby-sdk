@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Network::WhatsOnChain do
   # Mock HTTP client that stores the last request and returns a configurable response
   let(:mock_http) do

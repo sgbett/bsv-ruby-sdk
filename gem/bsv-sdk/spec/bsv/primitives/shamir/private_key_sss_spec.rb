@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::PrivateKey do
   let(:key) { described_class.from_hex('eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694') }
 

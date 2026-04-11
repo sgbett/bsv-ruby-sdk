@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Cross-validation of transaction serialisation against TS SDK test vectors.
 # Source: bsv-blockchain/ts-sdk src/transaction/__tests/tx.valid.vectors.ts
 #

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Script::Interpreter do
   def build_interpreter
     empty = BSV::Script::Script.new

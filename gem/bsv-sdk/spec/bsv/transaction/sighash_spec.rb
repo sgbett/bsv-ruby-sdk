@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::Sighash do
   it 'defines ALL as 0x01' do
     expect(described_class::ALL).to eq(0x01)

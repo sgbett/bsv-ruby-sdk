@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::ChainTracker do
   subject(:tracker) { described_class.new }
 

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Specs for A6 interpreter hardening findings (HLR #318).
 # Covers: F7.18 stack memory limit, F7.11 minimal encoding default,
 # F7.9 NULLFAIL no-tx path, F7.8 CHECKMULTISIG key cap removal,

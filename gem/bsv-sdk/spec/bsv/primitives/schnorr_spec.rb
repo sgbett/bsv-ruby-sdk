@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::Schnorr do
   let(:key_a) { BSV::Primitives::PrivateKey.from_hex('1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef') }
   let(:key_b) { BSV::Primitives::PrivateKey.from_hex('fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321') }

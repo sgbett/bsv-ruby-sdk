@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::PointInFiniteField do
   let(:p) { described_class::P }
   let(:x_bn) { OpenSSL::BN.new('10') }

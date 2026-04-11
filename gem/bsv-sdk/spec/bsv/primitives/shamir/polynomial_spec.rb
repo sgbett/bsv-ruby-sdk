@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::Polynomial do
   # Static test vectors verified against the Go SDK test suite.
   # These values are taken directly from polynomial_test.go in the go-sdk.

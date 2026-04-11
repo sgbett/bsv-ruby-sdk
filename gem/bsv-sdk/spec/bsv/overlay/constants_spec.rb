@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe 'BSV::Overlay::Constants' do
   subject(:constants) { BSV::Overlay::Constants }
 

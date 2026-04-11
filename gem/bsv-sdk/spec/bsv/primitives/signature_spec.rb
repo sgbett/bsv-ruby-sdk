@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::Signature do
   # Known DER signature from Go SDK test vectors
   let(:der_hex) do

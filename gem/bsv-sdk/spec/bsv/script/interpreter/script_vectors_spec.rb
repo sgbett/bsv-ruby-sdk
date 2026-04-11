@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Bitcoin Core script test vectors from the Go SDK.
 # Source: bitcoin-sv/go-sdk script/interpreter/data/script_tests.json
 #

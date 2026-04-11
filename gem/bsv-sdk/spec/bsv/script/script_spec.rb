@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Script::Script do
   # Known P2PKH locking script for the generator point pubkey
   let(:p2pkh_hash) { ['751e76e8199196d454941c45d1b3a323f1433bd6'].pack('H*') }

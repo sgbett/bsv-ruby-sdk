@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
   subject(:tool) { BSV::MCP::Tools::BroadcastP2pkh }
 

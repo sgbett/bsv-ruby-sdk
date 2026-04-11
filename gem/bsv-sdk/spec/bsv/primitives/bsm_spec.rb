@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::BSM do
   # Go SDK test vectors — compressed key signatures
   let(:go_vectors) do

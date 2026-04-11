@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # rubocop:disable RSpec/DescribeClass
 RSpec.describe 'BSV::Overlay types' do
   describe BSV::Overlay::TaggedBEEF do

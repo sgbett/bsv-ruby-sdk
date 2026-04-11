@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Cross-validation of BSV::Primitives::Digest against authoritative
 # standard test vectors (NIST CAVP, RFC 4231, ISO/IEC 10118-3).
 

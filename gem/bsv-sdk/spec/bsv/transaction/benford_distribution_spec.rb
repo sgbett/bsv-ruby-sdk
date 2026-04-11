@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Statistical validation of the Benford-inspired change distribution.
 #
 # These specs verify the statistical properties of the `benford_number` helper

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::Transaction do
   describe '#benford_number(min, max)' do
     def ts_sdk_reference_benford_number_scaler(min, max, rnd)

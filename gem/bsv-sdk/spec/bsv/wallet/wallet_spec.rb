@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Wallet::Wallet do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:public_key) { private_key.public_key }

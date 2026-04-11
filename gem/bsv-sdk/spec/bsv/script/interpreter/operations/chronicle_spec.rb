@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # rubocop:disable RSpec/DescribeClass
 RSpec.describe 'Chronicle opcodes' do
   def evaluate(unlock_asm, lock_asm)

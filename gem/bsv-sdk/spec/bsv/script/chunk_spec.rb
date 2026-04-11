@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Script::Chunk do
   describe '#to_binary' do
     it 'serialises a bare opcode' do

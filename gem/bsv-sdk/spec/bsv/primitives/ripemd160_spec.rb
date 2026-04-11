@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Official test vectors from the RIPEMD-160 specification:
 # https://homes.esat.kuleuven.be/~bosselae/ripemd160/
 RIPEMD160_VECTORS = [

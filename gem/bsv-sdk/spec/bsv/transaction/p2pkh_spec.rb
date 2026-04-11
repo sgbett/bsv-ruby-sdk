@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::P2PKH do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:pubkey_hash) { private_key.public_key.hash160 }

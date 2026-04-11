@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::ExtendedKey do
   # BIP-32 Test Vector 1
   # https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#test-vector-1

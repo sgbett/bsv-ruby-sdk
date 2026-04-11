@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # Constants used across the describe blocks — defined at spec-file scope
 # to avoid Lint/ConstantDefinitionInBlock.
 IDENTITY_CLIENT_SPEC_PUBKEY = "02#{'ab' * 32}"

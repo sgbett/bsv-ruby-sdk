@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::Transaction do
   # Go SDK test vector: 1 input, 2 outputs
   let(:vector1_hex) do

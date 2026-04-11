@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 require 'base64'
 
 RSpec.describe BSV::Transaction::Beef do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Network::BroadcastResponse do
   describe '#initialize' do
     it 'accepts all ARC response fields' do

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 # rubocop:disable RSpec/DescribeClass
 RSpec.describe 'BSV::Identity types' do
   describe BSV::Identity::DisplayableIdentity do

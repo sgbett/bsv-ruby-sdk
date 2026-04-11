@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Script::ScriptNumber do
   describe '.from_bytes / #to_bytes round-trip' do
     # Test vectors from Go SDK (number.go documentation)

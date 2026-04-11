@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Script::Builder do
   describe '#push_op' do
     it 'appends an opcode by symbol' do

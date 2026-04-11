@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::Curve do
   describe 'constants' do
     it 'defines GROUP as secp256k1' do

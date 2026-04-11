@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::TransactionOutput do
   let(:p2pkh_hash) { ['751e76e8199196d454941c45d1b3a323f1433bd6'].pack('H*') }
   let(:locking_script) { BSV::Script::Script.p2pkh_lock(p2pkh_hash) }

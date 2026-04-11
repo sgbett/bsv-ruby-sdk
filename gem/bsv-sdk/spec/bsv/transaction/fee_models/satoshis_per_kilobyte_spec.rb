@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do
   describe '#compute_fee' do
     it 'computes fee for a 1 KB transaction at default rate' do

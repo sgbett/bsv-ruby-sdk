@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 require_relative 'compliance_helper'
 
 RSpec.describe 'OpenSSL EC Shim Compliance: Point infinity' do

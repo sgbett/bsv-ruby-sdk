@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Primitives::ECDSA do
   # Go SDK test vector (from Trezor/CoreBitcoin)
   let(:privkey_hex) { 'cca9fbcc1b41e5a95d369eaa6ddcff73b61a4efaa279cfc6567e8daa39cbaf50' }
