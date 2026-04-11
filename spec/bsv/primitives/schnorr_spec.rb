@@ -143,6 +143,68 @@ RSpec.describe BSV::Primitives::Schnorr do
     end
   end
 
+  describe 'Proof.from_binary' do
+    let(:proof) { described_class.generate_proof(key_a, pub_a, pub_b, shared_secret) }
+
+    it 'round-trips a proof through fixed 32-byte z (Ruby serialisation)' do
+      z_bytes = proof.z.to_s(2)
+      z_bytes = ("\x00".b * (32 - z_bytes.length)) + z_bytes if z_bytes.length < 32
+      bin = proof.r.compressed + proof.s_prime.compressed + z_bytes
+
+      decoded = BSV::Primitives::Schnorr::Proof.from_binary(bin)
+
+      expect(decoded.r.compressed).to eq(proof.r.compressed)
+      expect(decoded.s_prime.compressed).to eq(proof.s_prime.compressed)
+      expect(decoded.z).to eq(proof.z)
+    end
+
+    it 'decodes a proof with minimal z (TS SDK serialisation)' do
+      # TS SDK uses z.toArray() which strips leading zeros
+      z_bytes = proof.z.to_s(2) # minimal big-endian, no padding
+      bin = proof.r.compressed + proof.s_prime.compressed + z_bytes
+
+      decoded = BSV::Primitives::Schnorr::Proof.from_binary(bin)
+
+      expect(decoded.z).to eq(proof.z)
+      expect(described_class.verify_proof(pub_a, pub_b, shared_secret, decoded)).to be true
+    end
+
+    it 'verifies a round-tripped proof' do
+      z_bytes = proof.z.to_s(2)
+      z_bytes = ("\x00".b * (32 - z_bytes.length)) + z_bytes if z_bytes.length < 32
+      bin = proof.r.compressed + proof.s_prime.compressed + z_bytes
+
+      decoded = BSV::Primitives::Schnorr::Proof.from_binary(bin)
+      expect(described_class.verify_proof(pub_a, pub_b, shared_secret, decoded)).to be true
+    end
+
+    it 'decodes identically whether z has leading zeros or not (the 1-in-256 case)' do
+      # Force a z value whose 32-byte encoding has a leading \x00
+      z_with_leading_zero = OpenSSL::BN.new('00ff' + 'ab' * 30, 16)
+      fake_proof = BSV::Primitives::Schnorr::Proof.new(proof.r, proof.s_prime, z_with_leading_zero)
+
+      fixed = fake_proof.z.to_s(2)
+      fixed = ("\x00".b * (32 - fixed.length)) + fixed if fixed.length < 32
+      minimal = fake_proof.z.to_s(2)
+
+      expect(fixed.bytesize).to eq(32)
+      expect(minimal.bytesize).to eq(31)
+
+      bin_fixed = proof.r.compressed + proof.s_prime.compressed + fixed
+      bin_minimal = proof.r.compressed + proof.s_prime.compressed + minimal
+
+      decoded_fixed = BSV::Primitives::Schnorr::Proof.from_binary(bin_fixed)
+      decoded_minimal = BSV::Primitives::Schnorr::Proof.from_binary(bin_minimal)
+
+      expect(decoded_fixed.z).to eq(decoded_minimal.z)
+    end
+
+    it 'raises ArgumentError for data shorter than 67 bytes' do
+      expect { BSV::Primitives::Schnorr::Proof.from_binary("\x00" * 66) }
+        .to raise_error(ArgumentError, /too short/)
+    end
+  end
+
   describe 'edge cases' do
     it 'fails verification when proof is generated with wrong private key' do
       wrong_key = BSV::Primitives::PrivateKey.generate
