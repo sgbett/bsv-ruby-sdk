@@ -21,8 +21,21 @@ module BSV
         ::MCP::Server.new(
           name: 'bsv-sdk',
           version: BSV::VERSION,
-          instructions: server_instructions(config)
+          instructions: server_instructions(config),
+          tools: registered_tools
         )
+      end
+
+      # Returns the list of tool classes registered with this server.
+      #
+      # @return [Array<Class>] tool classes inheriting from MCP::Tool
+      def self.registered_tools
+        [
+          Tools::GenerateKey,
+          Tools::DecodeTx,
+          Tools::FetchUtxos,
+          Tools::FetchTx
+        ]
       end
 
       # Starts the MCP server over stdio using the standard StdioTransport.

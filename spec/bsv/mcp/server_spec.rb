@@ -24,8 +24,9 @@ RSpec.describe BSV::MCP::Server do
       expect(server.instructions).to include(config.network)
     end
 
-    it 'starts with an empty tool list' do
-      expect(server.tools).to be_empty
+    it 'registers all four read-only tools' do
+      tool_names = server.tools.keys
+      expect(tool_names).to include('generate_key', 'decode_tx', 'fetch_utxos', 'fetch_tx')
     end
 
     it 'uses Config.new when no config is given' do
