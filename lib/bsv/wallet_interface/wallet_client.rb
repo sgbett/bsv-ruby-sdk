@@ -548,6 +548,10 @@ module BSV
       # Guards against stack overflow on pathologically deep or cyclic chains.
       ANCESTOR_DEPTH_CAP = 64
 
+      # Rate-limits stale pending recovery to avoid O(n) scans on every
+      # auto-fund call. Skips if called again within this interval.
+      STALE_CHECK_INTERVAL = 30
+
       private
 
       # --- Identity helpers ---
@@ -800,14 +804,14 @@ module BSV
         wire_source_from_storage(input, utxo[:outpoint])
 
         priv = if utxo[:derivation_type] == :identity
-                  @key_deriver.root_key
-                else
-                  @key_deriver.derive_private_key(
-                    ChangeGenerator::BRC29_PROTOCOL_ID,
-                    "#{utxo[:derivation_prefix]} #{utxo[:derivation_suffix]}",
-                    utxo[:sender_identity_key]
-                  )
-                end
+                 @key_deriver.root_key
+               else
+                 @key_deriver.derive_private_key(
+                   ChangeGenerator::BRC29_PROTOCOL_ID,
+                   "#{utxo[:derivation_prefix]} #{utxo[:derivation_suffix]}",
+                   utxo[:sender_identity_key]
+                 )
+               end
         input.unlocking_script_template = BSV::Transaction::P2PKH.new(priv)
 
         tx.add_input(input)
@@ -1099,10 +1103,6 @@ module BSV
       #
       # @param outpoints [Array<String>] list of outpoints to release
       # @param ref [String] the reference used when locking
-      # Rate-limits stale pending recovery to avoid O(n) scans on every
-      # auto-fund call. Skips if called again within +STALE_CHECK_INTERVAL+.
-      STALE_CHECK_INTERVAL = 30
-
       def release_stale_if_due
         now = Time.now.utc
         return if @last_stale_check && (now - @last_stale_check) < STALE_CHECK_INTERVAL
