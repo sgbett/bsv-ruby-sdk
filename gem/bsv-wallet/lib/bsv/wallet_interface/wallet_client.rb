@@ -1281,6 +1281,7 @@ module BSV
                                 outpoint: "#{txid}.#{output_index}",
                                 satoshis: tx_output.satoshis,
                                 locking_script: tx_output.locking_script.to_hex,
+                                basket: 'default',
                                 spendable: true,
                                 sender_identity_key: sender_key,
                                 derivation_prefix: prefix,
