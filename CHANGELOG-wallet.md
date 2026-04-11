@@ -5,6 +5,71 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 — 2026-04-11
+
+Native UTXO management, coin selection, and automatic change handling.
+The wallet can now fund transactions end-to-end without an external
+wallet server — `create_action` with outputs but no inputs triggers
+automatic UTXO selection, fee estimation, and change generation.
+
+### Added
+
+- **UTXO management pipeline** (#264, #265–#272): complete transaction-
+  funding pipeline with `CoinSelector` (exact-match, smallest-sufficient,
+  largest-first strategies), `ChangeGenerator` (BRC-29 multi-output change
+  with dust consolidation, randomised splits, pool-health-aware output
+  caps), and `FeeEstimator` (size-based sats/kB with ceil rounding).
+- **`WhatsOnChainProvider`**: chain UTXO discovery via the WhatsOnChain API,
+  implementing `sync_utxos` for on-chain balance loading.
+- **StorageAdapter extensions**: 6 new interface methods —
+  `update_output_state`, `lock_utxos`, `find_spendable_outputs`,
+  `release_stale_pending!`, `store_setting`, `find_setting`. All default
+  to `NotImplementedError`; `MemoryStore` and `FileStore` implement them.
+- **Atomic UTXO locking**: `lock_utxos` checks and marks outputs as
+  `:pending` within a single mutex hold, closing the TOCTOU race where two
+  threads could select the same UTXO.
+- **Pending state management**: outputs transition through `:spendable` →
+  `:pending` → `:spent`, with timestamps and caller references for stale
+  lock recovery.
+- **Auto-funding in `create_action`**: when given outputs without inputs,
+  the wallet selects UTXOs, estimates fees, generates change outputs, and
+  locks inputs automatically.
+- **`set_wallet_change_params`**: configures target UTXO count and value
+  for the change pool.
+
+### Fixed
+
+- **Identity UTXO filter alignment**: `sync_utxos` stores
+  `derivation_type: :identity` but auto-fund filtered on a field that was
+  never set. Fixed the filter and added a signing branch that uses
+  `root_key` directly for identity UTXOs.
+- **`tx_pos` bounds validation in `sync_utxos`**: untrusted WhatsOnChain
+  API responses with negative or out-of-bounds `tx_pos` could exploit
+  Ruby's negative array indexing or raise `NoMethodError` on nil. Now
+  validates before use.
+- **Stale pending recovery rate-limited**: `release_stale_pending!` now
+  skips if invoked within 30 seconds, preventing O(n) output scans on
+  every `create_action` call.
+- **`no_send` change outputs stored as `:pending`**, matching the TS SDK
+  where `noSend` outputs have `spendable: false`. Prevents them from
+  being auto-selected by concurrent `create_action` calls.
+- **`abort_action` cleans up change outputs** created by the aborted
+  transaction, matching TS SDK behaviour.
+- **Nil state guard**: `effective_state` handles `state: nil` (from NULL
+  DB column) without raising `NoMethodError`.
+- **`change_params` wiring**: stored change params and pool size are now
+  wired into `converge_change` so `set_wallet_change_params` actually
+  affects auto-fund output count.
+
+### Changed
+
+- **`FeeModel` consolidated into `FeeEstimator`**: `FeeModel` is now a
+  backward-compatible alias for `FeeEstimator`, which is the canonical
+  implementation with dust floor, varint handling, and extra-bytes
+  support.
+- **`BRC29_PROTOCOL_ID` constant** replaces hardcoded protocol ID in
+  `internalize_payment`.
+
 ## 0.4.0 — 2026-04-10
 
 ### Added
