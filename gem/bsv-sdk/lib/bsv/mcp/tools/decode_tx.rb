@@ -49,55 +49,15 @@ module BSV
 
         def self.call(hex:, **)
           tx = BSV::Transaction::Transaction.from_hex(hex)
-          result = transaction_to_h(tx)
+          result = Helpers.transaction_to_h(tx)
 
           ::MCP::Tool::Response.new(
             [::MCP::Content::Text.new(result.to_json)],
             structured_content: result
           )
         rescue ArgumentError => e
-          error_result = { error: e.message }
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(error_result.to_json)],
-            error: true
-          )
+          Helpers.error_response(e.message)
         end
-
-        # @api private
-        def self.transaction_to_h(tx)
-          {
-            txid: tx.txid_hex,
-            version: tx.version,
-            lock_time: tx.lock_time,
-            inputs: tx.inputs.each_with_index.map { |inp, i| input_to_h(inp, i) },
-            outputs: tx.outputs.each_with_index.map { |out, i| output_to_h(out, i) }
-          }
-        end
-        private_class_method :transaction_to_h
-
-        def self.input_to_h(input, _index)
-          unlock_script = input.unlocking_script
-          {
-            prev_txid: input.prev_tx_id.reverse.unpack1('H*'),
-            vout: input.prev_tx_out_index,
-            script_hex: unlock_script ? unlock_script.to_hex : '',
-            script_asm: unlock_script ? unlock_script.to_asm : '',
-            sequence: input.sequence
-          }
-        end
-        private_class_method :input_to_h
-
-        def self.output_to_h(output, index)
-          script = output.locking_script
-          {
-            index: index,
-            satoshis: output.satoshis,
-            script_hex: script ? script.to_hex : '',
-            script_asm: script ? script.to_asm : '',
-            script_type: script ? script.type : 'empty'
-          }
-        end
-        private_class_method :output_to_h
       end
     end
   end

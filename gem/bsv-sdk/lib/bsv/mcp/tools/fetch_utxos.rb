@@ -49,14 +49,14 @@ module BSV
         )
 
         def self.call(address:, network: nil, server_context: nil)
-          net_sym = resolve_network_sym(network, server_context)
+          net_sym = Helpers.resolve_network_sym(network, server_context)
           woc = BSV::Network::WhatsOnChain.new(network: net_sym)
           utxos = woc.fetch_utxos(address)
 
           result = {
             address: address,
             network: net_sym.to_s,
-            utxos: utxos.map { |u| utxo_to_h(u) }
+            utxos: utxos.map { |u| Helpers.utxo_to_h(u) }
           }
 
           ::MCP::Tool::Response.new(
@@ -64,30 +64,8 @@ module BSV
             structured_content: result
           )
         rescue BSV::Network::ChainProviderError => e
-          error_result = { error: e.message, status_code: e.status_code }
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(error_result.to_json)],
-            error: true
-          )
+          Helpers.error_response("#{e.message} (HTTP #{e.status_code})")
         end
-
-        # @api private
-        def self.resolve_network_sym(network_arg, server_context)
-          net = network_arg
-          net = server_context[:bsv_network] if net.nil? && server_context.is_a?(Hash) && server_context[:bsv_network]
-          net == 'testnet' ? :testnet : :mainnet
-        end
-        private_class_method :resolve_network_sym
-
-        def self.utxo_to_h(utxo)
-          {
-            tx_hash: utxo.tx_hash,
-            tx_pos: utxo.tx_pos,
-            satoshis: utxo.satoshis,
-            height: utxo.height
-          }
-        end
-        private_class_method :utxo_to_h
       end
     end
   end

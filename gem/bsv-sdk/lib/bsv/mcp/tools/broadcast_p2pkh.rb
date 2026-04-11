@@ -86,7 +86,7 @@ module BSV
         DUST_THRESHOLD = 546
 
         def self.call(wif:, to_address:, satoshis:, network: nil, server_context: nil)
-          net_sym = resolve_network_sym(network, server_context)
+          net_sym = Helpers.resolve_network_sym(network, server_context)
 
           private_key = BSV::Primitives::PrivateKey.from_wif(wif)
           sender_address = private_key.public_key.address(network: net_sym)
@@ -94,12 +94,12 @@ module BSV
           woc = BSV::Network::WhatsOnChain.new(network: net_sym)
           all_utxos = woc.fetch_utxos(sender_address)
 
-          return error_response('No UTXOs found for sender address — the address may have no funds') if all_utxos.empty?
+          return Helpers.error_response('No UTXOs found for sender address — the address may have no funds') if all_utxos.empty?
 
           # Greedy UTXO selection: sort descending, take until sufficient
           sorted = all_utxos.sort_by { |u| -u.satoshis }
           selected = select_utxos(sorted, satoshis)
-          return error_response("Insufficient funds — available: #{all_utxos.sum(&:satoshis)} satoshis") if selected.nil?
+          return Helpers.error_response("Insufficient funds — available: #{all_utxos.sum(&:satoshis)} satoshis") if selected.nil?
 
           tx = build_transaction(selected, satoshis, to_address, sender_address, private_key)
 
@@ -117,20 +117,12 @@ module BSV
             structured_content: result
           )
         rescue ArgumentError => e
-          error_response(e.message)
+          Helpers.error_response(e.message)
         rescue BSV::Network::ChainProviderError => e
-          error_response("UTXO fetch failed: #{e.message}")
+          Helpers.error_response("UTXO fetch failed: #{e.message}")
         rescue BSV::Network::BroadcastError => e
-          error_response("Broadcast failed: #{e.message}")
+          Helpers.error_response("Broadcast failed: #{e.message}")
         end
-
-        # @api private
-        def self.resolve_network_sym(network_arg, server_context)
-          net = network_arg
-          net = server_context[:bsv_network] if net.nil? && server_context.is_a?(Hash) && server_context[:bsv_network]
-          net == 'testnet' ? :testnet : :mainnet
-        end
-        private_class_method :resolve_network_sym
 
         # Select UTXOs greedily until the total meets or exceeds the target.
         # Returns nil when total funds are insufficient.
@@ -213,15 +205,6 @@ module BSV
           BSV::Network::ARC.default(testnet: testnet, **opts)
         end
         private_class_method :build_arc
-
-        def self.error_response(message)
-          payload = { error: message }
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(payload.to_json)],
-            error: true
-          )
-        end
-        private_class_method :error_response
       end
     end
   end

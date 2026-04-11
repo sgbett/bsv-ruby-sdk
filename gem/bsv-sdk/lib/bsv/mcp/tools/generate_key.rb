@@ -39,8 +39,7 @@ module BSV
         )
 
         def self.call(network: nil, server_context: nil)
-          net = resolve_network(network, server_context)
-          net_sym = net == 'testnet' ? :testnet : :mainnet
+          net_sym = Helpers.resolve_network_sym(network, server_context)
 
           key = BSV::Primitives::PrivateKey.generate
           pub = key.public_key
@@ -49,7 +48,7 @@ module BSV
             wif: key.to_wif(network: net_sym),
             public_key_hex: pub.to_hex,
             address: pub.address(network: net_sym),
-            network: net
+            network: net_sym.to_s
           }
 
           ::MCP::Tool::Response.new(
@@ -57,17 +56,6 @@ module BSV
             structured_content: result
           )
         end
-
-        # @api private
-        def self.resolve_network(network_arg, server_context)
-          return network_arg if network_arg
-
-          # Extract from server_context if it carries BSV config
-          return server_context[:bsv_network] if server_context.is_a?(Hash) && server_context[:bsv_network]
-
-          BSV::MCP::Config::MAINNET
-        end
-        private_class_method :resolve_network
       end
     end
   end

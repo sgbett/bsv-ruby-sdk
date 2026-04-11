@@ -109,9 +109,9 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
         expect(result[:error]).not_to be_empty
       end
 
-      it 'includes the HTTP status code' do
+      it 'includes the HTTP status code in the error message' do
         result = JSON.parse(tool.call(txid: 'unknowntxid').content.first.text, symbolize_names: true)
-        expect(result[:status_code]).to eq(404)
+        expect(result[:error]).to include('404')
       end
     end
 

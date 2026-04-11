@@ -56,7 +56,7 @@ module BSV
         )
 
         def self.call(address_or_wif:, network: nil, server_context: nil)
-          net_sym = resolve_network_sym(network, server_context)
+          net_sym = Helpers.resolve_network_sym(network, server_context)
           address = resolve_address(address_or_wif, net_sym)
 
           woc = BSV::Network::WhatsOnChain.new(network: net_sym)
@@ -68,7 +68,7 @@ module BSV
             network: net_sym.to_s,
             balance_satoshis: balance,
             utxo_count: utxos.length,
-            utxos: utxos.map { |u| utxo_to_h(u) }
+            utxos: utxos.map { |u| Helpers.utxo_to_h(u) }
           }
 
           ::MCP::Tool::Response.new(
@@ -76,31 +76,12 @@ module BSV
             structured_content: result
           )
         rescue ArgumentError => e
-          error_result = { error: e.message }
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(error_result.to_json)],
-            error: true
-          )
+          Helpers.error_response(e.message)
         rescue BSV::Network::ChainProviderError => e
-          error_result = { error: e.message, status_code: e.status_code }
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(error_result.to_json)],
-            error: true
-          )
+          Helpers.error_response("#{e.message} (HTTP #{e.status_code})")
         end
-
-        # @api private
-        def self.resolve_network_sym(network_arg, server_context)
-          net = network_arg
-          net = server_context[:bsv_network] if net.nil? && server_context.is_a?(Hash) && server_context[:bsv_network]
-          net == 'testnet' ? :testnet : :mainnet
-        end
-        private_class_method :resolve_network_sym
 
         # Resolve a WIF key or address string to a P2PKH address.
-        #
-        # Attempts WIF decoding first; if that raises ArgumentError, treats the
-        # input as a plain address string.
         # @api private
         def self.resolve_address(address_or_wif, net_sym)
           key = BSV::Primitives::PrivateKey.from_wif(address_or_wif)
@@ -109,16 +90,6 @@ module BSV
           address_or_wif
         end
         private_class_method :resolve_address
-
-        def self.utxo_to_h(utxo)
-          {
-            tx_hash: utxo.tx_hash,
-            tx_pos: utxo.tx_pos,
-            satoshis: utxo.satoshis,
-            height: utxo.height
-          }
-        end
-        private_class_method :utxo_to_h
       end
     end
   end

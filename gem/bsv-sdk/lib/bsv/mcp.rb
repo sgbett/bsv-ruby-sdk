@@ -6,6 +6,7 @@ module BSV
     autoload :Server, 'bsv/mcp/server'
 
     module Tools
+      autoload :Helpers,         'bsv/mcp/tools/helpers'
       autoload :GenerateKey,     'bsv/mcp/tools/generate_key'
       autoload :DecodeTx,        'bsv/mcp/tools/decode_tx'
       autoload :FetchUtxos,      'bsv/mcp/tools/fetch_utxos'
