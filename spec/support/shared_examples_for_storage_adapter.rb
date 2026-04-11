@@ -395,6 +395,211 @@ RSpec.shared_examples 'a storage adapter' do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Auto-fund interface contract
+  # These four methods form the UTXO state-management contract.  All adapter
+  # implementations must pass this suite unchanged.  State values may be
+  # returned as Symbols or Strings depending on serialisation (MemoryStore
+  # uses Symbols; FileStore and PostgresStore use Strings after a round-trip).
+  # Examples use `.to_s` to normalise before comparing.
+  # ---------------------------------------------------------------------------
+
+  describe 'auto-fund interface' do
+    describe '#find_spendable_outputs' do
+      before do
+        store.store_output(basket: 'default', outpoint: 'aa.0', spendable: true, satoshis: 500,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'bb.0', spendable: true, satoshis: 1000,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'cc.0', spendable: true, satoshis: 200,
+                           state: :spendable)
+        store.store_output(basket: 'other',   outpoint: 'dd.0', spendable: true, satoshis: 800,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'ee.0', spendable: false, satoshis: 300,
+                           state: :spent)
+      end
+
+      it 'returns outputs sorted largest-first by default' do
+        results = store.find_spendable_outputs(basket: 'default')
+        expect(results.map { |o| o[:satoshis] }).to eq([1000, 500, 200])
+      end
+
+      it 'returns outputs sorted smallest-first when sort_order is :asc' do
+        results = store.find_spendable_outputs(basket: 'default', sort_order: :asc)
+        expect(results.map { |o| o[:satoshis] }).to eq([200, 500, 1000])
+      end
+
+      it 'filters by basket' do
+        results = store.find_spendable_outputs(basket: 'default')
+        expect(results.map { |o| o[:outpoint] }).not_to include('dd.0')
+      end
+
+      it 'returns outputs from all baskets when no basket filter is given' do
+        results = store.find_spendable_outputs
+        expect(results.map { |o| o[:outpoint] }).to include('aa.0', 'dd.0')
+      end
+
+      it 'filters by min_satoshis' do
+        results = store.find_spendable_outputs(basket: 'default', min_satoshis: 500)
+        expect(results.map { |o| o[:outpoint] }).to contain_exactly('aa.0', 'bb.0')
+      end
+
+      it 'excludes non-spendable outputs' do
+        results = store.find_spendable_outputs(basket: 'default')
+        expect(results.map { |o| o[:outpoint] }).not_to include('ee.0')
+      end
+
+      it 'returns an empty array when the basket is empty' do
+        expect(store.find_spendable_outputs(basket: 'nonexistent')).to be_empty
+      end
+
+      it 'treats a legacy output with spendable: true and no state as spendable' do
+        store.store_output(basket: 'legacy', outpoint: 'leg.0', satoshis: 999, spendable: true)
+        results = store.find_spendable_outputs(basket: 'legacy')
+        expect(results.map { |o| o[:outpoint] }).to include('leg.0')
+      end
+    end
+
+    describe '#update_output_state' do
+      before do
+        store.store_output(basket: 'default', outpoint: 'tx.0', spendable: true, satoshis: 1000,
+                           state: :spendable)
+      end
+
+      it 'transitions to :pending and records pending metadata' do
+        store.update_output_state('tx.0', :pending, pending_reference: 'ref-001', no_send: false)
+        results = store.find_outputs(outpoint: 'tx.0', include_spent: true, limit: 1, offset: 0)
+        row = results.first
+        expect(row[:state].to_s).to eq('pending')
+        expect(row[:pending_reference]).to eq('ref-001')
+        expect(row[:pending_since]).not_to be_nil
+      end
+
+      it 'transitions to :spent' do
+        store.update_output_state('tx.0', :spent)
+        results = store.find_outputs(outpoint: 'tx.0', include_spent: true, limit: 1, offset: 0)
+        expect(results.first[:state].to_s).to eq('spent')
+      end
+
+      it 'transitions back to :spendable and clears pending metadata' do
+        store.update_output_state('tx.0', :pending, pending_reference: 'ref-x', no_send: false)
+        store.update_output_state('tx.0', :spendable)
+        results = store.find_outputs(outpoint: 'tx.0', include_spent: true, limit: 1, offset: 0)
+        row = results.first
+        expect(row[:state].to_s).to eq('spendable')
+        expect(row[:pending_since]).to be_nil
+        expect(row[:pending_reference]).to be_nil
+      end
+
+      it 'returns the updated output hash' do
+        result = store.update_output_state('tx.0', :spent)
+        expect(result).to be_a(Hash)
+        expect(result[:outpoint]).to eq('tx.0')
+      end
+
+      it 'raises WalletError when the outpoint does not exist' do
+        expect do
+          store.update_output_state('nonexistent.0', :spent)
+        end.to raise_error(BSV::Wallet::WalletError, /nonexistent\.0/)
+      end
+
+      it 'sets no_send: true when passed' do
+        store.update_output_state('tx.0', :pending, pending_reference: 'ref-ns', no_send: true)
+        result = store.update_output_state('tx.0', :spendable)
+        # After clearing, no_send must be absent or falsy
+        expect(result[:no_send]).to be_falsy
+      end
+    end
+
+    describe '#lock_utxos' do
+      before do
+        store.store_output(basket: 'default', outpoint: 'tx1.0', spendable: true, satoshis: 500,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'tx2.0', spendable: true, satoshis: 1000,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'tx3.0', spendable: false, satoshis: 200,
+                           state: :spent)
+      end
+
+      it 'locks spendable outputs and returns the locked outpoints' do
+        locked = store.lock_utxos(%w[tx1.0 tx2.0], reference: 'ref-abc', no_send: false)
+        expect(locked).to contain_exactly('tx1.0', 'tx2.0')
+      end
+
+      it 'returns an empty array when given an empty list' do
+        expect(store.lock_utxos([], reference: 'ref')).to eq([])
+      end
+
+      it 'skips outputs that are not in spendable state' do
+        locked = store.lock_utxos(%w[tx1.0 tx3.0], reference: 'ref', no_send: false)
+        expect(locked).to contain_exactly('tx1.0')
+      end
+
+      it 'skips outputs already locked (pending)' do
+        store.update_output_state('tx1.0', :pending, pending_reference: 'first', no_send: false)
+        locked = store.lock_utxos(['tx1.0'], reference: 'second', no_send: false)
+        expect(locked).to be_empty
+      end
+
+      it 'marks locked outputs as pending so they disappear from find_spendable_outputs' do
+        store.lock_utxos(['tx1.0'], reference: 'ref-001', no_send: false)
+        results = store.find_spendable_outputs(basket: 'default')
+        expect(results.map { |o| o[:outpoint] }).not_to include('tx1.0')
+      end
+
+      it 'sets no_send flag on the locked output when passed' do
+        store.lock_utxos(['tx1.0'], reference: 'ref-ns', no_send: true)
+        results = store.find_outputs(outpoint: 'tx1.0', include_spent: true, limit: 1, offset: 0)
+        expect(results.first[:no_send]).to be true
+      end
+    end
+
+    describe '#release_stale_pending!' do
+      before do
+        store.store_output(basket: 'default', outpoint: 'tx1.0', spendable: true, satoshis: 500,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'tx2.0', spendable: true, satoshis: 500,
+                           state: :spendable)
+        store.store_output(basket: 'default', outpoint: 'tx3.0', spendable: true, satoshis: 500,
+                           state: :spendable)
+      end
+
+      it 'returns 0 when no pending outputs exist' do
+        expect(store.release_stale_pending!(timeout: 300)).to eq(0)
+      end
+
+      it 'returns 0 when pending outputs are within the timeout window' do
+        store.lock_utxos(['tx1.0'], reference: 'fresh', no_send: false)
+        expect(store.release_stale_pending!(timeout: 300)).to eq(0)
+      end
+
+      it 'releases a pending output that is past the timeout and returns count' do
+        # timeout: 0 makes any lock immediately stale (cutoff = now, locked_at < now is true)
+        store.lock_utxos(['tx1.0'], reference: 'stale', no_send: false)
+        released = store.release_stale_pending!(timeout: 0)
+        expect(released).to eq(1)
+      end
+
+      it 'restores state to spendable after releasing a stale lock' do
+        store.lock_utxos(['tx2.0'], reference: 'stale', no_send: false)
+        store.release_stale_pending!(timeout: 0)
+
+        results = store.find_spendable_outputs(basket: 'default')
+        expect(results.map { |o| o[:outpoint] }).to include('tx2.0')
+      end
+
+      it 'does not release no_send pending outputs even when stale' do
+        # timeout: 0 means cutoff = now; any pending lock is already "stale"
+        # but no_send: true must exempt it from automatic release
+        store.lock_utxos(['tx3.0'], reference: 'ns', no_send: true)
+        expect(store.release_stale_pending!(timeout: 0)).to eq(0)
+
+        results = store.find_spendable_outputs(basket: 'default')
+        expect(results.map { |o| o[:outpoint] }).not_to include('tx3.0')
+      end
+    end
+  end
+
   describe 'settings' do
     describe '#store_setting and #find_setting' do
       it 'persists a setting and retrieves it by key' do
