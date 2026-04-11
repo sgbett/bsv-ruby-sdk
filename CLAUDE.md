@@ -89,6 +89,22 @@ Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base
 - All files use `# frozen_string_literal: true`
 - RuboCop targets Ruby 2.7; single-quoted strings preferred
 
+## Releasing Companion Gems
+
+The repo ships multiple gems with upstream/downstream dependencies:
+
+```
+bsv-sdk → bsv-wallet → bsv-wallet-postgres
+```
+
+When releasing `bsv-wallet` (or any gem that defines abstract interface methods):
+
+1. **Check downstream gems** — if new methods were added to `StorageAdapter` (or any abstract base), every concrete adapter (`PostgresStore`, etc.) must implement them before release.
+2. **Raise dependency floors** — downstream gemspecs must pin `>= new_version` so Bundler cannot resolve a combination that compiles at runtime.
+3. **Release together** — downstream adapter gems should be updated and released in the same cycle as the interface gem, not left for a follow-up.
+
+Failure to do this causes silent Bundler resolution success followed by `NoMethodError` at runtime (see #351).
+
 ## AI Software Architect Framework
 
 This project uses the AI Software Architect framework for architectural decision tracking and reviews.
