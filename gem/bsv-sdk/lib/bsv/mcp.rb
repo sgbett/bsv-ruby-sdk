@@ -6,10 +6,12 @@ module BSV
     autoload :Server, 'bsv/mcp/server'
 
     module Tools
-      autoload :GenerateKey, 'bsv/mcp/tools/generate_key'
-      autoload :DecodeTx,    'bsv/mcp/tools/decode_tx'
-      autoload :FetchUtxos,  'bsv/mcp/tools/fetch_utxos'
-      autoload :FetchTx,     'bsv/mcp/tools/fetch_tx'
+      autoload :GenerateKey,     'bsv/mcp/tools/generate_key'
+      autoload :DecodeTx,        'bsv/mcp/tools/decode_tx'
+      autoload :FetchUtxos,      'bsv/mcp/tools/fetch_utxos'
+      autoload :FetchTx,         'bsv/mcp/tools/fetch_tx'
+      autoload :CheckBalance,    'bsv/mcp/tools/check_balance'
+      autoload :BroadcastP2pkh,  'bsv/mcp/tools/broadcast_p2pkh'
     end
   end
 end

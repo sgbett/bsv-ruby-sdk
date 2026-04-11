@@ -24,9 +24,10 @@ RSpec.describe BSV::MCP::Server do
       expect(server.instructions).to include(config.network)
     end
 
-    it 'registers all four read-only tools' do
+    it 'registers all six tools' do
       tool_names = server.tools.keys
-      expect(tool_names).to include('generate_key', 'decode_tx', 'fetch_utxos', 'fetch_tx')
+      expect(tool_names).to include('generate_key', 'decode_tx', 'fetch_utxos', 'fetch_tx',
+                                    'check_balance', 'broadcast_p2pkh')
     end
 
     it 'uses Config.new when no config is given' do

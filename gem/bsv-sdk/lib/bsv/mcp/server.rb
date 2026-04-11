@@ -34,7 +34,9 @@ module BSV
           Tools::GenerateKey,
           Tools::DecodeTx,
           Tools::FetchUtxos,
-          Tools::FetchTx
+          Tools::FetchTx,
+          Tools::CheckBalance,
+          Tools::BroadcastP2pkh
         ]
       end
 

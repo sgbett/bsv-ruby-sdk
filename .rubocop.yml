@@ -114,6 +114,7 @@ Metrics/ClassLength:
     - 'gem/bsv-sdk/lib/bsv/overlay/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
+    - 'gem/bsv-sdk/lib/bsv/mcp/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -178,6 +179,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'spec/bsv/overlay/**/*'
     - 'spec/bsv/identity/**/*'
     - 'spec/bsv/registry/**/*'
+    - 'spec/bsv/mcp/**/*'
     - 'spec/conformance/**/*'
     - 'spec/bsv/wallet_interface/**/*'
     - 'spec/bsv/wallet_postgres/**/*'
