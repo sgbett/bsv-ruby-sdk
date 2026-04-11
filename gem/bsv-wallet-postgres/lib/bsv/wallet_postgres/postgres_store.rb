@@ -109,7 +109,14 @@ module BSV
         @db[:wallet_outputs]
           .insert_conflict(
             target: :outpoint,
-            update: { basket: row[:basket], tags: row[:tags], spendable: row[:spendable], data: row[:data] }
+            update: {
+              basket: row[:basket],
+              tags: row[:tags],
+              spendable: row[:spendable],
+              state: row[:state],
+              satoshis: row[:satoshis],
+              data: row[:data]
+            }
           )
           .insert(row)
         output_data
@@ -126,6 +133,154 @@ module BSV
 
       def delete_output(outpoint)
         @db[:wallet_outputs].where(outpoint: outpoint).delete.positive?
+      end
+
+      # Returns outputs whose effective state is +:spendable+.
+      #
+      # Legacy rows with +state = NULL+ are treated as spendable when the
+      # +spendable+ boolean is true (or absent), matching MemoryStore's
+      # effective_state logic.
+      #
+      # @param basket [String, nil] restrict to this basket when provided
+      # @param min_satoshis [Integer, nil] exclude outputs below this value
+      # @param sort_order [Symbol] +:asc+ or +:desc+ (default +:desc+, largest first)
+      # @return [Array<Hash>]
+      def find_spendable_outputs(basket: nil, min_satoshis: nil, sort_order: :desc)
+        ds = @db[:wallet_outputs]
+             .where(Sequel.lit('(state = ? OR (state IS NULL AND spendable = TRUE))', 'spendable'))
+        ds = ds.where(basket: basket) if basket
+        if min_satoshis
+          ds = ds.where(
+            Sequel.lit('COALESCE(satoshis, (data->>?)::bigint, 0) >= ?', 'satoshis', min_satoshis)
+          )
+        end
+        satoshis_expr = Sequel.lit('COALESCE(satoshis, (data->>?)::bigint, 0)', 'satoshis')
+        ds = ds.order(sort_order == :asc ? Sequel.asc(satoshis_expr) : Sequel.desc(satoshis_expr))
+        ds.all.map { |r| symbolise_keys(r[:data]) }
+      end
+
+      # Transitions the state of an existing output.
+      #
+      # When +new_state+ is +:pending+, sets +pending_since+, +pending_reference+,
+      # and +no_send+, and merges those values into the JSONB +data+ blob.
+      #
+      # When transitioning away from +:pending+, clears the pending metadata
+      # columns and removes the corresponding keys from the JSONB blob.
+      #
+      # @param outpoint [String] the outpoint identifier
+      # @param new_state [Symbol] +:spendable+, +:pending+, or +:spent+
+      # @param pending_reference [String, nil] caller-supplied label for a pending lock
+      # @param no_send [Boolean, nil] true if the lock belongs to a no_send transaction
+      # @raise [BSV::Wallet::WalletError] if the outpoint is not found
+      # @return [Hash] the updated output hash
+      def update_output_state(outpoint, new_state, pending_reference: nil, no_send: nil)
+        state_str = new_state.to_s
+
+        # Keep legacy spendable boolean in sync so filter_outputs and other
+        # queries that haven't migrated to the state column still work.
+        spendable_bool = new_state == :spendable
+
+        if new_state == :pending
+          updates = {
+            state: state_str,
+            spendable: spendable_bool,
+            pending_since: Sequel.lit('NOW()'),
+            pending_reference: pending_reference,
+            no_send: no_send ? true : false,
+            data: Sequel.lit(
+              "data || jsonb_build_object('state', ?, 'pending_since', NOW()::text, 'pending_reference', ?, 'no_send', ?)",
+              state_str, pending_reference, no_send ? true : false
+            )
+          }
+        else
+          updates = {
+            state: state_str,
+            spendable: spendable_bool,
+            pending_since: nil,
+            pending_reference: nil,
+            no_send: false
+          }
+          # Remove pending keys from JSONB blob, update state
+          updates[:data] = Sequel.lit(
+            "(data - 'pending_since' - 'pending_reference' - 'no_send') || jsonb_build_object('state', ?)",
+            state_str
+          )
+        end
+
+        ds = @db[:wallet_outputs].where(outpoint: outpoint)
+        rows_updated = ds.update(updates)
+        raise WalletError, "Output not found: #{outpoint}" if rows_updated.zero?
+
+        row = ds.first
+        symbolise_keys(row[:data])
+      end
+
+      # Atomically marks a set of outpoints as +:pending+.
+      #
+      # Uses +UPDATE ... WHERE state = 'spendable' ... RETURNING outpoint+ so that
+      # the check-and-set is atomic at the database level. A concurrent caller that
+      # wins the race will have already changed the state to 'pending', so the
+      # second caller's WHERE clause will not match and will return nothing. No
+      # explicit row-level locking is needed — the UPDATE itself takes the lock.
+      #
+      # Legacy rows with +state = NULL AND spendable = TRUE+ are also eligible.
+      #
+      # @param outpoints [Array<String>] outpoint identifiers to lock
+      # @param reference [String] caller-supplied pending reference
+      # @param no_send [Boolean] true if this is a no_send lock
+      # @return [Array<String>] outpoints that were actually locked
+      def lock_utxos(outpoints, reference:, no_send: false)
+        return [] if outpoints.empty?
+
+        rows = @db[:wallet_outputs]
+               .where(outpoint: outpoints)
+               .where(Sequel.lit('(state = ? OR (state IS NULL AND spendable = TRUE))', 'spendable'))
+               .returning(:outpoint)
+               .update(
+                 state: 'pending',
+                 spendable: false,
+                 pending_since: Sequel.lit('NOW()'),
+                 pending_reference: reference,
+                 no_send: no_send ? true : false,
+                 data: Sequel.lit(
+                   "data || jsonb_build_object('state', 'pending', 'pending_since', NOW()::text, " \
+                   "'pending_reference', ?, 'no_send', ?)",
+                   reference, no_send ? true : false
+                 )
+               )
+
+        rows.map { |r| r[:outpoint] }
+      end
+
+      # Releases stale pending locks back to +:spendable+.
+      #
+      # Any output in +:pending+ state whose +pending_since+ is older than
+      # +timeout+ seconds is reset to +spendable+ and its pending metadata is
+      # cleared. Outputs with +no_send = true+ are exempt and remain pending.
+      # Outputs with +pending_since = NULL+ are also skipped — they are treated
+      # as freshly locked (NULL means "just acquired but no timestamp yet").
+      #
+      # @param timeout [Integer] age in seconds before a lock is considered stale (default 300)
+      # @return [Integer] number of outputs released
+      def release_stale_pending!(timeout: 300)
+        rows = @db[:wallet_outputs]
+               .where(state: 'pending')
+               .where(Sequel.lit('no_send IS NOT TRUE'))
+               .where(Sequel.lit('pending_since IS NOT NULL'))
+               .where(Sequel.lit('pending_since < (NOW() - INTERVAL ?)', "#{timeout} seconds"))
+               .returning(:outpoint)
+               .update(
+                 state: 'spendable',
+                 spendable: true,
+                 pending_since: nil,
+                 pending_reference: nil,
+                 no_send: false,
+                 data: Sequel.lit(
+                   "(data - 'pending_since' - 'pending_reference' - 'no_send') || jsonb_build_object('state', 'spendable')"
+                 )
+               )
+
+        rows.length
       end
 
       # --- Certificates ---
@@ -207,11 +362,14 @@ module BSV
 
       def output_row(data)
         spendable = data[:spendable] != false # nil treated as spendable, like MemoryStore
+        state = data[:state]&.to_s
         {
           outpoint: data[:outpoint],
           basket: data[:basket],
           tags: Sequel.pg_array(Array(data[:tags]), :text),
           spendable: spendable,
+          state: state,
+          satoshis: data[:satoshis],
           data: Sequel.pg_jsonb(data.to_h)
         }
       end
@@ -236,7 +394,7 @@ module BSV
         ds = ds.where(outpoint: query[:outpoint]) if query[:outpoint]
         ds = ds.where(basket: query[:basket]) if query[:basket]
         ds = apply_array_filter(ds, :tags, query[:tags], query[:tag_query_mode])
-        ds = ds.where(spendable: true) unless query[:include_spent]
+        ds = ds.where(Sequel.lit('(state = ? OR (state IS NULL AND spendable = TRUE))', 'spendable')) unless query[:include_spent]
         ds
       end
 
