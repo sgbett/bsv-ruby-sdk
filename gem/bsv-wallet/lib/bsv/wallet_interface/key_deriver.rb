@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'openssl'
+
 module BSV
   module Wallet
     # BRC-42/43 key derivation for the wallet interface.

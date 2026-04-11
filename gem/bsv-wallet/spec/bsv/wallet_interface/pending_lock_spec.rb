@@ -3,6 +3,7 @@
 require 'spec_helper'
 require 'bsv-wallet'
 require 'securerandom'
+require 'time'
 
 RSpec.describe 'Pending UTXO locking and double-spend prevention' do
   let(:store) { BSV::Wallet::MemoryStore.new }
