@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-Bundler::GemHelper.install_tasks(name: 'bsv-sdk',             dir: 'gem/bsv-sdk')
-Bundler::GemHelper.install_tasks(name: 'bsv-attest',          dir: 'gem/bsv-attest')
-Bundler::GemHelper.install_tasks(name: 'bsv-wallet',          dir: 'gem/bsv-wallet')
-Bundler::GemHelper.install_tasks(name: 'bsv-wallet-postgres', dir: 'gem/bsv-wallet-postgres')
+# Gem releases are handled by the /release Claude Code skill.
+# See CLAUDE.md for the release workflow and tag conventions.
+
 require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)
