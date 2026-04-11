@@ -16,8 +16,10 @@ Licence: Open BSV License Version 5.
 
 ```bash
 bundle exec rake              # run all specs (default task)
-bundle exec rspec spec/bsv_spec.rb          # run a single spec file
-bundle exec rspec spec/bsv_spec.rb:4        # run a single example by line
+bundle exec rake spec:sdk     # run only bsv-sdk specs
+bundle exec rake spec:wallet  # run only bsv-wallet specs
+cd gem/bsv-sdk && bundle exec rspec spec/bsv_spec.rb      # run a single spec file
+cd gem/bsv-sdk && bundle exec rspec spec/bsv_spec.rb:4    # run a single example by line
 bundle exec rubocop                          # lint
 bundle exec rubocop -A                       # lint with autocorrect
 cd gem/bsv-sdk && gem build bsv-sdk.gemspec  # build gem (must run from inside gem/<name>/)
