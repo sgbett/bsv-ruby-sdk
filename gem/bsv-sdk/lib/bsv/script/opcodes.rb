@@ -130,9 +130,8 @@ module BSV
       OP_CHECKLOCKTIMEVERIFY = 0xb1
       OP_CHECKSEQUENCEVERIFY = 0xb2
 
-      # Chronicle slots (0xb3–0xb7): reserved for future string/shift opcodes.
-      # Full semantics are deferred to SDK v0.10. Scripts using these opcodes
-      # will raise ScriptErrorCode::UNIMPLEMENTED_OPCODE at execution time.
+      # Chronicle slots (0xb3–0xb7): string-splice and numeric-shift opcodes
+      # re-enabled in BSV Chronicle. Fully implemented in the interpreter.
       OP_SUBSTR         = 0xb3
       OP_LEFT           = 0xb4
       OP_RIGHT          = 0xb5
