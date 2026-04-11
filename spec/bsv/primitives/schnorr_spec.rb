@@ -178,6 +178,27 @@ RSpec.describe BSV::Primitives::Schnorr do
       expect(described_class.verify_proof(pub_a, pub_b, shared_secret, decoded)).to be true
     end
 
+    it 'decodes identically whether z has leading zeros or not (the 1-in-256 case)' do
+      # Force a z value whose 32-byte encoding has a leading \x00
+      z_with_leading_zero = OpenSSL::BN.new('00ff' + 'ab' * 30, 16)
+      fake_proof = BSV::Primitives::Schnorr::Proof.new(proof.r, proof.s_prime, z_with_leading_zero)
+
+      fixed = fake_proof.z.to_s(2)
+      fixed = ("\x00".b * (32 - fixed.length)) + fixed if fixed.length < 32
+      minimal = fake_proof.z.to_s(2)
+
+      expect(fixed.bytesize).to eq(32)
+      expect(minimal.bytesize).to eq(31)
+
+      bin_fixed = proof.r.compressed + proof.s_prime.compressed + fixed
+      bin_minimal = proof.r.compressed + proof.s_prime.compressed + minimal
+
+      decoded_fixed = BSV::Primitives::Schnorr::Proof.from_binary(bin_fixed)
+      decoded_minimal = BSV::Primitives::Schnorr::Proof.from_binary(bin_minimal)
+
+      expect(decoded_fixed.z).to eq(decoded_minimal.z)
+    end
+
     it 'raises ArgumentError for data shorter than 67 bytes' do
       expect { BSV::Primitives::Schnorr::Proof.from_binary("\x00" * 66) }
         .to raise_error(ArgumentError, /too short/)
