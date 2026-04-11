@@ -8,12 +8,12 @@ Guided release workflow for a single gem from this monorepo. Releases one gem pe
 
 ## Gem Registry
 
-| Key | Gem name | Version file | Tag prefix | Gemspec path | Downstream deps |
-|-----|----------|-------------|------------|--------------|-----------------|
-| `sdk` | `bsv-sdk` | `gem/bsv-sdk/lib/bsv/version.rb` | `v` | `gem/bsv-sdk/bsv-sdk.gemspec` | `bsv-wallet`, `bsv-attest` |
-| `wallet` | `bsv-wallet` | `gem/bsv-wallet/lib/bsv/wallet_interface/version.rb` | `wallet-v` | `gem/bsv-wallet/bsv-wallet.gemspec` | `bsv-wallet-postgres` |
-| `wallet-postgres` | `bsv-wallet-postgres` | `gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/version.rb` | `wallet-postgres-v` | `gem/bsv-wallet-postgres/bsv-wallet-postgres.gemspec` | none |
-| `attest` | `bsv-attest` | `gem/bsv-attest/lib/bsv/attest/version.rb` | `attest-v` | `gem/bsv-attest/bsv-attest.gemspec` | none |
+| Key | Gem name | Release title | Version file | Tag prefix | Gemspec path | Downstream deps |
+|-----|----------|--------------|-------------|------------|--------------|-----------------|
+| `sdk` | `bsv-sdk` | `bsv-ruby-sdk` | `gem/bsv-sdk/lib/bsv/version.rb` | `v` | `gem/bsv-sdk/bsv-sdk.gemspec` | `bsv-wallet`, `bsv-attest` |
+| `wallet` | `bsv-wallet` | `bsv-wallet` | `gem/bsv-wallet/lib/bsv/wallet_interface/version.rb` | `wallet-v` | `gem/bsv-wallet/bsv-wallet.gemspec` | `bsv-wallet-postgres` |
+| `wallet-postgres` | `bsv-wallet-postgres` | `bsv-wallet-postgres` | `gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/version.rb` | `wallet-postgres-v` | `gem/bsv-wallet-postgres/bsv-wallet-postgres.gemspec` | none |
+| `attest` | `bsv-attest` | `bsv-attest` | `gem/bsv-attest/lib/bsv/attest/version.rb` | `attest-v` | `gem/bsv-attest/bsv-attest.gemspec` | none |
 
 Version constants:
 - `sdk` → `BSV::VERSION`
@@ -64,6 +64,7 @@ Once a valid gem key is confirmed, set these variables (conceptually) for the re
 - `VERSION_FILE` — path to version.rb
 - `TAG_PREFIX` — the tag prefix
 - `GEMSPEC_PATH` — path to the gemspec
+- `RELEASE_TITLE` — the GitHub release title (e.g. `bsv-ruby-sdk` for sdk, `bsv-wallet` for wallet)
 - `CURRENT_VERSION` — the version string extracted from version.rb
 
 ---
@@ -471,7 +472,7 @@ Wait for the user to confirm.
 
 ```bash
 gh release create "${TAG_PREFIX}${NEW_VERSION}" \
-  --title "$GEM_NAME $NEW_VERSION" \
+  --title "$RELEASE_TITLE $NEW_VERSION" \
   --notes "$CHANGELOG_ENTRY" \
   --target master
 
@@ -482,7 +483,7 @@ gh release upload "${TAG_PREFIX}${NEW_VERSION}" \
 Recovery guidance if this fails:
 > GitHub release creation failed. The gem has been pushed to RubyGems (if you confirmed that step).
 > To create the release manually:
->   gh release create ${TAG_PREFIX}${NEW_VERSION} --title "$GEM_NAME $NEW_VERSION" --notes "..."
+>   gh release create ${TAG_PREFIX}${NEW_VERSION} --title "$RELEASE_TITLE $NEW_VERSION" --notes "..."
 >   gh release upload ${TAG_PREFIX}${NEW_VERSION} $GEM_NAME-$NEW_VERSION.gem
 
 ---
