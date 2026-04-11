@@ -1,7 +1,7 @@
 --plugin markdown
 --markup markdown
 --output-dir doc
-lib/**/*.rb
+gem/*/lib/**/*.rb
 -
 CHANGELOG.md
 LICENCE
