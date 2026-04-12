@@ -66,6 +66,53 @@ RSpec.shared_examples 'a storage adapter' do
         expect(results.length).to eq(2)
       end
     end
+
+    describe '#update_action_status' do
+      before do
+        store.store_action(labels: ['payment'], txid: 'abc', status: 'completed')
+      end
+
+      it 'updates the status of the matching action' do
+        store.update_action_status('abc', 'failed')
+        results = store.find_actions({})
+        expect(results.first[:status].to_s).to eq('failed')
+      end
+
+      it 'returns the updated action hash' do
+        result = store.update_action_status('abc', 'failed')
+        expect(result).to be_a(Hash)
+        expect(result[:txid]).to eq('abc')
+      end
+
+      it 'raises WalletError when no action with the given txid exists' do
+        expect do
+          store.update_action_status('nonexistent', 'failed')
+        end.to raise_error(BSV::Wallet::WalletError, /nonexistent/)
+      end
+    end
+
+    describe '#delete_action' do
+      before do
+        store.store_action(labels: ['payment'], txid: 'abc')
+      end
+
+      it 'removes the action and returns true' do
+        expect(store.delete_action('abc')).to be true
+        expect(store.find_actions({})).to be_empty
+      end
+
+      it 'returns false when no action with the given txid exists' do
+        expect(store.delete_action('nonexistent')).to be false
+      end
+
+      it 'does not affect other actions' do
+        store.store_action(labels: ['transfer'], txid: 'def')
+        store.delete_action('abc')
+        results = store.find_actions({})
+        expect(results.length).to eq(1)
+        expect(results.first[:txid]).to eq('def')
+      end
+    end
   end
 
   describe 'outputs' do

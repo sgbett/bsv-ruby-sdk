@@ -61,6 +61,26 @@ RSpec.describe BSV::Wallet::WalletClient do
         wallet.abort_action({ reference: 'nonexistent' })
       end.to raise_error(BSV::Wallet::WalletError)
     end
+
+    it 'defaults broadcaster to nil' do
+      expect(wallet.broadcaster).to be_nil
+    end
+
+    it 'accepts a broadcaster: keyword argument' do
+      broadcaster = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
+      expect(w.broadcaster).to equal(broadcaster)
+    end
+
+    it 'returns false from broadcast_enabled? when broadcaster is nil' do
+      expect(wallet.broadcast_enabled?).to be(false)
+    end
+
+    it 'returns true from broadcast_enabled? when broadcaster is set' do
+      broadcaster = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
+      expect(w.broadcast_enabled?).to be(true)
+    end
   end
 
   # -------------------------------------------------------------------------
@@ -434,6 +454,141 @@ RSpec.describe BSV::Wallet::WalletClient do
                                     spends: { '0' => { unlocking_script: dummy_unlock_hex } }
                                   })
       expect(result[:txid]).to be_a(String)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # accept_delayed_broadcast option — finalize_action path
+  # -------------------------------------------------------------------------
+  describe 'accept_delayed_broadcast option (finalize_action path)' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+
+    let(:base_args) do
+      {
+        description: 'accept delayed broadcast test',
+        input_beef: input_beef_bytes,
+        inputs: [{
+          outpoint: "#{source_txid}.0",
+          unlocking_script: 'aabb',
+          input_description: 'input for delayed broadcast test'
+        }],
+        outputs: [{
+          locking_script: locking_script_hex,
+          satoshis: 4000,
+          output_description: 'payment output'
+        }]
+      }
+    end
+
+    it 'accepts accept_delayed_broadcast: false without error' do
+      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+    end
+
+    it 'stores the action as completed when accept_delayed_broadcast is false' do
+      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
+      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('completed')
+    end
+
+    it 'accepts accept_delayed_broadcast: true without raising' do
+      expect do
+        wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+      end.not_to raise_error
+    end
+
+    it 'stores the action as unproven when accept_delayed_broadcast: true' do
+      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('unproven')
+    end
+
+    it 'logs a warning when accept_delayed_broadcast: true' do
+      expect do
+        wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+      end.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+    end
+
+    it 'defaults to completed status when option is absent' do
+      result = wallet.create_action(base_args)
+      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('completed')
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # accept_delayed_broadcast option — sign_action path
+  # -------------------------------------------------------------------------
+  describe 'accept_delayed_broadcast option (sign_action path)' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+    let(:dummy_unlock_hex) { 'aabb' }
+
+    let(:signable_result) do
+      wallet.create_action({
+                             description: 'sign action delayed broadcast test',
+                             input_beef: input_beef_bytes,
+                             inputs: [{
+                               outpoint: "#{source_txid}.0",
+                               unlocking_script_length: 107,
+                               input_description: 'spend for sign action test'
+                             }],
+                             outputs: [{
+                               locking_script: locking_script_hex,
+                               satoshis: 4000,
+                               output_description: 'payment output'
+                             }]
+                           })
+    end
+
+    let(:reference) { signable_result[:signable_transaction][:reference] }
+
+    it 'accepts accept_delayed_broadcast: false in sign_action without error' do
+      result = wallet.sign_action({
+                                    reference: reference,
+                                    spends: { 0 => { unlocking_script: dummy_unlock_hex } },
+                                    options: { accept_delayed_broadcast: false }
+                                  })
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+    end
+
+    it 'accepts accept_delayed_broadcast: true in sign_action without raising' do
+      expect do
+        wallet.sign_action({
+                             reference: reference,
+                             spends: { 0 => { unlocking_script: dummy_unlock_hex } },
+                             options: { accept_delayed_broadcast: true }
+                           })
+      end.not_to raise_error
+    end
+
+    it 'stores the action as unproven when sign_action passes accept_delayed_broadcast: true' do
+      result = wallet.sign_action({
+                                    reference: reference,
+                                    spends: { 0 => { unlocking_script: dummy_unlock_hex } },
+                                    options: { accept_delayed_broadcast: true }
+                                  })
+      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('unproven')
+    end
+
+    it 'logs a warning when sign_action passes accept_delayed_broadcast: true' do
+      expect do
+        wallet.sign_action({
+                             reference: reference,
+                             spends: { 0 => { unlocking_script: dummy_unlock_hex } },
+                             options: { accept_delayed_broadcast: true }
+                           })
+      end.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
     end
   end
 

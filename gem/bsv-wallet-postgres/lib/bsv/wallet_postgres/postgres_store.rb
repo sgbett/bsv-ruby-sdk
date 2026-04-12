@@ -102,6 +102,23 @@ module BSV
         filter_actions(@db[:wallet_actions], query).count
       end
 
+      def update_action_status(txid, new_status)
+        ds = @db[:wallet_actions].where(txid: txid)
+        raise WalletError, "Action not found: #{txid}" if ds.empty?
+
+        ds.update(
+          data: Sequel.lit(
+            "data || jsonb_build_object('status', ?)",
+            new_status
+          )
+        )
+        symbolise_keys(ds.first[:data])
+      end
+
+      def delete_action(txid)
+        @db[:wallet_actions].where(txid: txid).delete.positive?
+      end
+
       # --- Outputs ---
 
       def store_output(output_data)

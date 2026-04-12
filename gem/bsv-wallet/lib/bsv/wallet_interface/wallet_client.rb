@@ -39,6 +39,9 @@ module BSV
       # @return [ProofStore] the merkle proof persistence store
       attr_reader :proof_store
 
+      # @return [#broadcast, nil] the optional broadcaster (responds to #broadcast(tx))
+      attr_reader :broadcaster
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
@@ -46,6 +49,7 @@ module BSV
       # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
+      # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
       def initialize(
         key,
         storage: FileStore.new,
@@ -55,7 +59,8 @@ module BSV
         http_client: nil,
         fee_estimator: nil,
         coin_selector: nil,
-        change_generator: nil
+        change_generator: nil,
+        broadcaster: nil
       )
         super(key)
         @storage = storage
@@ -63,10 +68,17 @@ module BSV
         @chain_provider = chain_provider
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
+        @broadcaster = broadcaster
         @pending = {}
+        @pending_by_txid = {}
         @injected_fee_estimator    = fee_estimator
         @injected_coin_selector    = coin_selector
         @injected_change_generator = change_generator
+      end
+
+      # Returns true when a broadcaster has been configured.
+      def broadcast_enabled?
+        !@broadcaster.nil?
       end
 
       # --- Transaction Operations ---
@@ -92,11 +104,29 @@ module BSV
       def create_action(args, _originator: nil)
         validate_create_action!(args)
 
+        send_with_txids = Array(args.dig(:options, :send_with))
+
         outputs = args[:outputs] || []
         inputs  = args[:inputs]
 
+        # When send_with is provided but no new transaction body is specified,
+        # broadcast only the batched no_send transactions.
+        if !send_with_txids.empty? && outputs.empty? && (inputs.nil? || inputs.empty?)
+          raise WalletError, 'A broadcaster is required to use send_with' unless broadcast_enabled?
+
+          return { send_with_results: broadcast_send_with(send_with_txids) }
+        end
+
         if (inputs.nil? || inputs.empty?) && !outputs.empty? && (args[:auto_fund] || spendable_pool_eligible?)
-          return auto_fund_and_create(args, outputs)
+          result = auto_fund_and_create(args, outputs)
+          # If send_with was also specified, batch-broadcast those alongside the
+          # current transaction's implicit broadcast.
+          unless send_with_txids.empty?
+            raise WalletError, 'A broadcaster is required to use send_with' unless broadcast_enabled?
+
+            result[:send_with_results] = broadcast_send_with(send_with_txids)
+          end
+          return result
         end
 
         beef = parse_input_beef(args[:input_beef])
@@ -125,7 +155,15 @@ module BSV
         tx = pending[:tx]
         apply_spends(tx, args[:spends])
         @pending.delete(reference)
-        finalize_action(tx, pending[:args])
+
+        # Merge sign_action's own options over the original create_action args so
+        # callers can supply accept_delayed_broadcast at sign time.
+        merged_args = if args[:options]
+                        pending[:args].merge(options: (pending[:args][:options] || {}).merge(args[:options]))
+                      else
+                        pending[:args]
+                      end
+        finalize_action(tx, merged_args)
       end
 
       # Aborts a pending signable transaction.
@@ -143,11 +181,14 @@ module BSV
         raise WalletError, 'Transaction not found for the given reference' unless @pending.key?(reference)
 
         pending_entry = @pending.delete(reference)
-        # Release locked input UTXOs back to :spendable.
-        release_pending_utxos(pending_entry[:locked_outpoints], reference) if pending_entry[:locked_outpoints]
-        # Remove change outputs created by the aborted transaction —
-        # they reference an unbroadcast tx and must not remain in storage.
-        Array(pending_entry[:change_outpoints]).each { |op| @storage.delete_output(op) }
+        txid = pending_entry[:tx]&.txid_hex
+        @pending_by_txid.delete(txid) if txid
+        rollback_pending_action(
+          pending_entry[:locked_outpoints],
+          pending_entry[:change_outpoints],
+          txid,
+          reference
+        )
         { aborted: true }
       end
 
@@ -668,26 +709,61 @@ module BSV
             store_action(tx, args, status: 'nosend')
             store_tracked_outputs(txid, tx, caller_outputs)
 
-            # Register in @pending so abort_action can release inputs and
-            # remove change outputs.
+            # Register in @pending so abort_action (or send_with) can release
+            # inputs and remove change outputs. Secondary index by txid allows
+            # send_with callers to look up pending entries by txid.
             @pending[fund_ref] = {
               tx: tx, args: args,
               locked_outpoints: selected_outpoints,
               change_outpoints: change_outpoints
             }
+            @pending_by_txid[txid] = fund_ref
 
             beef_binary = tx.to_beef
             { txid: txid, tx: beef_binary.unpack('C*'), reference: fund_ref, no_send_change: change_outpoints }
           else
-            store_action(tx, args, status: 'completed')
+            # Store everything in pending state first — inputs are already locked
+            # as :pending by lock_utxos above, so we match that discipline here.
+            store_action(tx, args, status: 'pending')
             store_change_outputs(txid, tx, change_outputs, tx_hex)
+
+            # Record change outpoints and mark them :pending so a concurrent
+            # create_action cannot double-spend them before broadcast completes.
+            change_outpoints = []
+            change_outputs.each do |spec|
+              idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
+              next unless idx
+
+              op = "#{txid}.#{idx}"
+              change_outpoints << op
+              @storage.update_output_state(op, :pending, pending_reference: fund_ref)
+            end
+
             store_tracked_outputs(txid, tx, caller_outputs)
 
-            # Promote from :pending to :spent now that all storage writes are done.
-            selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
-
             beef_binary = tx.to_beef
-            { txid: txid, tx: beef_binary.unpack('C*') }
+
+            if broadcast_enabled?
+              broadcast_and_promote(
+                tx, txid, selected_outpoints, change_outpoints, fund_ref, beef_binary
+              )
+            else
+              # No broadcaster configured — promote immediately and return BEEF
+              # for the caller to broadcast (backwards-compatible behaviour).
+              selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
+              change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
+
+              final_status = if args.dig(:options, :accept_delayed_broadcast)
+                               warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
+                                    'falling through to synchronous processing. ' \
+                                    'Background broadcasting is a planned future feature.'
+                               'unproven'
+                             else
+                               'completed'
+                             end
+              @storage.update_action_status(txid, final_status)
+              { txid: txid, tx: beef_binary.unpack('C*') }
+            end
           end
         rescue StandardError
           # Release the pending lock so the UTXOs are available for retry.
@@ -897,7 +973,10 @@ module BSV
         Validators.validate_description!(args[:description])
         inputs_present = args[:inputs] && !args[:inputs].empty?
         outputs_present = args[:outputs] && !args[:outputs].empty?
-        raise InvalidParameterError.new('inputs/outputs', 'at least one input or output') unless inputs_present || outputs_present
+        send_with_present = args.dig(:options, :send_with) && !Array(args.dig(:options, :send_with)).empty?
+        unless inputs_present || outputs_present || send_with_present
+          raise InvalidParameterError.new('inputs/outputs', 'at least one input or output')
+        end
 
         validate_action_inputs!(args[:inputs]) if args[:inputs]
         validate_action_outputs!(args[:outputs]) if args[:outputs]
@@ -1121,10 +1200,151 @@ module BSV
         end
       end
 
+      # Rolls back a pending auto-funded action.
+      #
+      # Releases locked input UTXOs back to +:spendable+, deletes phantom change
+      # outputs, and optionally updates the action status. Used by both
+      # broadcast failure and +abort_action+ so UTXO state is always consistent.
+      #
+      # @param input_outpoints [Array<String>] outpoints locked as inputs
+      # @param change_outpoints [Array<String>] change outputs to delete
+      # @param txid [String, nil] txid of the action to update (may be nil)
+      # @param ref [String] fund reference used when locking inputs
+      # @param action_status [String, nil] new action status; nil skips the update
+      def rollback_pending_action(input_outpoints, change_outpoints, txid, ref, action_status: nil)
+        release_pending_utxos(input_outpoints, ref)
+        Array(change_outpoints).each { |op| @storage.delete_output(op) }
+        @storage.update_action_status(txid, action_status) if txid && action_status
+      end
+
+      # Broadcasts the transaction and promotes storage state on success.
+      # On failure, rolls back all pending state changes.
+      #
+      # @param tx [Transaction] signed transaction to broadcast
+      # @param txid [String] hex transaction id
+      # @param input_outpoints [Array<String>] outpoints locked as inputs
+      # @param change_outpoints [Array<String>] change output outpoints
+      # @param fund_ref [String] fund reference used when locking
+      # @param beef_binary [String] raw BEEF bytes
+      # @return [Hash] result hash with :txid, :tx, :broadcast_result or :broadcast_error, and :broadcast_status
+      def broadcast_and_promote(tx, txid, input_outpoints, change_outpoints, fund_ref, beef_binary)
+        broadcast_result = @broadcaster.broadcast(tx)
+
+        # Broadcast succeeded — promote all pending state to final.
+        input_outpoints.each { |op| @storage.update_output_state(op, :spent) }
+        change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
+        @storage.update_action_status(txid, 'completed')
+
+        result = { txid: txid, tx: beef_binary.unpack('C*'), broadcast_result: broadcast_result, broadcast_status: 'success' }
+        result[:competing_txs] = broadcast_result.competing_txs if broadcast_result.competing_txs
+        result
+      rescue StandardError => e
+        rollback_pending_action(input_outpoints, change_outpoints, txid, fund_ref, action_status: 'failed')
+        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message, broadcast_status: broadcast_status_for(e) }
+      end
+
+      # Batch-broadcasts a list of previously no_send transactions.
+      #
+      # Each txid must correspond to a pending no_send entry registered in
+      # +@pending_by_txid+. Transactions are broadcast individually so that one
+      # failure does not block the others. On per-tx success the inputs are
+      # promoted to +:spent+ and change outputs to +:spendable+. On failure the
+      # pending state is rolled back via +rollback_pending_action+.
+      #
+      # @param txids [Array<String>] txids of no_send transactions to broadcast
+      # @return [Array<Hash>] per-tx results matching TS SDK +SendWithResult[]+ shape:
+      #   +{ txid: String, status: 'unproven' | 'failed' }+
+      def broadcast_send_with(txids)
+        txids.map { |txid| broadcast_single_no_send(txid) }
+      end
+
+      # Broadcasts one no_send transaction and promotes or rolls back its state.
+      #
+      # @param txid [String] hex txid of the no_send transaction
+      # @return [Hash] +{ txid:, status: }+ result entry
+      def broadcast_single_no_send(txid)
+        fund_ref = @pending_by_txid[txid]
+        return { txid: txid, status: 'failed', error: 'Transaction not found in pending no_send store' } unless fund_ref
+
+        pending_entry = @pending[fund_ref]
+        unless pending_entry
+          @pending_by_txid.delete(txid)
+          return { txid: txid, status: 'failed', error: 'Pending entry expired or already processed' }
+        end
+
+        # Use the original signed transaction from the pending entry — it has
+        # source_satoshis and source_locking_script wired on each input, which
+        # the broadcaster needs for Extended Format (EF/BRC-30) submission.
+        # Reconstructing from stored hex would lose that metadata.
+        tx = pending_entry[:tx]
+        unless tx
+          tx_hex = @storage.find_transaction(txid)
+          return { txid: txid, status: 'failed', error: 'Transaction not found' } unless tx_hex
+
+          tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+        end
+        promote_no_send(tx, txid, fund_ref, pending_entry)
+      rescue StandardError => e
+        # Catch unexpected errors outside the broadcast rescue block.
+        { txid: txid, status: 'failed', error: e.message }
+      end
+
+      # Attempts to broadcast and promote a single no_send transaction.
+      # Action status is set to 'unproven' (matching TS SDK SendWithResult)
+      # because the transaction has been submitted but not yet confirmed.
+      def promote_no_send(tx, txid, fund_ref, pending_entry)
+        @broadcaster.broadcast(tx)
+
+        # Broadcast succeeded — promote state and remove from pending indices.
+        pending_entry[:locked_outpoints].each { |op| @storage.update_output_state(op, :spent) }
+        pending_entry[:change_outpoints].each { |op| @storage.update_output_state(op, :spendable) }
+        @storage.update_action_status(txid, 'unproven')
+        @pending.delete(fund_ref)
+        @pending_by_txid.delete(txid)
+
+        { txid: txid, status: 'unproven' }
+      rescue StandardError => e
+        rollback_pending_action(
+          pending_entry[:locked_outpoints],
+          pending_entry[:change_outpoints],
+          txid,
+          fund_ref,
+          action_status: 'failed'
+        )
+        @pending.delete(fund_ref)
+        @pending_by_txid.delete(txid)
+
+        { txid: txid, status: 'failed', error: e.message }
+      end
+
+      # Maps a broadcast exception to a {ReviewActionResultStatus} string.
+      #
+      # @param error [StandardError] the exception raised during broadcast
+      # @return [String] one of 'doubleSpend', 'invalidTx', 'serviceError'
+      def broadcast_status_for(error)
+        return 'serviceError' unless error.is_a?(BSV::Network::BroadcastError)
+
+        arc_status = error.arc_status.to_s.upcase
+        return 'doubleSpend' if arc_status == 'DOUBLE_SPEND_ATTEMPTED'
+
+        invalid_statuses = %w[REJECTED INVALID MALFORMED MINED_IN_STALE_BLOCK]
+        return 'invalidTx' if invalid_statuses.include?(arc_status) || arc_status.include?('ORPHAN')
+
+        'serviceError'
+      end
+
       def finalize_action(tx, args)
         tx.sign_all if tx.inputs.any?(&:unlocking_script_template)
         txid = tx.txid_hex
-        status = args.dig(:options, :no_send) ? 'nosend' : 'completed'
+
+        no_send = args.dig(:options, :no_send)
+        delayed = args.dig(:options, :accept_delayed_broadcast)
+
+        status = if no_send
+                   'nosend'
+                 else
+                   'pending'
+                 end
 
         @storage.store_transaction(txid, tx.to_hex)
         store_action(tx, args, status: status)
@@ -1132,7 +1352,35 @@ module BSV
 
         beef_binary = tx.to_beef
         result = { txid: txid, tx: beef_binary.unpack('C*') }
-        result[:no_send_change] = [] if args.dig(:options, :no_send)
+
+        if no_send
+          result[:no_send_change] = []
+        elsif broadcast_enabled?
+          # Broadcast and promote or rollback — same discipline as auto_fund path.
+          broadcast_result = nil
+          begin
+            broadcast_result = @broadcaster.broadcast(tx)
+            @storage.update_action_status(txid, 'completed')
+            result[:broadcast_result] = broadcast_result
+            result[:broadcast_status] = 'success'
+          rescue StandardError => e
+            @storage.update_action_status(txid, 'failed')
+            result[:broadcast_error] = e.message
+            result[:broadcast_status] = broadcast_status_for(e)
+          end
+        else
+          # No broadcaster — promote immediately (backwards compatible).
+          final_status = if delayed
+                           warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
+                                'falling through to synchronous processing. ' \
+                                'Background broadcasting is a planned future feature.'
+                           'unproven'
+                         else
+                           'completed'
+                         end
+          @storage.update_action_status(txid, final_status)
+        end
+
         result
       end
 

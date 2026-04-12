@@ -195,7 +195,8 @@ module BSV
           raise BroadcastError.new(
             body['detail'] || body['title'] || body['txStatus'],
             status_code: code,
-            txid: body['txid']
+            txid: body['txid'],
+            arc_status: body['txStatus'].to_s.upcase
           )
         end
 
@@ -277,7 +278,8 @@ module BSV
           BroadcastError.new(
             body['detail'] || body['title'] || body['txStatus'],
             status_code: 200,
-            txid: body['txid']
+            txid: body['txid'],
+            arc_status: body['txStatus'].to_s.upcase
           )
         elsif !body['txid']
           BroadcastError.new(
