@@ -799,9 +799,9 @@ RSpec.describe 'WalletClient auto-fund mode' do
       expect(action[:status]).to eq('unproven')
     end
 
-    it 'logs a warning when accept_delayed_broadcast: true' do
+    it 'does not log a warning when accept_delayed_broadcast: true' do
       args = base_args.merge(options: { accept_delayed_broadcast: true })
-      expect { wallet.create_action(args) }.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+      expect { wallet.create_action(args) }.not_to output(/accept_delayed_broadcast/i).to_stderr
     end
 
     it 'still returns txid and tx bytes when accept_delayed_broadcast: true' do

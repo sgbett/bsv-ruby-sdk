@@ -81,6 +81,29 @@ RSpec.describe BSV::Wallet::WalletClient do
       w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
       expect(w.broadcast_enabled?).to be(true)
     end
+
+    it 'creates an InlineQueue by default' do
+      expect(wallet.broadcast_queue).to be_a(BSV::Wallet::InlineQueue)
+    end
+
+    it 'wires the default InlineQueue with the same storage adapter' do
+      store = BSV::Wallet::MemoryStore.new
+      w = described_class.new(private_key, storage: store)
+      # InlineQueue holds a reference to @storage — verify indirectly via #status delegation
+      expect(w.broadcast_queue).to respond_to(:status)
+    end
+
+    it 'accepts a custom broadcast_queue: keyword argument' do
+      custom_queue = double('custom_queue', enqueue: {}, status: nil, async?: false) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcast_queue: custom_queue)
+      expect(w.broadcast_queue).to equal(custom_queue)
+    end
+
+    it 'broadcast_enabled? reflects broadcaster presence, not queue presence' do
+      custom_queue = double('custom_queue') # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcast_queue: custom_queue)
+      expect(w.broadcast_enabled?).to be(false)
+    end
   end
 
   # -------------------------------------------------------------------------
@@ -508,10 +531,10 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(action[:status]).to eq('unproven')
     end
 
-    it 'logs a warning when accept_delayed_broadcast: true' do
+    it 'does not log a warning when accept_delayed_broadcast: true' do
       expect do
         wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
-      end.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+      end.not_to output(/accept_delayed_broadcast/i).to_stderr
     end
 
     it 'defaults to completed status when option is absent' do
@@ -581,14 +604,14 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(action[:status]).to eq('unproven')
     end
 
-    it 'logs a warning when sign_action passes accept_delayed_broadcast: true' do
+    it 'does not log a warning when sign_action passes accept_delayed_broadcast: true' do
       expect do
         wallet.sign_action({
                              reference: reference,
                              spends: { 0 => { unlocking_script: dummy_unlock_hex } },
                              options: { accept_delayed_broadcast: true }
                            })
-      end.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+      end.not_to output(/accept_delayed_broadcast/i).to_stderr
     end
   end
 

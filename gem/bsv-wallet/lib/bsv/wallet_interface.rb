@@ -12,6 +12,8 @@ module BSV
     autoload :ProtoWallet,      'bsv/wallet_interface/proto_wallet'
     autoload :Validators,       'bsv/wallet_interface/validators'
     autoload :StorageAdapter,    'bsv/wallet_interface/storage_adapter'
+    autoload :BroadcastQueue,    'bsv/wallet_interface/broadcast_queue'
+    autoload :InlineQueue,       'bsv/wallet_interface/inline_queue'
     autoload :MemoryStore,       'bsv/wallet_interface/memory_store'
     autoload :FileStore,         'bsv/wallet_interface/file_store'
     autoload :ProofStore,        'bsv/wallet_interface/proof_store'

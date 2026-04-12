@@ -42,6 +42,9 @@ module BSV
       # @return [#broadcast, nil] the optional broadcaster (responds to #broadcast(tx))
       attr_reader :broadcaster
 
+      # @return [BroadcastQueue] the broadcast queue used to dispatch transactions
+      attr_reader :broadcast_queue
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
@@ -50,6 +53,7 @@ module BSV
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
       # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
+      # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to InlineQueue
       def initialize(
         key,
         storage: FileStore.new,
@@ -60,7 +64,8 @@ module BSV
         fee_estimator: nil,
         coin_selector: nil,
         change_generator: nil,
-        broadcaster: nil
+        broadcaster: nil,
+        broadcast_queue: nil
       )
         super(key)
         @storage = storage
@@ -74,6 +79,10 @@ module BSV
         @injected_fee_estimator    = fee_estimator
         @injected_coin_selector    = coin_selector
         @injected_change_generator = change_generator
+        @broadcast_queue = broadcast_queue || InlineQueue.new(
+          storage: @storage,
+          broadcaster: @broadcaster
+        )
       end
 
       # Returns true when a broadcaster has been configured.
@@ -726,27 +735,13 @@ module BSV
 
             beef_binary = tx.to_beef
 
-            if broadcast_enabled?
-              broadcast_and_promote(
-                tx, txid, selected_outpoints, change_outpoints, fund_ref, beef_binary
-              )
-            else
-              # No broadcaster configured — promote immediately and return BEEF
-              # for the caller to broadcast (backwards-compatible behaviour).
-              selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
-              change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
-
-              final_status = if args.dig(:options, :accept_delayed_broadcast)
-                               warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
-                                    'falling through to synchronous processing. ' \
-                                    'Background broadcasting is a planned future feature.'
-                               'unproven'
-                             else
-                               'completed'
-                             end
-              @storage.update_action_status(txid, final_status)
-              { txid: txid, tx: beef_binary.unpack('C*') }
-            end
+            @broadcast_queue.enqueue(
+              tx: tx, txid: txid, beef_binary: beef_binary,
+              input_outpoints: selected_outpoints,
+              change_outpoints: change_outpoints,
+              fund_ref: fund_ref,
+              accept_delayed_broadcast: args.dig(:options, :accept_delayed_broadcast)
+            )
           end
         rescue StandardError
           # Release the pending lock so the UTXOs are available for retry.
@@ -1215,13 +1210,11 @@ module BSV
         @storage.update_action_status(txid, action_status) if txid && action_status
       end
 
-      # Broadcasts the transaction and promotes storage state on success.
-      # On broadcast failure, rolls back all pending state changes.
+      # Delegates to the broadcast queue for auto-fund promotion.
       #
-      # INVARIANT: Only broadcast failure triggers rollback. If broadcast succeeds
-      # but promotion raises, the error propagates — confirmed on-chain outputs must
-      # never be deleted. Partial promotion failure is a "needs manual intervention"
-      # scenario; it is preferable to a rollback that silently destroys on-chain data.
+      # Kept as a thin wrapper so +promote_no_send+ callers (send_with path)
+      # remain unaffected. The queue handles broadcast, UTXO promotion, and
+      # rollback.
       #
       # @param tx [Transaction] signed transaction to broadcast
       # @param txid [String] hex transaction id
@@ -1229,25 +1222,15 @@ module BSV
       # @param change_outpoints [Array<String>] change output outpoints
       # @param fund_ref [String] fund reference used when locking
       # @param beef_binary [String] raw BEEF bytes
-      # @return [Hash] result hash with :txid, :tx, :broadcast_result or :broadcast_error, and :broadcast_status
+      # @return [Hash] result hash from +BroadcastQueue#enqueue+
       def broadcast_and_promote(tx, txid, input_outpoints, change_outpoints, fund_ref, beef_binary)
-        begin
-          broadcast_result = @broadcaster.broadcast(tx)
-        rescue StandardError => e
-          rollback_pending_action(input_outpoints, change_outpoints, txid, fund_ref, action_status: 'failed')
-          return { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message, broadcast_status: broadcast_status_for(e) }
-        end
-
-        # Broadcast succeeded — promote all pending state to final.
-        # Do NOT rescue here: if promotion fails, the transaction is confirmed on-chain
-        # and outputs must not be deleted. Let the error propagate to the caller.
-        input_outpoints.each { |op| @storage.update_output_state(op, :spent) }
-        change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
-        @storage.update_action_status(txid, 'completed')
-
-        result = { txid: txid, tx: beef_binary.unpack('C*'), broadcast_result: broadcast_result, broadcast_status: 'success' }
-        result[:competing_txs] = broadcast_result.competing_txs if broadcast_result.competing_txs
-        result
+        @broadcast_queue.enqueue(
+          tx: tx, txid: txid, beef_binary: beef_binary,
+          input_outpoints: input_outpoints,
+          change_outpoints: change_outpoints,
+          fund_ref: fund_ref,
+          accept_delayed_broadcast: false
+        )
       end
 
       # Batch-broadcasts a list of previously no_send transactions.
@@ -1333,18 +1316,13 @@ module BSV
 
       # Maps a broadcast exception to a {ReviewActionResultStatus} string.
       #
+      # Delegates to +BroadcastQueue.status_for_error+ for a single source of
+      # truth across all queue adapters.
+      #
       # @param error [StandardError] the exception raised during broadcast
       # @return [String] one of 'doubleSpend', 'invalidTx', 'serviceError'
       def broadcast_status_for(error)
-        return 'serviceError' unless error.is_a?(BSV::Network::BroadcastError)
-
-        arc_status = error.arc_status.to_s.upcase
-        return 'doubleSpend' if arc_status == 'DOUBLE_SPEND_ATTEMPTED'
-
-        invalid_statuses = %w[REJECTED INVALID MALFORMED MINED_IN_STALE_BLOCK]
-        return 'invalidTx' if invalid_statuses.include?(arc_status) || arc_status.include?('ORPHAN')
-
-        'serviceError'
+        BroadcastQueue.status_for_error(error)
       end
 
       def finalize_action(tx, args)
@@ -1369,29 +1347,16 @@ module BSV
 
         if no_send
           result[:no_send_change] = []
-        elsif broadcast_enabled?
-          # Broadcast and promote or rollback — same discipline as auto_fund path.
-          begin
-            broadcast_result = @broadcaster.broadcast(tx)
-            @storage.update_action_status(txid, 'completed')
-            result[:broadcast_result] = broadcast_result
-            result[:broadcast_status] = 'success'
-          rescue StandardError => e
-            @storage.update_action_status(txid, 'failed')
-            result[:broadcast_error] = e.message
-            result[:broadcast_status] = broadcast_status_for(e)
-          end
         else
-          # No broadcaster — promote immediately (backwards compatible).
-          final_status = if delayed
-                           warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
-                                'falling through to synchronous processing. ' \
-                                'Background broadcasting is a planned future feature.'
-                           'unproven'
-                         else
-                           'completed'
-                         end
-          @storage.update_action_status(txid, final_status)
+          # The queue handles both broadcaster-present and no-broadcaster cases
+          # internally, so no broadcast_enabled? check is needed here.
+          result.merge!(
+            @broadcast_queue.enqueue(
+              tx: tx, txid: txid, beef_binary: beef_binary,
+              input_outpoints: nil, change_outpoints: nil, fund_ref: nil,
+              accept_delayed_broadcast: delayed
+            )
+          )
         end
 
         result

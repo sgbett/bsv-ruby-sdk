@@ -132,4 +132,56 @@ RSpec.describe BSV::Wallet::MemoryStore do
       end
     end
   end
+
+  # --------------------------------------------------------------------------
+  # Production warning
+  # --------------------------------------------------------------------------
+  describe 'production warning' do
+    # All specs in this group manage ENV keys manually to avoid cross-test leakage.
+    let(:env_keys) { %w[RACK_ENV RAILS_ENV APP_ENV BSV_MEMORY_STORE_OK] }
+
+    around do |example|
+      # Save state for every key we might touch.
+      saved = env_keys.to_h { |k| [k, ENV.fetch(k, nil)] }
+      # Remove all of them so each example starts clean.
+      env_keys.each { |k| ENV.delete(k) }
+      # Ensure the class flag is reset to default (true) between examples.
+      described_class.warn_in_production = true
+      example.run
+    ensure
+      saved.each { |k, v| v ? ENV[k] = v : ENV.delete(k) }
+      described_class.warn_in_production = true
+    end
+
+    it 'emits a warning when RACK_ENV=production' do
+      ENV['RACK_ENV'] = 'production'
+      expect { described_class.new }.to output(/MemoryStore is intended for testing/).to_stderr
+    end
+
+    it 'emits a warning when RAILS_ENV=staging' do
+      ENV['RAILS_ENV'] = 'staging'
+      expect { described_class.new }.to output(/MemoryStore is intended for testing/).to_stderr
+    end
+
+    it 'does not emit a warning when RAILS_ENV=test' do
+      ENV['RAILS_ENV'] = 'test'
+      expect { described_class.new }.not_to output.to_stderr
+    end
+
+    it 'does not emit a warning when no environment variable is set' do
+      expect { described_class.new }.not_to output.to_stderr
+    end
+
+    it 'suppresses the warning when BSV_MEMORY_STORE_OK=1 is set' do
+      ENV['RACK_ENV'] = 'production'
+      ENV['BSV_MEMORY_STORE_OK'] = '1'
+      expect { described_class.new }.not_to output.to_stderr
+    end
+
+    it 'suppresses the warning when MemoryStore.warn_in_production = false' do
+      ENV['RACK_ENV'] = 'production'
+      described_class.warn_in_production = false
+      expect { described_class.new }.not_to output.to_stderr
+    end
+  end
 end

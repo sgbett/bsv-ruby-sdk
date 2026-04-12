@@ -171,8 +171,11 @@ module BSV
       # Resolve a pubkey_hash argument that may be a raw binary hash or a
       # Base58Check address string.
       def self.resolve_pubkey_hash(arg)
-        # A 20-byte ASCII-8BIT string is treated as a raw binary hash.
-        return arg if arg.encoding == Encoding::ASCII_8BIT && arg.bytesize == 20
+        # A 20-byte string is treated as a raw binary hash regardless of
+        # encoding — callers commonly pass `"\x00" * 20` which is UTF-8.
+        # A valid Base58Check address is always longer than 20 characters
+        # (25 raw bytes → ~34 Base58 characters), so this is unambiguous.
+        return arg.b if arg.bytesize == 20
 
         # Otherwise treat as a Base58Check address string.
         decoded = BSV::Primitives::Base58.check_decode(arg, prefix_length: 1)

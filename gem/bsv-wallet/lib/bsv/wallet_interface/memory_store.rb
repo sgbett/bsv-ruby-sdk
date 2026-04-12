@@ -2,9 +2,11 @@
 
 module BSV
   module Wallet
-    # In-memory storage adapter for testing and single-process use.
+    # In-memory storage adapter intended for testing and development only.
     #
     # Stores actions, outputs, and certificates in plain Ruby arrays.
+    # All data is lost when the process exits — do not use in production.
+    # Use PostgresStore (or another persistent adapter) for production wallets.
     #
     # Thread safety: a +Mutex+ serialises all state-mutating operations so that
     # concurrent threads cannot select and mark the same UTXO as pending.
@@ -12,8 +14,28 @@ module BSV
     #
     # NOTE: FileStore is NOT process-safe — concurrent processes share no
     # in-memory lock and may read stale state from disk.
+    #
+    # == Production Warning
+    #
+    # When +RACK_ENV+, +RAILS_ENV+, or +APP_ENV+ is set to +production+ or
+    # +staging+, a warning is emitted to stderr. Suppress it with either:
+    #
+    #   BSV_MEMORY_STORE_OK=1               # environment variable
+    #   MemoryStore.warn_in_production = false  # Ruby flag (e.g. in test setup)
     class MemoryStore
       include StorageAdapter
+
+      # Controls whether the production-environment warning is emitted.
+      # Set to +false+ in test suites to silence the warning globally.
+      #
+      # @return [Boolean]
+      def self.warn_in_production?
+        @warn_in_production != false
+      end
+
+      class << self
+        attr_writer :warn_in_production
+      end
 
       def initialize
         @actions = []
@@ -23,6 +45,12 @@ module BSV
         @transactions = {}
         @settings = {}
         @mutex = Mutex.new
+
+        return unless self.class.warn_in_production? && production_env?
+
+        warn '[bsv-wallet] MemoryStore is intended for testing only. ' \
+             'Use PostgresStore for production wallets. ' \
+             'Set BSV_MEMORY_STORE_OK=1 to silence this warning.'
       end
 
       def store_action(action_data)
@@ -254,6 +282,14 @@ module BSV
       end
 
       private
+
+      # Returns true when the process is running in a production or staging
+      # environment and the operator has not explicitly acknowledged MemoryStore
+      # usage via the +BSV_MEMORY_STORE_OK+ environment variable.
+      def production_env?
+        env = ENV['RACK_ENV'] || ENV['RAILS_ENV'] || ENV.fetch('APP_ENV', nil)
+        env && %w[production staging].include?(env) && !ENV['BSV_MEMORY_STORE_OK']
+      end
 
       def filter_actions(query)
         results = @actions
