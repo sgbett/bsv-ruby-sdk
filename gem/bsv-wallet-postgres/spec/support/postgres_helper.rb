@@ -30,6 +30,7 @@ POSTGRES_WALLET_TABLES = %i[
   wallet_proofs
   wallet_transactions
   wallet_settings
+  wallet_broadcast_jobs
 ].freeze
 
 # Apply the shipped wallet schema once per suite load. Idempotent — no
