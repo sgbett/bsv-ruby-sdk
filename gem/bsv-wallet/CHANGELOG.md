@@ -5,6 +5,24 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0 — 2026-04-12
+
+### Added
+- Pluggable `BroadcastQueue` interface module — duck-typed, follows the `StorageAdapter` pattern
+- `InlineQueue` synchronous default adapter — consolidates broadcast and no-broadcaster paths
+- `WalletClient` accepts `broadcast_queue:` constructor parameter (auto-creates `InlineQueue` when not provided)
+- `BroadcastQueue.status_for_error` shared helper for consistent broadcast error mapping
+- Integration specs for broadcast/rollback flows (20 specs)
+- MemoryStore production warning — logs to stderr when `RACK_ENV`/`RAILS_ENV` is `production` or `staging`
+
+### Fixed
+- TOCTOU window on change outputs — stored as `:pending` directly, eliminating race with concurrent `auto_fund`
+- Broadcast promotion failure no longer deletes confirmed on-chain outputs — only broadcast failure triggers rollback
+
+### Changed
+- `accept_delayed_broadcast: true` no longer logs "not yet implemented" warning — handled by the queue adapter
+- MemoryStore demoted to test/development only (production use triggers a suppressible warning)
+
 ## 0.6.0 — 2026-04-12
 
 ### Added
