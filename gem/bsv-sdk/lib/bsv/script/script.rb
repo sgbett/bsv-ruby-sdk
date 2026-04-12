@@ -192,6 +192,8 @@ module BSV
         raise ArgumentError, "unrecognised address prefix: 0x#{prefix.unpack1('H*')}" \
           unless prefix == mainnet_prefix || prefix == testnet_prefix
 
+        raise ArgumentError, 'decoded hash must be 20 bytes' unless data.bytesize == 20
+
         data
       end
       private_class_method :resolve_pubkey_hash
