@@ -6,6 +6,8 @@
 
 This is an integration rework — the core hash/verify logic is sound and unchanged.
 
+The gem's scope is deliberately narrow: OP_RETURN attestation with the simplicity that entails. Hash data, publish the hash, verify it by txid. No BEEF, no merkle proofs, no proof documents. A future archival service can layer proof-based verification on top using the wallet's BEEF output directly — that's not this gem's concern.
+
 ## Tasks
 
 ### Task 1: Update Configuration — remove `broadcaster:`, keep `wallet:` and `provider:`
@@ -21,7 +23,7 @@ attr_accessor :wallet, :provider
 
 Remove broadcaster-related specs, update the "supports setting all attributes" spec to cover only `wallet` and `provider`.
 
-### Task 2: Update Response — replace `transaction` with `tx` and add `broadcast_status`
+### Task 2: Update Response — drop `transaction`, keep it simple
 
 **File:** `gem/bsv-attest/lib/bsv/attest/response.rb`
 
@@ -29,24 +31,21 @@ Current: `attr_reader :hash, :transaction, :txid`
 
 New:
 ```ruby
-attr_reader :hash, :txid, :tx, :broadcast_status
+attr_reader :hash, :txid
 
-def initialize(hash:, txid:, tx: nil, broadcast_status: nil)
+def initialize(hash:, txid:)
   @hash = hash
   @txid = txid
-  @tx = tx
-  @broadcast_status = broadcast_status
 end
 ```
 
-- `tx` — BEEF bytes (Array<Integer>) from create_action, optional
-- `broadcast_status` — string ('success', 'doubleSpend', etc.), optional
-- `hash_hex` stays the same
 - Drop `transaction` — we no longer build the Transaction object ourselves
+- No BEEF, no broadcast_status — the gem returns what the caller needs: the hash and where to find it
+- `hash_hex` stays the same
 
 **File:** `gem/bsv-attest/spec/bsv/attest/response_spec.rb`
 
-Update to test the new attributes (`tx`, `broadcast_status`) instead of `transaction`.
+Update to test the new attributes (just `hash` and `txid`), remove `transaction` specs.
 
 ### Task 3: Add BroadcastError class
 
@@ -92,12 +91,7 @@ def publish(data, wallet: nil, description: nil)
     raise BroadcastError, result[:broadcast_error]
   end
 
-  Response.new(
-    hash: digest,
-    txid: result[:txid],
-    tx: result[:tx],
-    broadcast_status: result[:broadcast_status]
-  )
+  Response.new(hash: digest, txid: result[:txid])
 end
 ```
 
@@ -106,6 +100,7 @@ Key decisions:
 - **`description:` parameter** — optional override for the wallet action description (default: 'Attest data hash to chain', 26 chars, within 5-50 limit)
 - **`randomize_outputs: false`** — deterministic output ordering (OP_RETURN first, then change)
 - **BroadcastError on failure** — if the wallet returns broadcast_error, raise rather than return a partial response
+- **Response is just hash + txid** — no BEEF, no broadcast metadata; the gem returns what you need to verify later
 - **`verify` unchanged** — provider-based verification is independent of the publish rework
 
 ### Task 5: Update gemspec and version
@@ -133,11 +128,7 @@ Bump to `0.2.0` — breaking change (dropped broadcaster, changed Response shape
 let(:mock_wallet) do
   Class.new do
     def create_action(args)
-      {
-        txid: 'bb' * 32,
-        tx: [0x01, 0x00],
-        broadcast_status: 'success'
-      }
+      { txid: 'bb' * 32 }
     end
   end.new
 end
@@ -145,7 +136,7 @@ end
 
 Update specs:
 - "builds an OP_RETURN transaction" → "delegates to create_action and returns Response"
-- "includes the hash in an OP_RETURN output" → verify the create_action args include correct locking_script
+- "includes the hash in an OP_RETURN output" → verify the create_action args include correct locking_script (spy mock)
 - Remove "raises ArgumentError without broadcaster"
 - Add "raises BroadcastError on broadcast failure"
 - Add "passes custom description to create_action"
@@ -161,7 +152,7 @@ let(:spy_wallet) do
     attr_reader :last_args
     def create_action(args)
       @last_args = args
-      { txid: 'bb' * 32, tx: [0x01], broadcast_status: 'success' }
+      { txid: 'bb' * 32 }
     end
   end.new
 end
@@ -175,13 +166,13 @@ Then assert `spy_wallet.last_args[:outputs].first[:locking_script]` contains the
 |------|--------|
 | `gem/bsv-attest/lib/bsv/attest.rb` | Edit: rewrite publish, add autoloads |
 | `gem/bsv-attest/lib/bsv/attest/configuration.rb` | Edit: remove broadcaster |
-| `gem/bsv-attest/lib/bsv/attest/response.rb` | Edit: replace transaction with tx + broadcast_status |
+| `gem/bsv-attest/lib/bsv/attest/response.rb` | Edit: simplify to hash + txid only |
 | `gem/bsv-attest/lib/bsv/attest/broadcast_error.rb` | New: BroadcastError class |
 | `gem/bsv-attest/lib/bsv/attest/version.rb` | Edit: bump to 0.2.0 |
 | `gem/bsv-attest/bsv-attest.gemspec` | Edit: add bsv-wallet dep, pin bsv-sdk |
 | `gem/bsv-attest/spec/bsv/attest_spec.rb` | Edit: rewrite publish specs |
 | `gem/bsv-attest/spec/bsv/attest/configuration_spec.rb` | Edit: remove broadcaster specs |
-| `gem/bsv-attest/spec/bsv/attest/response_spec.rb` | Edit: test new attributes |
+| `gem/bsv-attest/spec/bsv/attest/response_spec.rb` | Edit: test simplified attributes |
 
 ## Verification
 
