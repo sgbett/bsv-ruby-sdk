@@ -29,7 +29,7 @@ Gem::Specification.new do |spec|
 
   # bsv-wallet-postgres is released alongside bsv-wallet; the floor rises
   # with every wallet security release.
-  spec.add_dependency 'bsv-wallet', '>= 0.4.0', '< 1.0'
+  spec.add_dependency 'bsv-wallet', '>= 0.6.0', '< 1.0'
   spec.add_dependency 'pg', '~> 1'
   spec.add_dependency 'sequel', '~> 5'
 end
