@@ -9,6 +9,11 @@ AllCops:
 Style/Documentation:
   Enabled: false
 
+# `be > 0` is idiomatic RSpec for numeric comparisons; `be.positive?` is broken syntax.
+Style/NumericPredicate:
+  Exclude:
+    - 'gem/*/spec/**/*'
+
 Metrics/BlockLength:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/wire/**/*'

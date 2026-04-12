@@ -654,6 +654,52 @@ RSpec.describe BSV::Transaction::Transaction do
     end
   end
 
+  describe '#fee with numeric argument' do
+    # Builds a minimal transaction with one input and one change output so that
+    # distribute_change runs, and we can observe the resulting change satoshis.
+    def tx_with_input_sats(input_sats)
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: "\x00".b * 32,
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = input_sats
+      tx.add_input(input)
+      pubkey_hash = "\x00".b * 20
+      output = BSV::Transaction::TransactionOutput.new(
+        satoshis: 0,
+        locking_script: BSV::Script::Script.p2pkh_lock(pubkey_hash)
+      )
+      output.change = true
+      tx.add_output(output)
+      tx
+    end
+
+    it 'passes an integer fee through unchanged' do
+      tx = tx_with_input_sats(1_000)
+      tx.fee(100)
+      expect(tx.outputs.first.satoshis).to eq(900)
+    end
+
+    it 'rounds a fractional fee of 100.5 up to 101' do
+      tx = tx_with_input_sats(1_000)
+      tx.fee(100.5)
+      expect(tx.outputs.first.satoshis).to eq(899)
+    end
+
+    it 'rounds a fractional fee of 100.1 up to 101' do
+      tx = tx_with_input_sats(1_000)
+      tx.fee(100.1)
+      expect(tx.outputs.first.satoshis).to eq(899)
+    end
+
+    it 'keeps 100.0 as 100 — ceil is a no-op for whole floats' do
+      tx = tx_with_input_sats(1_000)
+      tx.fee(100.0)
+      expect(tx.outputs.first.satoshis).to eq(900)
+    end
+  end
+
   describe 'full attestation flow' do
     it 'constructs, signs, and serialises a transaction with P2PKH input, OP_RETURN, and change' do
       private_key = BSV::Primitives::PrivateKey.generate
