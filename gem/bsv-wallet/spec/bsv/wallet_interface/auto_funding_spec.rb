@@ -293,10 +293,10 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
   # ---------------------------------------------------------------------------
   describe 'no change when excess is zero or sub-dust' do
     it 'produces no change output when excess is below the dust floor' do
-      # A 1-input 2-output tx is ~226 bytes. Compute fee at the default rate
-      # so this test adapts if DEFAULT_SATS_PER_KB changes.
-      rate = BSV::Wallet::FeeEstimator::DEFAULT_SATS_PER_KB
-      fee = (226 / 1000.0 * rate).ceil
+      # Compute the fee for a 1-input 2-output tx from the estimator constants
+      # so this test adapts if sizes or rates change.
+      estimator = BSV::Wallet::FeeEstimator.new
+      fee = estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 2)
       seed_payment_output(wallet, satoshis: 1000 + fee)
 
       result = wallet.create_action({

@@ -4,6 +4,19 @@ require 'spec_helper'
 require 'bsv-wallet'
 
 RSpec.describe BSV::Wallet::FeeModel do
+  # Derive sizes from constants so tests adapt automatically.
+  let(:input_size) { described_class::P2PKH_INPUT_SIZE }
+  let(:output_size) { described_class::P2PKH_OUTPUT_SIZE }
+  let(:fixed) { described_class::FIXED_OVERHEAD }
+
+  def byte_size(inputs, outputs)
+    fixed + 1 + (inputs * input_size) + 1 + (outputs * output_size)
+  end
+
+  def expected_fee(inputs, outputs, rate)
+    [(byte_size(inputs, outputs) / 1000.0 * rate).ceil, 1].max
+  end
+
   describe '#initialize' do
     it 'defaults to DEFAULT_SATS_PER_KB' do
       model = described_class.new
@@ -29,8 +42,10 @@ RSpec.describe BSV::Wallet::FeeModel do
       expect(described_class::OVERHEAD).to eq(10)
     end
 
-    it 'defines P2PKH_INPUT_SIZE as 148' do
-      expect(described_class::P2PKH_INPUT_SIZE).to eq(148)
+    it 'P2PKH_INPUT_SIZE includes EF overhead' do
+      expect(described_class::P2PKH_INPUT_SIZE).to eq(
+        described_class::P2PKH_RAW_INPUT_SIZE + described_class::EF_INPUT_OVERHEAD
+      )
     end
 
     it 'defines P2PKH_OUTPUT_SIZE as 34' do
@@ -41,21 +56,18 @@ RSpec.describe BSV::Wallet::FeeModel do
   describe '#estimate' do
     subject(:model) { described_class.new(sats_per_kb: rate) }
 
-    context 'with 1 sat/kB (default rate)' do
+    context 'with 1 sat/kB' do
       let(:rate) { 1 }
 
-      it '1 input + 1 output: 192 bytes → 1 sat (minimum)' do
-        # 10 + 148 + 34 = 192; ceil(192/1000.0 * 1) = 1
-        expect(model.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(1)
+      it '1 input + 1 output returns correct fee' do
+        expect(model.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(1, 1, rate))
       end
 
-      it '2 inputs + 3 outputs: 408 bytes → 1 sat (minimum)' do
-        # 10 + 296 + 102 = 408; ceil(408/1000.0 * 1) = 1
-        expect(model.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(1)
+      it '2 inputs + 3 outputs returns correct fee' do
+        expect(model.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(expected_fee(2, 3, rate))
       end
 
-      it '0 inputs + 1 output: 44 bytes → 1 sat (minimum enforced)' do
-        # 10 + 0 + 34 = 44; ceil(44/1000.0 * 1) = 1
+      it '0 inputs + 1 output returns minimum 1 sat' do
         expect(model.estimate(p2pkh_inputs: 0, p2pkh_outputs: 1)).to eq(1)
       end
     end
@@ -63,18 +75,16 @@ RSpec.describe BSV::Wallet::FeeModel do
     context 'with 100 sat/kB' do
       let(:rate) { 100 }
 
-      it '2 inputs + 3 outputs: 408 bytes → 41 sats' do
-        # 10 + 296 + 102 = 408; ceil(408/1000.0 * 100) = 41
-        expect(model.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(41)
+      it '2 inputs + 3 outputs returns correct fee' do
+        expect(model.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(expected_fee(2, 3, rate))
       end
     end
 
     context 'with 50 sat/kB' do
       let(:rate) { 50 }
 
-      it '10 inputs + 10 outputs: 1830 bytes → 92 sats' do
-        # 10 + 1480 + 340 = 1830; ceil(1830/1000.0 * 50) = 92
-        expect(model.estimate(p2pkh_inputs: 10, p2pkh_outputs: 10)).to eq(92)
+      it '10 inputs + 10 outputs returns correct fee' do
+        expect(model.estimate(p2pkh_inputs: 10, p2pkh_outputs: 10)).to eq(expected_fee(10, 10, rate))
       end
     end
 

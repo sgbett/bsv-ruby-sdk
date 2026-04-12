@@ -21,15 +21,27 @@ module BSV
     #   fee = estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)
     #   # => 10 (ceil(192/1000 * 50) = 10)
     class FeeEstimator
-      # Estimated size in bytes of an unsigned P2PKH input.
-      # Matches {BSV::Transaction::Transaction::UNSIGNED_P2PKH_INPUT_SIZE}.
-      P2PKH_INPUT_SIZE = BSV::Transaction::Transaction::UNSIGNED_P2PKH_INPUT_SIZE
+      # Estimated size in bytes of an unsigned P2PKH input in raw format.
+      P2PKH_RAW_INPUT_SIZE = BSV::Transaction::Transaction::UNSIGNED_P2PKH_INPUT_SIZE
+
+      # Extended Format (BRC-30/EF) adds source_satoshis (8 bytes) +
+      # varint(25) (1 byte) + P2PKH locking script (25 bytes) = 34 bytes
+      # per input. ARC validates fees against the EF size, not raw.
+      EF_INPUT_OVERHEAD = 34
+
+      # Total estimated input size including EF overhead. This is the size
+      # ARC sees and charges fees against.
+      P2PKH_INPUT_SIZE = P2PKH_RAW_INPUT_SIZE + EF_INPUT_OVERHEAD
 
       # Estimated size in bytes of a P2PKH output (8 satoshis + varint(25) + 25-byte script).
       P2PKH_OUTPUT_SIZE = 34
 
-      # Fixed overhead in bytes for version (4) and lock_time (4).
-      FIXED_OVERHEAD = 8
+      # EF version marker: 6 bytes (\x00\x00\x00\x00\x00\xEF) replaces
+      # the 4-byte raw version field, adding 2 bytes of fixed overhead.
+      EF_VERSION_OVERHEAD = 2
+
+      # Fixed overhead in bytes for version (4) + EF marker (2) + lock_time (4).
+      FIXED_OVERHEAD = 10
 
       # Approximate overhead including typical 1-byte varints for input/output
       # counts. Retained for backward compatibility with code that referenced
