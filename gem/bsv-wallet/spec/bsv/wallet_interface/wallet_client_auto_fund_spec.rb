@@ -512,6 +512,24 @@ RSpec.describe 'WalletClient auto-fund mode' do
         actions = storage.find_actions({ limit: 10, offset: 0 })
         expect(actions.first[:status]).to eq('completed')
       end
+
+      it 'stores change outputs as :pending before broadcast is called (no TOCTOU window)' do
+        # Capture the state of change outputs at the moment broadcast is invoked.
+        # Change outputs must already be :pending — never briefly :spendable.
+        change_state_at_broadcast = nil
+        allow(broadcaster).to receive(:broadcast) do |_tx|
+          all_outputs = storage.find_outputs({ include_spent: true })
+          change_outputs = all_outputs.select { |o| o[:derivation_prefix] }
+          change_state_at_broadcast = change_outputs.map { |o| o[:state] }
+          broadcast_response
+        end
+
+        wallet.create_action(action_opts)
+
+        expect(change_state_at_broadcast).not_to be_nil
+        expect(change_state_at_broadcast).not_to be_empty
+        expect(change_state_at_broadcast).to all(eq(:pending))
+      end
     end
 
     describe 'failed broadcast (BroadcastError)' do

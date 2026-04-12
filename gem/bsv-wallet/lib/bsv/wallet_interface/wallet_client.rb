@@ -689,22 +689,12 @@ module BSV
           @storage.store_transaction(txid, tx_hex)
 
           if no_send
-            # Leave inputs as :pending — the caller will either broadcast via
-            # send_with or cancel via abort_action.
-            store_change_outputs(txid, tx, change_outputs, tx_hex)
-
-            # Record change outpoint positions, then mark them :pending so they
-            # are not auto-selected by a concurrent create_action. This matches
-            # the TS SDK where noSend outputs have spendable: false.
-            change_outpoints = []
-            change_outputs.each do |spec|
-              idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
-              next unless idx
-
-              op = "#{txid}.#{idx}"
-              change_outpoints << op
-              @storage.update_output_state(op, :pending, pending_reference: fund_ref, no_send: true)
-            end
+            # Store change outputs directly as :pending with no_send: true so a
+            # concurrent auto-fund cannot select them. No flip loop needed.
+            change_outpoints = store_change_outputs(
+              txid, tx, change_outputs, tx_hex,
+              state: :pending, pending_reference: fund_ref, no_send: true
+            )
 
             store_action(tx, args, status: 'nosend')
             store_tracked_outputs(txid, tx, caller_outputs)
@@ -724,20 +714,13 @@ module BSV
           else
             # Store everything in pending state first — inputs are already locked
             # as :pending by lock_utxos above, so we match that discipline here.
+            # Change outputs are stored directly as :pending to eliminate the
+            # TOCTOU window where a concurrent auto-fund could select them.
             store_action(tx, args, status: 'pending')
-            store_change_outputs(txid, tx, change_outputs, tx_hex)
-
-            # Record change outpoints and mark them :pending so a concurrent
-            # create_action cannot double-spend them before broadcast completes.
-            change_outpoints = []
-            change_outputs.each do |spec|
-              idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
-              next unless idx
-
-              op = "#{txid}.#{idx}"
-              change_outpoints << op
-              @storage.update_output_state(op, :pending, pending_reference: fund_ref)
-            end
+            change_outpoints = store_change_outputs(
+              txid, tx, change_outputs, tx_hex,
+              state: :pending, pending_reference: fund_ref
+            )
 
             store_tracked_outputs(txid, tx, caller_outputs)
 
@@ -913,40 +896,55 @@ module BSV
         tx.add_output(output)
       end
 
-      # Persists change outputs in storage as new spendable UTXOs.
+      # Persists change outputs in storage with the specified state.
       #
       # Each output is stored with full BRC-29 derivation metadata so the
-      # wallet can derive the spending key later, and with +:state+ +:spendable+
-      # so it is eligible for future coin selection.
+      # wallet can derive the spending key later. The +:state+ parameter
+      # controls the initial state — pass +:pending+ with a +:pending_reference+
+      # to store outputs atomically in the correct state and avoid any TOCTOU
+      # window where a concurrent auto-fund could select them as spendable.
       #
       # @param txid [String] hex txid of the signed transaction
       # @param tx [BSV::Transaction::Transaction]
       # @param change_specs [Array<Hash>] change descriptors from {ChangeGenerator}
       # @param tx_hex [String] serialised transaction hex (used as source)
-      def store_change_outputs(txid, tx, change_specs, tx_hex)
+      # @param state [Symbol] initial output state (default: +:spendable+)
+      # @param pending_reference [String, nil] reference tag for pending outputs
+      # @param no_send [Boolean] when +true+, marks the output as no-send pending
+      # @return [Array<String>] list of stored outpoints ("txid.vout" format)
+      def store_change_outputs(txid, tx, change_specs, tx_hex, state: :spendable, pending_reference: nil, no_send: false)
+        outpoints = []
         change_specs.each do |spec|
           actual_idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
           next unless actual_idx
 
-          locking_script_hex = if spec[:locking_script].is_a?(BSV::Script::Script)
-                                 spec[:locking_script].to_hex
-                               else
-                                 spec[:locking_script]
-                               end
-
-          @storage.store_output({
-                                  outpoint: "#{txid}.#{actual_idx}",
-                                  satoshis: spec[:satoshis],
-                                  locking_script: locking_script_hex,
-                                  basket: 'default',
-                                  tags: [],
-                                  derivation_prefix: spec[:derivation_prefix],
-                                  derivation_suffix: spec[:derivation_suffix],
-                                  sender_identity_key: spec[:sender_identity_key],
-                                  state: :spendable,
-                                  source_tx_hex: tx_hex
-                                })
+          entry = change_output_entry(txid, actual_idx, spec, tx_hex, state, pending_reference, no_send)
+          @storage.store_output(entry)
+          outpoints << "#{txid}.#{actual_idx}"
         end
+        outpoints
+      end
+
+      def change_output_entry(txid, idx, spec, tx_hex, state, pending_reference, no_send)
+        locking_script_hex = spec[:locking_script].is_a?(BSV::Script::Script) ? spec[:locking_script].to_hex : spec[:locking_script]
+        entry = {
+          outpoint: "#{txid}.#{idx}",
+          satoshis: spec[:satoshis],
+          locking_script: locking_script_hex,
+          basket: 'default',
+          tags: [],
+          derivation_prefix: spec[:derivation_prefix],
+          derivation_suffix: spec[:derivation_suffix],
+          sender_identity_key: spec[:sender_identity_key],
+          state: state,
+          source_tx_hex: tx_hex
+        }
+        if state == :pending
+          entry[:pending_since] = Time.now.utc.iso8601
+          entry[:pending_reference] = pending_reference if pending_reference
+          entry[:no_send] = true if no_send
+        end
+        entry
       end
 
       # Lazy accessors for auto-fund components. Created on first use so the
@@ -1218,7 +1216,12 @@ module BSV
       end
 
       # Broadcasts the transaction and promotes storage state on success.
-      # On failure, rolls back all pending state changes.
+      # On broadcast failure, rolls back all pending state changes.
+      #
+      # INVARIANT: Only broadcast failure triggers rollback. If broadcast succeeds
+      # but promotion raises, the error propagates — confirmed on-chain outputs must
+      # never be deleted. Partial promotion failure is a "needs manual intervention"
+      # scenario; it is preferable to a rollback that silently destroys on-chain data.
       #
       # @param tx [Transaction] signed transaction to broadcast
       # @param txid [String] hex transaction id
@@ -1228,9 +1231,16 @@ module BSV
       # @param beef_binary [String] raw BEEF bytes
       # @return [Hash] result hash with :txid, :tx, :broadcast_result or :broadcast_error, and :broadcast_status
       def broadcast_and_promote(tx, txid, input_outpoints, change_outpoints, fund_ref, beef_binary)
-        broadcast_result = @broadcaster.broadcast(tx)
+        begin
+          broadcast_result = @broadcaster.broadcast(tx)
+        rescue StandardError => e
+          rollback_pending_action(input_outpoints, change_outpoints, txid, fund_ref, action_status: 'failed')
+          return { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message, broadcast_status: broadcast_status_for(e) }
+        end
 
         # Broadcast succeeded — promote all pending state to final.
+        # Do NOT rescue here: if promotion fails, the transaction is confirmed on-chain
+        # and outputs must not be deleted. Let the error propagate to the caller.
         input_outpoints.each { |op| @storage.update_output_state(op, :spent) }
         change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
         @storage.update_action_status(txid, 'completed')
@@ -1238,9 +1248,6 @@ module BSV
         result = { txid: txid, tx: beef_binary.unpack('C*'), broadcast_result: broadcast_result, broadcast_status: 'success' }
         result[:competing_txs] = broadcast_result.competing_txs if broadcast_result.competing_txs
         result
-      rescue StandardError => e
-        rollback_pending_action(input_outpoints, change_outpoints, txid, fund_ref, action_status: 'failed')
-        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message, broadcast_status: broadcast_status_for(e) }
       end
 
       # Batch-broadcasts a list of previously no_send transactions.
@@ -1292,10 +1299,29 @@ module BSV
       # Attempts to broadcast and promote a single no_send transaction.
       # Action status is set to 'unproven' (matching TS SDK SendWithResult)
       # because the transaction has been submitted but not yet confirmed.
+      #
+      # INVARIANT: Only broadcast failure triggers rollback. If broadcast succeeds
+      # but promotion raises, the error propagates — confirmed on-chain outputs must
+      # never be deleted. See +broadcast_and_promote+ for the same invariant.
       def promote_no_send(tx, txid, fund_ref, pending_entry)
-        @broadcaster.broadcast(tx)
+        begin
+          @broadcaster.broadcast(tx)
+        rescue StandardError => e
+          rollback_pending_action(
+            pending_entry[:locked_outpoints],
+            pending_entry[:change_outpoints],
+            txid,
+            fund_ref,
+            action_status: 'failed'
+          )
+          @pending.delete(fund_ref)
+          @pending_by_txid.delete(txid)
+          return { txid: txid, status: 'failed', error: e.message }
+        end
 
         # Broadcast succeeded — promote state and remove from pending indices.
+        # Do NOT rescue here: if promotion fails, the transaction is confirmed on-chain
+        # and outputs must not be deleted. Let the error propagate to the caller.
         pending_entry[:locked_outpoints].each { |op| @storage.update_output_state(op, :spent) }
         pending_entry[:change_outpoints].each { |op| @storage.update_output_state(op, :spendable) }
         @storage.update_action_status(txid, 'unproven')
@@ -1303,18 +1329,6 @@ module BSV
         @pending_by_txid.delete(txid)
 
         { txid: txid, status: 'unproven' }
-      rescue StandardError => e
-        rollback_pending_action(
-          pending_entry[:locked_outpoints],
-          pending_entry[:change_outpoints],
-          txid,
-          fund_ref,
-          action_status: 'failed'
-        )
-        @pending.delete(fund_ref)
-        @pending_by_txid.delete(txid)
-
-        { txid: txid, status: 'failed', error: e.message }
       end
 
       # Maps a broadcast exception to a {ReviewActionResultStatus} string.
@@ -1357,7 +1371,6 @@ module BSV
           result[:no_send_change] = []
         elsif broadcast_enabled?
           # Broadcast and promote or rollback — same discipline as auto_fund path.
-          broadcast_result = nil
           begin
             broadcast_result = @broadcaster.broadcast(tx)
             @storage.update_action_status(txid, 'completed')

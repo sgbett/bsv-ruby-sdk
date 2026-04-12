@@ -513,6 +513,25 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
                              })
       end.to raise_error(BSV::Wallet::InsufficientFundsError)
     end
+
+    it 'stores no_send change outputs as :pending immediately, with pending_reference set' do
+      result
+      change_ops = result[:no_send_change]
+      expect(change_ops).not_to be_empty
+
+      # Each change output must be :pending from the moment it is stored —
+      # never briefly :spendable. The pending_reference must match the
+      # fund reference returned with the result.
+      fund_ref = result[:reference]
+      all_outputs = storage.find_outputs({ include_spent: true })
+      change_ops.each do |op|
+        output = all_outputs.find { |o| o[:outpoint] == op }
+        expect(output).not_to be_nil
+        expect(output[:state]).to eq(:pending)
+        expect(output[:pending_reference]).to eq(fund_ref)
+        expect(output[:no_send]).to be(true)
+      end
+    end
   end
 
   # ---------------------------------------------------------------------------

@@ -103,16 +103,20 @@ module BSV
       end
 
       def update_action_status(txid, new_status)
-        ds = @db[:wallet_actions].where(txid: txid)
-        raise WalletError, "Action not found: #{txid}" if ds.empty?
+        # Fetch by txid first, then update by primary key so only exactly one
+        # row is targeted. The unique index on txid makes this unambiguous, but
+        # scoping to the id column makes the intent explicit and is safe even
+        # on databases where the migration has not yet been applied.
+        row = @db[:wallet_actions].where(txid: txid).first
+        raise WalletError, "Action not found: #{txid}" unless row
 
-        ds.update(
+        @db[:wallet_actions].where(id: row[:id]).update(
           data: Sequel.lit(
             "data || jsonb_build_object('status', ?)",
             new_status
           )
         )
-        symbolise_keys(ds.first[:data])
+        symbolise_keys(@db[:wallet_actions].where(id: row[:id]).first[:data])
       end
 
       def delete_action(txid)

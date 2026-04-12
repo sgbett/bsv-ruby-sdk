@@ -383,6 +383,28 @@ RSpec.describe BSV::Wallet::PostgresStore, :postgres do
       end
     end
 
+    describe '#update_action_status' do
+      it 'updates the status of the matching action' do
+        store.store_action(txid: 'abc123', status: 'pending', labels: [])
+        result = store.update_action_status('abc123', 'completed')
+        expect(result[:status]).to eq('completed')
+        expect(result[:txid]).to eq('abc123')
+      end
+
+      it 'raises WalletError when the txid does not exist' do
+        expect do
+          store.update_action_status('nonexistent', 'completed')
+        end.to raise_error(BSV::Wallet::WalletError, /nonexistent/)
+      end
+
+      it 'enforces uniqueness — a second store_action with the same txid raises a DB constraint' do
+        store.store_action(txid: 'unique123', status: 'pending', labels: [])
+        expect do
+          store.store_action(txid: 'unique123', status: 'pending', labels: [])
+        end.to raise_error(Sequel::UniqueConstraintViolation)
+      end
+    end
+
     describe '.migrate!' do
       it 'creates all five wallet tables' do
         described_class.migrate!(db)
