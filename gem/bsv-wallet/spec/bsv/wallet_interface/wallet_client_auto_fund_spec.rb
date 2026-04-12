@@ -475,6 +475,30 @@ RSpec.describe 'WalletClient auto-fund mode' do
         expect(result[:broadcast_result]).to eq(broadcast_response)
       end
 
+      it 'includes broadcast_status: success' do
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('success')
+      end
+
+      it 'does not include :competing_txs when none returned' do
+        result = wallet.create_action(action_opts)
+        expect(result).not_to have_key(:competing_txs)
+      end
+
+      context 'when ARC returns competing_txs' do
+        let(:broadcast_response) do
+          BSV::Network::BroadcastResponse.new(
+            txid: 'abc', tx_status: 'SEEN_ON_NETWORK',
+            competing_txs: %w[deadbeef cafebabe]
+          )
+        end
+
+        it 'propagates competing_txs into the result' do
+          result = wallet.create_action(action_opts)
+          expect(result[:competing_txs]).to eq(%w[deadbeef cafebabe])
+        end
+      end
+
       it 'promotes input UTXOs to :spent' do
         wallet.create_action(action_opts)
         spendable = storage.find_spendable_outputs(basket: 'default')
@@ -564,6 +588,57 @@ RSpec.describe 'WalletClient auto-fund mode' do
         all_actions = storage.find_actions({ limit: 100, offset: 0 })
         action = all_actions.find { |a| a[:txid] == result[:txid] }
         expect(action[:status]).to eq('failed')
+      end
+    end
+
+    # -------------------------------------------------------------------------
+    # ReviewActionResultStatus mapping
+    # -------------------------------------------------------------------------
+    describe 'broadcast_status mapping' do
+      it "returns 'doubleSpend' for DOUBLE_SPEND_ATTEMPTED" do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('double spend', arc_status: 'DOUBLE_SPEND_ATTEMPTED')
+        )
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('doubleSpend')
+      end
+
+      it "returns 'invalidTx' for REJECTED" do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('rejected', arc_status: 'REJECTED')
+        )
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('invalidTx')
+      end
+
+      it "returns 'invalidTx' for INVALID" do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('invalid tx', arc_status: 'INVALID')
+        )
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('invalidTx')
+      end
+
+      it "returns 'invalidTx' for MALFORMED" do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('malformed', arc_status: 'MALFORMED')
+        )
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('invalidTx')
+      end
+
+      it "returns 'serviceError' for HTTP-level BroadcastError (no arc_status)" do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('HTTP 503', status_code: 503)
+        )
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('serviceError')
+      end
+
+      it "returns 'serviceError' for network-level errors (non-BroadcastError)" do
+        allow(broadcaster).to receive(:broadcast).and_raise(RuntimeError, 'connection refused')
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_status]).to eq('serviceError')
       end
     end
 
@@ -664,6 +739,68 @@ RSpec.describe 'WalletClient auto-fund mode' do
                                     })
       expect(result).not_to have_key(:broadcast_result)
       expect(result).not_to have_key(:broadcast_error)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # accept_delayed_broadcast option (stub)
+  # -------------------------------------------------------------------------
+  describe 'accept_delayed_broadcast option' do
+    before { seed_utxo(satoshis: 10_000) }
+
+    let(:base_args) do
+      {
+        description: 'delayed broadcast test',
+        auto_fund: true,
+        outputs: [{
+          locking_script: recipient_lock_hex,
+          satoshis: 1_000,
+          output_description: 'payment'
+        }]
+      }
+    end
+
+    it 'accepts accept_delayed_broadcast: false without error (synchronous default)' do
+      args = base_args.merge(options: { accept_delayed_broadcast: false })
+      result = wallet.create_action(args)
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+    end
+
+    it 'stores the action as completed when accept_delayed_broadcast is false' do
+      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
+      all_actions = storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('completed')
+    end
+
+    it 'accepts accept_delayed_broadcast: true without error (stub)' do
+      args = base_args.merge(options: { accept_delayed_broadcast: true })
+      expect { wallet.create_action(args) }.not_to raise_error
+    end
+
+    it 'stores the action as unproven when accept_delayed_broadcast: true' do
+      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+      all_actions = storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('unproven')
+    end
+
+    it 'logs a warning when accept_delayed_broadcast: true' do
+      args = base_args.merge(options: { accept_delayed_broadcast: true })
+      expect { wallet.create_action(args) }.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+    end
+
+    it 'still returns txid and tx bytes when accept_delayed_broadcast: true' do
+      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+      expect(result[:tx]).to be_a(Array)
+    end
+
+    it 'defaults to synchronous behaviour (completed) when option is absent' do
+      result = wallet.create_action(base_args)
+      all_actions = storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('completed')
     end
   end
 end

@@ -136,7 +136,15 @@ module BSV
         tx = pending[:tx]
         apply_spends(tx, args[:spends])
         @pending.delete(reference)
-        finalize_action(tx, pending[:args])
+
+        # Merge sign_action's own options over the original create_action args so
+        # callers can supply accept_delayed_broadcast at sign time.
+        merged_args = if args[:options]
+                        pending[:args].merge(options: (pending[:args][:options] || {}).merge(args[:options]))
+                      else
+                        pending[:args]
+                      end
+        finalize_action(tx, merged_args)
       end
 
       # Aborts a pending signable transaction.
@@ -722,7 +730,16 @@ module BSV
               # for the caller to broadcast (backwards-compatible behaviour).
               selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
               change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
-              @storage.update_action_status(txid, 'completed')
+
+              final_status = if args.dig(:options, :accept_delayed_broadcast)
+                               warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
+                                    'falling through to synchronous processing. ' \
+                                    'Background broadcasting is a planned future feature.'
+                               'unproven'
+                             else
+                               'completed'
+                             end
+              @storage.update_action_status(txid, final_status)
               { txid: txid, tx: beef_binary.unpack('C*') }
             end
           end
@@ -1184,7 +1201,7 @@ module BSV
       # @param change_outpoints [Array<String>] change output outpoints
       # @param fund_ref [String] fund reference used when locking
       # @param beef_binary [String] raw BEEF bytes
-      # @return [Hash] result hash with :txid, :tx, and :broadcast_result or :broadcast_error
+      # @return [Hash] result hash with :txid, :tx, :broadcast_result or :broadcast_error, and :broadcast_status
       def broadcast_and_promote(tx, txid, input_outpoints, change_outpoints, fund_ref, beef_binary)
         broadcast_result = @broadcaster.broadcast(tx)
 
@@ -1193,16 +1210,43 @@ module BSV
         change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
         @storage.update_action_status(txid, 'completed')
 
-        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_result: broadcast_result }
+        result = { txid: txid, tx: beef_binary.unpack('C*'), broadcast_result: broadcast_result, broadcast_status: 'success' }
+        result[:competing_txs] = broadcast_result.competing_txs if broadcast_result.competing_txs
+        result
       rescue StandardError => e
         rollback_pending_action(input_outpoints, change_outpoints, txid, fund_ref, action_status: 'failed')
-        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message }
+        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message, broadcast_status: broadcast_status_for(e) }
+      end
+
+      # Maps a broadcast exception to a {ReviewActionResultStatus} string.
+      #
+      # @param error [StandardError] the exception raised during broadcast
+      # @return [String] one of 'doubleSpend', 'invalidTx', 'serviceError'
+      def broadcast_status_for(error)
+        return 'serviceError' unless error.is_a?(BSV::Network::BroadcastError)
+
+        arc_status = error.arc_status.to_s.upcase
+        return 'doubleSpend' if arc_status == 'DOUBLE_SPEND_ATTEMPTED'
+        return 'invalidTx'   if %w[REJECTED INVALID MALFORMED MINED_IN_STALE_BLOCK].include?(arc_status) ||
+                                  arc_status.include?('ORPHAN')
+
+        'serviceError'
       end
 
       def finalize_action(tx, args)
         tx.sign_all if tx.inputs.any?(&:unlocking_script_template)
         txid = tx.txid_hex
-        status = args.dig(:options, :no_send) ? 'nosend' : 'completed'
+
+        status = if args.dig(:options, :no_send)
+                   'nosend'
+                 elsif args.dig(:options, :accept_delayed_broadcast)
+                   warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
+                        'falling through to synchronous processing. ' \
+                        'Background broadcasting is a planned future feature.'
+                   'unproven'
+                 else
+                   'completed'
+                 end
 
         @storage.store_transaction(txid, tx.to_hex)
         store_action(tx, args, status: status)
