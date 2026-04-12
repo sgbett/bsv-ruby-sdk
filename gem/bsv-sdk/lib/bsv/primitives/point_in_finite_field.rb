@@ -65,7 +65,10 @@ module BSV
       # Convert an OpenSSL::BN to a big-endian binary string, stripping the
       # sign byte that OpenSSL::BN#to_s(2) sometimes prepends.
       def bn_to_bytes(bn)
-        bn.to_s(2)
+        bytes = bn.to_s(2)
+        # BN(0).to_s(2) returns "" — encode as a single zero byte so
+        # Base58 round-trip works (Base58.decode raises on empty strings).
+        bytes.empty? ? "\x00".b : bytes
       end
     end
   end
