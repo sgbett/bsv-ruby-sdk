@@ -1348,6 +1348,8 @@ module BSV
         if no_send
           result[:no_send_change] = []
         else
+          # The queue handles both broadcaster-present and no-broadcaster cases
+          # internally, so no broadcast_enabled? check is needed here.
           result.merge!(
             @broadcast_queue.enqueue(
               tx: tx, txid: txid, beef_binary: beef_binary,
