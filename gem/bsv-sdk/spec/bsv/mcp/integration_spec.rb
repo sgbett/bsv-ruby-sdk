@@ -21,7 +21,9 @@ RSpec.describe 'BSV MCP server — protocol integration' do
 
   # Build a well-formed JSON-RPC 2.0 request hash.
   # +req_id+ defaults to 1 and can be varied to avoid id collisions in examples.
-  def rpc(method, params = nil, req_id: 1)
+  # Ruby 2.7 interprets a trailing symbol-keyed hash as keyword args, so
+  # +req_id+ is positional (with a default) to avoid the ambiguity.
+  def rpc(method, params = nil, req_id = 1)
     req = { jsonrpc: '2.0', id: req_id, method: method }
     req[:params] = params if params
     req
@@ -233,7 +235,7 @@ RSpec.describe 'BSV MCP server — protocol integration' do
     it 'returns a tool-level error payload for invalid hex' do
       # Tool-level errors: the RPC call succeeds (no [:error] key) but the
       # tool sets isError in the result and returns an {error:} JSON payload.
-      bad_request = rpc('tools/call', { name: 'decode_tx', arguments: { hex: 'notvalidhex' } }, req_id: 2)
+      bad_request = rpc('tools/call', { name: 'decode_tx', arguments: { hex: 'notvalidhex' } }, 2)
       payload = payload_from(server.handle(bad_request))
 
       expect(payload[:error]).to be_a(String)
@@ -246,7 +248,7 @@ RSpec.describe 'BSV MCP server — protocol integration' do
   # ------------------------------------------------------------------
   describe 'tools/call with an unknown tool name' do
     it 'returns a JSON-RPC error response' do
-      response = server.handle(rpc('tools/call', { name: 'no_such_tool', arguments: {} }, req_id: 3))
+      response = server.handle(rpc('tools/call', { name: 'no_such_tool', arguments: {} }, 3))
 
       expect(response[:error]).to be_a(Hash)
       expect(response[:error][:code]).to be_an(Integer)
@@ -258,7 +260,7 @@ RSpec.describe 'BSV MCP server — protocol integration' do
   # ------------------------------------------------------------------
   describe 'tools/call with missing required argument' do
     it 'returns a JSON-RPC error when the required hex argument is absent' do
-      response = server.handle(rpc('tools/call', { name: 'decode_tx', arguments: {} }, req_id: 4))
+      response = server.handle(rpc('tools/call', { name: 'decode_tx', arguments: {} }, 4))
 
       expect(response[:error]).to be_a(Hash)
     end
