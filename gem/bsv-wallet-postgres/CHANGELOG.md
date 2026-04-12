@@ -5,6 +5,12 @@ All notable changes to the `bsv-wallet-postgres` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.1 — 2026-04-12
+
+### Fixed
+- `update_action_status` now scopes to a single row by primary key, preventing unintended multi-row updates when duplicate txids exist
+- Added migration 005: unique index on `wallet_actions.txid` enforcing one action per transaction
+
 ## 0.3.0 — 2026-04-12
 
 ### Added
