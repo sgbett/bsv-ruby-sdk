@@ -3,11 +3,10 @@
 module BSV
   module Attest
     class Response
-      attr_reader :hash, :transaction, :txid
+      attr_reader :hash, :txid
 
-      def initialize(hash:, transaction:, txid:)
+      def initialize(hash:, txid:)
         @hash = hash
-        @transaction = transaction
         @txid = txid
       end
 
