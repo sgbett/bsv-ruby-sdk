@@ -21,8 +21,16 @@ RSpec.describe BSV::Primitives::Base58 do
       expect(described_class.encode('')).to eq('')
     end
 
-    it 'decodes empty string to empty bytes' do
-      expect(described_class.decode('')).to eq(''.b)
+    it 'raises ArgumentError when decoding empty string' do
+      expect { described_class.decode('') }.to raise_error(ArgumentError, 'cannot decode empty string')
+    end
+
+    it 'raises ArgumentError via check_decode when given empty string' do
+      expect { described_class.check_decode('') }.to raise_error(ArgumentError, 'cannot decode empty string')
+    end
+
+    it 'decodes "1" to a single zero byte (leading-zero round-trip)' do
+      expect(described_class.decode('1')).to eq("\x00".b)
     end
 
     it 'raises on invalid characters' do

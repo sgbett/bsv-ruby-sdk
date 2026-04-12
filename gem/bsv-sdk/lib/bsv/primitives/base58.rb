@@ -61,9 +61,9 @@ module BSV
       #
       # @param string [String] Base58-encoded string
       # @return [String] decoded binary data
-      # @raise [ArgumentError] if the string contains invalid Base58 characters
+      # @raise [ArgumentError] if the string is empty or contains invalid Base58 characters
       def decode(string)
-        return ''.b if string.empty?
+        raise ArgumentError, 'cannot decode empty string' if string.empty?
 
         # Count leading '1' characters (representing zero bytes)
         leading_ones = 0
