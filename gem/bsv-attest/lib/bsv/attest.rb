@@ -2,6 +2,7 @@
 
 module BSV
   module Attest
+    autoload :BroadcastError,    'bsv/attest/broadcast_error'
     autoload :Configuration,     'bsv/attest/configuration'
     autoload :Response,          'bsv/attest/response'
     autoload :VerificationError, 'bsv/attest/verification_error'
