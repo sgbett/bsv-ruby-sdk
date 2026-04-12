@@ -123,6 +123,8 @@ module BSV
 
         return payload if prefix_length.zero?
 
+        raise ArgumentError, 'prefix_length exceeds payload' if prefix_length > payload.length
+
         { prefix: payload[0, prefix_length], data: payload[prefix_length..] }
       end
     end

@@ -86,6 +86,11 @@ module BSV
         raise ArgumentError, 'invalid magic: expected BIE1' unless magic == MAGIC
 
         # Determine ephemeral key presence and format by inspecting byte at offset 4.
+        # Ambiguity note: a no-key payload whose ciphertext starts with 0x02/0x03/0x04
+        # could be misinterpreted as containing an embedded key. The HMAC check below
+        # will catch this (wrong shared secret → HMAC mismatch), but the resulting
+        # error message will be misleading. This is a TS SDK design inheritance —
+        # the wire format has no explicit key-presence flag.
         # Guard: only attempt to read a key if sufficient bytes remain beyond HMAC.
         tag_length = 32
         offset = 4

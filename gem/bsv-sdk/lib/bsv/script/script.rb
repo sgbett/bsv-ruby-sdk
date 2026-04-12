@@ -181,7 +181,7 @@ module BSV
 
         p2sh_prefix = "\x05".b
         mainnet_prefix = "\x00".b
-        testnet_prefix = "\x6f".b
+        testnet_prefix = "\x6f".b # accepted for testnet interop; no mainnet-only restriction
 
         if prefix == p2sh_prefix
           raise ArgumentError,
