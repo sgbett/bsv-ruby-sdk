@@ -11,25 +11,22 @@ RSpec.describe BSV::Attest::Configuration do
     expect(config.wallet).to be_nil
   end
 
-  it 'defaults broadcaster to nil' do
-    expect(config.broadcaster).to be_nil
-  end
-
   it 'defaults provider to nil' do
     expect(config.provider).to be_nil
   end
 
-  it 'supports setting all three attributes' do
+  it 'supports setting all attributes' do
     wallet = Object.new
-    broadcaster = Object.new
     provider = Object.new
 
     config.wallet = wallet
-    config.broadcaster = broadcaster
     config.provider = provider
 
     expect(config.wallet).to eq(wallet)
-    expect(config.broadcaster).to eq(broadcaster)
     expect(config.provider).to eq(provider)
+  end
+
+  it 'does not respond to broadcaster' do
+    expect(config).not_to respond_to(:broadcaster)
   end
 end
