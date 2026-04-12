@@ -36,12 +36,12 @@ module BSV
       # Estimated size in bytes of a P2PKH output (8 satoshis + varint(25) + 25-byte script).
       P2PKH_OUTPUT_SIZE = 34
 
-      # EF version marker: 6 bytes (\x00\x00\x00\x00\x00\xEF) replaces
-      # the 4-byte raw version field, adding 2 bytes of fixed overhead.
-      EF_VERSION_OVERHEAD = 2
+      # EF version marker: 6 bytes (\x00\x00\x00\x00\x00\xEF) follows
+      # the 4-byte version field, adding 6 bytes of fixed overhead.
+      EF_VERSION_OVERHEAD = 6
 
-      # Fixed overhead in bytes for version (4) + EF marker (2) + lock_time (4).
-      FIXED_OVERHEAD = 10
+      # Fixed overhead in bytes for version (4) + EF marker (6) + lock_time (4).
+      FIXED_OVERHEAD = 14
 
       # Approximate overhead including typical 1-byte varints for input/output
       # counts. Retained for backward compatibility with code that referenced
