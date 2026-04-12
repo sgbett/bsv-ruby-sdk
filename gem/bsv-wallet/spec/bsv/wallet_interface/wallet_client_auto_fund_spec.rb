@@ -799,4 +799,163 @@ RSpec.describe 'WalletClient auto-fund mode' do
       expect(action[:status]).to eq('completed')
     end
   end
+
+  # -------------------------------------------------------------------------
+  # send_with option — batched broadcast of no_send transactions
+  # -------------------------------------------------------------------------
+  describe 'send_with option' do
+    let(:broadcast_response) { BSV::Network::BroadcastResponse.new(txid: 'abc', tx_status: 'SEEN_ON_NETWORK') }
+    let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+    let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster) }
+
+    let(:no_send_args) do
+      {
+        description: 'no_send tx to batch',
+        auto_fund: true,
+        outputs: [{
+          locking_script: recipient_lock_hex,
+          satoshis: 1_000,
+          output_description: 'payment'
+        }],
+        options: { no_send: true }
+      }
+    end
+
+    before { seed_utxo(satoshis: 10_000) }
+
+    it 'raises WalletError when no broadcaster is configured' do
+      no_broadcaster_wallet = BSV::Wallet::WalletClient.new(private_key, storage: storage)
+
+      expect do
+        no_broadcaster_wallet.create_action({
+                                              description: 'send_with call',
+                                              options: { send_with: ['a' * 64] }
+                                            })
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
+    end
+
+    context 'with broadcaster configured' do
+      before { allow(broadcaster).to receive(:broadcast).and_return(broadcast_response) }
+
+      it 'broadcasts previously no_send transactions and returns send_with_results' do
+        no_send_result = wallet.create_action(no_send_args)
+        txid = no_send_result[:txid]
+
+        result = wallet.create_action({
+                                        description: 'send_with call',
+                                        options: { send_with: [txid] }
+                                      })
+
+        expect(result[:send_with_results]).to be_a(Array)
+        expect(result[:send_with_results].length).to eq(1)
+        expect(result[:send_with_results].first[:txid]).to eq(txid)
+        expect(result[:send_with_results].first[:status]).to eq('unproven')
+      end
+
+      it 'promotes input UTXOs to :spent on success' do
+        no_send_result = wallet.create_action(no_send_args)
+        txid = no_send_result[:txid]
+
+        wallet.create_action({
+                               description: 'send_with call',
+                               options: { send_with: [txid] }
+                             })
+
+        all_outputs = storage.find_outputs({ include_spent: true, limit: 100 })
+        spent = all_outputs.select { |o| o[:state] == :spent }
+        expect(spent).not_to be_empty
+      end
+
+      it 'promotes change outputs to :spendable on success' do
+        no_send_result = wallet.create_action(no_send_args)
+        txid = no_send_result[:txid]
+
+        wallet.create_action({
+                               description: 'send_with call',
+                               options: { send_with: [txid] }
+                             })
+
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        # change output(s) from the no_send tx should now be spendable
+        expect(spendable).not_to be_empty
+      end
+
+      it 'marks the action as completed on success' do
+        no_send_result = wallet.create_action(no_send_args)
+        txid = no_send_result[:txid]
+
+        wallet.create_action({
+                               description: 'send_with call',
+                               options: { send_with: [txid] }
+                             })
+
+        all_actions = storage.find_actions({ limit: 100, offset: 0 })
+        action = all_actions.find { |a| a[:txid] == txid }
+        expect(action[:status]).to eq('completed')
+      end
+
+      it 'returns failed status for unknown txid' do
+        result = wallet.create_action({
+                                        description: 'send_with unknown',
+                                        options: { send_with: ['a' * 64] }
+                                      })
+
+        entry = result[:send_with_results].first
+        expect(entry[:status]).to eq('failed')
+        expect(entry[:error]).to be_a(String)
+      end
+
+      it 'handles mixed success/failure — each tx processed independently' do
+        seed_utxo(satoshis: 10_000)
+        no_send1 = wallet.create_action(no_send_args)
+        txid1 = no_send1[:txid]
+        fake_txid = 'b' * 64
+
+        result = wallet.create_action({
+                                        description: 'mixed send_with',
+                                        options: { send_with: [txid1, fake_txid] }
+                                      })
+
+        results = result[:send_with_results]
+        expect(results.find { |r| r[:txid] == txid1 }[:status]).to eq('unproven')
+        expect(results.find { |r| r[:txid] == fake_txid }[:status]).to eq('failed')
+      end
+    end
+
+    context 'when broadcast fails' do
+      before do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('rejected', arc_status: 'REJECTED')
+        )
+      end
+
+      it 'returns failed status for the tx' do
+        no_send_result = wallet.create_action(no_send_args)
+        txid = no_send_result[:txid]
+
+        result = wallet.create_action({
+                                        description: 'send_with fail',
+                                        options: { send_with: [txid] }
+                                      })
+
+        entry = result[:send_with_results].first
+        expect(entry[:status]).to eq('failed')
+        expect(entry[:txid]).to eq(txid)
+      end
+
+      it 'rolls back inputs to :spendable on broadcast failure' do
+        no_send_result = wallet.create_action(no_send_args)
+        txid = no_send_result[:txid]
+
+        wallet.create_action({
+                               description: 'send_with fail rollback',
+                               options: { send_with: [txid] }
+                             })
+
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        # Original 10 000-sat UTXO should be released back to spendable
+        expect(spendable.any? { |o| o[:satoshis] == 10_000 }).to be true
+      end
+    end
+  end
 end
