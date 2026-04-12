@@ -47,6 +47,10 @@ module BSV
       # and eligible for retry. Configurable for testability.
       STALE_THRESHOLD = 300
 
+      # Maximum number of broadcast attempts before a job is abandoned.
+      # After this many failures the job remains +failed+ permanently.
+      MAX_ATTEMPTS = 5
+
       # @param db [Sequel::Database] a Sequel database handle (shared with PostgresStore)
       # @param storage [StorageAdapter] wallet storage adapter (must not be MemoryStore)
       # @param broadcaster [#broadcast] broadcaster object
@@ -184,7 +188,14 @@ module BSV
       #
       # Uses +SELECT ... FOR UPDATE SKIP LOCKED+ so concurrent workers do not
       # double-process the same job. Stale +sending+ jobs (those whose +locked_at+
-      # is older than +stale_threshold+ seconds) are also eligible for retry.
+      # is older than +stale_threshold+ seconds) are also eligible for retry,
+      # up to +MAX_ATTEMPTS+.
+      #
+      # NOTE: The entire +process_job+ call (including the network broadcast)
+      # runs inside this transaction, holding the row lock and a database
+      # connection for the duration. This is acceptable for a single worker
+      # thread with an 8-second poll interval but would need restructuring
+      # for high-throughput multi-worker deployments.
       #
       # @return [void]
       def poll_once
@@ -192,8 +203,9 @@ module BSV
           job = @db[:wallet_broadcast_jobs]
                 .where(Sequel.lit(
                          "status = 'unsent' OR " \
-                         "(status = 'sending' AND locked_at < NOW() - interval '? second')",
-                         @stale_threshold
+                         "(status = 'sending' AND locked_at < NOW() - " \
+                         "#{@stale_threshold.to_i} * interval '1 second' " \
+                         "AND attempts < #{MAX_ATTEMPTS})"
                        ))
                 .order(:created_at)
                 .limit(1)
@@ -229,7 +241,7 @@ module BSV
         begin
           @broadcaster.broadcast(tx)
         rescue StandardError => e
-          if input_outpoints
+          if input_outpoints && !input_outpoints.empty?
             rollback(input_outpoints, change_outpoints, txid, fund_ref)
           elsif txid
             @storage.update_action_status(txid, 'failed')
