@@ -5,6 +5,27 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.0 — 2026-04-12
+
+### Added
+- `Base58Check.check_encode` accepts `prefix:` parameter; `check_decode` accepts `prefix_length:` (F1.1)
+- `Base58.decode("")` raises `ArgumentError` instead of returning empty bytes (F1.2)
+- `Digest.hash256` alias for `sha256d` (F1.7)
+- `Script.p2pkh_lock` accepts Base58Check address strings as well as raw 20-byte hashes (F3.18)
+- `TransactionInput#sequence` and `TransactionOutput#locking_script` now writable via `attr_accessor` (F4.10/F4.11)
+- Coinbase 100-block maturity check in `MerklePath#verify` — intentionally diverges from TS SDK bug (F5.11)
+- ECIES Electrum `no_key:` encrypt and `sender_public_key:` decrypt with uncompressed key detection (F6.7)
+- `BSV::Messages` namespace re-exporting `SignedMessage` and `EncryptedMessage` (F6.16)
+
+### Fixed
+- `PointInFiniteField` zero-coordinate Base58 round-trip (BN(0) now encodes as `"\x00"`)
+- `p2pkh_lock` encoding check uses bytesize only — accepts 20-byte hashes regardless of string encoding
+- `Base58Check.check_decode` raises on `prefix_length` exceeding payload
+- ECIES key-format ambiguity documented (inherited TS SDK design)
+
+### Changed
+- Numeric fee `.ceil` behaviour documented with inline comment (F4.6)
+
 ## 0.10.1 — 2026-04-12
 
 ### Added
