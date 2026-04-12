@@ -13,4 +13,5 @@ module BSV
   autoload :Identity,    'bsv/identity'
   autoload :Registry,    'bsv/registry'
   autoload :MCP,         'bsv/mcp'
+  autoload :Messages,    'bsv/messages'
 end
