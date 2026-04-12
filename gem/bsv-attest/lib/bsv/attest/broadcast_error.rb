@@ -2,6 +2,6 @@
 
 module BSV
   module Attest
-    VERSION = '0.2.0'
+    class BroadcastError < StandardError; end
   end
 end

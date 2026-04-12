@@ -3,7 +3,7 @@
 module BSV
   module Attest
     class Configuration
-      attr_accessor :wallet, :broadcaster, :provider
+      attr_accessor :wallet, :provider
     end
   end
 end

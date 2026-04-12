@@ -27,5 +27,6 @@ Gem::Specification.new do |spec|
   end + %w[LICENSE CHANGELOG.md]
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'bsv-sdk'
+  spec.add_dependency 'bsv-sdk', '>= 0.11.0', '< 1.0'
+  spec.add_dependency 'bsv-wallet', '>= 0.7.0', '< 1.0'
 end

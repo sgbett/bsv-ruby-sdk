@@ -42,78 +42,84 @@ RSpec.describe BSV::Attest do
   end
 
   describe '.publish' do
+    let(:digest) { BSV::Primitives::Digest.sha256('test data') }
+
     let(:mock_wallet) do
       Class.new do
-        def fund_and_sign(tx)
-          tx
+        def create_action(_args, _originator: nil)
+          { txid: 'bb' * 32 }
         end
       end.new
     end
 
-    let(:mock_broadcaster) do
+    let(:spy_wallet) do
       Class.new do
-        def broadcast(_tx)
-          BSV::Network::BroadcastResponse.new(txid: 'bb' * 32)
+        attr_reader :last_args
+
+        def create_action(args, _originator: nil)
+          @last_args = args
+          { txid: 'bb' * 32 }
         end
       end.new
     end
 
-    it 'builds an OP_RETURN transaction, funds, signs, and broadcasts' do
-      response = described_class.publish('test data', wallet: mock_wallet, broadcaster: mock_broadcaster)
+    it 'delegates to create_action and returns Response' do
+      response = described_class.publish('test data', wallet: mock_wallet)
 
       expect(response).to be_a(BSV::Attest::Response)
       expect(response.hash).to eq(BSV::Primitives::Digest.sha256('test data'))
       expect(response.txid).to eq('bb' * 32)
-      expect(response.transaction).to be_a(BSV::Transaction::Transaction)
     end
 
-    it 'includes the hash in an OP_RETURN output' do
-      response = described_class.publish('test data', wallet: mock_wallet, broadcaster: mock_broadcaster)
-      tx = response.transaction
+    it 'passes correct OP_RETURN output spec to create_action' do
+      described_class.publish('test data', wallet: spy_wallet)
 
-      op_return_output = tx.outputs.first
-      script = op_return_output.locking_script
+      output = spy_wallet.last_args[:outputs].first
+      expect(output[:locking_script]).to eq(BSV::Script::Script.op_return(digest).to_hex)
+      expect(output[:satoshis]).to eq(0)
+      expect(output[:output_description]).to eq('Attestation hash')
+      expect(spy_wallet.last_args[:options]).to eq({ randomize_outputs: false })
+    end
 
-      # After F3.1 fix: the parser absorbs all bytes after OP_RETURN into the
-      # OP_RETURN chunk's data. Use op_return_data to extract individual payloads.
-      expect(script.op_return?).to be true
-      items = script.op_return_data
-      expect(items).to include(BSV::Primitives::Digest.sha256('test data'))
+    it 'uses default description' do
+      described_class.publish('test data', wallet: spy_wallet)
+
+      expect(spy_wallet.last_args[:description]).to eq('Attest data hash to chain')
+    end
+
+    it 'accepts custom description' do
+      described_class.publish('test data', wallet: spy_wallet, description: 'Custom attestation description')
+
+      expect(spy_wallet.last_args[:description]).to eq('Custom attestation description')
     end
 
     it 'raises ArgumentError without wallet' do
       expect do
-        described_class.publish('test data', broadcaster: mock_broadcaster)
+        described_class.publish('test data')
       end.to raise_error(ArgumentError, /wallet/)
     end
 
-    it 'raises ArgumentError without broadcaster' do
-      expect do
-        described_class.publish('test data', wallet: mock_wallet)
-      end.to raise_error(ArgumentError, /broadcaster/)
-    end
-
-    it 'accepts per-call overrides over global configuration' do
-      other_wallet = Class.new do
-        attr_reader :called
-
-        def fund_and_sign(tx)
-          @called = true
-          tx
+    it 'raises BroadcastError on broadcast failure' do
+      failing_wallet = Class.new do
+        def create_action(_args, _originator: nil)
+          { txid: 'bb' * 32, broadcast_error: 'transaction rejected' }
         end
       end.new
 
+      expect do
+        described_class.publish('test data', wallet: failing_wallet)
+      end.to raise_error(BSV::Attest::BroadcastError, /transaction rejected/)
+    end
+
+    it 'accepts per-call wallet override' do
       described_class.configure { |c| c.wallet = mock_wallet }
 
-      described_class.publish('test data', wallet: other_wallet, broadcaster: mock_broadcaster)
-      expect(other_wallet.called).to be true
+      described_class.publish('test data', wallet: spy_wallet)
+      expect(spy_wallet.last_args).not_to be_nil
     end
 
     it 'falls back to global configuration' do
-      described_class.configure do |c|
-        c.wallet = mock_wallet
-        c.broadcaster = mock_broadcaster
-      end
+      described_class.configure { |c| c.wallet = mock_wallet }
 
       response = described_class.publish('test data')
       expect(response).to be_a(BSV::Attest::Response)

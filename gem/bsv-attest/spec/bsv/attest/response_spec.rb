@@ -6,23 +6,22 @@ require 'bsv-attest'
 
 RSpec.describe BSV::Attest::Response do
   subject(:response) do
-    described_class.new(hash: hash_bytes, transaction: transaction, txid: txid)
+    described_class.new(hash: hash_bytes, txid: txid)
   end
 
   let(:hash_bytes) { BSV::Primitives::Digest.sha256('test data') }
-  let(:transaction) { BSV::Transaction::Transaction.new }
   let(:txid) { 'aa' * 32 }
 
   it 'stores the hash' do
     expect(response.hash).to eq(hash_bytes)
   end
 
-  it 'stores the transaction' do
-    expect(response.transaction).to eq(transaction)
-  end
-
   it 'stores the txid' do
     expect(response.txid).to eq(txid)
+  end
+
+  it 'does not respond to transaction' do
+    expect(response).not_to respond_to(:transaction)
   end
 
   describe '#hash_hex' do
