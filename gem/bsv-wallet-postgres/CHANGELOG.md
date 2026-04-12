@@ -5,6 +5,22 @@ All notable changes to the `bsv-wallet-postgres` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 — 2026-04-12
+
+### Added
+- `BSV::Wallet::SolidQueueAdapter` — PostgreSQL-backed async broadcast queue implementing the `BroadcastQueue` interface
+- Migration 006: `wallet_broadcast_jobs` table with `FOR UPDATE SKIP LOCKED` polling support
+- Background worker thread broadcasts transactions and promotes/rolls back wallet state
+- Recovery on restart via stale `locked_at` detection
+- Idempotent enqueue on duplicate txid (crash recovery)
+- `MAX_ATTEMPTS` enforcement (5) prevents infinite retry loops
+- Guard refuses MemoryStore attachment
+
+### Fixed
+- Migration timestamps use `timestamptz` (matching migration 004 pattern)
+- `start()` check-and-set is atomic under mutex (prevents TOCTOU double-spawn)
+- Deserialization failures mark job as failed immediately (no tight retry loop)
+
 ## 0.3.1 — 2026-04-12
 
 ### Fixed
