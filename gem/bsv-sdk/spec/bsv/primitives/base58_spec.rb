@@ -79,5 +79,52 @@ RSpec.describe BSV::Primitives::Base58 do
       expect { described_class.check_decode(short) }
         .to raise_error(BSV::Primitives::Base58::ChecksumError, /too short/)
     end
+
+    context 'prefix: parameter on check_encode' do
+      it 'check_encode with prefix: produces same result as pre-concatenating prefix' do
+        data = 'data'.b
+        prefix = "\x00".b
+        with_keyword = described_class.check_encode(data, prefix: prefix)
+        pre_concat = described_class.check_encode(prefix + data)
+        expect(with_keyword).to eq(pre_concat)
+      end
+
+      it 'check_encode with prefix: nil behaves identically to omitting the keyword' do
+        data = 'data'.b
+        without_keyword = described_class.check_encode(data)
+        with_nil = described_class.check_encode(data, prefix: nil)
+        expect(with_nil).to eq(without_keyword)
+      end
+
+      it 'check_encode with empty-string prefix behaves identically to no prefix' do
+        data = 'data'.b
+        expect(described_class.check_encode(data, prefix: ''.b)).to eq(described_class.check_encode(data))
+      end
+    end
+
+    context 'prefix_length: parameter on check_decode' do
+      it 'returns hash with :prefix and :data when prefix_length: 1' do
+        prefix = "\x00".b
+        data = 'hello'.b
+        encoded = described_class.check_encode(data, prefix: prefix)
+        result = described_class.check_decode(encoded, prefix_length: 1)
+        expect(result).to eq({ prefix: prefix, data: data })
+      end
+
+      it 'returns raw payload (no hash) when prefix_length: 0 (backwards compatible)' do
+        payload = ['00751e76e8199196d454941c45d1b3a323f1433bd6'].pack('H*')
+        encoded = described_class.check_encode(payload)
+        expect(described_class.check_decode(encoded)).to eq(payload)
+      end
+
+      it 'round-trips with a 4-byte (extended key style) prefix' do
+        prefix = "\x04\x88\xb2\x1e".b
+        data = ('x' * 74).b
+        encoded = described_class.check_encode(data, prefix: prefix)
+        result = described_class.check_decode(encoded, prefix_length: 4)
+        expect(result[:prefix]).to eq(prefix)
+        expect(result[:data]).to eq(data)
+      end
+    end
   end
 end

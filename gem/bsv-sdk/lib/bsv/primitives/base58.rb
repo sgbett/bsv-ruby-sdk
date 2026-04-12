@@ -89,19 +89,30 @@ module BSV
 
       # Encode binary data with a 4-byte double-SHA-256 checksum appended.
       #
+      # When +prefix+ is given, it is prepended to the payload before checksumming.
+      # The checksum covers the full +prefix + payload+ concatenation.
+      #
       # @param payload [String] binary data to encode
+      # @param prefix [String, nil] optional version prefix to prepend (binary string)
       # @return [String] Base58Check-encoded string
-      def check_encode(payload)
-        checksum = Digest.sha256d(payload)[0, 4]
-        encode(payload + checksum)
+      def check_encode(payload, prefix: nil)
+        full = (prefix || ''.b) + payload
+        checksum = Digest.sha256d(full)[0, 4]
+        encode(full + checksum)
       end
 
       # Decode a Base58Check string and verify its checksum.
       #
+      # When +prefix_length+ is greater than zero, the decoded payload is split
+      # into a prefix and data portion. The returned value is then a Hash with
+      # +:prefix+ and +:data+ keys. When +prefix_length+ is zero (default), the
+      # raw payload is returned unchanged for backwards compatibility.
+      #
       # @param string [String] Base58Check-encoded string
-      # @return [String] decoded payload (without checksum)
+      # @param prefix_length [Integer] number of leading bytes to treat as a prefix (default: 0)
+      # @return [String, Hash] decoded payload, or +{ prefix:, data: }+ when prefix_length > 0
       # @raise [ChecksumError] if the checksum does not match or input is too short
-      def check_decode(string)
+      def check_decode(string, prefix_length: 0)
         data = decode(string)
         raise ChecksumError, 'input too short for checksum' if data.length < 4
 
@@ -110,7 +121,9 @@ module BSV
         expected = Digest.sha256d(payload)[0, 4]
         raise ChecksumError, 'checksum mismatch' unless checksum == expected
 
-        payload
+        return payload if prefix_length.zero?
+
+        { prefix: payload[0, prefix_length], data: payload[prefix_length..] }
       end
     end
   end
