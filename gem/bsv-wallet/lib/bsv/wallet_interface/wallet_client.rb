@@ -347,7 +347,7 @@ module BSV
       # @return [Integer] total auto-spendable satoshis
       def spendable_balance(basket: nil)
         @storage.find_spendable_outputs(basket: basket)
-                .select { |o| (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) || o[:derivation_type] == :identity }
+                .select { |o| (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) || o[:derivation_type]&.to_s == 'identity' }
                 .sum { |o| o[:satoshis].to_i }
       end
 
@@ -613,7 +613,7 @@ module BSV
         all_spendable = @storage.find_spendable_outputs(basket: 'default')
         available = all_spendable.select do |o|
           (o[:derivation_prefix] && o[:derivation_suffix] && o[:sender_identity_key]) ||
-            o[:derivation_type] == :identity
+            o[:derivation_type]&.to_s == 'identity'
         end
 
         selection = auto_fund_select(available, target, caller_outputs.size)
@@ -803,7 +803,7 @@ module BSV
 
         wire_source_from_storage(input, utxo[:outpoint])
 
-        priv = if utxo[:derivation_type] == :identity
+        priv = if utxo[:derivation_type]&.to_s == 'identity'
                  @key_deriver.root_key
                else
                  @key_deriver.derive_private_key(
