@@ -154,11 +154,13 @@ module BSV
         raise WalletError, 'Transaction not found for the given reference' unless @pending.key?(reference)
 
         pending_entry = @pending.delete(reference)
-        # Release locked input UTXOs back to :spendable.
-        release_pending_utxos(pending_entry[:locked_outpoints], reference) if pending_entry[:locked_outpoints]
-        # Remove change outputs created by the aborted transaction —
-        # they reference an unbroadcast tx and must not remain in storage.
-        Array(pending_entry[:change_outpoints]).each { |op| @storage.delete_output(op) }
+        txid = pending_entry[:tx]&.txid_hex
+        rollback_pending_action(
+          pending_entry[:locked_outpoints],
+          pending_entry[:change_outpoints],
+          txid,
+          reference
+        )
         { aborted: true }
       end
 
@@ -690,15 +692,39 @@ module BSV
             beef_binary = tx.to_beef
             { txid: txid, tx: beef_binary.unpack('C*'), reference: fund_ref, no_send_change: change_outpoints }
           else
-            store_action(tx, args, status: 'completed')
+            # Store everything in pending state first — inputs are already locked
+            # as :pending by lock_utxos above, so we match that discipline here.
+            store_action(tx, args, status: 'pending')
             store_change_outputs(txid, tx, change_outputs, tx_hex)
+
+            # Record change outpoints and mark them :pending so a concurrent
+            # create_action cannot double-spend them before broadcast completes.
+            change_outpoints = []
+            change_outputs.each do |spec|
+              idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
+              next unless idx
+
+              op = "#{txid}.#{idx}"
+              change_outpoints << op
+              @storage.update_output_state(op, :pending, pending_reference: fund_ref)
+            end
+
             store_tracked_outputs(txid, tx, caller_outputs)
 
-            # Promote from :pending to :spent now that all storage writes are done.
-            selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
-
             beef_binary = tx.to_beef
-            { txid: txid, tx: beef_binary.unpack('C*') }
+
+            if broadcast_enabled?
+              broadcast_and_promote(
+                tx, txid, selected_outpoints, change_outpoints, fund_ref, beef_binary
+              )
+            else
+              # No broadcaster configured — promote immediately and return BEEF
+              # for the caller to broadcast (backwards-compatible behaviour).
+              selected_outpoints.each { |op| @storage.update_output_state(op, :spent) }
+              change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
+              @storage.update_action_status(txid, 'completed')
+              { txid: txid, tx: beef_binary.unpack('C*') }
+            end
           end
         rescue StandardError
           # Release the pending lock so the UTXOs are available for retry.
@@ -1130,6 +1156,47 @@ module BSV
 
           @storage.update_output_state(op, :spendable)
         end
+      end
+
+      # Rolls back a pending auto-funded action.
+      #
+      # Releases locked input UTXOs back to +:spendable+, deletes phantom change
+      # outputs, and optionally updates the action status. Used by both
+      # broadcast failure and +abort_action+ so UTXO state is always consistent.
+      #
+      # @param input_outpoints [Array<String>] outpoints locked as inputs
+      # @param change_outpoints [Array<String>] change outputs to delete
+      # @param txid [String, nil] txid of the action to update (may be nil)
+      # @param ref [String] fund reference used when locking inputs
+      # @param action_status [String, nil] new action status; nil skips the update
+      def rollback_pending_action(input_outpoints, change_outpoints, txid, ref, action_status: nil)
+        release_pending_utxos(input_outpoints, ref)
+        Array(change_outpoints).each { |op| @storage.delete_output(op) }
+        @storage.update_action_status(txid, action_status) if txid && action_status
+      end
+
+      # Broadcasts the transaction and promotes storage state on success.
+      # On failure, rolls back all pending state changes.
+      #
+      # @param tx [Transaction] signed transaction to broadcast
+      # @param txid [String] hex transaction id
+      # @param input_outpoints [Array<String>] outpoints locked as inputs
+      # @param change_outpoints [Array<String>] change output outpoints
+      # @param fund_ref [String] fund reference used when locking
+      # @param beef_binary [String] raw BEEF bytes
+      # @return [Hash] result hash with :txid, :tx, and :broadcast_result or :broadcast_error
+      def broadcast_and_promote(tx, txid, input_outpoints, change_outpoints, fund_ref, beef_binary)
+        broadcast_result = @broadcaster.broadcast(tx)
+
+        # Broadcast succeeded — promote all pending state to final.
+        input_outpoints.each { |op| @storage.update_output_state(op, :spent) }
+        change_outpoints.each { |op| @storage.update_output_state(op, :spendable) }
+        @storage.update_action_status(txid, 'completed')
+
+        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_result: broadcast_result }
+      rescue StandardError => e
+        rollback_pending_action(input_outpoints, change_outpoints, txid, fund_ref, action_status: 'failed')
+        { txid: txid, tx: beef_binary.unpack('C*'), broadcast_error: e.message }
       end
 
       def finalize_action(tx, args)

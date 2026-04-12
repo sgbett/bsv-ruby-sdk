@@ -126,7 +126,7 @@ RSpec.describe 'WalletClient auto-fund mode' do
       tx = BSV::Transaction::Transaction.from_hex(tx_hex)
       tx.inputs.each do |inp|
         expect(inp.unlocking_script).not_to be_nil
-        expect(inp.unlocking_script.to_binary.bytesize).to be > 0
+        expect(inp.unlocking_script.to_binary.bytesize).to be_positive
       end
     end
   end
@@ -433,6 +433,237 @@ RSpec.describe 'WalletClient auto-fund mode' do
       # target of 6), the change generator should produce multiple change outputs.
       change_outputs = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
       expect(change_outputs.size).to be > 1
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # Broadcaster integration: broadcast-before-promote semantics
+  # -------------------------------------------------------------------------
+  describe 'with broadcaster configured' do
+    let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+    let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster) }
+
+    let(:action_opts) do
+      {
+        description: 'broadcaster integration test',
+        auto_fund: true,
+        outputs: [{
+          locking_script: recipient_lock_hex,
+          satoshis: 1_000,
+          output_description: 'payment'
+        }]
+      }
+    end
+
+    before { seed_utxo(satoshis: 10_000) }
+
+    describe 'successful broadcast' do
+      let(:broadcast_response) do
+        BSV::Network::BroadcastResponse.new(txid: 'abc', tx_status: 'SEEN_ON_NETWORK')
+      end
+
+      before { allow(broadcaster).to receive(:broadcast).and_return(broadcast_response) }
+
+      it 'returns :txid and :tx in the result' do
+        result = wallet.create_action(action_opts)
+        expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+        expect(result[:tx]).to be_a(Array)
+      end
+
+      it 'includes :broadcast_result in the response' do
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_result]).to eq(broadcast_response)
+      end
+
+      it 'promotes input UTXOs to :spent' do
+        wallet.create_action(action_opts)
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        expect(spendable.none? { |o| o[:satoshis] == 10_000 }).to be true
+      end
+
+      it 'promotes change outputs to :spendable' do
+        wallet.create_action(action_opts)
+        change = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
+        expect(change).not_to be_empty
+      end
+
+      it 'marks the action as completed' do
+        wallet.create_action(action_opts)
+        actions = storage.find_actions({ limit: 10, offset: 0 })
+        expect(actions.first[:status]).to eq('completed')
+      end
+    end
+
+    describe 'failed broadcast (BroadcastError)' do
+      before do
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('double spend attempted')
+        )
+      end
+
+      it 'does not raise — returns a result hash with :broadcast_error' do
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_error]).to eq('double spend attempted')
+      end
+
+      it 'still returns :txid and :tx' do
+        result = wallet.create_action(action_opts)
+        expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+        expect(result[:tx]).to be_a(Array)
+      end
+
+      it 'releases input UTXOs back to :spendable' do
+        wallet.create_action(action_opts)
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        expect(spendable.any? { |o| o[:satoshis] == 10_000 }).to be true
+      end
+
+      it 'deletes phantom change outputs' do
+        # Only the original seeded UTXO should remain; rollback must not leave
+        # extra outputs in storage.
+        wallet.create_action(action_opts)
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        expect(spendable.size).to eq(1)
+        expect(spendable.first[:satoshis]).to eq(10_000)
+      end
+
+      it 'marks the action as failed' do
+        result = wallet.create_action(action_opts)
+        all_actions = storage.find_actions({ limit: 100, offset: 0 })
+        action = all_actions.find { |a| a[:txid] == result[:txid] }
+        expect(action[:status]).to eq('failed')
+      end
+    end
+
+    describe 'failed broadcast (network error / StandardError)' do
+      before do
+        allow(broadcaster).to receive(:broadcast).and_raise(RuntimeError, 'connection timeout')
+      end
+
+      it 'returns :broadcast_error without raising' do
+        result = wallet.create_action(action_opts)
+        expect(result[:broadcast_error]).to eq('connection timeout')
+      end
+
+      it 'releases input UTXOs back to :spendable' do
+        wallet.create_action(action_opts)
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        expect(spendable.any? { |o| o[:satoshis] == 10_000 }).to be true
+      end
+
+      it 'deletes phantom change outputs' do
+        # Only the original seeded UTXO should remain after rollback.
+        wallet.create_action(action_opts)
+        spendable = storage.find_spendable_outputs(basket: 'default')
+        expect(spendable.size).to eq(1)
+        expect(spendable.first[:satoshis]).to eq(10_000)
+      end
+
+      it 'marks the action as failed' do
+        result = wallet.create_action(action_opts)
+        all_actions = storage.find_actions({ limit: 100, offset: 0 })
+        action = all_actions.find { |a| a[:txid] == result[:txid] }
+        expect(action[:status]).to eq('failed')
+      end
+    end
+
+    describe 'rollback does not affect other outputs or actions' do
+      before { seed_utxo(satoshis: 50_000) }
+
+      it 'leaves unrelated UTXOs intact after rollback' do
+        # First action succeeds (we have two seeded UTXOs: 10_000 and 50_000).
+        good_broadcaster = double('good_broadcaster') # rubocop:disable RSpec/VerifiedDoubles
+        good_response = BSV::Network::BroadcastResponse.new(txid: 'ok', tx_status: 'SEEN_ON_NETWORK')
+        allow(good_broadcaster).to receive(:broadcast).and_return(good_response)
+
+        good_wallet = BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: good_broadcaster)
+        good_wallet.create_action({
+                                    description: 'first succeeds',
+                                    auto_fund: true,
+                                    outputs: [{
+                                      locking_script: recipient_lock_hex,
+                                      satoshis: 1_000,
+                                      output_description: 'good payment'
+                                    }]
+                                  })
+
+        # Remaining spendable UTXOs after the first action.
+        before_count = storage.find_spendable_outputs(basket: 'default').size
+
+        # Second action fails broadcast.
+        allow(broadcaster).to receive(:broadcast).and_raise(
+          BSV::Network::BroadcastError.new('rejected')
+        )
+        wallet.create_action(action_opts)
+
+        # The spendable pool should not shrink permanently.
+        after_count = storage.find_spendable_outputs(basket: 'default').size
+        expect(after_count).to eq(before_count)
+      end
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # Without broadcaster: backwards-compatible (no-broadcaster) behaviour
+  # -------------------------------------------------------------------------
+  describe 'without broadcaster (backwards-compatible)' do
+    before { seed_utxo(satoshis: 10_000) }
+
+    it 'promotes inputs to :spent immediately' do
+      wallet.create_action({
+                             description: 'no broadcaster test',
+                             auto_fund: true,
+                             outputs: [{
+                               locking_script: recipient_lock_hex,
+                               satoshis: 1_000,
+                               output_description: 'payment'
+                             }]
+                           })
+      spendable = storage.find_spendable_outputs(basket: 'default')
+      expect(spendable.none? { |o| o[:satoshis] == 10_000 }).to be true
+    end
+
+    it 'promotes change to :spendable immediately' do
+      wallet.create_action({
+                             description: 'no broadcaster change test',
+                             auto_fund: true,
+                             outputs: [{
+                               locking_script: recipient_lock_hex,
+                               satoshis: 1_000,
+                               output_description: 'payment'
+                             }]
+                           })
+      change = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
+      expect(change).not_to be_empty
+    end
+
+    it 'stores the action as completed' do
+      result = wallet.create_action({
+                                      description: 'no broadcaster action status test',
+                                      auto_fund: true,
+                                      outputs: [{
+                                        locking_script: recipient_lock_hex,
+                                        satoshis: 1_000,
+                                        output_description: 'payment'
+                                      }]
+                                    })
+      all_actions = storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('completed')
+    end
+
+    it 'does not include :broadcast_result or :broadcast_error in the result' do
+      result = wallet.create_action({
+                                      description: 'no broadcaster result shape test',
+                                      auto_fund: true,
+                                      outputs: [{
+                                        locking_script: recipient_lock_hex,
+                                        satoshis: 1_000,
+                                        output_description: 'payment'
+                                      }]
+                                    })
+      expect(result).not_to have_key(:broadcast_result)
+      expect(result).not_to have_key(:broadcast_error)
     end
   end
 end
