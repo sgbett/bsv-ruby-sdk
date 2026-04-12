@@ -110,15 +110,54 @@ RSpec.describe BSV::Script::Script do
   end
 
   describe '.p2pkh_lock' do
-    it 'creates a standard P2PKH locking script' do
+    # Mainnet address for the generator point pubkey hash (1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH)
+    let(:p2pkh_mainnet_address) { '1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH' }
+    # Testnet address for the same hash
+    let(:p2pkh_testnet_address) { 'mrCDrCybB6J1vRfbwM5hemdJz73FwDBC8r' }
+    # A P2SH address (same hash, prefix 0x05) — should be rejected
+    let(:p2sh_address) { '3CNHUhP3uyB9EUtRLsmvFUmvGdjGdkTxJw' }
+
+    it 'creates a standard P2PKH locking script from a raw binary hash' do
       script = described_class.p2pkh_lock(p2pkh_hash)
       expect(script.to_hex).to eq(p2pkh_hex)
       expect(script.to_asm).to eq(p2pkh_asm)
     end
 
-    it 'raises on invalid hash length' do
+    it 'raises when given an ASCII-8BIT string shorter than 20 bytes' do
+      # A 19-byte binary blob is not a valid 20-byte hash, and contains null
+      # bytes that are not valid Base58 characters, so ArgumentError is raised
+      # from whichever path is taken.
       expect { described_class.p2pkh_lock("\x00".b * 19) }
-        .to raise_error(ArgumentError, /20 bytes/)
+        .to raise_error(ArgumentError)
+    end
+
+    it 'accepts a mainnet Base58Check address string and produces the same script as the raw hash' do
+      script_from_address = described_class.p2pkh_lock(p2pkh_mainnet_address)
+      script_from_hash    = described_class.p2pkh_lock(p2pkh_hash)
+      expect(script_from_address.to_hex).to eq(script_from_hash.to_hex)
+    end
+
+    it 'accepts a testnet Base58Check address string' do
+      script_from_address = described_class.p2pkh_lock(p2pkh_testnet_address)
+      script_from_hash    = described_class.p2pkh_lock(p2pkh_hash)
+      expect(script_from_address.to_hex).to eq(script_from_hash.to_hex)
+    end
+
+    it 'raises ArgumentError for a P2SH address' do
+      expect { described_class.p2pkh_lock(p2sh_address) }
+        .to raise_error(ArgumentError, /P2SH/)
+    end
+
+    it 'raises ArgumentError for an invalid Base58 character' do
+      expect { described_class.p2pkh_lock('1InvalidBase58O0Il') }
+        .to raise_error(ArgumentError)
+    end
+
+    it 'raises ChecksumError for a valid Base58 string with wrong checksum' do
+      # Flip the last character of the valid address to corrupt the checksum
+      bad_address = p2pkh_mainnet_address[0..-2] + (p2pkh_mainnet_address[-1] == 'H' ? 'J' : 'H')
+      expect { described_class.p2pkh_lock(bad_address) }
+        .to raise_error(BSV::Primitives::Base58::ChecksumError)
     end
   end
 

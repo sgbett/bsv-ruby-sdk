@@ -33,8 +33,9 @@ module BSV
       # @param message [String] the plaintext message
       # @param public_key [PublicKey] the recipient's public key
       # @param private_key [PrivateKey, nil] optional ephemeral key (random if omitted)
-      # @return [String] encrypted payload: BIE1 magic + ephemeral pubkey + ciphertext + HMAC
-      def encrypt(message, public_key, private_key: nil)
+      # @param no_key [Boolean] when +true+, omit the ephemeral public key from the payload
+      # @return [String] encrypted payload: BIE1 magic + [ephemeral pubkey] + ciphertext + HMAC
+      def encrypt(message, public_key, private_key: nil, no_key: false)
         message = message.b if message.encoding != Encoding::ASCII_8BIT
 
         ephemeral = private_key || PrivateKey.generate
@@ -48,7 +49,11 @@ module BSV
         cipher.iv = iv
         ciphertext = message.empty? ? cipher.final : cipher.update(message) + cipher.final
 
-        payload = MAGIC + ephemeral_pub.compressed + ciphertext
+        payload = if no_key
+                    MAGIC + ciphertext
+                  else
+                    MAGIC + ephemeral_pub.compressed + ciphertext
+                  end
         mac = Digest.hmac_sha256(key_m, payload)
 
         payload + mac
@@ -58,29 +63,64 @@ module BSV
       #
       # Verifies the HMAC before attempting decryption (encrypt-then-MAC).
       #
+      # The ephemeral public key may be embedded in the payload (compressed or
+      # uncompressed), or absent entirely (when the payload was encrypted with
+      # +no_key: true+). When absent, +sender_public_key+ must be provided.
+      #
+      # If a key is found in the payload and +sender_public_key+ is also given,
+      # the payload key takes precedence (matching TS SDK behaviour).
+      #
       # @param data [String] the encrypted payload (BIE1 format)
       # @param private_key [PrivateKey] the recipient's private key
+      # @param sender_public_key [PublicKey, nil] sender's public key (required when no key in payload)
       # @return [String] the decrypted plaintext
-      # @raise [ArgumentError] if the data is too short or has invalid magic bytes
+      # @raise [ArgumentError] if the data is too short, has invalid magic, or has no key and none provided
       # @raise [DecryptionError] if HMAC verification or AES decryption fails
-      def decrypt(data, private_key)
+      def decrypt(data, private_key, sender_public_key: nil)
         data = data.b if data.encoding != Encoding::ASCII_8BIT
 
-        raise ArgumentError, 'data too short' if data.bytesize < 85
+        # Minimum: magic(4) + ciphertext(16) + HMAC(32) = 52 (no-key case)
+        raise ArgumentError, 'data too short' if data.bytesize < 52
 
         magic = data[0, 4]
         raise ArgumentError, 'invalid magic: expected BIE1' unless magic == MAGIC
 
-        ephemeral_pub_bytes = data[4, 33]
-        mac = data[-32, 32]
-        ciphertext = data[37...-32]
+        # Determine ephemeral key presence and format by inspecting byte at offset 4.
+        # Ambiguity note: a no-key payload whose ciphertext starts with 0x02/0x03/0x04
+        # could be misinterpreted as containing an embedded key. The HMAC check below
+        # will catch this (wrong shared secret → HMAC mismatch), but the resulting
+        # error message will be misleading. This is a TS SDK design inheritance —
+        # the wire format has no explicit key-presence flag.
+        # Guard: only attempt to read a key if sufficient bytes remain beyond HMAC.
+        tag_length = 32
+        offset = 4
+        ephemeral_pub = nil
 
-        ephemeral_pub = PublicKey.from_bytes(ephemeral_pub_bytes)
+        remaining_after_offset = data.bytesize - offset - tag_length
+        if remaining_after_offset >= 33
+          first_byte = data.getbyte(offset)
+          if [0x02, 0x03].include?(first_byte)
+            # Compressed key: 33 bytes
+            ephemeral_pub = PublicKey.from_bytes(data[offset, 33])
+            offset += 33
+          elsif first_byte == 0x04 && remaining_after_offset >= 65
+            # Uncompressed key: 65 bytes
+            ephemeral_pub = PublicKey.from_bytes(data[offset, 65])
+            offset += 65
+          end
+        end
+
+        # If no key found in payload, fall back to provided sender_public_key
+        ephemeral_pub ||= sender_public_key
+        raise ArgumentError, 'sender_public_key required when no key in payload' if ephemeral_pub.nil?
+
+        mac = data[-tag_length, tag_length]
+        ciphertext = data[offset...-tag_length]
 
         iv, key_e, key_m = derive_keys(private_key, ephemeral_pub)
 
         # Verify HMAC before decryption (encrypt-then-MAC)
-        payload = data[0...-32]
+        payload = data[0...-tag_length]
         expected_mac = Digest.hmac_sha256(key_m, payload)
 
         raise DecryptionError, 'HMAC verification failed' unless secure_compare(mac, expected_mac)

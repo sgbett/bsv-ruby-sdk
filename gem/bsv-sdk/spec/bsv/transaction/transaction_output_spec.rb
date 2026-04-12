@@ -42,6 +42,26 @@ RSpec.describe BSV::Transaction::TransactionOutput do
     end
   end
 
+  describe '#locking_script=' do
+    it 'allows the locking script to be mutated after construction' do
+      output = described_class.new(satoshis: 1000, locking_script: locking_script)
+      new_script = BSV::Script::Script.op_return('data'.b)
+
+      output.locking_script = new_script
+      expect(output.locking_script.to_hex).to eq(new_script.to_hex)
+    end
+
+    it 'reflects the new locking script in to_binary' do
+      output = described_class.new(satoshis: 1000, locking_script: locking_script)
+      new_script = BSV::Script::Script.op_return('data'.b)
+      output.locking_script = new_script
+
+      binary = output.to_binary
+      parsed, = described_class.from_binary(binary)
+      expect(parsed.locking_script.to_hex).to eq(new_script.to_hex)
+    end
+  end
+
   describe 'round-trip' do
     it 'serialises and deserialises an OP_RETURN output' do
       script = BSV::Script::Script.op_return('hello world'.b)

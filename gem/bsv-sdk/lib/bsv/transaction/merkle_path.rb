@@ -303,10 +303,29 @@ module BSV
       # Computes the merkle root from the path and txid, then checks it
       # against the blockchain via the provided chain tracker.
       #
+      # For coinbase transactions (offset 0 in the merkle tree), an additional
+      # maturity check is performed: the coinbase must have at least 100
+      # confirmations before it is considered spendable/valid.
+      #
+      # NOTE: The TS SDK has an inverted coinbase maturity check at MerklePath.ts:378
+      # (`this.blockHeight + 100 < height`), which rejects mature coinbase transactions
+      # and accepts immature ones — the opposite of the intended behaviour. The correct
+      # logic is: reject when `current_height - block_height < 100` (immature).
+      #
       # @param txid_hex [String] hex-encoded transaction ID (display order)
       # @param chain_tracker [ChainTracker] chain tracker to verify the root against
       # @return [Boolean] true if the computed root matches the block at this height
       def verify(txid_hex, chain_tracker)
+        txid_bytes = [txid_hex].pack('H*').reverse
+        txid_leaf = @path[0].find { |l| l.hash == txid_bytes }
+
+        # Offset 0 in a block's merkle tree is always the coinbase transaction —
+        # a Bitcoin protocol invariant. Apply the 100-block maturity check.
+        if txid_leaf&.offset&.zero?
+          current = chain_tracker.current_height
+          return false if current - @block_height < 100
+        end
+
         root_hex = compute_root_hex(txid_hex)
         chain_tracker.valid_root_for_height?(root_hex, @block_height)
       end

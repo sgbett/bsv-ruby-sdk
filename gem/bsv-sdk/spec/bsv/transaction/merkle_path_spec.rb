@@ -352,6 +352,83 @@ RSpec.describe BSV::Transaction::MerklePath do
     end
   end
 
+  # F5.11 — coinbase 100-block maturity check
+  describe '#verify coinbase maturity (F5.11)' do
+    # Build a minimal 2-leaf path at a known block height so we can control
+    # the txid offset precisely.
+    let(:pe) { BSV::Transaction::MerklePath::PathElement }
+    let(:block_height) { 1_000 }
+    let(:coinbase_hash) { BSV::Primitives::Digest.sha256('coinbase_tx') }
+    let(:normal_hash)   { BSV::Primitives::Digest.sha256('normal_tx') }
+    let(:expected_root) { described_class.merkle_tree_parent(coinbase_hash, normal_hash) }
+    let(:root_hex)      { expected_root.reverse.unpack1('H*') }
+    let(:coinbase_txid_hex) { coinbase_hash.reverse.unpack1('H*') }
+    let(:normal_txid_hex)   { normal_hash.reverse.unpack1('H*') }
+
+    # Coinbase tx is at offset 0; normal tx is at offset 1
+    let(:coinbase_mp) do
+      described_class.new(
+        block_height: block_height,
+        path: [
+          [pe.new(offset: 0, hash: coinbase_hash, txid: true),
+           pe.new(offset: 1, hash: normal_hash)]
+        ]
+      )
+    end
+
+    let(:normal_mp) do
+      described_class.new(
+        block_height: block_height,
+        path: [
+          [pe.new(offset: 0, hash: coinbase_hash),
+           pe.new(offset: 1, hash: normal_hash, txid: true)]
+        ]
+      )
+    end
+
+    def tracker_returning(current_h, root_result)
+      t = instance_double(BSV::Transaction::ChainTracker)
+      allow(t).to receive_messages(current_height: current_h, valid_root_for_height?: root_result)
+      t
+    end
+
+    it 'skips the maturity check for a non-coinbase tx (offset > 0)' do
+      tracker = instance_double(BSV::Transaction::ChainTracker)
+      allow(tracker).to receive(:valid_root_for_height?).and_return(true)
+
+      result = normal_mp.verify(normal_txid_hex, tracker)
+
+      expect(result).to be true
+      # current_height must NOT be called for non-coinbase txs
+      expect(tracker).not_to have_received(:current_height) if tracker.respond_to?(:current_height)
+    end
+
+    it 'returns false for coinbase tx with only 50 confirmations (immature)' do
+      tracker = tracker_returning(block_height + 50, true)
+      expect(coinbase_mp.verify(coinbase_txid_hex, tracker)).to be false
+    end
+
+    it 'returns false for coinbase tx with 99 confirmations (still immature)' do
+      tracker = tracker_returning(block_height + 99, true)
+      expect(coinbase_mp.verify(coinbase_txid_hex, tracker)).to be false
+    end
+
+    it 'proceeds to root check for coinbase tx with exactly 100 confirmations (mature)' do
+      tracker = tracker_returning(block_height + 100, true)
+      expect(coinbase_mp.verify(coinbase_txid_hex, tracker)).to be true
+    end
+
+    it 'returns false for mature coinbase when root check fails' do
+      tracker = tracker_returning(block_height + 100, false)
+      expect(coinbase_mp.verify(coinbase_txid_hex, tracker)).to be false
+    end
+
+    it 'returns false at 0 confirmations (current height == block height)' do
+      tracker = tracker_returning(block_height, true)
+      expect(coinbase_mp.verify(coinbase_txid_hex, tracker)).to be false
+    end
+  end
+
   # Issue #280 — TSC proof conversion
   describe '.from_tsc' do
     # Real WhatsOnChain TSC proof for tx 294cd1eb… in block 612251.

@@ -801,7 +801,7 @@ module BSV
         when FeeModel
           model_or_fee.compute_fee(self)
         when Numeric
-          model_or_fee.ceil
+          model_or_fee.ceil # round up — fractional satoshis from callers are not valid; rounding up prevents underpayment
         else
           raise ArgumentError, "expected FeeModel, Numeric, or nil; got #{model_or_fee.class}"
         end

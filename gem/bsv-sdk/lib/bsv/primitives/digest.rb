@@ -38,6 +38,9 @@ module BSV
         sha256(sha256(data))
       end
 
+      alias hash256 sha256d
+      module_function :hash256
+
       # Compute SHA-512 digest.
       #
       # @param data [String] binary data to hash

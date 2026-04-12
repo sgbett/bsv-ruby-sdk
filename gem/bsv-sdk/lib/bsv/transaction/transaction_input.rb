@@ -15,7 +15,7 @@ module BSV
       attr_reader :prev_tx_out_index
 
       # @return [Integer] sequence number (default: 0xFFFFFFFF)
-      attr_reader :sequence
+      attr_accessor :sequence
 
       # @return [Script::Script, nil] the unlocking script (set after signing)
       attr_accessor :unlocking_script
