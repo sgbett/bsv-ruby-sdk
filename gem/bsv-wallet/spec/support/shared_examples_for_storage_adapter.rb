@@ -143,6 +143,45 @@ RSpec.shared_examples 'a storage adapter' do
         expect(store.delete_output('nonexistent.0')).to be false
       end
     end
+
+    # Regression: symbol values stored in output hashes become strings after
+    # JSON round-tripping (PostgresStore, FileStore). Code that compares
+    # with == :symbol silently fails. See #367.
+    describe 'symbol/string round-trip safety' do
+      it 'preserves derivation_type for .to_s comparison after round-trip' do
+        store.store_output(
+          basket: 'default', outpoint: 'sym.0', spendable: true,
+          satoshis: 1000, derivation_type: :identity
+        )
+        output = store.find_outputs(basket: 'default', outpoint: 'sym.0', include_spent: true).first
+        expect(output[:derivation_type].to_s).to eq('identity')
+      end
+
+      it 'preserves state for .to_s comparison after round-trip' do
+        store.store_output(
+          basket: 'default', outpoint: 'state.0', spendable: true,
+          satoshis: 500, state: :spendable
+        )
+        output = store.find_outputs(basket: 'default', outpoint: 'state.0', include_spent: true).first
+        expect(output[:state].to_s).to eq('spendable')
+      end
+
+      it 'round-tripped symbol values work with the .to_s == pattern' do
+        store.store_output(
+          basket: 'default', outpoint: 'pat.0', spendable: true,
+          satoshis: 750, derivation_type: :identity, custom_enum: :foo
+        )
+        output = store.find_outputs(basket: 'default', outpoint: 'pat.0', include_spent: true).first
+
+        # This is how code SHOULD compare — survives both MemoryStore and PostgresStore
+        expect(output[:derivation_type]&.to_s == 'identity').to be true
+        expect(output[:custom_enum]&.to_s == 'foo').to be true
+
+        # This is the anti-pattern — works in MemoryStore, fails in PostgresStore
+        # We don't assert it fails (MemoryStore would pass), but we document
+        # that .to_s is the correct approach.
+      end
+    end
   end
 
   describe 'certificates' do
