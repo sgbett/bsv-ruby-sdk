@@ -35,13 +35,15 @@ module BSV
         desc = description || 'Attest data hash to chain'
 
         result = w.create_action(
-          description: desc,
-          outputs: [{
-            locking_script: script.to_hex,
-            satoshis: 0,
-            output_description: 'Attestation hash'
-          }],
-          options: { randomize_outputs: false }
+          {
+            description: desc,
+            outputs: [{
+              locking_script: script.to_hex,
+              satoshis: 0,
+              output_description: 'Attestation hash'
+            }],
+            options: { randomize_outputs: false }
+          }
         )
 
         raise BroadcastError, result[:broadcast_error] if result[:broadcast_error]

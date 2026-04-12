@@ -46,7 +46,7 @@ RSpec.describe BSV::Attest do
 
     let(:mock_wallet) do
       Class.new do
-        def create_action(_args)
+        def create_action(_args, _originator: nil)
           { txid: 'bb' * 32 }
         end
       end.new
@@ -56,7 +56,7 @@ RSpec.describe BSV::Attest do
       Class.new do
         attr_reader :last_args
 
-        def create_action(args)
+        def create_action(args, _originator: nil)
           @last_args = args
           { txid: 'bb' * 32 }
         end
@@ -101,7 +101,7 @@ RSpec.describe BSV::Attest do
 
     it 'raises BroadcastError on broadcast failure' do
       failing_wallet = Class.new do
-        def create_action(_args)
+        def create_action(_args, _originator: nil)
           { txid: 'bb' * 32, broadcast_error: 'transaction rejected' }
         end
       end.new
