@@ -22,6 +22,18 @@ RSpec.describe BSV::Primitives::Digest do
     end
   end
 
+  describe '.hash256' do
+    it 'returns the same result as sha256d' do
+      data = 'abc'
+      expect(described_class.hash256(data)).to eq(described_class.sha256d(data))
+    end
+
+    it 'is callable as a module function' do
+      result = described_class.hash256('test')
+      expect(result).to eq(described_class.sha256d('test'))
+    end
+  end
+
   describe '.sha512' do
     it 'hashes "abc" correctly' do
       result = described_class.sha512('abc')
