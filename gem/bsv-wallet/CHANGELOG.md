@@ -5,6 +5,34 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.0 — 2026-04-12
+
+### Added
+- Broadcast-before-promote semantics for `create_action` — transactions are
+  broadcast via a configurable `broadcaster:` before promoting state, with
+  automatic rollback on failure to prevent phantom UTXOs (#369, #371)
+- `send_with` for batched broadcast of previously `no_send` transactions,
+  with per-transaction rollback on failure (#373)
+- `accept_delayed_broadcast` option accepted as a stub (defaults to `false`;
+  background broadcasting deferred to a follow-up) (#374)
+- `delete_action` and `update_action_status` on `StorageAdapter`, implemented
+  in MemoryStore, FileStore, and PostgresStore (#370)
+- Broadcast results mapped to `ReviewActionResultStatus` (`success`,
+  `doubleSpend`, `invalidTx`, `serviceError`) and returned in the result
+  hash (#372)
+
+### Fixed
+- EF version marker overhead corrected from 2 to 6 bytes in fee estimation
+- Fee estimation now includes EF overhead for ARC compatibility
+- `FeeEstimator` default raised from 1 sat/kB to 100 sat/kB
+- `internalize_payment` now stores outputs in the default basket
+- `derivation_type` comparison uses string comparison for JSON round-trip
+  safety (#367)
+
+### Changed
+- Extracted `DEFAULT_SATS_PER_KB` constant for fee estimation
+- Specs reorganised into per-gem directories (#363)
+
 ## 0.5.1 — 2026-04-11
 
 ### Fixed
