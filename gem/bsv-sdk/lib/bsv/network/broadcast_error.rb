@@ -3,11 +3,12 @@
 module BSV
   module Network
     class BroadcastError < StandardError
-      attr_reader :status_code, :txid
+      attr_reader :status_code, :txid, :arc_status
 
-      def initialize(message, status_code: nil, txid: nil)
+      def initialize(message, status_code: nil, txid: nil, arc_status: nil)
         @status_code = status_code
         @txid = txid
+        @arc_status = arc_status
         super(message)
       end
     end

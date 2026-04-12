@@ -485,18 +485,14 @@ RSpec.describe 'WalletClient auto-fund mode' do
         expect(result).not_to have_key(:competing_txs)
       end
 
-      context 'when ARC returns competing_txs' do
-        let(:broadcast_response) do
-          BSV::Network::BroadcastResponse.new(
-            txid: 'abc', tx_status: 'SEEN_ON_NETWORK',
-            competing_txs: %w[deadbeef cafebabe]
-          )
-        end
-
-        it 'propagates competing_txs into the result' do
-          result = wallet.create_action(action_opts)
-          expect(result[:competing_txs]).to eq(%w[deadbeef cafebabe])
-        end
+      it 'propagates competing_txs when ARC returns them' do
+        response_with_competing = BSV::Network::BroadcastResponse.new(
+          txid: 'abc', tx_status: 'SEEN_ON_NETWORK',
+          competing_txs: %w[deadbeef cafebabe]
+        )
+        allow(broadcaster).to receive(:broadcast).and_return(response_with_competing)
+        result = wallet.create_action(action_opts)
+        expect(result[:competing_txs]).to eq(%w[deadbeef cafebabe])
       end
 
       it 'promotes input UTXOs to :spent' do

@@ -1227,8 +1227,9 @@ module BSV
 
         arc_status = error.arc_status.to_s.upcase
         return 'doubleSpend' if arc_status == 'DOUBLE_SPEND_ATTEMPTED'
-        return 'invalidTx'   if %w[REJECTED INVALID MALFORMED MINED_IN_STALE_BLOCK].include?(arc_status) ||
-                                  arc_status.include?('ORPHAN')
+
+        invalid_statuses = %w[REJECTED INVALID MALFORMED MINED_IN_STALE_BLOCK]
+        return 'invalidTx' if invalid_statuses.include?(arc_status) || arc_status.include?('ORPHAN')
 
         'serviceError'
       end
