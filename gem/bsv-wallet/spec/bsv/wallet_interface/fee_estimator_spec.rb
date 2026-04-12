@@ -6,20 +6,19 @@ require 'bsv-wallet'
 RSpec.describe BSV::Wallet::FeeEstimator do
   # Reference the constant so tests adapt if the default changes.
   let(:default_rate) { described_class::DEFAULT_SATS_PER_KB }
-
-  # Helper: compute the expected fee for a given byte size at a given rate.
-  def expected_fee(bytes, rate)
-    [(bytes / 1000.0 * rate).ceil, 1].max
-  end
-
   # Compute expected byte sizes from the class constants so tests adapt
   # if input/output sizes or overhead change.
   let(:input_size) { described_class::P2PKH_INPUT_SIZE }
   let(:output_size) { described_class::P2PKH_OUTPUT_SIZE }
   let(:fixed) { described_class::FIXED_OVERHEAD }
   # size = FIXED_OVERHEAD + varint(inputs) + inputs*INPUT + varint(outputs) + outputs*OUTPUT
-  let(:size_1_1) { fixed + 1 + (1 * input_size) + 1 + (1 * output_size) }
-  let(:size_2_3) { fixed + 1 + (2 * input_size) + 1 + (3 * output_size) }
+  let(:size_one_in_one_out) { fixed + 1 + (1 * input_size) + 1 + (1 * output_size) }
+  let(:size_two_in_three_out) { fixed + 1 + (2 * input_size) + 1 + (3 * output_size) }
+
+  # Helper: compute the expected fee for a given byte size at a given rate.
+  def expected_fee(bytes, rate)
+    [(bytes / 1000.0 * rate).ceil, 1].max
+  end
 
   describe '#initialize' do
     it 'defaults to DEFAULT_SATS_PER_KB' do
@@ -66,30 +65,30 @@ RSpec.describe BSV::Wallet::FeeEstimator do
 
     context 'with 1 input and 1 output at default rate' do
       it 'returns the correct fee' do
-        expect(estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(size_1_1, default_rate))
+        expect(estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(size_one_in_one_out, default_rate))
       end
 
       it 'byte size matches computed size at 1000 sat/kB' do
         high_rate = described_class.new(sats_per_kb: 1000)
-        expect(high_rate.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(size_1_1)
+        expect(high_rate.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(size_one_in_one_out)
       end
     end
 
     context 'with 2 inputs and 3 outputs at default rate' do
       it 'returns the correct fee' do
-        expect(estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(expected_fee(size_2_3, default_rate))
+        expect(estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(expected_fee(size_two_in_three_out, default_rate))
       end
 
       it 'byte size matches computed size at 1000 sat/kB' do
         high_rate = described_class.new(sats_per_kb: 1000)
-        expect(high_rate.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(size_2_3)
+        expect(high_rate.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(size_two_in_three_out)
       end
     end
 
     context 'with extra_bytes' do
       it 'adds extra bytes to the estimated size' do
         high_rate = described_class.new(sats_per_kb: 1000)
-        expect(high_rate.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1, extra_bytes: 100)).to eq(size_1_1 + 100)
+        expect(high_rate.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1, extra_bytes: 100)).to eq(size_one_in_one_out + 100)
       end
 
       it 'defaults extra_bytes to 0' do
@@ -112,7 +111,7 @@ RSpec.describe BSV::Wallet::FeeEstimator do
     context 'with a custom rate of 50 sat/kB' do
       it 'scales the fee proportionally' do
         estimator_50 = described_class.new(sats_per_kb: 50)
-        expect(estimator_50.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(size_1_1, 50))
+        expect(estimator_50.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(size_one_in_one_out, 50))
       end
     end
 
@@ -172,7 +171,7 @@ RSpec.describe BSV::Wallet::FeeEstimator do
     context 'with default rate' do
       it 'returns twice the cost to spend one P2PKH input' do
         estimator = described_class.new
-        cost = expected_fee(size_1_1, default_rate)
+        cost = expected_fee(size_one_in_one_out, default_rate)
         expect(estimator.dust_floor).to eq([1, cost * 2].max)
       end
     end
@@ -180,7 +179,7 @@ RSpec.describe BSV::Wallet::FeeEstimator do
     context 'with 50 sat/kB' do
       it 'returns twice the cost to spend one input' do
         estimator = described_class.new(sats_per_kb: 50)
-        cost = (size_1_1 / 1000.0 * 50).ceil
+        cost = (size_one_in_one_out / 1000.0 * 50).ceil
         expect(estimator.dust_floor).to eq([1, cost * 2].max)
       end
     end
@@ -188,7 +187,7 @@ RSpec.describe BSV::Wallet::FeeEstimator do
     context 'with 1000 sat/kB' do
       it 'returns twice the cost to spend one input' do
         estimator = described_class.new(sats_per_kb: 1000)
-        cost = (size_1_1 / 1000.0 * 1000).ceil
+        cost = (size_one_in_one_out / 1000.0 * 1000).ceil
         expect(estimator.dust_floor).to eq([1, cost * 2].max)
       end
     end

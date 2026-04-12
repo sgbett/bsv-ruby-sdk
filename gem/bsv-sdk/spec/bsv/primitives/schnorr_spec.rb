@@ -182,7 +182,7 @@ RSpec.describe BSV::Primitives::Schnorr do
 
     it 'decodes identically whether z has leading zeros or not (the 1-in-256 case)' do
       # Force a z value whose 32-byte encoding has a leading \x00
-      z_with_leading_zero = OpenSSL::BN.new('00ff' + 'ab' * 30, 16)
+      z_with_leading_zero = OpenSSL::BN.new("00ff#{'ab' * 30}", 16)
       fake_proof = BSV::Primitives::Schnorr::Proof.new(proof.r, proof.s_prime, z_with_leading_zero)
 
       fixed = fake_proof.z.to_s(2)
