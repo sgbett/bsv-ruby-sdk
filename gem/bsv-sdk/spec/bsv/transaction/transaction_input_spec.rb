@@ -75,6 +75,35 @@ RSpec.describe BSV::Transaction::TransactionInput do
     end
   end
 
+  describe '#sequence=' do
+    it 'allows the sequence to be mutated after construction' do
+      input = described_class.new(prev_tx_id: txid_internal, prev_tx_out_index: 0)
+      expect(input.sequence).to eq(0xFFFFFFFF)
+
+      input.sequence = 0x00000001
+      expect(input.sequence).to eq(0x00000001)
+    end
+
+    it 'reflects the new sequence in to_binary' do
+      input = described_class.new(prev_tx_id: txid_internal, prev_tx_out_index: 0)
+      input.sequence = 0x00000001
+
+      binary = input.to_binary
+      expect(binary.byteslice(37, 4).unpack1('V')).to eq(0x00000001)
+    end
+
+    it 'serialises correctly when mutated from 0xFFFFFFFF to 0' do
+      input = described_class.new(prev_tx_id: txid_internal, prev_tx_out_index: 0, sequence: 0xFFFFFFFF)
+      input.sequence = 0
+
+      binary = input.to_binary
+      expect(binary.byteslice(37, 4).unpack1('V')).to eq(0)
+
+      parsed, = described_class.from_binary(binary)
+      expect(parsed.sequence).to eq(0)
+    end
+  end
+
   describe '#outpoint_binary' do
     it 'returns 36-byte outpoint (txid + vout)' do
       input = described_class.new(prev_tx_id: txid_internal, prev_tx_out_index: 2)

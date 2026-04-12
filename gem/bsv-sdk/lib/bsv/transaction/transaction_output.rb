@@ -12,7 +12,7 @@ module BSV
       attr_accessor :satoshis
 
       # @return [Script::Script] the locking script (spending conditions)
-      attr_reader :locking_script
+      attr_accessor :locking_script
 
       # @return [Boolean] whether this output receives change
       attr_accessor :change
