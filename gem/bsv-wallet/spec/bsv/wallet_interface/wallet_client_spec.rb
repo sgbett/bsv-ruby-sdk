@@ -61,6 +61,26 @@ RSpec.describe BSV::Wallet::WalletClient do
         wallet.abort_action({ reference: 'nonexistent' })
       end.to raise_error(BSV::Wallet::WalletError)
     end
+
+    it 'defaults broadcaster to nil' do
+      expect(wallet.broadcaster).to be_nil
+    end
+
+    it 'accepts a broadcaster: keyword argument' do
+      broadcaster = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
+      expect(w.broadcaster).to equal(broadcaster)
+    end
+
+    it 'returns false from broadcast_enabled? when broadcaster is nil' do
+      expect(wallet.broadcast_enabled?).to be(false)
+    end
+
+    it 'returns true from broadcast_enabled? when broadcaster is set' do
+      broadcaster = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
+      expect(w.broadcast_enabled?).to be(true)
+    end
   end
 
   # -------------------------------------------------------------------------

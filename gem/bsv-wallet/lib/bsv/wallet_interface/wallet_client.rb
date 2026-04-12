@@ -39,6 +39,9 @@ module BSV
       # @return [ProofStore] the merkle proof persistence store
       attr_reader :proof_store
 
+      # @return [#broadcast, nil] the optional broadcaster (responds to #broadcast(tx))
+      attr_reader :broadcaster
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
@@ -46,6 +49,7 @@ module BSV
       # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
+      # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
       def initialize(
         key,
         storage: FileStore.new,
@@ -55,7 +59,8 @@ module BSV
         http_client: nil,
         fee_estimator: nil,
         coin_selector: nil,
-        change_generator: nil
+        change_generator: nil,
+        broadcaster: nil
       )
         super(key)
         @storage = storage
@@ -63,10 +68,16 @@ module BSV
         @chain_provider = chain_provider
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
+        @broadcaster = broadcaster
         @pending = {}
         @injected_fee_estimator    = fee_estimator
         @injected_coin_selector    = coin_selector
         @injected_change_generator = change_generator
+      end
+
+      # Returns true when a broadcaster has been configured.
+      def broadcast_enabled?
+        !@broadcaster.nil?
       end
 
       # --- Transaction Operations ---
