@@ -918,33 +918,33 @@ module BSV
           actual_idx = tx.outputs.index { |o| o.instance_variable_get(:@_spec).equal?(spec) }
           next unless actual_idx
 
-          locking_script_hex = if spec[:locking_script].is_a?(BSV::Script::Script)
-                                 spec[:locking_script].to_hex
-                               else
-                                 spec[:locking_script]
-                               end
-
-          entry = {
-            outpoint: "#{txid}.#{actual_idx}",
-            satoshis: spec[:satoshis],
-            locking_script: locking_script_hex,
-            basket: 'default',
-            tags: [],
-            derivation_prefix: spec[:derivation_prefix],
-            derivation_suffix: spec[:derivation_suffix],
-            sender_identity_key: spec[:sender_identity_key],
-            state: state,
-            source_tx_hex: tx_hex
-          }
-          if state == :pending
-            entry[:pending_since] = Time.now.utc.iso8601
-            entry[:pending_reference] = pending_reference if pending_reference
-            entry[:no_send] = true if no_send
-          end
+          entry = change_output_entry(txid, actual_idx, spec, tx_hex, state, pending_reference, no_send)
           @storage.store_output(entry)
           outpoints << "#{txid}.#{actual_idx}"
         end
         outpoints
+      end
+
+      def change_output_entry(txid, idx, spec, tx_hex, state, pending_reference, no_send)
+        locking_script_hex = spec[:locking_script].is_a?(BSV::Script::Script) ? spec[:locking_script].to_hex : spec[:locking_script]
+        entry = {
+          outpoint: "#{txid}.#{idx}",
+          satoshis: spec[:satoshis],
+          locking_script: locking_script_hex,
+          basket: 'default',
+          tags: [],
+          derivation_prefix: spec[:derivation_prefix],
+          derivation_suffix: spec[:derivation_suffix],
+          sender_identity_key: spec[:sender_identity_key],
+          state: state,
+          source_tx_hex: tx_hex
+        }
+        if state == :pending
+          entry[:pending_since] = Time.now.utc.iso8601
+          entry[:pending_reference] = pending_reference if pending_reference
+          entry[:no_send] = true if no_send
+        end
+        entry
       end
 
       # Lazy accessors for auto-fund components. Created on first use so the
