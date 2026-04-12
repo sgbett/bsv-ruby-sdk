@@ -1272,10 +1272,17 @@ module BSV
           return { txid: txid, status: 'failed', error: 'Pending entry expired or already processed' }
         end
 
-        tx_hex = @storage.find_transaction(txid)
-        return { txid: txid, status: 'failed', error: 'Transaction hex not found in storage' } unless tx_hex
+        # Use the original signed transaction from the pending entry — it has
+        # source_satoshis and source_locking_script wired on each input, which
+        # the broadcaster needs for Extended Format (EF/BRC-30) submission.
+        # Reconstructing from stored hex would lose that metadata.
+        tx = pending_entry[:tx]
+        unless tx
+          tx_hex = @storage.find_transaction(txid)
+          return { txid: txid, status: 'failed', error: 'Transaction not found' } unless tx_hex
 
-        tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+          tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+        end
         promote_no_send(tx, txid, fund_ref, pending_entry)
       rescue StandardError => e
         # Catch unexpected errors outside the broadcast rescue block.
@@ -1283,13 +1290,15 @@ module BSV
       end
 
       # Attempts to broadcast and promote a single no_send transaction.
+      # Action status is set to 'unproven' (matching TS SDK SendWithResult)
+      # because the transaction has been submitted but not yet confirmed.
       def promote_no_send(tx, txid, fund_ref, pending_entry)
         @broadcaster.broadcast(tx)
 
         # Broadcast succeeded — promote state and remove from pending indices.
         pending_entry[:locked_outpoints].each { |op| @storage.update_output_state(op, :spent) }
         pending_entry[:change_outpoints].each { |op| @storage.update_output_state(op, :spendable) }
-        @storage.update_action_status(txid, 'completed')
+        @storage.update_action_status(txid, 'unproven')
         @pending.delete(fund_ref)
         @pending_by_txid.delete(txid)
 
@@ -1328,15 +1337,13 @@ module BSV
         tx.sign_all if tx.inputs.any?(&:unlocking_script_template)
         txid = tx.txid_hex
 
-        status = if args.dig(:options, :no_send)
+        no_send = args.dig(:options, :no_send)
+        delayed = args.dig(:options, :accept_delayed_broadcast)
+
+        status = if no_send
                    'nosend'
-                 elsif args.dig(:options, :accept_delayed_broadcast)
-                   warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
-                        'falling through to synchronous processing. ' \
-                        'Background broadcasting is a planned future feature.'
-                   'unproven'
                  else
-                   'completed'
+                   'pending'
                  end
 
         @storage.store_transaction(txid, tx.to_hex)
@@ -1345,7 +1352,35 @@ module BSV
 
         beef_binary = tx.to_beef
         result = { txid: txid, tx: beef_binary.unpack('C*') }
-        result[:no_send_change] = [] if args.dig(:options, :no_send)
+
+        if no_send
+          result[:no_send_change] = []
+        elsif broadcast_enabled?
+          # Broadcast and promote or rollback — same discipline as auto_fund path.
+          broadcast_result = nil
+          begin
+            broadcast_result = @broadcaster.broadcast(tx)
+            @storage.update_action_status(txid, 'completed')
+            result[:broadcast_result] = broadcast_result
+            result[:broadcast_status] = 'success'
+          rescue StandardError => e
+            @storage.update_action_status(txid, 'failed')
+            result[:broadcast_error] = e.message
+            result[:broadcast_status] = broadcast_status_for(e)
+          end
+        else
+          # No broadcaster — promote immediately (backwards compatible).
+          final_status = if delayed
+                           warn '[bsv-wallet] accept_delayed_broadcast: true is not yet implemented; ' \
+                                'falling through to synchronous processing. ' \
+                                'Background broadcasting is a planned future feature.'
+                           'unproven'
+                         else
+                           'completed'
+                         end
+          @storage.update_action_status(txid, final_status)
+        end
+
         result
       end
 

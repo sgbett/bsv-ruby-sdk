@@ -891,7 +891,7 @@ RSpec.describe 'WalletClient auto-fund mode' do
 
         all_actions = storage.find_actions({ limit: 100, offset: 0 })
         action = all_actions.find { |a| a[:txid] == txid }
-        expect(action[:status]).to eq('completed')
+        expect(action[:status].to_s).to eq('unproven')
       end
 
       it 'returns failed status for unknown txid' do
