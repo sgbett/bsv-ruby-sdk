@@ -48,6 +48,18 @@ module BSV
         result
       end
 
+      def update_action_status(txid, new_status)
+        result = super
+        save_actions
+        result
+      end
+
+      def delete_action(txid)
+        result = super
+        save_actions if result
+        result
+      end
+
       def store_output(output_data)
         result = super
         save_outputs

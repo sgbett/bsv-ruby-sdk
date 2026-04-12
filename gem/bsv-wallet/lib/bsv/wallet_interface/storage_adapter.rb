@@ -67,6 +67,26 @@ module BSV
         raise NotImplementedError, "#{self.class}#find_transaction not implemented"
       end
 
+      # Updates the status field of a stored action identified by txid.
+      #
+      # @param _txid [String] the transaction identifier of the action to update
+      # @param _new_status [String] the new status value (e.g. 'failed', 'completed')
+      # @return [Hash] the updated action hash
+      # @raise [BSV::Wallet::WalletError] if no action with the given txid is found
+      # @raise [NotImplementedError]
+      def update_action_status(_txid, _new_status)
+        raise NotImplementedError, "#{self.class}#update_action_status not implemented"
+      end
+
+      # Removes a stored action by txid.
+      #
+      # @param _txid [String] the transaction identifier of the action to remove
+      # @return [Boolean] true if the action was deleted, false if not found
+      # @raise [NotImplementedError]
+      def delete_action(_txid)
+        raise NotImplementedError, "#{self.class}#delete_action not implemented"
+      end
+
       # Transitions the state of an existing output.
       #
       # When +new_state+ is +:pending+, pass a +pending_reference:+ string to

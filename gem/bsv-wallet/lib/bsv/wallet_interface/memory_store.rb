@@ -30,6 +30,22 @@ module BSV
         action_data
       end
 
+      def update_action_status(txid, new_status)
+        action = @actions.find { |a| a[:txid] == txid }
+        raise WalletError, "Action not found: #{txid}" unless action
+
+        action[:status] = new_status
+        action
+      end
+
+      def delete_action(txid)
+        idx = @actions.index { |a| a[:txid] == txid }
+        return false unless idx
+
+        @actions.delete_at(idx)
+        true
+      end
+
       def find_actions(query)
         apply_pagination(filter_actions(query), query)
       end

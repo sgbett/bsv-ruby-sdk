@@ -61,6 +61,7 @@ Naming/PredicateMethod:
     - is_authenticated
     - delete_output
     - delete_certificate
+    - delete_action
 
 # is_authenticated uses the BRC-100 wire-protocol naming convention (is_ prefix).
 Naming/PredicatePrefix:
