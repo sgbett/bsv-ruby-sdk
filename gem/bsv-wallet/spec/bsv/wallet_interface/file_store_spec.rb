@@ -21,6 +21,7 @@ RSpec.describe BSV::Wallet::FileStore do
 
     it 'uses BSV_WALLET_DIR env var when no dir given' do
       env_dir = File.join(tmpdir, 'from-env')
+      allow(ENV).to receive(:fetch).and_call_original
       allow(ENV).to receive(:fetch).with('BSV_WALLET_DIR', anything).and_return(env_dir)
       described_class.new
       expect(Dir.exist?(env_dir)).to be true

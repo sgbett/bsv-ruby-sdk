@@ -508,10 +508,10 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(action[:status]).to eq('unproven')
     end
 
-    it 'logs a warning when accept_delayed_broadcast: true' do
+    it 'does not log a warning when accept_delayed_broadcast: true' do
       expect do
         wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
-      end.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+      end.not_to output(/accept_delayed_broadcast/i).to_stderr
     end
 
     it 'defaults to completed status when option is absent' do
@@ -581,14 +581,14 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(action[:status]).to eq('unproven')
     end
 
-    it 'logs a warning when sign_action passes accept_delayed_broadcast: true' do
+    it 'does not log a warning when sign_action passes accept_delayed_broadcast: true' do
       expect do
         wallet.sign_action({
                              reference: reference,
                              spends: { 0 => { unlocking_script: dummy_unlock_hex } },
                              options: { accept_delayed_broadcast: true }
                            })
-      end.to output(/accept_delayed_broadcast.*not yet implemented/i).to_stderr
+      end.not_to output(/accept_delayed_broadcast/i).to_stderr
     end
   end
 
