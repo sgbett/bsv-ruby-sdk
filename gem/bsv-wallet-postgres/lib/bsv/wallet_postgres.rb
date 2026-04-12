@@ -8,5 +8,6 @@ module BSV
 
   module Wallet
     autoload :PostgresStore, 'bsv/wallet_postgres/postgres_store'
+    autoload :SolidQueueAdapter, 'bsv/wallet_postgres/solid_queue_adapter'
   end
 end
