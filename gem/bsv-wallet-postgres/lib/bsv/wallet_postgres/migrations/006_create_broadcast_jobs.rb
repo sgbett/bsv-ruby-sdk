@@ -12,7 +12,7 @@
 #                         for the same transaction.
 #
 # * +status+            — TEXT NOT NULL DEFAULT 'unsent'. State machine values:
-#                         'unsent', 'broadcasting', 'sent', 'failed'.
+#                         'unsent', 'sending', 'completed', 'failed'.
 #
 # * +beef_hex+          — TEXT NOT NULL. Serialised BEEF payload to broadcast.
 #
@@ -42,8 +42,11 @@
 # A composite index on +(status, locked_at)+ (named +broadcast_jobs_poll_idx+)
 # supports the hot-path poll query:
 #
-#   WHERE status = 'unsent' AND locked_at IS NULL
+#   WHERE status = 'unsent'
+#      OR (status = 'sending' AND locked_at < NOW() - interval '300 seconds'
+#          AND attempts < 5)
 #   ORDER BY created_at
+#   FOR UPDATE SKIP LOCKED
 Sequel.migration do
   change do
     create_table(:wallet_broadcast_jobs) do
@@ -56,9 +59,9 @@ Sequel.migration do
       String   :fund_ref
       Integer  :attempts,         null: false, default: 0
       String   :last_error,       text: true
-      DateTime :locked_at
-      DateTime :created_at,       null: false, default: Sequel::CURRENT_TIMESTAMP
-      DateTime :updated_at,       null: false, default: Sequel::CURRENT_TIMESTAMP
+      column :locked_at,   :timestamptz
+      column :created_at,  :timestamptz, null: false, default: Sequel::CURRENT_TIMESTAMP
+      column :updated_at,  :timestamptz, null: false, default: Sequel::CURRENT_TIMESTAMP
       index %i[status locked_at], name: :broadcast_jobs_poll_idx
     end
   end

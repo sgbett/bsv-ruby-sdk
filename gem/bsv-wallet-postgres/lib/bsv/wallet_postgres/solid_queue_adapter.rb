@@ -131,12 +131,16 @@ module BSV
       # Spawns the background worker thread.
       #
       # Safe to call multiple times — returns immediately if already running.
+      # The check-and-set is atomic under the mutex to prevent two concurrent
+      # +start+ calls from spawning duplicate worker threads.
       #
       # @return [void]
       def start
-        return if running?
+        @mutex.synchronize do
+          return if @running || @worker_thread&.alive?
 
-        @mutex.synchronize { @running = true }
+          @running = true
+        end
         @worker_thread = Thread.new { worker_loop }
       end
 
@@ -221,6 +225,9 @@ module BSV
       # Marks a job as +sending+, broadcasts the transaction, and promotes or
       # rolls back wallet state based on the outcome.
       #
+      # Deserialization failures (corrupt +beef_hex+) are caught and mark the
+      # job as +failed+ immediately to prevent infinite retry loops.
+      #
       # @param job [Hash] row from +wallet_broadcast_jobs+
       # @return [void]
       def process_job(job)
@@ -231,7 +238,16 @@ module BSV
           updated_at: Sequel.lit('NOW()')
         )
 
-        tx = BSV::Transaction::Transaction.from_beef_hex(job[:beef_hex])
+        begin
+          tx = BSV::Transaction::Transaction.from_beef_hex(job[:beef_hex])
+        rescue StandardError => e
+          @db[:wallet_broadcast_jobs].where(id: job[:id]).update(
+            status: 'failed',
+            last_error: "Deserialization failed: #{e.message}",
+            updated_at: Sequel.lit('NOW()')
+          )
+          return
+        end
 
         input_outpoints  = job[:input_outpoints]&.to_a
         change_outpoints = job[:change_outpoints]&.to_a
