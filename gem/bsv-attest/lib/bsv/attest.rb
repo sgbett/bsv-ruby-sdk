@@ -25,25 +25,28 @@ module BSV
         BSV::Primitives::Digest.sha256(data)
       end
 
-      def publish(data, wallet: nil, broadcaster: nil)
+      def publish(data, wallet: nil, description: nil)
         w = wallet || configuration.wallet
-        b = broadcaster || configuration.broadcaster
         raise ArgumentError, 'wallet is required' unless w
-        raise ArgumentError, 'broadcaster is required' unless b
 
         digest = hash(data)
-
         script = BSV::Script::Script.op_return(digest)
-        output = BSV::Transaction::TransactionOutput.new(satoshis: 0, locking_script: script)
 
-        tx = BSV::Transaction::Transaction.new
-        tx.add_output(output)
+        desc = description || 'Attest data hash to chain'
 
-        w.fund_and_sign(tx)
+        result = w.create_action(
+          description: desc,
+          outputs: [{
+            locking_script: script.to_hex,
+            satoshis: 0,
+            output_description: 'Attestation hash'
+          }],
+          options: { randomize_outputs: false }
+        )
 
-        broadcast_response = b.broadcast(tx)
+        raise BroadcastError, result[:broadcast_error] if result[:broadcast_error]
 
-        Response.new(hash: digest, transaction: tx, txid: broadcast_response.txid)
+        Response.new(hash: digest, txid: result[:txid])
       end
 
       def verify(data, txid, provider: nil)
