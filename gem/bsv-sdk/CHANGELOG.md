@@ -5,6 +5,12 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.1 — 2026-04-12
+
+### Added
+- `arc_status` attribute on `BroadcastError` to distinguish ARC rejection reasons
+  (double-spend, invalid, malformed) for downstream status mapping
+
 ## 0.10.0 — 2026-04-11
 
 ### Added
