@@ -113,9 +113,64 @@ RSpec.describe BSV::Primitives::ECIES do
     end
   end
 
+  describe 'no_key option' do
+    context 'encrypt with no_key: true, decrypt with sender_public_key' do
+      it 'round-trips successfully' do
+        ciphertext = described_class.encrypt(plaintext, bob_privkey.public_key, private_key: alice_privkey, no_key: true)
+        result = described_class.decrypt(ciphertext, bob_privkey, sender_public_key: alice_privkey.public_key)
+        expect(result).to eq(plaintext.b)
+      end
+
+      it 'produces a shorter payload than the standard format' do
+        with_key    = described_class.encrypt(plaintext, bob_privkey.public_key, private_key: alice_privkey)
+        without_key = described_class.encrypt(plaintext, bob_privkey.public_key, private_key: alice_privkey, no_key: true)
+        expect(without_key.bytesize).to eq(with_key.bytesize - 33)
+      end
+    end
+
+    context 'encrypt with no_key: true, decrypt without sender_public_key' do
+      it 'raises ArgumentError' do
+        ciphertext = described_class.encrypt(plaintext, bob_privkey.public_key, private_key: alice_privkey, no_key: true)
+        expect { described_class.decrypt(ciphertext, bob_privkey) }
+          .to raise_error(ArgumentError, /sender_public_key required/)
+      end
+    end
+  end
+
+  describe 'uncompressed ephemeral key' do
+    it 'decrypts a payload with an uncompressed (0x04) ephemeral key' do
+      # Construct a payload with an uncompressed ephemeral key manually:
+      # encrypt normally, then rebuild the payload replacing the compressed key
+      # with its uncompressed equivalent.
+      ephemeral = BSV::Primitives::PrivateKey.from_hex(
+        '77e06abc52bf065cb5164c5deca839d0276911991a2730be4d8d0a0307de7ceb'
+      )
+      recipient = bob_privkey
+
+      iv, key_e, key_m = described_class.send(:derive_keys, ephemeral, recipient.public_key)
+
+      cipher = OpenSSL::Cipher.new('aes-128-cbc')
+      cipher.encrypt
+      cipher.key = key_e
+      cipher.iv = iv
+      ciphertext = cipher.update(plaintext.b) + cipher.final
+
+      uncompressed_pub = ephemeral.public_key.uncompressed
+      expect(uncompressed_pub.bytesize).to eq(65)
+      expect(uncompressed_pub.getbyte(0)).to eq(0x04)
+
+      payload = BSV::Primitives::ECIES::MAGIC + uncompressed_pub + ciphertext
+      mac = BSV::Primitives::Digest.hmac_sha256(key_m, payload)
+      data = payload + mac
+
+      result = described_class.decrypt(data, recipient)
+      expect(result).to eq(plaintext.b)
+    end
+  end
+
   describe 'error handling' do
-    it 'raises ArgumentError for data shorter than 85 bytes' do
-      expect { described_class.decrypt("\x00" * 84, bob_privkey) }.to raise_error(ArgumentError, /too short/)
+    it 'raises ArgumentError for data shorter than 52 bytes' do
+      expect { described_class.decrypt("\x00" * 51, bob_privkey) }.to raise_error(ArgumentError, /too short/)
     end
 
     it 'raises ArgumentError for wrong magic bytes' do
