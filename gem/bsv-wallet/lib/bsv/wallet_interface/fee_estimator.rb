@@ -36,12 +36,16 @@ module BSV
       # +FeeModel::OVERHEAD+.
       OVERHEAD = 10
 
+      # Default fee rate in satoshis per kilobyte, matching ARC's mining
+      # policy endpoint (/v1/policy → miningFee 100/1000).
+      DEFAULT_SATS_PER_KB = 100
+
       # @return [Integer] the satoshis-per-kilobyte rate used for estimation
       attr_reader :sats_per_kb
 
-      # @param sats_per_kb [Integer] fee rate in satoshis per kilobyte (default: 100)
+      # @param sats_per_kb [Integer] fee rate in satoshis per kilobyte
       # @raise [ArgumentError] if sats_per_kb is zero or negative
-      def initialize(sats_per_kb: 100)
+      def initialize(sats_per_kb: DEFAULT_SATS_PER_KB)
         raise ArgumentError, 'sats_per_kb must be greater than zero' unless sats_per_kb.positive?
 
         @sats_per_kb = sats_per_kb

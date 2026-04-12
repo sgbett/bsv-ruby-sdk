@@ -4,15 +4,39 @@ require 'spec_helper'
 require 'bsv-wallet'
 
 RSpec.describe BSV::Wallet::FeeEstimator do
+  # Reference the constant so tests adapt if the default changes.
+  let(:default_rate) { described_class::DEFAULT_SATS_PER_KB }
+
+  # Helper: compute the expected fee for a given byte size at a given rate.
+  def expected_fee(bytes, rate)
+    [(bytes / 1000.0 * rate).ceil, 1].max
+  end
+
+  # Known byte sizes (from the size formula: FIXED_OVERHEAD + varints + inputs*148 + outputs*34).
+  # 1 in / 1 out: 8 + 1 + 148 + 1 + 34 = 192
+  # 2 in / 3 out: 8 + 1 + 296 + 1 + 102 = 408
+  let(:size_1_1) { 192 }
+  let(:size_2_3) { 408 }
+
   describe '#initialize' do
-    it 'defaults to 100 sat/kB (ARC mining policy)' do
+    it 'defaults to DEFAULT_SATS_PER_KB' do
       estimator = described_class.new
-      expect(estimator.sats_per_kb).to eq(100)
+      expect(estimator.sats_per_kb).to eq(default_rate)
     end
 
     it 'accepts a custom rate' do
       estimator = described_class.new(sats_per_kb: 50)
       expect(estimator.sats_per_kb).to eq(50)
+    end
+
+    it 'raises ArgumentError for zero' do
+      expect { described_class.new(sats_per_kb: 0) }
+        .to raise_error(ArgumentError, /greater than zero/)
+    end
+
+    it 'raises ArgumentError for negative' do
+      expect { described_class.new(sats_per_kb: -1) }
+        .to raise_error(ArgumentError, /greater than zero/)
     end
   end
 
@@ -35,40 +59,32 @@ RSpec.describe BSV::Wallet::FeeEstimator do
   describe '#estimate' do
     subject(:estimator) { described_class.new }
 
-    context 'with 1 input and 1 output at default 100 sat/kB' do
-      # Hand-calculation: 148 + 34 + 4(version) + 1(varint inputs) + 1(varint outputs) + 4(locktime)
-      #                 = 148 + 34 + 10 = 192 bytes
-      # Fee: ceil(192 / 1000.0 * 100) = ceil(19.2) = 20 satoshis
-      it 'returns 20 satoshis' do
-        expect(estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(20)
+    context 'with 1 input and 1 output at default rate' do
+      it 'returns the correct fee' do
+        expect(estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(size_1_1, default_rate))
       end
 
       it 'byte size is exactly 192' do
-        # At 1000 sat/kB, fee equals the byte count exactly (no rounding artefact).
-        high_rate_estimator = described_class.new(sats_per_kb: 1000)
-        expect(high_rate_estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(192)
+        high_rate = described_class.new(sats_per_kb: 1000)
+        expect(high_rate.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(192)
       end
     end
 
-    context 'with 2 inputs and 3 outputs at default 100 sat/kB' do
-      # Hand-calculation: 2*148 + 3*34 + 4 + 1 + 1 + 4
-      #                 = 296 + 102 + 10 = 408 bytes
-      # Fee: ceil(408 / 1000.0 * 100) = ceil(40.8) = 41 satoshis
-      it 'returns 41 satoshis' do
-        expect(estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(41)
+    context 'with 2 inputs and 3 outputs at default rate' do
+      it 'returns the correct fee' do
+        expect(estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(expected_fee(size_2_3, default_rate))
       end
 
       it 'byte size is exactly 408 at 1000 sat/kB' do
-        high_rate_estimator = described_class.new(sats_per_kb: 1000)
-        expect(high_rate_estimator.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(408)
+        high_rate = described_class.new(sats_per_kb: 1000)
+        expect(high_rate.estimate(p2pkh_inputs: 2, p2pkh_outputs: 3)).to eq(408)
       end
     end
 
     context 'with extra_bytes' do
       it 'adds extra bytes to the estimated size' do
-        # At 1000 sat/kB: base 192 bytes + 100 extra = 292 bytes → 292 sat
-        high_rate_estimator = described_class.new(sats_per_kb: 1000)
-        expect(high_rate_estimator.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1, extra_bytes: 100)).to eq(292)
+        high_rate = described_class.new(sats_per_kb: 1000)
+        expect(high_rate.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1, extra_bytes: 100)).to eq(292)
       end
 
       it 'defaults extra_bytes to 0' do
@@ -78,9 +94,7 @@ RSpec.describe BSV::Wallet::FeeEstimator do
       end
     end
 
-    context 'with zero inputs (output-only estimation before inputs are known)' do
-      # Valid for pre-funding size estimation before inputs are known.
-      # Overhead: 4 + 1(varint 0) + 1(varint 1) + 4 = 10; 0*148 + 1*34 = 34; total = 44
+    context 'with zero inputs' do
       it 'handles zero inputs without error' do
         expect { estimator.estimate(p2pkh_inputs: 0, p2pkh_outputs: 1) }.not_to raise_error
       end
@@ -91,36 +105,24 @@ RSpec.describe BSV::Wallet::FeeEstimator do
     end
 
     context 'with a custom rate of 50 sat/kB' do
-      let(:estimator_50) { described_class.new(sats_per_kb: 50) }
-
       it 'scales the fee proportionally' do
-        # 192 bytes → ceil(192/1000 * 50) = ceil(9.6) = 10
-        expect(estimator_50.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(10)
+        estimator_50 = described_class.new(sats_per_kb: 50)
+        expect(estimator_50.estimate(p2pkh_inputs: 1, p2pkh_outputs: 1)).to eq(expected_fee(size_1_1, 50))
       end
     end
 
     context 'with very large input count (>252) requiring a 3-byte varint' do
-      # At 253 inputs, varint requires 3 bytes (0xFD prefix + 2-byte little-endian value)
-      # instead of the 1-byte form used for 0..252.
       it 'uses correct 3-byte varint for 253 inputs' do
-        # Expected: (253 * 148) + (1 * 34) + 8(fixed) + 3(varint inputs) + 1(varint outputs)
         expected_bytes = (253 * 148) + (1 * 34) + 8 + 3 + 1
         estimator_1k = described_class.new(sats_per_kb: 1000)
         expect(estimator_1k.estimate(p2pkh_inputs: 253, p2pkh_outputs: 1)).to eq(expected_bytes)
       end
     end
 
-    context 'when sats_per_kb is zero' do
-      it 'raises ArgumentError' do
-        expect { described_class.new(sats_per_kb: 0) }
-          .to raise_error(ArgumentError, /greater than zero/)
-      end
-    end
-
     context 'when the transaction exceeds 1000 bytes' do
-      it 'returns fee > 1 sat at 1 sat/kB' do
-        # 7 inputs × 148 + 1 output × 34 + 10 = 1036 + 34 + 10 = 1080 bytes → ceil(1.08) = 2 sat
-        expect(estimator.estimate(p2pkh_inputs: 7, p2pkh_outputs: 1)).to be > 1
+      it 'returns fee proportional to size' do
+        # 7 inputs: 7*148 + 34 + 10 = 1080 bytes
+        expect(estimator.estimate(p2pkh_inputs: 7, p2pkh_outputs: 1)).to eq(expected_fee(1080, default_rate))
       end
     end
   end
@@ -130,7 +132,6 @@ RSpec.describe BSV::Wallet::FeeEstimator do
       estimator = described_class.new(sats_per_kb: 1)
       sdk_model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new(value: 1)
 
-      # Build a minimal real transaction with a P2PKH template so estimated_size works.
       private_key = BSV::Primitives::PrivateKey.generate
       lock_script = BSV::Script::Script.p2pkh_lock(private_key.public_key.hash160)
       tx = BSV::Transaction::Transaction.new
@@ -157,41 +158,28 @@ RSpec.describe BSV::Wallet::FeeEstimator do
 
       tx = instance_double(BSV::Transaction::Transaction, estimated_size: 1000)
 
-      expect(estimator_50.estimate_for_tx(tx)).to eq(50) # 1000/1000 * 50 = 50
-      expect(estimator_1.estimate_for_tx(tx)).to eq(1)   # 1000/1000 * 1 = 1
+      expect(estimator_50.estimate_for_tx(tx)).to eq(50)
+      expect(estimator_1.estimate_for_tx(tx)).to eq(1)
     end
   end
 
   describe '#dust_floor' do
-    context 'with 100 sat/kB (default rate)' do
-      # spend_one_p2pkh_bytes = 1*148 + 1*34 + 4 + 1 + 1 + 4 = 192 bytes
-      # cost = ceil(192/1000 * 100) = 20
-      # dust_floor = max(1, 20 * 2) = 40
-      it 'returns 40 satoshis' do
+    context 'with default rate' do
+      it 'returns twice the cost to spend one P2PKH input' do
         estimator = described_class.new
-        expect(estimator.dust_floor).to eq(40)
+        cost = expected_fee(size_1_1, default_rate)
+        expect(estimator.dust_floor).to eq([1, cost * 2].max)
       end
     end
 
     context 'with 50 sat/kB' do
-      # cost = ceil(192/1000 * 50) = ceil(9.6) = 10
-      # dust_floor = max(1, 10 * 2) = 20
       it 'returns 20 satoshis' do
         estimator = described_class.new(sats_per_kb: 50)
         expect(estimator.dust_floor).to eq(20)
       end
     end
 
-    context 'with negative sats_per_kb' do
-      it 'raises ArgumentError' do
-        expect { described_class.new(sats_per_kb: -1) }
-          .to raise_error(ArgumentError, /greater than zero/)
-      end
-    end
-
     context 'with 1000 sat/kB' do
-      # cost = ceil(192/1000 * 1000) = 192
-      # dust_floor = max(1, 192 * 2) = 384
       it 'returns 384 satoshis' do
         estimator = described_class.new(sats_per_kb: 1000)
         expect(estimator.dust_floor).to eq(384)

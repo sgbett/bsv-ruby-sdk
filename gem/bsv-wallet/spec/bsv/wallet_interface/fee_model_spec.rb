@@ -5,9 +5,9 @@ require 'bsv-wallet'
 
 RSpec.describe BSV::Wallet::FeeModel do
   describe '#initialize' do
-    it 'defaults to 100 sat/kB (ARC mining policy)' do
+    it 'defaults to DEFAULT_SATS_PER_KB' do
       model = described_class.new
-      expect(model.sats_per_kb).to eq(100)
+      expect(model.sats_per_kb).to eq(BSV::Wallet::FeeEstimator::DEFAULT_SATS_PER_KB)
     end
 
     it 'accepts a custom rate' do

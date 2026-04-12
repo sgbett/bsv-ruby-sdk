@@ -293,10 +293,11 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
   # ---------------------------------------------------------------------------
   describe 'no change when excess is zero or sub-dust' do
     it 'produces no change output when excess is below the dust floor' do
-      # FeeEstimator at 100 sat/kB: a 1-input 2-output tx is ~226 bytes
-      # Fee: ceil(226/1000 * 100) = 23 sats
-      # Seed with exactly target + fee (1000 + 23 = 1023)
-      seed_payment_output(wallet, satoshis: 1023)
+      # A 1-input 2-output tx is ~226 bytes. Compute fee at the default rate
+      # so this test adapts if DEFAULT_SATS_PER_KB changes.
+      rate = BSV::Wallet::FeeEstimator::DEFAULT_SATS_PER_KB
+      fee = (226 / 1000.0 * rate).ceil
+      seed_payment_output(wallet, satoshis: 1000 + fee)
 
       result = wallet.create_action({
                                       description: 'exact coverage spend test',
