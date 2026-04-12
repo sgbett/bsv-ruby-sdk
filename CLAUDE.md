@@ -90,6 +90,7 @@ Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base
 - No `ruby` directive in Gemfile (hard Bundler constraint inappropriate for libraries)
 - All files use `# frozen_string_literal: true`
 - RuboCop targets Ruby 2.7; single-quoted strings preferred
+- **Never compare JSONB-round-tripped values with `== :symbol`.** Ruby symbols become JSON strings after storage in PostgresStore/FileStore. Use `.to_s ==` for any value that may be a symbol or string depending on the storage adapter (e.g. `o[:derivation_type]&.to_s == 'identity'`, not `o[:derivation_type] == :identity`). MemoryStore preserves symbols; all other adapters do not. See #367.
 
 ## Releasing Gems
 
