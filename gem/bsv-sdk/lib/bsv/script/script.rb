@@ -144,11 +144,19 @@ module BSV
 
       # Construct a Pay-to-Public-Key-Hash (P2PKH) locking script.
       #
-      # @param pubkey_hash [String] 20-byte public key hash
+      # Accepts either a raw 20-byte binary hash or a Base58Check address string.
+      # When given an address string, the version prefix is validated: +0x00+
+      # (mainnet) and +0x6f+ (testnet) are accepted; +0x05+ (P2SH) is rejected
+      # with a clear error message.
+      #
+      # @param pubkey_hash_or_address [String] 20-byte binary pubkey hash, or a
+      #   Base58Check address string
       # @return [Script]
-      # @raise [ArgumentError] if pubkey_hash is not 20 bytes
-      def self.p2pkh_lock(pubkey_hash)
-        raise ArgumentError, 'pubkey_hash must be 20 bytes' unless pubkey_hash.bytesize == 20
+      # @raise [ArgumentError] if the argument is not a valid 20-byte hash, if the
+      #   address has an unrecognised prefix, or if a P2SH address is supplied
+      # @raise [BSV::Primitives::Base58::ChecksumError] if the address checksum is invalid
+      def self.p2pkh_lock(pubkey_hash_or_address)
+        pubkey_hash = resolve_pubkey_hash(pubkey_hash_or_address)
 
         buf = [
           Opcodes::OP_DUP,
@@ -158,6 +166,35 @@ module BSV
         buf << [Opcodes::OP_EQUALVERIFY, Opcodes::OP_CHECKSIG].pack('CC')
         new(buf)
       end
+
+      # @api private
+      # Resolve a pubkey_hash argument that may be a raw binary hash or a
+      # Base58Check address string.
+      def self.resolve_pubkey_hash(arg)
+        # A 20-byte ASCII-8BIT string is treated as a raw binary hash.
+        return arg if arg.encoding == Encoding::ASCII_8BIT && arg.bytesize == 20
+
+        # Otherwise treat as a Base58Check address string.
+        decoded = BSV::Primitives::Base58.check_decode(arg, prefix_length: 1)
+        prefix = decoded[:prefix]
+        data   = decoded[:data]
+
+        p2sh_prefix = "\x05".b
+        mainnet_prefix = "\x00".b
+        testnet_prefix = "\x6f".b
+
+        if prefix == p2sh_prefix
+          raise ArgumentError,
+                'P2SH addresses are not supported on BSV; ' \
+                'use p2pkh_lock with a P2PKH address or 20-byte hash'
+        end
+
+        raise ArgumentError, "unrecognised address prefix: 0x#{prefix.unpack1('H*')}" \
+          unless prefix == mainnet_prefix || prefix == testnet_prefix
+
+        data
+      end
+      private_class_method :resolve_pubkey_hash
 
       # Construct a P2PKH unlocking script.
       #
