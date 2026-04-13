@@ -16,7 +16,7 @@ module BSV
       #
       # @example
       #   model = BSV::Transaction::FeeModels::LivePolicy.new(
-      #     arc_url: 'https://arc.gorillapool.io',
+      #     arc_url: 'https://arcade.gorillapool.io',
       #     fallback_rate: 50
       #   )
       #   fee = model.compute_fee(transaction)
@@ -32,7 +32,7 @@ module BSV
         # @return [Integer] cache TTL in seconds
         attr_reader :cache_ttl
 
-        DEFAULT_ARC_URL = 'https://arc.gorillapool.io'
+        DEFAULT_ARC_URL = BSV::MAINNET_URL
         DEFAULT_FALLBACK_RATE = 100
 
         # Returns a LivePolicy with sensible defaults (GorillaPool ARC,
@@ -44,7 +44,7 @@ module BSV
           new(arc_url: DEFAULT_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
         end
 
-        # @param arc_url [String] ARC base URL (e.g. 'https://arc.gorillapool.io')
+        # @param arc_url [String] ARC base URL (e.g. 'https://arcade.gorillapool.io')
         # @param fallback_rate [Integer] sat/kB to use when fetch fails (default: 100)
         # @param cache_ttl [Integer] seconds to cache a fetched rate (default: 300)
         # @param api_key [String, nil] optional Bearer token for ARC authentication

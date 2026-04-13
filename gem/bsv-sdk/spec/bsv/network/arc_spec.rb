@@ -608,14 +608,14 @@ RSpec.describe BSV::Network::ARC do
 
       expect(arc).to be_a(described_class)
       arc.broadcast(tx)
-      expect(http.last_uri.host).to eq('arc.gorillapool.io')
+      expect(http.last_uri.host).to eq('arcade.gorillapool.io')
     end
 
     it 'returns an ARC instance pointed at the testnet GorillaPool endpoint' do
       http = mock_http.new(200, success_body)
       arc = described_class.default(testnet: true, http_client: http)
       arc.broadcast(tx)
-      expect(http.last_uri.host).to eq('testnet.arc.gorillapool.io')
+      expect(http.last_uri.host).to eq('testnet.arcade.gorillapool.io')
     end
 
     it 'passes api_key through to the underlying instance' do

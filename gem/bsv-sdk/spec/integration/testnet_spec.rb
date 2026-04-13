@@ -16,7 +16,7 @@ require 'spec_helper'
 # so the wallet stays funded across runs.
 RSpec.describe 'Testnet integration', :testnet do
   def arc_url
-    ENV.fetch('BSV_TESTNET_ARC_URL', 'https://testnet.arc.gorillapool.io')
+    ENV.fetch('BSV_TESTNET_ARC_URL', 'https://testnet.arcade.gorillapool.io')
   end
 
   def dust_limit

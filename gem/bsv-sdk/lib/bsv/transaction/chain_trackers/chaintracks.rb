@@ -20,8 +20,8 @@ module BSV
       #   tracker = BSV::Transaction::ChainTrackers::Chaintracks.new(api_key: 'my-key')
       #   tracker.current_height
       class Chaintracks < ChainTracker
-        MAINNET_URL = 'https://arcade.gorillapool.io'
-        TESTNET_URL = 'https://testnet.arcade.gorillapool.io'
+        MAINNET_URL = BSV::MAINNET_URL
+        TESTNET_URL = BSV::TESTNET_URL
 
         # @param url [String] base URL for the Chaintracks API
         # @param api_key [String, nil] optional Bearer API key

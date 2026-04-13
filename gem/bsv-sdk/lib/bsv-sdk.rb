@@ -3,6 +3,9 @@
 require_relative 'bsv/version'
 
 module BSV
+  MAINNET_URL = ENV['BSV_ARC_MAINNET_URL'] || 'https://arcade.gorillapool.io'
+  TESTNET_URL = ENV['BSV_ARC_TESTNET_URL'] || 'https://testnet.arcade.gorillapool.io'
+
   autoload :Primitives,  'bsv/primitives'
   autoload :Script,      'bsv/script'
   autoload :Transaction, 'bsv/transaction'

@@ -21,7 +21,7 @@ module BSV
       # @param opts [Hash] forwarded to {#initialize} (e.g. +api_key:+, +callback_url:+)
       # @return [ARC]
       def self.default(testnet: false, **opts)
-        url = testnet ? 'https://testnet.arc.gorillapool.io' : 'https://arc.gorillapool.io'
+        url = testnet ? TESTNET_URL : MAINNET_URL
         new(url, **opts)
       end
 
