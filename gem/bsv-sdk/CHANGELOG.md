@@ -5,6 +5,12 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.1 — 2026-04-13
+
+### Fixed
+- `ARC.default` and `LivePolicy::DEFAULT_ARC_URL` now point to `arcade.gorillapool.io` (ARCADE) instead of the old `arc.gorillapool.io` endpoint (#418)
+- Centralised ARCADE URLs into `BSV::MAINNET_URL` / `BSV::TESTNET_URL` constants, overridable via `BSV_ARC_MAINNET_URL` and `BSV_ARC_TESTNET_URL` environment variables
+
 ## 0.11.0 — 2026-04-12
 
 ### Added
