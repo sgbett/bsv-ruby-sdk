@@ -8,6 +8,7 @@ module BSV
     autoload :SessionManager, 'bsv/auth/session_manager'
     autoload :Transport,      'bsv/auth/transport'
     autoload :Peer,           'bsv/auth/peer'
+    autoload :Certificate,    'bsv/auth/certificate'
 
     # Protocol version
     AUTH_VERSION = '0.1'
