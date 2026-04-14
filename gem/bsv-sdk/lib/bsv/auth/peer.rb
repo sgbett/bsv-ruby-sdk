@@ -2,49 +2,51 @@
 
 require 'base64'
 require 'json'
+require 'timeout'
 
 module BSV
   module Auth
     # BRC-31/BRC-103 mutual authentication peer.
     #
-    # Manages the cryptographic handshake between two parties:
+    # Manages the cryptographic handshake between two parties using a transport
+    # for bidirectional message delivery.
     #
-    # 1. Alice calls {#initiate_handshake} — sends +initialRequest+ with her
-    #    session nonce and requested certificates.
-    # 2. Bob calls {#handle_incoming_message} — processes the request, creates
-    #    his own session nonce, signs +decode(alice_nonce) + decode(bob_nonce)+,
-    #    and sends +initialResponse+.
-    # 3. Alice processes +initialResponse+ — verifies the nonce is hers
-    #    (via HMAC), verifies Bob's signature, and marks the session authenticated.
-    # 4. Both parties may now exchange authenticated +general+ messages.
+    # High-level API (preferred):
+    #   peer_a.to_peer(payload, peer_b_identity_key)    — send authenticated message
+    #   peer_a.get_authenticated_session(identity_key)  — obtain/create authenticated session
+    #   peer_a.request_certificates(certs, identity_key) — request certs post-handshake
+    #   peer_a.send_certificate_response(key, certs)    — send certs to a peer
+    #
+    # The high-level API auto-initiates the handshake when no authenticated session
+    # exists. The low-level +handle_incoming_message+ is called internally by the
+    # transport callback and is not part of the public contract.
     #
     # Sessions are indexed by +session_nonce+ (our nonce), which is the primary
     # key in the {SessionManager}.
     #
-    # @example Using Peer with a custom transport
-    #   wallet_a = BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate)
-    #   wallet_b = BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate)
+    # @example Using Peer with a transport
+    #   transport_a, transport_b = PairedTransport.create_pair
+    #   peer_a = BSV::Auth::Peer.new(wallet: wallet_a, transport: transport_a)
+    #   peer_b = BSV::Auth::Peer.new(wallet: wallet_b, transport: transport_b)
     #
-    #   # Wire the two peers together with synchronous in-process transports
-    #   peer_a = BSV::Auth::Peer.new(wallet: wallet_a)
-    #   peer_b = BSV::Auth::Peer.new(wallet: wallet_b)
-    #
-    #   # Alice initiates; Bob responds; Alice completes
-    #   request  = peer_a.create_initial_request
-    #   response = peer_b.handle_incoming_message(request)
-    #   peer_a.handle_incoming_message(response)
+    #   peer_b.on_general_message { |key, payload| puts "received: #{payload}" }
+    #   peer_a.to_peer([72, 101, 108, 108, 111], peer_b.identity_key)
     class Peer
       AUTH_PROTOCOL = [2, 'auth message signature'].freeze
 
       attr_reader :wallet, :session_manager, :last_interacted_peer
 
       # @param wallet [BSV::Wallet::Interface] wallet providing crypto operations
-      # @param transport [Transport, nil] optional transport for async usage
+      # @param transport [Transport] transport for message delivery (required)
       # @param session_manager [SessionManager, nil] optional custom session store
       # @param certificates_to_request [Hash, nil] certificate set to request from peers
       # @param auto_persist_last_session [Boolean] whether to track the last-interacted peer (default: true)
-      def initialize(wallet:, transport: nil, session_manager: nil, certificates_to_request: nil,
-                     auto_persist_last_session: true)
+      # @param handshake_timeout [Integer] seconds to wait for handshake response (default: 30)
+      # @raise [ArgumentError] if transport is nil
+      def initialize(wallet:, transport:, session_manager: nil, certificates_to_request: nil,
+                     auto_persist_last_session: true, handshake_timeout: 30)
+        raise ArgumentError, 'transport is required' if transport.nil?
+
         @wallet                    = wallet
         @transport                 = transport
         @session_manager           = session_manager || SessionManager.new
@@ -55,11 +57,152 @@ module BSV
         @callback_mutex            = Mutex.new
         @last_interacted_peer      = nil
         @auto_persist_last_session = auto_persist_last_session
-
-        return unless @transport
+        @handshake_queues          = {}
+        @handshake_queues_mutex    = Mutex.new
+        @handshake_timeout         = handshake_timeout
 
         @transport.on_data { |msg| handle_incoming_message(msg) }
       end
+
+      # --- High-level session API ---
+
+      # Sends an authenticated general message to a peer, initiating a handshake
+      # automatically if no authenticated session exists.
+      #
+      # @param payload [Array<Integer>] byte array payload
+      # @param identity_key [String, nil] peer identity key; falls back to last-interacted peer
+      # @raise [AuthError] if certificates are required but not yet validated
+      # @raise [AuthError] if handshake times out
+      def to_peer(payload, identity_key = nil)
+        identity_key = resolve_identity_key(identity_key)
+        session      = get_authenticated_session(identity_key)
+
+        if session.certificates_required && !session.certificates_validated
+          raise AuthError, 'Cannot send general message before certificate validation is complete'
+        end
+
+        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
+        key_id        = key_id_for(request_nonce, session.peer_nonce)
+
+        sig_result = @wallet.create_signature({
+                                                data: payload,
+                                                protocol_id: AUTH_PROTOCOL,
+                                                key_id: key_id,
+                                                counterparty: session.peer_identity_key
+                                              })
+
+        session.last_update = current_time_ms
+        @session_manager.update_session(session)
+
+        message = {
+          version: AUTH_VERSION,
+          message_type: MSG_GENERAL,
+          identity_key: self.identity_key,
+          nonce: request_nonce,
+          your_nonce: session.peer_nonce,
+          payload: payload,
+          signature: sig_result[:signature]
+        }
+
+        @transport.send(message)
+        @last_interacted_peer = session.peer_identity_key if @auto_persist_last_session
+      end
+
+      # Returns an authenticated session for a peer, initiating a handshake if needed.
+      #
+      # If +identity_key+ is given and an authenticated session already exists, returns
+      # it immediately. Otherwise initiates a handshake and blocks until the response
+      # arrives or the timeout expires.
+      #
+      # @param identity_key [String, nil] peer identity key to look up or connect to
+      # @return [PeerSession] an authenticated session
+      # @raise [AuthError] if the handshake fails or times out
+      def get_authenticated_session(identity_key = nil)
+        if identity_key
+          session = @session_manager.get_session(identity_key)
+          return session if session&.authenticated?
+        end
+
+        session_nonce = initiate_handshake(identity_key)
+        session       = @session_manager.get_session(session_nonce)
+        raise AuthError, 'Unable to establish mutual authentication with peer!' unless session&.authenticated?
+
+        session
+      end
+
+      # Sends a certificate request to a peer post-handshake.
+      #
+      # @param certificates_to_request [Hash] certifiers and types to request
+      # @param identity_key [String, nil] peer identity key; falls back to last-interacted peer
+      def request_certificates(certificates_to_request, identity_key = nil)
+        identity_key = resolve_identity_key(identity_key)
+        session      = get_authenticated_session(identity_key)
+
+        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
+        key_id        = key_id_for(request_nonce, session.peer_nonce)
+        data          = JSON.generate(certificates_to_request).encode('UTF-8').bytes
+
+        sig_result = @wallet.create_signature({
+                                                data: data,
+                                                protocol_id: AUTH_PROTOCOL,
+                                                key_id: key_id,
+                                                counterparty: session.peer_identity_key
+                                              })
+
+        session.last_update = current_time_ms
+        @session_manager.update_session(session)
+
+        message = {
+          version: AUTH_VERSION,
+          message_type: MSG_CERT_REQUEST,
+          identity_key: self.identity_key,
+          nonce: request_nonce,
+          initial_nonce: session.session_nonce,
+          your_nonce: session.peer_nonce,
+          requested_certificates: certificates_to_request,
+          signature: sig_result[:signature]
+        }
+
+        @transport.send(message)
+      end
+
+      # Sends a certificate response to a peer.
+      #
+      # @param peer_identity_key [String] the peer's identity key
+      # @param certificates [Array<VerifiableCertificate, Hash>] certificates to send
+      def send_certificate_response(peer_identity_key, certificates)
+        session = get_authenticated_session(peer_identity_key)
+
+        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
+        key_id        = key_id_for(request_nonce, session.peer_nonce)
+        cert_data     = certificates.map { |c| c.respond_to?(:to_h) ? c.to_h : c }
+        data          = JSON.generate(cert_data).encode('UTF-8').bytes
+
+        sig_result = @wallet.create_signature({
+                                                data: data,
+                                                protocol_id: AUTH_PROTOCOL,
+                                                key_id: key_id,
+                                                counterparty: session.peer_identity_key
+                                              })
+
+        session.last_update = current_time_ms
+        @session_manager.update_session(session)
+
+        message = {
+          version: AUTH_VERSION,
+          message_type: MSG_CERT_RESPONSE,
+          identity_key: identity_key,
+          nonce: request_nonce,
+          initial_nonce: session.session_nonce,
+          your_nonce: session.peer_nonce,
+          certificates: cert_data,
+          signature: sig_result[:signature]
+        }
+
+        @transport.send(message)
+      end
+
+      # --- Callbacks ---
 
       # Registers a callback to be called when a general message is received.
       #
@@ -124,9 +267,61 @@ module BSV
         session&.authenticated? || false
       end
 
+      private
+
       # --- Handshake initiation (we are the initiator) ---
 
+      # Initiates a handshake, blocks until the response arrives, and returns the
+      # session nonce so the caller can retrieve the completed session.
+      #
+      # A Queue is created and stored in @handshake_queues keyed by the session nonce.
+      # +process_initial_response+ pops +:ready+ into the queue once authentication
+      # is complete, unblocking the waiting thread.
+      #
+      # @param identity_key [String, nil] hint for the peer's identity (optional)
+      # @return [String] session nonce of the newly authenticated session
+      # @raise [AuthError] if the handshake times out or the transport raises
+      def initiate_handshake(identity_key = nil)
+        session_nonce = Nonce.create(@wallet)
+
+        session = PeerSession.new(session_nonce: session_nonce)
+        session.peer_identity_key = identity_key
+        session.certificates_required  = certifiers_present?
+        session.certificates_validated = !session.certificates_required
+
+        @session_manager.add_session(session)
+
+        queue = Queue.new
+        @handshake_queues_mutex.synchronize { @handshake_queues[session_nonce] = queue }
+
+        message = {
+          version: AUTH_VERSION,
+          message_type: MSG_INITIAL_REQUEST,
+          identity_key: self.identity_key,
+          initial_nonce: session_nonce,
+          requested_certificates: @certificates_to_request
+        }
+
+        begin
+          @transport.send(message)
+        rescue StandardError => e
+          @handshake_queues_mutex.synchronize { @handshake_queues.delete(session_nonce) }
+          raise e
+        end
+
+        begin
+          Timeout.timeout(@handshake_timeout) { queue.pop }
+        rescue Timeout::Error
+          @handshake_queues_mutex.synchronize { @handshake_queues.delete(session_nonce) }
+          raise AuthError, 'Handshake timed out'
+        end
+
+        session_nonce
+      end
+
       # Builds an +initialRequest+ message and creates a pending session.
+      # Used internally by older test paths; prefer {#initiate_handshake} for
+      # new code since it wires the queue and blocks until auth completes.
       #
       # @return [Hash] the message to send to the peer
       def create_initial_request
@@ -151,9 +346,8 @@ module BSV
 
       # Processes any incoming auth message and returns a response (if applicable).
       #
-      # When a transport is configured, any response is also forwarded via
-      # +@transport.send+ so that the bidirectional flow works without the
-      # caller having to manually route the return value.
+      # Called by the transport's +on_data+ callback. Not part of the public API —
+      # callers should use the high-level {#to_peer} / {#get_authenticated_session} methods.
       #
       # @param message [Hash] the incoming auth message
       # @return [Hash, nil] response message, or nil for messages requiring no reply
@@ -177,11 +371,11 @@ module BSV
         # Only forward protocol messages (those with a message_type) back via
         # transport. Internal result hashes (e.g. from process_general_message)
         # carry no message_type and must not be forwarded.
-        @transport&.send(response) if response&.key?(:message_type)
+        @transport.send(response) if response&.key?(:message_type)
         response
       end
 
-      # --- Certificate request/response (manual mode) ---
+      # --- Certificate request/response (low-level builders) ---
 
       # Builds a +certificateRequest+ message directed at an already-authenticated peer.
       #
@@ -256,7 +450,7 @@ module BSV
         }
       end
 
-      # --- General message exchange (post-handshake) ---
+      # --- General message builder (low-level) ---
 
       # Creates an authenticated +general+ message to send to a peer.
       #
@@ -294,7 +488,17 @@ module BSV
         }
       end
 
-      private
+      # Resolves the identity key for a peer, falling back to the last-interacted peer
+      # when +identity_key+ is nil and +@auto_persist_last_session+ is true.
+      #
+      # @param identity_key [String, nil]
+      # @return [String, nil]
+      def resolve_identity_key(identity_key)
+        return identity_key if identity_key
+        return @last_interacted_peer if @auto_persist_last_session && @last_interacted_peer
+
+        nil
+      end
 
       # --- Processing: initial request (we are the responder) ---
 
@@ -387,6 +591,13 @@ module BSV
 
         @last_interacted_peer = peer_key if @auto_persist_last_session
 
+        # Unblock any thread waiting in initiate_handshake for this session.
+        # Must happen AFTER authentication is complete and BEFORE certificate
+        # handling — certificate handling may call get_authenticated_session which
+        # checks the session state, and it must not re-trigger a new handshake.
+        queue = @handshake_queues_mutex.synchronize { @handshake_queues.delete(session.session_nonce) }
+        queue&.push(:ready)
+
         # Validate certificates if the responder included them
         resp_certs = message[:certificates] || message['certificates']
         if session.certificates_required && resp_certs.is_a?(Array) && !resp_certs.empty?
@@ -407,7 +618,7 @@ module BSV
             certs = BSV::Auth.get_verifiable_certificates(@wallet, requested, peer_key)
             if certs.length.positive?
               cert_response = create_certificate_response(peer_key, certs)
-              @transport&.send(cert_response)
+              @transport.send(cert_response)
             end
           end
         end
@@ -491,7 +702,7 @@ module BSV
           certs = BSV::Auth.get_verifiable_certificates(@wallet, requested, session.peer_identity_key)
           if certs.length.positive?
             cert_response = create_certificate_response(session.peer_identity_key, certs)
-            @transport&.send(cert_response)
+            @transport.send(cert_response)
           end
         end
 

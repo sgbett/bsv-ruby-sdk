@@ -26,14 +26,22 @@ RSpec.describe BSV::Auth::Peer do
     transport_b.partner = transport_a
   end
 
-  # Performs the full three-step handshake via transport and returns [request, response].
+  # Performs the full three-step handshake via transport and returns the session nonce.
   # The handshake is transport-mediated: alice sends the request via transport_a, which
   # delivers it to bob; bob's on_data triggers handle_incoming_message, which sends the
   # response back via transport_b; alice's on_data completes the handshake.
   def perform_handshake(initiator, initiator_transport)
-    request = initiator.create_initial_request
+    request = initiator.send(:create_initial_request)
     initiator_transport.send(request)
-    request
+    request[:initial_nonce]
+  end
+
+  describe '.new' do
+    it 'raises ArgumentError when transport is nil' do
+      expect do
+        described_class.new(wallet: alice_wallet, transport: nil)
+      end.to raise_error(ArgumentError, /transport is required/)
+    end
   end
 
   describe '#identity_key' do
@@ -56,8 +64,8 @@ RSpec.describe BSV::Auth::Peer do
     end
   end
 
-  describe '#create_initial_request' do
-    subject(:request) { alice.create_initial_request }
+  describe '#create_initial_request (private)' do
+    subject(:request) { alice.send(:create_initial_request) }
 
     it 'returns a hash with the expected keys' do
       expect(request).to include(
@@ -78,26 +86,28 @@ RSpec.describe BSV::Auth::Peer do
     end
 
     it 'generates a unique nonce on each call' do
-      second_request = alice.create_initial_request
+      second_request = alice.send(:create_initial_request)
       expect(request[:initial_nonce]).not_to eq(second_request[:initial_nonce])
+    end
+
+    it 'is private' do
+      expect { alice.create_initial_request }.to raise_error(NoMethodError)
     end
   end
 
   describe 'full handshake round-trip via transport' do
     it 'authenticates Alice after the handshake completes' do
-      request = perform_handshake(alice, transport_a)
-      expect(alice.authenticated?(request[:initial_nonce])).to be(true)
+      nonce = perform_handshake(alice, transport_a)
+      expect(alice.authenticated?(nonce)).to be(true)
     end
 
     it 'authenticates Bob after the handshake completes' do
       perform_handshake(alice, transport_a)
-      # Bob's session is indexed by his own nonce; find it by his authenticated state
       bob_nonce = bob.session_manager.instance_variable_get(:@by_nonce).keys.first
       expect(bob.authenticated?(bob_nonce)).to be(true)
     end
 
     it "includes Bob's identity key in the initial response" do
-      # Capture the response sent by Bob via transport by observing transport_a delivery
       received_response = nil
       original_callback = transport_a.instance_variable_get(:@on_data_callback)
       transport_a.on_data do |msg|
@@ -117,20 +127,25 @@ RSpec.describe BSV::Auth::Peer do
         original_callback&.call(msg)
       end
 
-      request = perform_handshake(alice, transport_a)
-      expect(received_response[:your_nonce]).to eq(request[:initial_nonce])
+      nonce = perform_handshake(alice, transport_a)
+      expect(received_response[:your_nonce]).to eq(nonce)
     end
   end
 
-  describe 'version and type guard via transport' do
+  describe 'version and type guard (private handle_incoming_message)' do
     it 'raises AuthError when the version is wrong' do
       bad_msg = { version: '9.9', message_type: BSV::Auth::MSG_INITIAL_REQUEST }
-      expect { alice.handle_incoming_message(bad_msg) }.to raise_error(BSV::Auth::AuthError, /Unsupported auth version/)
+      expect { alice.send(:handle_incoming_message, bad_msg) }.to raise_error(BSV::Auth::AuthError, /Unsupported auth version/)
     end
 
     it 'raises AuthError for an unknown message type' do
       bad_msg = { version: BSV::Auth::AUTH_VERSION, message_type: 'mystery' }
-      expect { alice.handle_incoming_message(bad_msg) }.to raise_error(BSV::Auth::AuthError, /Unknown message type/)
+      expect { alice.send(:handle_incoming_message, bad_msg) }.to raise_error(BSV::Auth::AuthError, /Unknown message type/)
+    end
+
+    it 'handle_incoming_message is private' do
+      bad_msg = { version: BSV::Auth::AUTH_VERSION, message_type: BSV::Auth::MSG_GENERAL }
+      expect { alice.handle_incoming_message(bad_msg) }.to raise_error(NoMethodError)
     end
   end
 
@@ -143,23 +158,26 @@ RSpec.describe BSV::Auth::Peer do
     end
 
     it 'can create a general message after authentication' do
-      msg = alice.create_general_message(alice_session_nonce, payload)
+      msg = alice.send(:create_general_message, alice_session_nonce, payload)
       expect(msg[:message_type]).to eq(BSV::Auth::MSG_GENERAL)
     end
 
+    it 'create_general_message is private' do
+      perform_handshake(alice, transport_a)
+      nonce = alice.session_manager.instance_variable_get(:@by_nonce).keys.first
+      expect { alice.create_general_message(nonce, payload) }.to raise_error(NoMethodError)
+    end
+
     it 'Bob can verify and read the payload sent by Alice via transport' do
-      # After handshake, Alice sends a general message via transport_a.
-      # It is delivered to Bob's on_data, which processes it and returns a result.
-      # We capture the result by intercepting Bob's handle_incoming_message response.
       perform_handshake(alice, transport_a)
       alice_nonce = alice.session_manager.instance_variable_get(:@by_nonce).keys.first
 
       received_result = nil
       transport_b.on_data do |msg|
-        received_result = bob.handle_incoming_message(msg)
+        received_result = bob.send(:handle_incoming_message, msg)
       end
 
-      msg = alice.create_general_message(alice_nonce, payload)
+      msg = alice.send(:create_general_message, alice_nonce, payload)
       transport_a.send(msg)
 
       expect(received_result[:payload]).to eq(payload)
@@ -170,7 +188,7 @@ RSpec.describe BSV::Auth::Peer do
   describe 'general message — raises without auth' do
     it 'raises AuthError when no session exists for the identifier' do
       expect do
-        alice.create_general_message('no-such-nonce', [1, 2, 3])
+        alice.send(:create_general_message, 'no-such-nonce', [1, 2, 3])
       end.to raise_error(BSV::Auth::AuthError, /Not authenticated/)
     end
   end
@@ -178,8 +196,6 @@ RSpec.describe BSV::Auth::Peer do
   describe '#on_general_message / #off_general_message' do
     let(:payload) { [72, 101, 108, 108, 111] } # "Hello"
 
-    # Complete the handshake so both peers are authenticated, then return Alice's
-    # session nonce so she can build a general message directed at Bob.
     let(:alice_session_nonce) do
       perform_handshake(alice, transport_a)
       alice.session_manager.instance_variable_get(:@by_nonce).keys.first
@@ -200,8 +216,8 @@ RSpec.describe BSV::Auth::Peer do
       received = []
       bob.on_general_message { |sender_key, msg_payload| received << [sender_key, msg_payload] }
 
-      msg = alice.create_general_message(alice_session_nonce, payload)
-      bob.handle_incoming_message(msg)
+      msg = alice.send(:create_general_message, alice_session_nonce, payload)
+      bob.send(:handle_incoming_message, msg)
 
       expect(received.length).to eq(1)
       expect(received[0][0]).to eq(alice.identity_key)
@@ -213,8 +229,8 @@ RSpec.describe BSV::Auth::Peer do
       bob.on_general_message { |_k, _p| calls << :first }
       bob.on_general_message { |_k, _p| calls << :second }
 
-      msg = alice.create_general_message(alice_session_nonce, payload)
-      bob.handle_incoming_message(msg)
+      msg = alice.send(:create_general_message, alice_session_nonce, payload)
+      bob.send(:handle_incoming_message, msg)
 
       expect(calls).to contain_exactly(:first, :second)
     end
@@ -224,8 +240,8 @@ RSpec.describe BSV::Auth::Peer do
       id = bob.on_general_message { |_k, _p| calls << :fired }
       bob.off_general_message(id)
 
-      msg = alice.create_general_message(alice_session_nonce, payload)
-      bob.handle_incoming_message(msg)
+      msg = alice.send(:create_general_message, alice_session_nonce, payload)
+      bob.send(:handle_incoming_message, msg)
 
       expect(calls).to be_empty
     end
@@ -277,31 +293,39 @@ RSpec.describe BSV::Auth::Peer do
       # Reset bob's tracking to prove it updates on general message too
       bob.instance_variable_set(:@last_interacted_peer, nil)
 
-      msg = alice.create_general_message(alice_nonce, [1, 2, 3])
-      bob.handle_incoming_message(msg)
+      msg = alice.send(:create_general_message, alice_nonce, [1, 2, 3])
+      bob.send(:handle_incoming_message, msg)
 
       expect(bob.last_interacted_peer).to eq(alice.identity_key)
     end
 
     it 'is not overwritten on initial request if already set (responder side)' do
-      # Create bob2 without a transport so handle_incoming_message calls do not
-      # trigger forwarding via a partner transport (which would interfere with other
-      # peers' handshakes). The last_interacted_peer logic does not require transport.
       carol_wallet = BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate)
-      carol2 = described_class.new(wallet: carol_wallet)
-      bob2   = described_class.new(wallet: bob_wallet)
 
-      # Carol↔bob2 handshake (direct calls)
-      carol_request = carol2.create_initial_request
-      carol_response = bob2.handle_incoming_message(carol_request)
-      carol2.handle_incoming_message(carol_response)
+      # Carol↔bob2 full handshake: establishes bob2.last_interacted_peer = carol
+      tc1, tc2 = PairedTransport.create_pair
+      carol2 = described_class.new(wallet: carol_wallet, transport: tc1)
+      bob2   = described_class.new(wallet: bob_wallet,   transport: tc2)
+      carol2.get_authenticated_session(bob2.identity_key)
       first_peer = bob2.last_interacted_peer
+      expect(first_peer).to eq(carol2.identity_key)
 
-      # Alice↔bob2 handshake (direct calls)
-      alice2 = described_class.new(wallet: alice_wallet)
-      alice_request = alice2.create_initial_request
-      alice_response = bob2.handle_incoming_message(alice_request)
-      alice2.handle_incoming_message(alice_response)
+      # Simulate a second initiator (Alice) sending an initialRequest directly to bob2
+      # via handle_incoming_message (bypassing transport routing to avoid double-delivery).
+      # Bob2's response will be forwarded via tc2→tc1→carol2, which will fail nonce
+      # verification (carol2 does not recognise alice's nonce) and raise — that's
+      # acceptable since we only care that bob2.last_interacted_peer stays as carol.
+      ta, _tb = PairedTransport.create_pair
+      alice2 = described_class.new(wallet: alice_wallet, transport: ta)
+      alice_req = alice2.send(:create_initial_request)
+
+      # Bob2's process_initial_request uses ||= so it should not overwrite carol.
+      # The response forwarded to tc2 will trigger an error on carol2's side — ignore it.
+      begin
+        bob2.send(:handle_incoming_message, alice_req)
+      rescue BSV::Auth::AuthError
+        nil
+      end
 
       expect(bob2.last_interacted_peer).to eq(first_peer)
     end
@@ -311,7 +335,7 @@ RSpec.describe BSV::Auth::Peer do
       alice2 = described_class.new(wallet: alice_wallet, transport: transport_c, auto_persist_last_session: false)
       bob2   = described_class.new(wallet: bob_wallet,   transport: transport_d, auto_persist_last_session: false)
 
-      request = alice2.create_initial_request
+      request = alice2.send(:create_initial_request)
       transport_c.send(request)
 
       expect(alice2.last_interacted_peer).to be_nil
@@ -321,28 +345,28 @@ RSpec.describe BSV::Auth::Peer do
 
   describe 'tampered initial response' do
     it 'raises AuthError when the signature has been tampered with' do
-      request = alice.create_initial_request
-      response = bob.handle_incoming_message(request)
+      request = alice.send(:create_initial_request)
+      response = bob.send(:handle_incoming_message, request)
 
       bad_sig = response[:signature].dup
       bad_sig[-1] ^= 0xFF
       tampered = response.merge(signature: bad_sig)
 
-      expect { alice.handle_incoming_message(tampered) }
+      expect { alice.send(:handle_incoming_message, tampered) }
         .to raise_error(BSV::Auth::AuthError, /signature verification failed/)
     end
 
     it 'removes the pending session after a failed signature verification' do
-      request   = alice.create_initial_request
+      request   = alice.send(:create_initial_request)
       our_nonce = request[:initial_nonce]
 
-      response = bob.handle_incoming_message(request)
+      response = bob.send(:handle_incoming_message, request)
       bad_sig  = response[:signature].dup
       bad_sig[-1] ^= 0xFF
       tampered = response.merge(signature: bad_sig)
 
       begin
-        alice.handle_incoming_message(tampered)
+        alice.send(:handle_incoming_message, tampered)
       rescue BSV::Auth::AuthError
         nil
       end
@@ -376,20 +400,20 @@ RSpec.describe BSV::Auth::Peer do
     BSV::Auth::VerifiableCertificate.from_certificate(master_cert, keyring)
   end
 
-  describe '#create_certificate_request (manual mode)' do
+  describe '#create_certificate_request (private, low-level builder)' do
     let(:cert_type)   { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
 
     before { perform_handshake(alice, transport_a) }
 
     it 'returns a message hash with the correct message_type' do
       to_request = { certifiers: [bob.identity_key], types: { cert_type => ['name'] } }
-      msg = alice.create_certificate_request(alice.last_interacted_peer, to_request)
+      msg = alice.send(:create_certificate_request, alice.last_interacted_peer, to_request)
       expect(msg[:message_type]).to eq(BSV::Auth::MSG_CERT_REQUEST)
     end
 
     it 'includes nonce, your_nonce, initial_nonce, signature, and requested_certificates' do
       to_request = { certifiers: [bob.identity_key], types: { cert_type => ['name'] } }
-      msg = alice.create_certificate_request(alice.last_interacted_peer, to_request)
+      msg = alice.send(:create_certificate_request, alice.last_interacted_peer, to_request)
       expect(msg[:nonce]).not_to be_nil
       expect(msg[:your_nonce]).not_to be_nil
       expect(msg[:initial_nonce]).not_to be_nil
@@ -399,12 +423,18 @@ RSpec.describe BSV::Auth::Peer do
 
     it 'raises AuthError for an unauthenticated identifier' do
       expect do
-        alice.create_certificate_request('no-such-peer', { certifiers: ['abc'], types: {} })
+        alice.send(:create_certificate_request, 'no-such-peer', { certifiers: ['abc'], types: {} })
       end.to raise_error(BSV::Auth::AuthError, /Not authenticated/)
+    end
+
+    it 'is private' do
+      to_request = { certifiers: [bob.identity_key], types: { cert_type => ['name'] } }
+      expect { alice.create_certificate_request(alice.last_interacted_peer, to_request) }
+        .to raise_error(NoMethodError)
     end
   end
 
-  describe '#create_certificate_response (manual mode)' do
+  describe '#create_certificate_response (private, low-level builder)' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
 
@@ -421,12 +451,12 @@ RSpec.describe BSV::Auth::Peer do
     end
 
     it 'returns a message hash with the correct message_type' do
-      msg = alice.create_certificate_response(alice.last_interacted_peer, [verifiable_cert])
+      msg = alice.send(:create_certificate_response, alice.last_interacted_peer, [verifiable_cert])
       expect(msg[:message_type]).to eq(BSV::Auth::MSG_CERT_RESPONSE)
     end
 
     it 'includes certificates serialised as Hashes' do
-      msg = alice.create_certificate_response(alice.last_interacted_peer, [verifiable_cert])
+      msg = alice.send(:create_certificate_response, alice.last_interacted_peer, [verifiable_cert])
       expect(msg[:certificates]).to be_an(Array)
       expect(msg[:certificates].first).to be_a(Hash)
       expect(msg[:certificates].first['subject']).to eq(alice.identity_key)
@@ -434,7 +464,7 @@ RSpec.describe BSV::Auth::Peer do
 
     it 'raises AuthError for an unauthenticated identifier' do
       expect do
-        alice.create_certificate_response('no-such-peer', [verifiable_cert])
+        alice.send(:create_certificate_response, 'no-such-peer', [verifiable_cert])
       end.to raise_error(BSV::Auth::AuthError, /Not authenticated/)
     end
   end
@@ -447,11 +477,11 @@ RSpec.describe BSV::Auth::Peer do
     let(:cert_request_msg) do
       perform_handshake(alice, transport_a)
       to_request = { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]], types: { cert_type => ['name'] } }
-      alice.create_certificate_request(alice.last_interacted_peer, to_request)
+      alice.send(:create_certificate_request, alice.last_interacted_peer, to_request)
     end
 
     it 'dispatches certificateRequest to process_certificate_request' do
-      expect { bob.handle_incoming_message(cert_request_msg) }.not_to raise_error
+      expect { bob.send(:handle_incoming_message, cert_request_msg) }.not_to raise_error
     end
 
     it 'raises AuthError for an invalid nonce in certificateRequest' do
@@ -467,7 +497,7 @@ RSpec.describe BSV::Auth::Peer do
         requested_certificates: to_request,
         signature: [0] * 71
       }
-      expect { bob.handle_incoming_message(bad_nonce_msg) }
+      expect { bob.send(:handle_incoming_message, bad_nonce_msg) }
         .to raise_error(BSV::Auth::AuthError, /Unable to verify nonce/)
     end
 
@@ -476,7 +506,7 @@ RSpec.describe BSV::Auth::Peer do
       bad_sig = msg[:signature].dup
       bad_sig[-1] ^= 0xFF
       msg[:signature] = bad_sig
-      expect { bob.handle_incoming_message(msg) }
+      expect { bob.send(:handle_incoming_message, msg) }
         .to raise_error(BSV::Auth::AuthError, /signature verification failed/)
     end
 
@@ -484,7 +514,7 @@ RSpec.describe BSV::Auth::Peer do
       received = []
       bob.on_certificate_request { |sender_key, requested| received << [sender_key, requested] }
 
-      bob.handle_incoming_message(cert_request_msg)
+      bob.send(:handle_incoming_message, cert_request_msg)
 
       expect(received.length).to eq(1)
       expect(received[0][0]).to eq(alice.identity_key)
@@ -495,7 +525,7 @@ RSpec.describe BSV::Auth::Peer do
       bob.on_certificate_request { |_k, _r| }
 
       expect(BSV::Auth).not_to receive(:get_verifiable_certificates)
-      bob.handle_incoming_message(cert_request_msg)
+      bob.send(:handle_incoming_message, cert_request_msg)
     end
   end
 
@@ -515,15 +545,15 @@ RSpec.describe BSV::Auth::Peer do
 
     let(:cert_response_msg) do
       perform_handshake(alice, transport_a)
-      alice.create_certificate_response(alice.last_interacted_peer, [verifiable_cert])
+      alice.send(:create_certificate_response, alice.last_interacted_peer, [verifiable_cert])
     end
 
     it 'dispatches certificateResponse to process_certificate_response' do
-      expect { bob.handle_incoming_message(cert_response_msg) }.not_to raise_error
+      expect { bob.send(:handle_incoming_message, cert_response_msg) }.not_to raise_error
     end
 
     it 'marks session.certificates_validated = true when certificates are valid' do
-      bob.handle_incoming_message(cert_response_msg)
+      bob.send(:handle_incoming_message, cert_response_msg)
 
       bob_session = bob.session_manager.get_session(alice.identity_key)
       expect(bob_session.certificates_validated).to be(true)
@@ -533,7 +563,7 @@ RSpec.describe BSV::Auth::Peer do
       received = []
       bob.on_certificates_received { |sender_key, certs| received << [sender_key, certs] }
 
-      bob.handle_incoming_message(cert_response_msg)
+      bob.send(:handle_incoming_message, cert_response_msg)
 
       expect(received.length).to eq(1)
       expect(received[0][0]).to eq(alice.identity_key)
@@ -547,27 +577,27 @@ RSpec.describe BSV::Auth::Peer do
       bad_sig[-1] ^= 0xFF
       msg[:signature] = bad_sig
 
-      expect { bob.handle_incoming_message(msg) }
+      expect { bob.send(:handle_incoming_message, msg) }
         .to raise_error(BSV::Auth::AuthError, /signature verification failed/)
     end
 
     it 'fires on_certificates_received with empty array when certs array is empty' do
       perform_handshake(alice, transport_a)
-      empty_response = alice.create_certificate_response(alice.last_interacted_peer, [])
+      empty_response = alice.send(:create_certificate_response, alice.last_interacted_peer, [])
 
       received = []
       bob.on_certificates_received { |_k, certs| received << certs }
-      bob.handle_incoming_message(empty_response)
+      bob.send(:handle_incoming_message, empty_response)
 
       expect(received).to eq([[]])
     end
 
     it 'does not call validate_certificates when certificates array is empty' do
       perform_handshake(alice, transport_a)
-      empty_response = alice.create_certificate_response(alice.last_interacted_peer, [])
+      empty_response = alice.send(:create_certificate_response, alice.last_interacted_peer, [])
 
       expect(BSV::Auth).not_to receive(:validate_certificates)
-      bob.handle_incoming_message(empty_response)
+      bob.send(:handle_incoming_message, empty_response)
     end
   end
 
@@ -577,7 +607,6 @@ RSpec.describe BSV::Auth::Peer do
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
 
     let!(:bob_with_cert) do
-      # Bob has a cert from certifier that he can present to Alice
       cert = build_verifiable_certificate(
         subject_wallet: bob_wallet,
         certifier_wallet: certifier_wallet,
@@ -589,16 +618,12 @@ RSpec.describe BSV::Auth::Peer do
     end
 
     it 'auto-fetches and sends certificateResponse when no callback registered' do
-      # Set up bob with a wallet that has list_certificates and prove_certificate
-      # Since ProtoWallet does not implement those, we verify that get_verifiable_certificates
-      # is invoked (returns empty for ProtoWallet, so no response is sent — that's fine).
       perform_handshake(alice, transport_a)
 
       to_request = { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
-      cert_request_msg = alice.create_certificate_request(alice.last_interacted_peer, to_request)
+      cert_request_msg = alice.send(:create_certificate_request, alice.last_interacted_peer, to_request)
 
-      # Should not raise — the auto-fetch returns [] for ProtoWallet and does not send
-      expect { bob.handle_incoming_message(cert_request_msg) }.not_to raise_error
+      expect { bob.send(:handle_incoming_message, cert_request_msg) }.not_to raise_error
     end
 
     it 'fires certificate_request callback during certificateRequest and skips auto-fetch' do
@@ -608,8 +633,8 @@ RSpec.describe BSV::Auth::Peer do
       bob.on_certificate_request { |_key, _req| callback_fired = true }
 
       to_request = { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
-      cert_request_msg = alice.create_certificate_request(alice.last_interacted_peer, to_request)
-      bob.handle_incoming_message(cert_request_msg)
+      cert_request_msg = alice.send(:create_certificate_request, alice.last_interacted_peer, to_request)
+      bob.send(:handle_incoming_message, cert_request_msg)
 
       expect(callback_fired).to be(true)
     end
@@ -621,8 +646,6 @@ RSpec.describe BSV::Auth::Peer do
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
 
     context 'when responder includes certificates in initialResponse' do
-      # Bob (responder) includes certs; Alice (initiator) validates them.
-      # We inject certs directly into the response hash (simulating Bob auto-fetching).
       it 'initiator validates certificates and marks session validated' do
         cert = build_verifiable_certificate(
           subject_wallet: bob_wallet,
@@ -632,20 +655,21 @@ RSpec.describe BSV::Auth::Peer do
           fields: { 'name' => 'Bob' }
         )
 
-        # Create Alice with a certificate request so she checks for certs
+        ta, tb = PairedTransport.create_pair
         alice2 = described_class.new(
           wallet: alice_wallet,
+          transport: ta,
           certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
         )
-        bob2 = described_class.new(wallet: bob_wallet)
+        bob2 = described_class.new(wallet: bob_wallet, transport: tb)
 
-        request  = alice2.create_initial_request
-        response = bob2.handle_incoming_message(request)
+        request  = alice2.send(:create_initial_request)
+        response = bob2.send(:handle_incoming_message, request)
 
         # Manually inject Bob's cert into the response (simulating auto-fetch)
         response_with_certs = response.merge(certificates: [cert.to_h])
 
-        alice2.handle_incoming_message(response_with_certs)
+        alice2.send(:handle_incoming_message, response_with_certs)
 
         alice_session = alice2.session_manager.get_session(bob2.identity_key)
         expect(alice_session.certificates_validated).to be(true)
@@ -660,19 +684,21 @@ RSpec.describe BSV::Auth::Peer do
           fields: { 'name' => 'Bob' }
         )
 
+        ta, tb = PairedTransport.create_pair
         alice2 = described_class.new(
           wallet: alice_wallet,
+          transport: ta,
           certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
         )
-        bob2 = described_class.new(wallet: bob_wallet)
+        bob2 = described_class.new(wallet: bob_wallet, transport: tb)
 
         received = []
         alice2.on_certificates_received { |sender_key, certs| received << [sender_key, certs] }
 
-        request  = alice2.create_initial_request
-        response = bob2.handle_incoming_message(request)
+        request  = alice2.send(:create_initial_request)
+        response = bob2.send(:handle_incoming_message, request)
         response_with_certs = response.merge(certificates: [cert.to_h])
-        alice2.handle_incoming_message(response_with_certs)
+        alice2.send(:handle_incoming_message, response_with_certs)
 
         expect(received.length).to eq(1)
         expect(received[0][0]).to eq(bob2.identity_key)
@@ -681,63 +707,68 @@ RSpec.describe BSV::Auth::Peer do
 
     context 'when responder requests certificates in initialResponse' do
       it 'fires certificate_request callback on initiator when callback is registered' do
-        alice2 = described_class.new(wallet: alice_wallet)
+        ta, tb = PairedTransport.create_pair
+        alice2 = described_class.new(wallet: alice_wallet, transport: ta)
         bob2   = described_class.new(
           wallet: bob_wallet,
+          transport: tb,
           certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
         )
 
         callback_fired = false
         alice2.on_certificate_request { |_k, _r| callback_fired = true }
 
-        request  = alice2.create_initial_request
-        response = bob2.handle_incoming_message(request)
-        alice2.handle_incoming_message(response)
+        request  = alice2.send(:create_initial_request)
+        response = bob2.send(:handle_incoming_message, request)
+        alice2.send(:handle_incoming_message, response)
 
         expect(callback_fired).to be(true)
       end
 
       it 'does not send empty certificateResponse when auto-fetch returns nothing' do
-        alice2 = described_class.new(wallet: alice_wallet)
+        ta, tb = PairedTransport.create_pair
+        alice2 = described_class.new(wallet: alice_wallet, transport: ta)
         bob2   = described_class.new(
           wallet: bob_wallet,
+          transport: tb,
           certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
         )
 
-        # alice2 has no transport and no certs — auto-fetch returns []
-        request  = alice2.create_initial_request
-        response = bob2.handle_incoming_message(request)
+        request  = alice2.send(:create_initial_request)
+        response = bob2.send(:handle_incoming_message, request)
 
-        # Should not raise and should not attempt to send a certificate response
-        expect { alice2.handle_incoming_message(response) }.not_to raise_error
+        expect { alice2.send(:handle_incoming_message, response) }.not_to raise_error
       end
     end
 
     context 'when initiator requests certificates in initialRequest' do
       it 'fires certificate_request callback on responder when callback is registered' do
+        ta, tb = PairedTransport.create_pair
         alice2 = described_class.new(
           wallet: alice_wallet,
+          transport: ta,
           certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
         )
-        bob2 = described_class.new(wallet: bob_wallet)
+        bob2 = described_class.new(wallet: bob_wallet, transport: tb)
 
         callback_fired = false
         bob2.on_certificate_request { |_k, _r| callback_fired = true }
 
-        request = alice2.create_initial_request
-        bob2.handle_incoming_message(request)
+        request = alice2.send(:create_initial_request)
+        bob2.send(:handle_incoming_message, request)
 
         expect(callback_fired).to be(true)
       end
 
       it 'includes certificates in initialResponse when auto-fetch returns certs' do
+        ta, tb = PairedTransport.create_pair
         alice2 = described_class.new(
           wallet: alice_wallet,
+          transport: ta,
           certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
         )
-        bob2 = described_class.new(wallet: bob_wallet)
+        bob2 = described_class.new(wallet: bob_wallet, transport: tb)
 
-        # Stub get_verifiable_certificates to return a cert for bob
         fake_cert = build_verifiable_certificate(
           subject_wallet: bob_wallet,
           certifier_wallet: certifier_wallet,
@@ -748,12 +779,178 @@ RSpec.describe BSV::Auth::Peer do
 
         allow(BSV::Auth).to receive(:get_verifiable_certificates).and_return([fake_cert])
 
-        request  = alice2.create_initial_request
-        response = bob2.handle_incoming_message(request)
+        request  = alice2.send(:create_initial_request)
+        response = bob2.send(:handle_incoming_message, request)
 
         expect(response[:certificates]).to be_an(Array)
         expect(response[:certificates]).not_to be_empty
       end
+    end
+  end
+
+  # --- High-level session API ---
+
+  describe '#to_peer' do
+    let(:payload) { [72, 101, 108, 108, 111] } # "Hello"
+
+    it 'sends a general message that triggers on_general_message on the receiver' do
+      received = []
+      bob.on_general_message { |sender_key, msg_payload| received << [sender_key, msg_payload] }
+
+      alice.to_peer(payload, bob.identity_key)
+
+      expect(received.length).to eq(1)
+      expect(received[0][0]).to eq(alice.identity_key)
+      expect(received[0][1]).to eq(payload)
+    end
+
+    it 'auto-initiates handshake when no session exists' do
+      alice.to_peer(payload, bob.identity_key)
+      expect(alice.authenticated?(bob.identity_key)).to be(true)
+    end
+
+    it 'reuses an existing authenticated session on second call' do
+      alice.to_peer(payload, bob.identity_key)
+      nonces_after_first = alice.session_manager.instance_variable_get(:@by_nonce).keys.dup
+
+      alice.to_peer(payload, bob.identity_key)
+      nonces_after_second = alice.session_manager.instance_variable_get(:@by_nonce).keys
+
+      expect(nonces_after_second).to eq(nonces_after_first)
+    end
+
+    it 'uses @last_interacted_peer as default identity_key' do
+      # First call establishes the session and sets @last_interacted_peer
+      alice.to_peer(payload, bob.identity_key)
+
+      received = []
+      bob.on_general_message { |_key, msg_payload| received << msg_payload }
+
+      # Second call without identity_key — should use @last_interacted_peer
+      alice.to_peer([1, 2, 3])
+
+      expect(received).to include([1, 2, 3])
+    end
+
+    it 'raises AuthError when certificates are required but not yet validated' do
+      certifier_hex = BSV::Primitives::PrivateKey.generate.public_key.to_hex
+      cert_type     = Base64.strict_encode64(SecureRandom.random_bytes(32))
+
+      ta, tb = PairedTransport.create_pair
+      alice2 = described_class.new(
+        wallet: alice_wallet,
+        transport: ta,
+        certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
+      )
+      bob2 = described_class.new(wallet: bob_wallet, transport: tb)
+
+      # Perform handshake manually (no certs provided — session will be unvalidated)
+      request  = alice2.send(:create_initial_request)
+      response = bob2.send(:handle_incoming_message, request)
+      alice2.send(:handle_incoming_message, response)
+
+      # At this point alice2 has certificates_required = true, certificates_validated = false
+      session = alice2.session_manager.get_session(bob2.identity_key)
+      expect(session.certificates_required).to be(true)
+      expect(session.certificates_validated).to be(false)
+
+      expect { alice2.to_peer(payload, bob2.identity_key) }
+        .to raise_error(BSV::Auth::AuthError, /certificate validation/)
+    end
+  end
+
+  describe '#get_authenticated_session' do
+    it 'returns an authenticated session' do
+      session = alice.get_authenticated_session(bob.identity_key)
+      expect(session.authenticated?).to be(true)
+    end
+
+    it 'returns the same session on a second call (no new handshake)' do
+      session1 = alice.get_authenticated_session(bob.identity_key)
+      nonces1  = alice.session_manager.instance_variable_get(:@by_nonce).keys.dup
+
+      session2 = alice.get_authenticated_session(bob.identity_key)
+      nonces2  = alice.session_manager.instance_variable_get(:@by_nonce).keys
+
+      expect(session2.session_nonce).to eq(session1.session_nonce)
+      expect(nonces2).to eq(nonces1)
+    end
+
+    it 'resolves from @last_interacted_peer when no identity_key given' do
+      alice.get_authenticated_session(bob.identity_key)
+      expect(alice.last_interacted_peer).to eq(bob.identity_key)
+
+      session = alice.get_authenticated_session
+      expect(session.peer_identity_key).to eq(bob.identity_key)
+    end
+
+    it 'raises AuthError when handshake times out' do
+      # Build a transport that drops all messages so the handshake never completes
+      dropping_transport = PairedTransport.new
+      dropping_transport.partner = PairedTransport.new # messages go to unregistered peer
+
+      fast_alice = described_class.new(wallet: alice_wallet, transport: dropping_transport, handshake_timeout: 1)
+
+      expect { fast_alice.get_authenticated_session(bob.identity_key) }
+        .to raise_error(BSV::Auth::AuthError, /timed out/)
+    end
+  end
+
+  describe '#request_certificates' do
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
+    let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
+    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+
+    it 'sends a certificateRequest via transport, triggering on_certificate_request on the peer' do
+      alice.get_authenticated_session(bob.identity_key)
+
+      callback_fired = false
+      bob.on_certificate_request { |_key, _req| callback_fired = true }
+
+      to_request = { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
+      alice.request_certificates(to_request, bob.identity_key)
+
+      expect(callback_fired).to be(true)
+    end
+
+    it 'uses @last_interacted_peer when no identity_key given' do
+      alice.get_authenticated_session(bob.identity_key)
+
+      callback_fired = false
+      bob.on_certificate_request { |_key, _req| callback_fired = true }
+
+      to_request = { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
+      alice.request_certificates(to_request)
+
+      expect(callback_fired).to be(true)
+    end
+  end
+
+  describe '#send_certificate_response' do
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
+    let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
+
+    let(:verifiable_cert) do
+      build_verifiable_certificate(
+        subject_wallet: alice_wallet,
+        certifier_wallet: certifier_wallet,
+        verifier_hex: bob.identity_key,
+        cert_type: cert_type,
+        fields: { 'name' => 'Alice' }
+      )
+    end
+
+    it 'sends a certificateResponse via transport, triggering on_certificates_received on the peer' do
+      alice.get_authenticated_session(bob.identity_key)
+
+      received = []
+      bob.on_certificates_received { |sender_key, certs| received << [sender_key, certs] }
+
+      alice.send_certificate_response(bob.identity_key, [verifiable_cert])
+
+      expect(received.length).to eq(1)
+      expect(received[0][0]).to eq(alice.identity_key)
+      expect(received[0][1].first['subject']).to eq(alice.identity_key)
     end
   end
 end
