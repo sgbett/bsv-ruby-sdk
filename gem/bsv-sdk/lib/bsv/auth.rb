@@ -11,6 +11,8 @@ module BSV
     autoload :Certificate,             'bsv/auth/certificate'
     autoload :VerifiableCertificate,   'bsv/auth/verifiable_certificate'
     autoload :MasterCertificate,       'bsv/auth/master_certificate'
+    autoload :ValidateCertificates,        'bsv/auth/validate_certificates'
+    autoload :GetVerifiableCertificates,   'bsv/auth/get_verifiable_certificates'
 
     # Protocol version
     AUTH_VERSION = '0.1'
@@ -21,5 +23,29 @@ module BSV
     MSG_CERT_REQUEST     = 'certificateRequest'
     MSG_CERT_RESPONSE    = 'certificateResponse'
     MSG_GENERAL          = 'general'
+
+    # Validates certificates attached to an incoming authenticated message.
+    #
+    # Delegates to {ValidateCertificates#validate_certificates}.
+    #
+    # @param wallet [#verify_signature, #decrypt] the verifier's wallet
+    # @param message [Hash] incoming authenticated message
+    # @param requested_certificates [Hash, nil] optional certifier/type filter
+    # @raise [AuthError] on any validation failure
+    def self.validate_certificates(wallet, message, requested_certificates = nil)
+      ValidateCertificates.validate_certificates(wallet, message, requested_certificates)
+    end
+
+    # Retrieves verifiable certificates from a wallet for presentation to a verifier.
+    #
+    # Delegates to {GetVerifiableCertificates#get_verifiable_certificates}.
+    #
+    # @param wallet [#list_certificates, #prove_certificate] the subject's wallet
+    # @param requested_certificates [Hash] certifiers and type-to-fields mapping
+    # @param verifier_identity_key [String] verifier's compressed public key hex
+    # @return [Array<VerifiableCertificate>]
+    def self.get_verifiable_certificates(wallet, requested_certificates, verifier_identity_key)
+      GetVerifiableCertificates.get_verifiable_certificates(wallet, requested_certificates, verifier_identity_key)
+    end
   end
 end
