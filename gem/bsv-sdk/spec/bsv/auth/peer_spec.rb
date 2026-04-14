@@ -401,7 +401,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe '#create_certificate_request (private, low-level builder)' do
-    let(:cert_type)   { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
+    let(:cert_type) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
 
     before { perform_handshake(alice, transport_a) }
 
@@ -436,10 +436,6 @@ RSpec.describe BSV::Auth::Peer do
 
   describe '#create_certificate_response (private, low-level builder)' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
-    let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
-
-    before { perform_handshake(alice, transport_a) }
-
     let(:verifiable_cert) do
       build_verifiable_certificate(
         subject_wallet: alice_wallet,
@@ -449,6 +445,9 @@ RSpec.describe BSV::Auth::Peer do
         fields: { 'name' => 'Alice' }
       )
     end
+    let(:cert_type) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
+
+    before { perform_handshake(alice, transport_a) }
 
     it 'returns a message hash with the correct message_type' do
       msg = alice.send(:create_certificate_response, alice.last_interacted_peer, [verifiable_cert])
@@ -524,8 +523,9 @@ RSpec.describe BSV::Auth::Peer do
     it 'does not call get_verifiable_certificates when certificate_request callback is registered' do
       bob.on_certificate_request { |_k, _r| }
 
-      expect(BSV::Auth).not_to receive(:get_verifiable_certificates)
+      allow(BSV::Auth).to receive(:get_verifiable_certificates)
       bob.send(:handle_incoming_message, cert_request_msg)
+      expect(BSV::Auth).not_to have_received(:get_verifiable_certificates)
     end
   end
 
@@ -596,8 +596,9 @@ RSpec.describe BSV::Auth::Peer do
       perform_handshake(alice, transport_a)
       empty_response = alice.send(:create_certificate_response, alice.last_interacted_peer, [])
 
-      expect(BSV::Auth).not_to receive(:validate_certificates)
+      allow(BSV::Auth).to receive(:validate_certificates)
       bob.send(:handle_incoming_message, empty_response)
+      expect(BSV::Auth).not_to have_received(:validate_certificates)
     end
   end
 
@@ -606,15 +607,14 @@ RSpec.describe BSV::Auth::Peer do
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
 
-    let!(:bob_with_cert) do
-      cert = build_verifiable_certificate(
+    let(:bob_cert) do
+      build_verifiable_certificate(
         subject_wallet: bob_wallet,
         certifier_wallet: certifier_wallet,
         verifier_hex: alice.identity_key,
         cert_type: cert_type,
         fields: { 'name' => 'Bob' }
       )
-      cert
     end
 
     it 'auto-fetches and sends certificateResponse when no callback registered' do
