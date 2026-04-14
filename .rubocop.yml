@@ -131,6 +131,7 @@ Metrics/ParameterLists:
     - 'gem/bsv-sdk/lib/bsv/overlay/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
+    - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
