@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'base64'
+require 'json'
 
 module BSV
   module Auth
@@ -166,6 +167,8 @@ module BSV
         response = case type
                    when MSG_INITIAL_REQUEST  then process_initial_request(message)
                    when MSG_INITIAL_RESPONSE then process_initial_response(message)
+                   when MSG_CERT_REQUEST     then process_certificate_request(message)
+                   when MSG_CERT_RESPONSE    then process_certificate_response(message)
                    when MSG_GENERAL          then process_general_message(message)
                    else
                      raise AuthError, "Unknown message type: #{type.inspect}"
@@ -176,6 +179,81 @@ module BSV
         # carry no message_type and must not be forwarded.
         @transport&.send(response) if response&.key?(:message_type)
         response
+      end
+
+      # --- Certificate request/response (manual mode) ---
+
+      # Builds a +certificateRequest+ message directed at an already-authenticated peer.
+      #
+      # @param peer_identifier [String] peer's session nonce or identity key
+      # @param certificates_to_request [Hash] certifiers and types to request
+      # @return [Hash] the message to send
+      # @raise [AuthError] if not authenticated with this peer
+      def create_certificate_request(peer_identifier, certificates_to_request)
+        session = @session_manager.get_session(peer_identifier)
+        raise AuthError, "Not authenticated with peer #{peer_identifier.inspect}" unless session&.authenticated?
+
+        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
+        key_id        = key_id_for(request_nonce, session.peer_nonce)
+        data          = JSON.generate(certificates_to_request).encode('UTF-8').bytes
+
+        sig_result = @wallet.create_signature({
+                                                data: data,
+                                                protocol_id: AUTH_PROTOCOL,
+                                                key_id: key_id,
+                                                counterparty: session.peer_identity_key
+                                              })
+
+        session.last_update = current_time_ms
+        @session_manager.update_session(session)
+
+        {
+          version: AUTH_VERSION,
+          message_type: MSG_CERT_REQUEST,
+          identity_key: identity_key,
+          nonce: request_nonce,
+          initial_nonce: session.session_nonce,
+          your_nonce: session.peer_nonce,
+          requested_certificates: certificates_to_request,
+          signature: sig_result[:signature]
+        }
+      end
+
+      # Builds a +certificateResponse+ message with the provided certificates.
+      #
+      # @param peer_identifier [String] peer's session nonce or identity key
+      # @param certificates [Array<VerifiableCertificate, Hash>] certificates to send
+      # @return [Hash] the message to send
+      # @raise [AuthError] if not authenticated with this peer
+      def create_certificate_response(peer_identifier, certificates)
+        session = @session_manager.get_session(peer_identifier)
+        raise AuthError, "Not authenticated with peer #{peer_identifier.inspect}" unless session&.authenticated?
+
+        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
+        key_id        = key_id_for(request_nonce, session.peer_nonce)
+        cert_data     = certificates.map { |c| c.respond_to?(:to_h) ? c.to_h : c }
+        data          = JSON.generate(cert_data).encode('UTF-8').bytes
+
+        sig_result = @wallet.create_signature({
+                                                data: data,
+                                                protocol_id: AUTH_PROTOCOL,
+                                                key_id: key_id,
+                                                counterparty: session.peer_identity_key
+                                              })
+
+        session.last_update = current_time_ms
+        @session_manager.update_session(session)
+
+        {
+          version: AUTH_VERSION,
+          message_type: MSG_CERT_RESPONSE,
+          identity_key: identity_key,
+          nonce: request_nonce,
+          initial_nonce: session.session_nonce,
+          your_nonce: session.peer_nonce,
+          certificates: cert_data,
+          signature: sig_result[:signature]
+        }
       end
 
       # --- General message exchange (post-handshake) ---
@@ -238,6 +316,9 @@ module BSV
 
         @session_manager.add_session(session)
 
+        # Handle the peer's certificate request (if any)
+        certificates_to_include = handle_certificate_request_from_peer(message, peer_key)
+
         # Sign decode(their_nonce) + decode(our_nonce)
         # Key ID: "their_nonce our_nonce"  (initiator_nonce responder_nonce)
         sig_data = b64_decode(their_nonce) + b64_decode(our_nonce)
@@ -252,7 +333,7 @@ module BSV
 
         @last_interacted_peer ||= peer_key if @auto_persist_last_session
 
-        {
+        response = {
           version: AUTH_VERSION,
           message_type: MSG_INITIAL_RESPONSE,
           identity_key: identity_key,
@@ -261,6 +342,10 @@ module BSV
           requested_certificates: @certificates_to_request,
           signature: sig_result[:signature]
         }
+
+        response[:certificates] = certificates_to_include if certificates_to_include
+
+        response
       end
 
       # --- Processing: initial response (we are the initiator) ---
@@ -294,11 +379,38 @@ module BSV
         session.peer_nonce        = their_nonce
         session.peer_identity_key = peer_key
         session.is_authenticated  = true
-        session.last_update       = current_time_ms
+        session.certificates_required  = certifiers_present?
+        session.certificates_validated = !session.certificates_required
+        session.last_update = current_time_ms
 
         @session_manager.update_session(session)
 
         @last_interacted_peer = peer_key if @auto_persist_last_session
+
+        # Validate certificates if the responder included them
+        resp_certs = message[:certificates] || message['certificates']
+        if session.certificates_required && resp_certs.is_a?(Array) && !resp_certs.empty?
+          validation_msg = { identity_key: peer_key, certificates: resp_certs }
+          BSV::Auth.validate_certificates(@wallet, validation_msg, @certificates_to_request)
+          session.certificates_validated = true
+          session.last_update = current_time_ms
+          @session_manager.update_session(session)
+          fire_callbacks(:certificates_received, peer_key, resp_certs)
+        end
+
+        # Handle the responder's certificate request (if any)
+        requested = message[:requested_certificates] || message['requested_certificates']
+        if certifiers_present_in?(requested)
+          if callbacks_registered?(:certificate_request)
+            fire_callbacks(:certificate_request, peer_key, requested)
+          else
+            certs = BSV::Auth.get_verifiable_certificates(@wallet, requested, peer_key)
+            if certs.length.positive?
+              cert_response = create_certificate_response(peer_key, certs)
+              @transport&.send(cert_response)
+            end
+          end
+        end
 
         nil
       rescue BSV::Wallet::InvalidSignatureError
@@ -341,6 +453,91 @@ module BSV
         { peer_identity_key: session.peer_identity_key, payload: payload }
       rescue BSV::Wallet::InvalidSignatureError
         raise AuthError, "General message signature verification failed from: #{peer_key}"
+      end
+
+      # --- Processing: certificate request (we are the responder) ---
+
+      def process_certificate_request(message)
+        our_nonce = fetch!(message, :your_nonce)
+        peer_key  = message[:identity_key] || message['identity_key']
+        msg_nonce = fetch!(message, :nonce)
+        requested = message[:requested_certificates] || message['requested_certificates']
+        signature = fetch!(message, :signature)
+
+        raise AuthError, "Unable to verify nonce for certificate request message from: #{peer_key}" unless Nonce.verify(our_nonce, @wallet)
+
+        session = @session_manager.get_session(our_nonce)
+        raise AuthError, "Session not found for nonce: #{our_nonce.inspect}" unless session
+
+        data   = JSON.generate(requested).encode('UTF-8').bytes
+        key_id = key_id_for(msg_nonce, session.session_nonce)
+
+        @wallet.verify_signature({
+                                   data: data,
+                                   signature: signature,
+                                   protocol_id: AUTH_PROTOCOL,
+                                   key_id: key_id,
+                                   counterparty: session.peer_identity_key
+                                 })
+
+        session.last_update = current_time_ms
+        @session_manager.update_session(session)
+
+        return unless certifiers_present_in?(requested)
+
+        if callbacks_registered?(:certificate_request)
+          fire_callbacks(:certificate_request, session.peer_identity_key, requested)
+        else
+          certs = BSV::Auth.get_verifiable_certificates(@wallet, requested, session.peer_identity_key)
+          if certs.length.positive?
+            cert_response = create_certificate_response(session.peer_identity_key, certs)
+            @transport&.send(cert_response)
+          end
+        end
+
+        nil
+      rescue BSV::Wallet::InvalidSignatureError
+        raise AuthError, "Certificate request signature verification failed from: #{peer_key}"
+      end
+
+      # --- Processing: certificate response (we are the initiator or requester) ---
+
+      def process_certificate_response(message)
+        our_nonce = fetch!(message, :your_nonce)
+        peer_key  = message[:identity_key] || message['identity_key']
+        msg_nonce = fetch!(message, :nonce)
+        certs     = message[:certificates] || message['certificates'] || []
+        signature = fetch!(message, :signature)
+
+        raise AuthError, "Unable to verify nonce for certificate response from: #{peer_key}" unless Nonce.verify(our_nonce, @wallet)
+
+        session = @session_manager.get_session(our_nonce)
+        raise AuthError, "Session not found for nonce: #{our_nonce.inspect}" unless session
+
+        data   = JSON.generate(certs).encode('UTF-8').bytes
+        key_id = key_id_for(msg_nonce, session.session_nonce)
+
+        @wallet.verify_signature({
+                                   data: data,
+                                   signature: signature,
+                                   protocol_id: AUTH_PROTOCOL,
+                                   key_id: key_id,
+                                   counterparty: session.peer_identity_key
+                                 })
+
+        if certs.is_a?(Array) && !certs.empty?
+          validation_msg = { identity_key: session.peer_identity_key, certificates: certs }
+          BSV::Auth.validate_certificates(@wallet, validation_msg)
+          session.certificates_validated = true
+          session.last_update = current_time_ms
+          @session_manager.update_session(session)
+        end
+
+        fire_callbacks(:certificates_received, session.peer_identity_key, certs)
+
+        nil
+      rescue BSV::Wallet::InvalidSignatureError
+        raise AuthError, "Certificate response signature verification failed from: #{peer_key}"
       end
 
       # --- Callback helpers ---
@@ -397,6 +594,42 @@ module BSV
       def certifiers_present?
         certs = @certificates_to_request[:certifiers] || @certificates_to_request['certifiers']
         certs.is_a?(Array) && !certs.empty?
+      end
+
+      # Returns true if the given requested_certificates hash has at least one certifier.
+      def certifiers_present_in?(requested)
+        return false unless requested.is_a?(Hash)
+
+        certifiers = requested[:certifiers] || requested['certifiers']
+        certifiers.is_a?(Array) && !certifiers.empty?
+      end
+
+      # Returns true if at least one callback of the given type is registered.
+      def callbacks_registered?(type)
+        @callback_mutex.synchronize { @callbacks[type].any? }
+      end
+
+      # Handles a peer's certificate request embedded in an initialRequest message.
+      #
+      # If callbacks are registered, fires them and returns nil (caller adds no certs).
+      # Otherwise, auto-fetches certificates and returns the serialised array (or nil if empty).
+      #
+      # @param message [Hash] the initialRequest message
+      # @param peer_key [String] the peer's identity key
+      # @return [Array<Hash>, nil] serialised certificates to include, or nil
+      def handle_certificate_request_from_peer(message, peer_key)
+        requested = message[:requested_certificates] || message['requested_certificates']
+        return nil unless certifiers_present_in?(requested)
+
+        if callbacks_registered?(:certificate_request)
+          fire_callbacks(:certificate_request, peer_key, requested)
+          return nil
+        end
+
+        certs = BSV::Auth.get_verifiable_certificates(@wallet, requested, peer_key)
+        return nil if certs.empty?
+
+        certs.map { |c| c.respond_to?(:to_h) ? c.to_h : c }
       end
 
       def current_time_ms
