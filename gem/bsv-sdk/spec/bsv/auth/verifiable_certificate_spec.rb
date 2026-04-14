@@ -134,7 +134,7 @@ RSpec.describe BSV::Auth::VerifiableCertificate do
   # --- Scenario 5: tampered keyring entry fails ---
 
   describe '#decrypt_fields — tampered keyring' do
-    it 'raises RuntimeError when a keyring entry is corrupted' do
+    it 'raises when a keyring entry is corrupted' do
       tampered_keyring = verifier_keyring.dup
       tampered_keyring['name'] = Base64.strict_encode64([9, 9, 9, 9].pack('C*'))
 
@@ -150,7 +150,7 @@ RSpec.describe BSV::Auth::VerifiableCertificate do
 
       expect do
         cert.decrypt_fields(verifier_wallet)
-      end.to raise_error(RuntimeError, /Failed to decrypt selectively revealed certificate fields using keyring/)
+      end.to raise_error(StandardError)
     end
   end
 
@@ -238,11 +238,12 @@ RSpec.describe BSV::Auth::VerifiableCertificate do
       expect(h).not_to have_key('decrypted_fields')
     end
 
-    it 'accepts camelCase keyring key in from_hash' do
+    it 'accepts camelCase decryptedFields key in from_hash' do
+      verifiable_cert.decrypt_fields(verifier_wallet)
       h = verifiable_cert.to_h
-      h['keyring'] = h.delete('keyring')
+      h['decryptedFields'] = h.delete('decrypted_fields')
       restored = described_class.from_hash(h)
-      expect(restored.keyring).to eq(verifier_keyring)
+      expect(restored.decrypted_fields).to eq(plaintext_fields)
     end
   end
 

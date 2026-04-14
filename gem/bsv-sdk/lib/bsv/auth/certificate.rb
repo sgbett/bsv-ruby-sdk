@@ -111,7 +111,9 @@ module BSV
       # @return [Certificate]
       def self.from_binary(data)
         data = data.b
-        pos  = 0
+        raise ArgumentError, "certificate binary too short (#{data.bytesize} bytes, minimum 163)" if data.bytesize < 163
+
+        pos = 0
 
         type_bytes = data.byteslice(pos, 32)
         pos += 32
@@ -178,15 +180,15 @@ module BSV
         preimage  = to_binary(include_signature: false)
         sig_bytes = [@signature].pack('H*').unpack('C*')
 
-        verifier_wallet.verify_signature({
-                                           data: preimage.unpack('C*'),
-                                           signature: sig_bytes,
-                                           protocol_id: CERT_SIG_PROTOCOL,
-                                           key_id: "#{@type} #{@serial_number}",
-                                           counterparty: @certifier
-                                         })
+        result = verifier_wallet.verify_signature({
+                                                    data: preimage.unpack('C*'),
+                                                    signature: sig_bytes,
+                                                    protocol_id: CERT_SIG_PROTOCOL,
+                                                    key_id: "#{@type} #{@serial_number}",
+                                                    counterparty: @certifier
+                                                  })
 
-        true
+        result.is_a?(Hash) && result[:valid] == true
       rescue BSV::Wallet::InvalidSignatureError
         false
       end

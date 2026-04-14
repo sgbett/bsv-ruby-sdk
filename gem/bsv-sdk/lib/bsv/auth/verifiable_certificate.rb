@@ -139,8 +139,10 @@ module BSV
 
           @decrypted_fields = result
           result
-        rescue StandardError => e
-          raise "Failed to decrypt selectively revealed certificate fields using keyring: #{e.message}"
+        rescue ArgumentError
+          raise
+        rescue StandardError
+          raise 'Failed to decrypt selectively revealed certificate fields using keyring.'
         end
       end
 
@@ -156,7 +158,7 @@ module BSV
       end
 
       private_class_method def self.normalise_hash_keys(hash)
-        result = Certificate.send(:normalise_hash_keys, hash)
+        result = super
         %w[keyring].each do |k|
           result[k] ||= hash[k] || hash[k.to_sym]
         end

@@ -324,7 +324,7 @@ module BSV
       end
 
       private_class_method def self.normalise_hash_keys(hash)
-        result = Certificate.send(:normalise_hash_keys, hash)
+        result = super
         %w[master_keyring masterKeyring].each do |k|
           result['master_keyring'] ||= hash[k] || hash[k.to_sym]
         end
