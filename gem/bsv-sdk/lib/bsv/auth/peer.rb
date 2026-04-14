@@ -35,22 +35,74 @@ module BSV
     class Peer
       AUTH_PROTOCOL = [2, 'auth message signature'].freeze
 
-      attr_reader :wallet, :session_manager
+      attr_reader :wallet, :session_manager, :last_interacted_peer
 
       # @param wallet [BSV::Wallet::Interface] wallet providing crypto operations
       # @param transport [Transport, nil] optional transport for async usage
       # @param session_manager [SessionManager, nil] optional custom session store
       # @param certificates_to_request [Hash, nil] certificate set to request from peers
-      def initialize(wallet:, transport: nil, session_manager: nil, certificates_to_request: nil)
-        @wallet                  = wallet
-        @transport               = transport
-        @session_manager         = session_manager || SessionManager.new
-        @certificates_to_request = certificates_to_request || { certifiers: [], types: {} }
-        @identity_public_key     = nil
+      # @param auto_persist_last_session [Boolean] whether to track the last-interacted peer (default: true)
+      def initialize(wallet:, transport: nil, session_manager: nil, certificates_to_request: nil,
+                     auto_persist_last_session: true)
+        @wallet                    = wallet
+        @transport                 = transport
+        @session_manager           = session_manager || SessionManager.new
+        @certificates_to_request   = certificates_to_request || { certifiers: [], types: {} }
+        @identity_public_key       = nil
+        @callbacks                 = { general_message: {}, certificates_received: {}, certificate_request: {} }
+        @callback_id_counter       = 0
+        @callback_mutex            = Mutex.new
+        @last_interacted_peer      = nil
+        @auto_persist_last_session = auto_persist_last_session
 
         return unless @transport
 
         @transport.on_data { |msg| handle_incoming_message(msg) }
+      end
+
+      # Registers a callback to be called when a general message is received.
+      #
+      # @yield [sender_key, payload] called with the sender's identity key and payload bytes
+      # @return [Integer] callback ID (pass to {#off_general_message} to deregister)
+      def on_general_message(&block)
+        register_callback(:general_message, block)
+      end
+
+      # Removes a general message callback.
+      #
+      # @param callback_id [Integer] the ID returned by {#on_general_message}
+      def off_general_message(callback_id)
+        unregister_callback(:general_message, callback_id)
+      end
+
+      # Registers a callback to be called when certificates are received from a peer.
+      #
+      # @yield [sender_key, certs] called with sender's identity key and certificate array
+      # @return [Integer] callback ID (pass to {#off_certificates_received} to deregister)
+      def on_certificates_received(&block)
+        register_callback(:certificates_received, block)
+      end
+
+      # Removes a certificates received callback.
+      #
+      # @param callback_id [Integer] the ID returned by {#on_certificates_received}
+      def off_certificates_received(callback_id)
+        unregister_callback(:certificates_received, callback_id)
+      end
+
+      # Registers a callback to be called when a certificate request is received from a peer.
+      #
+      # @yield [sender_key, requested_certs] called with sender's identity key and requested cert set
+      # @return [Integer] callback ID (pass to {#off_certificate_request} to deregister)
+      def on_certificate_request(&block)
+        register_callback(:certificate_request, block)
+      end
+
+      # Removes a certificate request callback.
+      #
+      # @param callback_id [Integer] the ID returned by {#on_certificate_request}
+      def off_certificate_request(callback_id)
+        unregister_callback(:certificate_request, callback_id)
       end
 
       # Returns our identity key (cached after first call).
@@ -98,6 +150,10 @@ module BSV
 
       # Processes any incoming auth message and returns a response (if applicable).
       #
+      # When a transport is configured, any response is also forwarded via
+      # +@transport.send+ so that the bidirectional flow works without the
+      # caller having to manually route the return value.
+      #
       # @param message [Hash] the incoming auth message
       # @return [Hash, nil] response message, or nil for messages requiring no reply
       # @raise [AuthError] if the version is wrong or the message type is unknown
@@ -107,13 +163,19 @@ module BSV
 
         type = message[:message_type] || message['message_type']
 
-        case type
-        when MSG_INITIAL_REQUEST  then process_initial_request(message)
-        when MSG_INITIAL_RESPONSE then process_initial_response(message)
-        when MSG_GENERAL          then process_general_message(message)
-        else
-          raise AuthError, "Unknown message type: #{type.inspect}"
-        end
+        response = case type
+                   when MSG_INITIAL_REQUEST  then process_initial_request(message)
+                   when MSG_INITIAL_RESPONSE then process_initial_response(message)
+                   when MSG_GENERAL          then process_general_message(message)
+                   else
+                     raise AuthError, "Unknown message type: #{type.inspect}"
+                   end
+
+        # Only forward protocol messages (those with a message_type) back via
+        # transport. Internal result hashes (e.g. from process_general_message)
+        # carry no message_type and must not be forwarded.
+        @transport&.send(response) if response&.key?(:message_type)
+        response
       end
 
       # --- General message exchange (post-handshake) ---
@@ -188,6 +250,8 @@ module BSV
                                                 counterparty: peer_key
                                               })
 
+        @last_interacted_peer ||= peer_key if @auto_persist_last_session
+
         {
           version: AUTH_VERSION,
           message_type: MSG_INITIAL_RESPONSE,
@@ -234,6 +298,8 @@ module BSV
 
         @session_manager.update_session(session)
 
+        @last_interacted_peer = peer_key if @auto_persist_last_session
+
         nil
       rescue BSV::Wallet::InvalidSignatureError
         @session_manager.remove_session(session) if session
@@ -269,9 +335,33 @@ module BSV
         session.last_update = current_time_ms
         @session_manager.update_session(session)
 
+        @last_interacted_peer = session.peer_identity_key if @auto_persist_last_session
+        fire_callbacks(:general_message, session.peer_identity_key, payload)
+
         { peer_identity_key: session.peer_identity_key, payload: payload }
       rescue BSV::Wallet::InvalidSignatureError
         raise AuthError, "General message signature verification failed from: #{peer_key}"
+      end
+
+      # --- Callback helpers ---
+
+      def register_callback(type, block)
+        @callback_mutex.synchronize do
+          id = @callback_id_counter += 1
+          @callbacks[type][id] = block
+          id
+        end
+      end
+
+      def unregister_callback(type, callback_id)
+        @callback_mutex.synchronize { @callbacks[type].delete(callback_id) }
+      end
+
+      # Dup the hash under the mutex, then iterate outside to avoid re-entrancy
+      # deadlocks (a callback may call back into Peer, e.g. via PairedTransport).
+      def fire_callbacks(type, *args)
+        callbacks = @callback_mutex.synchronize { @callbacks[type].dup }
+        callbacks.each_value { |cb| cb.call(*args) }
       end
 
       # --- Helpers ---
