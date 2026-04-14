@@ -280,3 +280,9 @@ RSpec/BeforeAfterAll:
 RSpec/InstanceVariable:
   Exclude:
     - 'gem/bsv-sdk/spec/integration/**/*'
+
+# Callback registration tests need empty blocks to obtain a callback ID without
+# triggering an actual callback action.
+Lint/EmptyBlock:
+  Exclude:
+    - 'gem/*/spec/**/*'
