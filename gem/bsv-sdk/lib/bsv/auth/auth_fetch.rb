@@ -2,6 +2,7 @@
 
 require 'uri'
 require 'json'
+require 'base64'
 require 'securerandom'
 require 'timeout'
 
@@ -13,6 +14,10 @@ module BSV
     # HTTP requests as BRC-104 binary payloads. The handshake is initiated
     # automatically on the first request to each base URL.
     #
+    # When the server responds with HTTP 402 Payment Required, AuthFetch
+    # automatically constructs a BSV payment transaction via the wallet and
+    # retries the original request with an +x-bsv-payment+ header attached.
+    #
     # Thread safety: the +@peers+ hash is protected by a mutex. Each in-flight
     # request uses its own +Queue+ to receive exactly the matching response.
     #
@@ -22,15 +27,21 @@ module BSV
     #   puts response.status   # => 200
     #   puts response.body     # => "..."
     class AuthFetch
-      DEFAULT_TIMEOUT = 30
+      DEFAULT_TIMEOUT         = 30
+      DEFAULT_PAYMENT_RETRIES = 3
+      PAYMENT_RETRY_DELAY_MS  = 250
+      PAYMENT_PROTOCOL_ID     = [2, '3241645161d8'].freeze
+      SUPPORTED_PAYMENT_VERSION = '1.0'
 
       # @param wallet [BSV::Wallet::Interface] wallet for crypto operations
       # @param requested_certificates [Hash, nil] certificate set to request from peers
       # @param session_manager [SessionManager, nil] optional shared session store
-      def initialize(wallet:, requested_certificates: nil, session_manager: nil)
+      # @param payment_max_retries [Integer] maximum number of payment retry attempts (default 3)
+      def initialize(wallet:, requested_certificates: nil, session_manager: nil, payment_max_retries: DEFAULT_PAYMENT_RETRIES)
         @wallet                 = wallet
         @requested_certificates = requested_certificates
         @session_manager        = session_manager
+        @payment_max_retries    = payment_max_retries
         @peers                  = {}
         @peers_mutex            = Mutex.new
       end
@@ -39,6 +50,10 @@ module BSV
       #
       # The first request to a new base URL performs a BRC-103 mutual-auth
       # handshake automatically. Subsequent requests reuse the cached peer.
+      #
+      # If the server responds with 402, a BSV payment is created and the
+      # request is retried with an +x-bsv-payment+ header (up to
+      # +payment_max_retries+ times).
       #
       # @param url [String] full URL including scheme, host, optional port, path, and query
       # @param method [String] HTTP method (default 'GET')
@@ -49,13 +64,15 @@ module BSV
       # @return [AuthResponse]
       # @raise [ArgumentError] if disallowed headers are provided
       # @raise [Timeout::Error] if no response arrives within +timeout+ seconds
+      # @raise [AuthError] if 402 payment handling fails or max retries are exceeded
       def fetch(url, method: 'GET', headers: {}, body: nil, timeout: DEFAULT_TIMEOUT)
-        do_fetch(url, method: method, headers: headers, body: body, timeout: timeout, retry_count: 0)
+        do_fetch(url, method: method, headers: headers, body: body, timeout: timeout,
+                      retry_count: 0, payment_context: nil)
       end
 
       private
 
-      def do_fetch(url, method:, headers:, body:, timeout:, retry_count:)
+      def do_fetch(url, method:, headers:, body:, timeout:, retry_count:, payment_context:)
         uri      = URI.parse(url)
         base_url = extract_base_url(uri)
         path     = uri.path.empty? ? '/' : uri.path
@@ -107,7 +124,8 @@ module BSV
             # Stale session — clear the cached peer and retry with a fresh one
             @peers_mutex.synchronize { @peers.delete(base_url) }
             return do_fetch(url, method: method, headers: headers, body: body,
-                                 timeout: timeout, retry_count: retry_count + 1)
+                                 timeout: timeout, retry_count: retry_count + 1,
+                                 payment_context: payment_context)
           end
           raise
         end
@@ -124,12 +142,165 @@ module BSV
         raise result[:error] unless result[:ok]
 
         data = result[:data]
-        AuthResponse.new(
+        response = AuthResponse.new(
           status: data[:status],
           headers: pairs_to_hash(data[:headers]),
           body: data[:body] || '',
           identity_key: result[:identity_key]
         )
+
+        return response unless response.status == 402
+
+        handle_payment_required(url, method, headers, body, timeout, response, payment_context)
+      end
+
+      # Handles a 402 Payment Required response by creating a BSV payment
+      # transaction and retrying the original request.
+      #
+      # @param url [String] the original request URL
+      # @param method [String] HTTP method
+      # @param headers [Hash] original request headers
+      # @param body original request body
+      # @param timeout [Integer] request timeout in seconds
+      # @param response [AuthResponse] the 402 response
+      # @param payment_context [Hash, nil] existing payment context (for retries)
+      # @return [AuthResponse] the response after payment
+      # @raise [AuthError] if payment headers are invalid, wallet lacks capability,
+      #   or maximum retries are exhausted
+      def handle_payment_required(url, method, headers, body, timeout, response, payment_context)
+        validated = validate_payment_headers(response.headers)
+
+        satoshis_required    = validated[:satoshis_required]
+        server_identity_key  = validated[:server_identity_key]
+        derivation_prefix    = validated[:derivation_prefix]
+
+        # Determine whether we can reuse an existing payment context or must create a new one
+        new_context = if payment_context && compatible_payment_context?(payment_context, satoshis_required, server_identity_key, derivation_prefix)
+                        payment_context
+                      else
+                        create_payment_context(url, satoshis_required, server_identity_key, derivation_prefix)
+                      end
+
+        attempt = new_context[:attempts] + 1
+
+        if attempt > @payment_max_retries
+          raise AuthError, "Payment for #{url} failed after #{@payment_max_retries} attempt(s): " \
+                           "#{satoshis_required} satoshis required"
+        end
+
+        new_context[:attempts] = attempt
+
+        payment_header_value = JSON.generate(
+          'derivationPrefix' => new_context[:derivation_prefix],
+          'derivationSuffix' => new_context[:derivation_suffix],
+          'transaction' => new_context[:transaction_base64]
+        )
+
+        # Apply linear backoff for retries after the first attempt
+        sleep(PAYMENT_RETRY_DELAY_MS * attempt / 1000.0) if attempt > 1
+
+        retry_headers = headers.merge(AuthHeaders::PAYMENT => payment_header_value)
+
+        do_fetch(url, method: method, headers: retry_headers, body: body, timeout: timeout,
+                      retry_count: 0, payment_context: new_context)
+      end
+
+      # Validates the payment-related headers from a 402 response.
+      #
+      # @param response_headers [Hash] response headers (string keys)
+      # @return [Hash] validated values: :satoshis_required, :server_identity_key, :derivation_prefix
+      # @raise [AuthError] if any required header is missing or invalid
+      def validate_payment_headers(response_headers)
+        version = response_headers[AuthHeaders::PAYMENT_VERSION]
+        unless version == SUPPORTED_PAYMENT_VERSION
+          raise AuthError,
+                "Unsupported #{AuthHeaders::PAYMENT_VERSION} response header. " \
+                "Client version: #{SUPPORTED_PAYMENT_VERSION}, server version: #{version.inspect}"
+        end
+
+        satoshis_str = response_headers[AuthHeaders::PAYMENT_SATOSHIS_REQUIRED]
+        raise AuthError, "Missing #{AuthHeaders::PAYMENT_SATOSHIS_REQUIRED} response header." unless satoshis_str
+
+        satoshis = Integer(satoshis_str, 10)
+        raise AuthError, "Invalid #{AuthHeaders::PAYMENT_SATOSHIS_REQUIRED} value: must be a positive integer." unless satoshis.positive?
+
+        server_identity_key = response_headers[AuthHeaders::IDENTITY_KEY]
+        unless server_identity_key.is_a?(String) && !server_identity_key.empty?
+          raise AuthError,
+                "Missing #{AuthHeaders::IDENTITY_KEY} response header."
+        end
+
+        derivation_prefix = response_headers[AuthHeaders::PAYMENT_DERIVATION_PREFIX]
+        unless derivation_prefix.is_a?(String) && !derivation_prefix.empty?
+          raise AuthError,
+                "Missing #{AuthHeaders::PAYMENT_DERIVATION_PREFIX} response header."
+        end
+
+        {
+          satoshis_required: satoshis,
+          server_identity_key: server_identity_key,
+          derivation_prefix: derivation_prefix
+        }
+      rescue ArgumentError
+        raise AuthError, "Invalid #{AuthHeaders::PAYMENT_SATOSHIS_REQUIRED} value: must be a positive integer."
+      end
+
+      # Creates a new payment context by deriving a payment key and building a transaction.
+      #
+      # @param url [String] request URL (used in the transaction description)
+      # @param satoshis_required [Integer] payment amount
+      # @param server_identity_key [String] server's compressed public key hex
+      # @param derivation_prefix [String] BIP-32 derivation prefix from the server
+      # @return [Hash] payment context with keys :satoshis_required, :server_identity_key,
+      #   :derivation_prefix, :derivation_suffix, :transaction_base64, :attempts
+      # @raise [AuthError] if the wallet does not support payment methods
+      def create_payment_context(url, satoshis_required, server_identity_key, derivation_prefix)
+        unless @wallet.respond_to?(:get_public_key) && @wallet.respond_to?(:create_action)
+          raise AuthError, '402 payment handling requires a wallet that supports create_action and get_public_key'
+        end
+
+        base_url = extract_base_url(URI.parse(url))
+
+        derivation_suffix = Nonce.create(@wallet)
+
+        key_result = @wallet.get_public_key(
+          protocol_id: PAYMENT_PROTOCOL_ID,
+          key_id: "#{derivation_prefix} #{derivation_suffix}",
+          counterparty: server_identity_key
+        )
+        public_key_hex = key_result[:public_key]
+
+        address = BSV::Primitives::PublicKey.from_hex(public_key_hex).address
+        lock_script = BSV::Script::Script.p2pkh_lock(address)
+
+        action_result = @wallet.create_action(
+          description: "Payment for request to #{base_url}",
+          outputs: [{
+            satoshis: satoshis_required,
+            locking_script: lock_script.to_hex,
+            output_description: 'HTTP request payment'
+          }]
+        )
+
+        tx_bytes = action_result[:tx]
+        transaction_base64 = Base64.strict_encode64(tx_bytes.pack('C*'))
+
+        {
+          satoshis_required: satoshis_required,
+          server_identity_key: server_identity_key,
+          derivation_prefix: derivation_prefix,
+          derivation_suffix: derivation_suffix,
+          transaction_base64: transaction_base64,
+          attempts: 0
+        }
+      end
+
+      # Returns true if the existing payment context is compatible with the
+      # current 402 response requirements (same satoshis, identity key, and prefix).
+      def compatible_payment_context?(context, satoshis_required, server_identity_key, derivation_prefix)
+        context[:satoshis_required] == satoshis_required &&
+          context[:server_identity_key] == server_identity_key &&
+          context[:derivation_prefix]   == derivation_prefix
       end
 
       # Returns an existing peer for +base_url+ or creates a new one.
