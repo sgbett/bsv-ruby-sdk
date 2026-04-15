@@ -47,14 +47,18 @@ nav:
   - Home: index.md
   - Guides:
       - Getting Started: guides/getting-started.md
-      - Primitives: guides/primitives.md
-      - Script: guides/script.md
-      - Transaction: guides/transaction.md
-      - Network: guides/network.md
-      - Wallet: guides/wallet.md
-      - Wallet Postgres: guides/wallet-postgres.md
-      - MCP Server: guides/mcp.md
-      - Naming Conventions: guides/naming-conventions.md
-  - About:
-      - Pure Ruby secp256k1: about/secp256k1.md
-  - API Reference: reference/index.md
+  - SDK:
+      - Primitives: sdk/primitives.md
+      - Script: sdk/script.md
+      - Transaction: sdk/transaction.md
+      - Network: sdk/network.md
+  - Wallet: gems/wallet.md
+  - Wallet Storage:
+      - Postgres: gems/wallet-postgres.md
+  - API: reference/index.md
+  - Testing:
+      Conformance Vectors: testing/conformance-vectors.md
+  - General:
+    - Ruby secp256k1: general/secp256k1.md
+    - Naming Conventions: general/naming-conventions.md
+    - MCP Server: general/mcp.md
