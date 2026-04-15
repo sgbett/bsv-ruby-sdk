@@ -10,6 +10,7 @@ module BSV
     module Substrates
       autoload :HTTPWalletJSON, 'bsv/wallet_interface/substrates/http_wallet_json'
       autoload :HTTPWalletWire, 'bsv/wallet_interface/substrates/http_wallet_wire'
+      autoload :WalletWireTransceiver, 'bsv/wallet_interface/substrates/wallet_wire_transceiver'
     end
   end
 end
