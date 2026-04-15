@@ -1550,12 +1550,17 @@ module BSV
           a.delete(:labels) unless args[:include_labels] == true
           a.delete(:inputs) unless args[:include_inputs] == true
 
-          if a.key?(:inputs) && args[:include_input_source_locking_scripts] != true
-            a[:inputs] = a[:inputs].map { |i| i.dup.tap { |h| h.delete(:source_locking_script) } }
-          end
-
-          if a.key?(:inputs) && args[:include_input_unlocking_scripts] != true
-            a[:inputs] = a[:inputs].map { |i| i.dup.tap { |h| h.delete(:unlocking_script) } }
+          if a.key?(:inputs)
+            strip_src = args[:include_input_source_locking_scripts] != true
+            strip_unlock = args[:include_input_unlocking_scripts] != true
+            if strip_src || strip_unlock
+              a[:inputs] = a[:inputs].map do |i|
+                d = i.dup
+                d.delete(:source_locking_script) if strip_src
+                d.delete(:unlocking_script) if strip_unlock
+                d
+              end
+            end
           end
 
           a.delete(:outputs) unless args[:include_outputs] == true

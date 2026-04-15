@@ -38,6 +38,11 @@ module BSV
           @http_client = http_client
         end
 
+        # Per-call originator is accepted for Interface conformance but not forwarded.
+        # The Origin header uses the constructor-level @originator for the lifetime of
+        # the connection — matching the TS SDK's HTTPWalletJSON, which also ignores per-call
+        # originator. WalletWireTransceiver supports per-call originator because the wire
+        # frame encodes it per-message; HTTP substrates identify by connection, not by call.
         # rubocop:disable Lint/UnusedMethodArgument
 
         def create_action(args, originator: nil)
@@ -219,10 +224,17 @@ module BSV
 
         def handle_response(response, method_name, args)
           code = response.code.to_i
+
+          unless (200..299).cover?(code)
+            data = begin
+              parse_json_body(response.body)
+            rescue JSON::ParserError
+              nil
+            end
+            raise_error_response(code, data, method_name, args)
+          end
+
           data = parse_json_body(response.body)
-
-          raise_error_response(code, data, method_name, args) unless (200..299).cover?(code)
-
           return {} if data.nil?
 
           data.is_a?(Hash) ? BSV::WireFormat.from_wire(data) : data
@@ -232,8 +244,6 @@ module BSV
           return nil if body.nil? || body.empty?
 
           JSON.parse(body)
-        rescue JSON::ParserError
-          nil
         end
 
         def raise_error_response(code, data, method_name, _args)
