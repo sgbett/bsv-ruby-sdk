@@ -188,7 +188,7 @@ module BSV
           AuthHeaders::VERSION => BSV::Auth::AUTH_VERSION,
           AuthHeaders::IDENTITY_KEY => our_identity_key,
           AuthHeaders::NONCE => response_nonce,
-          AuthHeaders::YOUR_NONCE => msg_nonce,
+          AuthHeaders::YOUR_NONCE => session.peer_nonce,
           AuthHeaders::SIGNATURE => sig_hex_out,
           AuthHeaders::REQUEST_ID => request_id_b64
         }

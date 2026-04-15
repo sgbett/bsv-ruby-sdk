@@ -342,11 +342,17 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
         expect(headers[BSV::Auth::AuthHeaders::IDENTITY_KEY]).to eq(server_key.public_key.to_hex)
       end
 
-      it 'echoes the client nonce as your-nonce in the response' do
+      it 'returns the client session nonce as your-nonce in the response' do
         client_peer, = perform_handshake
         server_session_nonce = middleware.instance_variable_get(:@session_manager)
                                          .get_session(client_key.public_key.to_hex)
                                          .session_nonce
+
+        # The client's session nonce is the nonce the client created during the handshake.
+        # The server returns this in your-nonce so the client can verify it and look up the session.
+        client_session_nonce = client_peer.session_manager
+                                          .get_session(server_key.public_key.to_hex)
+                                          .session_nonce
 
         request_id_bin = SecureRandom.random_bytes(32)
         request_id_b64 = Base64.strict_encode64(request_id_bin)
@@ -380,7 +386,7 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
 
         _, headers, = middleware.call(env)
 
-        expect(headers[BSV::Auth::AuthHeaders::YOUR_NONCE]).to eq(client_nonce)
+        expect(headers[BSV::Auth::AuthHeaders::YOUR_NONCE]).to eq(client_session_nonce)
       end
     end
 
