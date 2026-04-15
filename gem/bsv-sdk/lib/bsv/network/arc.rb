@@ -95,6 +95,43 @@ module BSV
         handle_broadcast_response(response)
       end
 
+      # Submit a BEEF-encoded transaction to ARC.
+      #
+      # Posts the raw BEEF bytes directly to ARC with
+      # +Content-Type: application/octet-stream+, rather than JSON-wrapping a
+      # hex-encoded raw transaction. This is the preferred format when the
+      # caller already holds a complete BEEF envelope (e.g. received from a
+      # BRC-105 payment flow), because BEEF includes full SPV ancestry and
+      # lets ARC validate without fetching parent transactions.
+      #
+      # @param beef_bytes [String] raw BEEF binary data
+      # @param wait_for [String, nil] ARC wait condition — one of
+      #   'RECEIVED', 'STORED', 'ANNOUNCED_TO_NETWORK',
+      #   'SEEN_ON_NETWORK', or 'MINED'. When set, ARC holds the
+      #   connection open until the transaction reaches the requested
+      #   state (or times out). Defaults to nil (no wait).
+      # @param skip_fee_validation [Boolean, nil] when truthy, sends the
+      #   +X-SkipFeeValidation: true+ header, asking ARC to bypass its
+      #   minimum-fee check. Defaults to nil (fee validation applies).
+      # @param skip_script_validation [Boolean, nil] when truthy, sends the
+      #   +X-SkipScriptValidation: true+ header, asking ARC to bypass
+      #   script correctness checks. Defaults to nil (script validation
+      #   applies).
+      # @return [BroadcastResponse]
+      # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
+      #   rejected/orphan +txStatus+
+      def broadcast_beef(beef_bytes, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
+        uri = URI("#{@url}/v1/tx")
+        request = build_post_request(uri, wait_for: wait_for,
+                                          skip_fee_validation: skip_fee_validation,
+                                          skip_script_validation: skip_script_validation)
+        request['Content-Type'] = 'application/octet-stream'
+        request.body = beef_bytes.b
+
+        response = execute(uri, request)
+        handle_broadcast_response(response)
+      end
+
       # Submit multiple transactions to ARC in a single batch request.
       #
       # Each transaction is encoded as Extended Format (BRC-30) hex where
