@@ -18,4 +18,5 @@ group :development, :test do
   gem 'yard-markdown'
 
   gem 'prime'
+  gem 'rack'
 end
