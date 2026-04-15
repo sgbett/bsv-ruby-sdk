@@ -1655,7 +1655,7 @@ module BSV
       end
 
       def auth_fetch_client
-        @auth_fetch ||= BSV::Auth::AuthFetch.new(wallet: self)
+        @auth_fetch_client ||= BSV::Auth::AuthFetch.new(wallet: self)
       end
 
       def execute_http(uri, request)
