@@ -23,14 +23,14 @@ gem install bsv-sdk
 
 The SDK is organised into three top-level modules:
 
-- **[Primitives](guides/primitives.md)** — keys, curves, hashing, encryption, HD keys, mnemonics
-- **[Script](guides/script.md)** — script parsing, opcodes, templates, interpreter
-- **[Transaction](guides/transaction.md)** — building, signing, BEEF serialisation, merkle proofs
+- **[Primitives](sdk/primitives.md)** — keys, curves, hashing, encryption, HD keys, mnemonics
+- **[Script](sdk/script.md)** — script parsing, opcodes, templates, interpreter
+- **[Transaction](sdk/transaction.md)** — building, signing, BEEF serialisation, merkle proofs
 
 ## Companion gems
 
-- **[bsv-wallet](guides/wallet.md)** — BRC-100 wallet interface with `WalletClient`, storage adapters, and broadcast queue
-- **[bsv-wallet-postgres](guides/wallet-postgres.md)** — PostgreSQL storage adapter and async broadcast queue for production deployments
+- **[bsv-wallet](gems/wallet.md)** — BRC-100 wallet interface with `WalletClient`, storage adapters, and broadcast queue
+- **[bsv-wallet-postgres](gems/wallet-postgres.md)** — PostgreSQL storage adapter and async broadcast queue for production deployments
 - **[bsv-attest](https://rubygems.org/gems/bsv-attest)** — document attestation via OP_RETURN on the BSV blockchain
 
 ## Quick Links

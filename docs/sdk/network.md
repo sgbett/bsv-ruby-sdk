@@ -211,10 +211,10 @@ Environment variables:
 | `BSV_ARC_URL` | GorillaPool | Custom ARC endpoint URL |
 | `BSV_ARC_API_KEY` | *(none)* | ARC API key for authenticated access |
 
-See the **[MCP Server Guide](mcp.md)** for full setup instructions, testnet configuration, and example workflows.
+See the **[MCP Server Guide](../general/mcp.md)** for full setup instructions, testnet configuration, and example workflows.
 
 ## What's Next
 
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
-- **[Getting Started](getting-started.md)** — key generation, basic transaction construction
-- **[MCP Server Guide](mcp.md)** — using BSV tools from AI assistants
+- **[Getting Started](../guides/getting-started.md)** — key generation, basic transaction construction
+- **[MCP Server Guide](../general/mcp.md)** — using BSV tools from AI assistants

@@ -138,13 +138,13 @@ If you already know the TypeScript or Go BSV SDKs, most of the API is a direct t
 
 **BRC-100 wire protocol methods are the exception** — `get_public_key`, `get_height`, `is_authenticated`, `list_outputs` keep their protocol names because they *are* the protocol names. Don't try to rename them.
 
-For the full picture including edge cases and rationale, see **[Naming Conventions](naming-conventions.md)**.
+For the full picture including edge cases and rationale, see **[Naming Conventions](../general/naming-conventions.md)**.
 
 ## What's Next
 
-- **[Primitives Guide](primitives.md)** — key management, signing, encryption, HD keys
-- **[Script Guide](script.md)** — script construction, templates, detection
-- **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
-- **[Network Guide](network.md)** — broadcasting, chain tracking, SPV verification
-- **[MCP Server Guide](mcp.md)** — use BSV operations as AI assistant tools via Claude Code
-- **[Naming Conventions](naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
+- **[Primitives Guide](../sdk/primitives.md)** — key management, signing, encryption, HD keys
+- **[Script Guide](../sdk/script.md)** — script construction, templates, detection
+- **[Transaction Guide](../sdk/transaction.md)** — building, signing, fee estimation, BEEF
+- **[Network Guide](../sdk/network.md)** — broadcasting, chain tracking, SPV verification
+- **[MCP Server Guide](../general/mcp.md)** — use BSV operations as AI assistant tools via Claude Code
+- **[Naming Conventions](../general/naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
