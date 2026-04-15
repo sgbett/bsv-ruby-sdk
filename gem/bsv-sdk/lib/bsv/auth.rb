@@ -17,6 +17,8 @@ module BSV
     autoload :MasterCertificate,       'bsv/auth/master_certificate'
     autoload :ValidateCertificates,        'bsv/auth/validate_certificates'
     autoload :GetVerifiableCertificates,   'bsv/auth/get_verifiable_certificates'
+    autoload :AuthResponse, 'bsv/auth/auth_fetch'
+    autoload :AuthFetch,    'bsv/auth/auth_fetch'
 
     # Protocol version
     AUTH_VERSION = '0.1'
