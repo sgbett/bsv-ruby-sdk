@@ -43,7 +43,7 @@ to `PostgresStore` is a one-line change.
 
 ## Schema
 
-Five tables, all created by the shipped migration:
+Six tables created across migrations 001–006:
 
 | Table                 | Purpose                             | Key indexes                                       |
 |-----------------------|-------------------------------------|---------------------------------------------------|
@@ -52,6 +52,7 @@ Five tables, all created by the shipped migration:
 | `wallet_certificates` | Identity certificates               | unique `(type, serial_number, certifier)`         |
 | `wallet_proofs`       | Merkle proofs keyed by txid         | primary key `txid`                                |
 | `wallet_transactions` | Raw tx hex cache keyed by txid      | primary key `txid`                                |
+| `wallet_broadcast_jobs` | Async broadcast queue (SolidQueueAdapter) | unique `txid`, composite `(status, locked_at)` |
 
 Each table stores the full record as a JSONB blob in a `data` column.
 Dedicated indexed columns (`basket`, `tags`, `labels`, `certifier`, ...)
@@ -61,9 +62,8 @@ change.
 
 ### Running the migration
 
-The shipped migration lives at
-`lib/bsv/wallet_postgres/migrations/001_create_wallet_tables.rb`. Two
-ways to apply it:
+Migrations live at `lib/bsv/wallet_postgres/migrations/` (001 through 006).
+Two ways to apply them:
 
 **Convenience helper** — one-liner, uses `Sequel::Migrator` under the
 hood so the database tracks applied versions:
@@ -127,6 +127,79 @@ over `MemoryStore`, which is explicitly not thread-safe.
   `migrate!` (or run the migration yourself) explicitly before first
   use. Clear error on the first query if tables are missing.
 
+## Async broadcast queue
+
+The `SolidQueueAdapter` provides background transaction broadcasting backed
+by the `wallet_broadcast_jobs` table. Transactions are enqueued immediately
+and broadcast by a background worker thread — the caller doesn't block on
+ARC round-trips.
+
+### Setup
+
+```ruby
+require 'bsv-wallet-postgres'
+
+db    = Sequel.connect(ENV['DATABASE_URL'])
+store = BSV::Wallet::PostgresStore.new(db)
+
+adapter = BSV::Wallet::SolidQueueAdapter.new(
+  db: db,
+  storage: store,
+  broadcaster: BSV::Network::ARC.default
+)
+adapter.start
+
+wallet = BSV::Wallet::WalletClient.new(
+  key,
+  storage: store,
+  broadcast_queue: adapter
+)
+```
+
+### How it works
+
+1. `create_action` with `accept_delayed_broadcast: true` calls
+   `adapter.enqueue(payload)` which inserts a row into
+   `wallet_broadcast_jobs` with status `unsent` and returns immediately.
+2. The background worker polls every 8 seconds (configurable via
+   `poll_interval:`), claims a job using `SELECT ... FOR UPDATE SKIP LOCKED`,
+   and broadcasts via ARC.
+3. On success: inputs promoted to `spent`, change to `spendable`, action to
+   `completed`.
+4. On failure: inputs rolled back to `spendable`, change outputs deleted,
+   action marked `failed`.
+
+### Recovery
+
+Stale `sending` jobs (locked but not completed within 5 minutes) are
+automatically retried on the next poll. No special startup code is needed —
+the worker's first poll finds and reprocesses any stale jobs from a previous
+crash.
+
+Jobs that fail 5 times (`MAX_ATTEMPTS`) are left in `failed` state and not
+retried.
+
+### Shutdown
+
+```ruby
+adapter.drain  # stops the worker and blocks until the current cycle completes
+```
+
+Jobs enqueued after `drain` is called remain `unsent` until the next
+`adapter.start`.
+
+### Multi-process safety
+
+`FOR UPDATE SKIP LOCKED` ensures that multiple worker processes polling the
+same database each claim different jobs. No external coordination is needed.
+
+### Guards
+
+- Refuses to attach when storage is `MemoryStore` (raises `ArgumentError`)
+- Requires a `broadcaster` (raises `ArgumentError` if `nil`)
+- Idempotent enqueue: duplicate `txid` returns the existing job's status
+  instead of raising
+
 ## Relationship to `bsv-wallet`
 
 `bsv-wallet-postgres` is a drop-in implementation of
@@ -135,7 +208,7 @@ over `MemoryStore`, which is explicitly not thread-safe.
 `spec/support/shared_examples_for_storage_adapter.rb` runs against all
 three backends on every CI build, so behaviour stays aligned.
 
-Versioning tracks `bsv-wallet`: the gemspec pins `bsv-wallet >= 0.3.4,
+Versioning tracks `bsv-wallet`: the gemspec pins `bsv-wallet >= 0.6.0,
 < 1.0` so consumers pick up wallet security patches automatically.
 
 [wallet]: https://github.com/sgbett/bsv-ruby-sdk
