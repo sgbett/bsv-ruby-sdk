@@ -57,8 +57,8 @@ nav:
       - Postgres: gems/wallet-postgres.md
   - API: reference/index.md
   - Testing:
-      Conformance Vectors: testing/conformance-vectors.md
+      - Conformance Vectors: testing/conformance-vectors.md
   - General:
-    - Ruby secp256k1: general/secp256k1.md
-    - Naming Conventions: general/naming-conventions.md
-    - MCP Server: general/mcp.md
+      - Ruby secp256k1: general/secp256k1.md
+      - Naming Conventions: general/naming-conventions.md
+      - MCP Server: general/mcp.md
