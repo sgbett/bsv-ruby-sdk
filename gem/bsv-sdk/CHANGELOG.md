@@ -5,6 +5,43 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.0 — 2026-04-15
+
+### Added
+- Certificate infrastructure: `BSV::Auth::Certificate` base class with field map,
+  serialisation, and signature verification (#420)
+- `BSV::Auth::MasterCertificate` for certificate issuance with identity key
+  binding (#421)
+- `BSV::Auth::VerifiableCertificate` for selective field revelation with
+  proof-of-field-revelation (#422)
+- Certificate utilities: `validate_certificates` and `get_verifiable_certificates`
+  helpers (#427, #428)
+- Peer protocol: `certificateRequest`/`certificateResponse` message handling,
+  callback registration, and `last_interacted_peer` (#430, #431)
+- High-level peer session API: `Peer#to_peer` and `Peer#get_authenticated_session`
+  for reusable authenticated sessions (#433)
+- BRC-104 HTTP auth transport: `AuthFetch` client, `SimplifiedFetchTransport`,
+  `AuthMiddleware` (Rack), and `AuthHeaders`/`AuthPayload` serialiser (#437–#441)
+- `AuthFetch` 402 payment handling for paid API endpoints (#441)
+- `BSV::WireFormat` module for camelCase/snake_case conversion at JSON
+  boundaries (#447)
+- Cross-SDK conformance and integration specs for certificates (#423)
+- Peer protocol integration tests (#434)
+- BRC-104 integration tests (#442)
+
+### Fixed
+- Auth handshake now uses shallow key conversion to avoid corrupting nested
+  message payloads
+- Certificate classes hardened against edge cases from code review
+- Certifier allowlist enforced in `process_certificate_response`
+- Flaky `validate_certificates_spec` fixed (missing `require 'base64'`)
+
+### Changed
+- `GetVerifiableCertificates` bug warning note removed (underlying bug now
+  fixed in bsv-wallet)
+- Peer protocol internals refactored: `PairedTransport` helper, deduplicated
+  high-level API, hardened message processing
+
 ## 0.11.1 — 2026-04-13
 
 ### Fixed
