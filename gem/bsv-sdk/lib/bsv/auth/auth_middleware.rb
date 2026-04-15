@@ -82,12 +82,12 @@ module BSV
         return json_error(400, 'Empty body') if body_str.nil? || body_str.empty?
 
         raw = JSON.parse(body_str)
-        message = snake_case_keys(raw)
+        message = BSV::WireFormat.from_wire(raw)
 
         @bridge.inject(message)
         response_message = @bridge.wait_for_response
 
-        camel = camel_case_keys(response_message)
+        camel = BSV::WireFormat.to_wire(response_message)
         [200, { 'content-type' => 'application/json' }, [JSON.generate(camel)]]
       rescue JSON::ParserError => e
         json_error(400, "Invalid JSON: #{e.message}")
@@ -276,29 +276,6 @@ module BSV
         return [] if headers.empty?
 
         AuthHeaders.filter_request_headers(headers)
-      end
-
-      # Converts a Hash with string camelCase keys to snake_case symbol keys (shallow).
-      def snake_case_keys(hash)
-        hash.transform_keys { |k| camel_to_snake(k.to_s).to_sym }
-      end
-
-      # Converts a Hash with snake_case symbol/string keys to camelCase string keys (shallow).
-      def camel_case_keys(hash)
-        hash.transform_keys { |k| snake_to_camel(k.to_s) }
-      end
-
-      # Converts camelCase string to snake_case.
-      def camel_to_snake(str)
-        str.gsub(/([A-Z])/) { "_#{::Regexp.last_match(1).downcase}" }.sub(/^_/, '')
-      end
-
-      # Converts snake_case string to camelCase.
-      def snake_to_camel(str)
-        parts = str.split('_')
-        return str if parts.empty?
-
-        parts[0] + parts[1..].map(&:capitalize).join
       end
 
       # Returns a simple JSON error response.

@@ -17,4 +17,5 @@ module BSV
   autoload :Registry,    'bsv/registry'
   autoload :MCP,         'bsv/mcp'
   autoload :Messages,    'bsv/messages'
+  autoload :WireFormat,  'bsv/wire_format'
 end
