@@ -18,6 +18,7 @@ Metrics/BlockLength:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/wire/**/*'
     - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/migrations/**/*'
+    - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/*/spec/**/*'
 
 Naming/FileName:
@@ -279,3 +280,9 @@ RSpec/BeforeAfterAll:
 RSpec/InstanceVariable:
   Exclude:
     - 'gem/bsv-sdk/spec/integration/**/*'
+
+# Callback registration tests need empty blocks to obtain a callback ID without
+# triggering an actual callback action.
+Lint/EmptyBlock:
+  Exclude:
+    - 'gem/*/spec/**/*'
