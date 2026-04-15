@@ -29,7 +29,9 @@ The SDK is organised into three top-level modules:
 
 ## Companion gems
 
-- **[bsv-wallet-postgres](guides/wallet-postgres.md)** — persistent PostgreSQL storage adapter for `bsv-wallet`, for production deployments that need state to survive restarts
+- **[bsv-wallet](guides/wallet.md)** — BRC-100 wallet interface with `WalletClient`, storage adapters, and broadcast queue
+- **[bsv-wallet-postgres](guides/wallet-postgres.md)** — PostgreSQL storage adapter and async broadcast queue for production deployments
+- **[bsv-attest](https://rubygems.org/gems/bsv-attest)** — document attestation via OP_RETURN on the BSV blockchain
 
 ## Quick Links
 
