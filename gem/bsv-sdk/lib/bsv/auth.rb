@@ -3,16 +3,22 @@
 module BSV
   module Auth
     autoload :AuthError,      'bsv/auth/auth_error'
+    autoload :AuthHeaders,    'bsv/auth/auth_headers'
+    autoload :AuthMiddleware, 'bsv/auth/auth_middleware'
+    autoload :AuthPayload,    'bsv/auth/auth_payload'
     autoload :Nonce,          'bsv/auth/nonce'
     autoload :PeerSession,    'bsv/auth/peer_session'
     autoload :SessionManager, 'bsv/auth/session_manager'
-    autoload :Transport,      'bsv/auth/transport'
-    autoload :Peer,           'bsv/auth/peer'
+    autoload :Transport,                'bsv/auth/transport'
+    autoload :SimplifiedFetchTransport, 'bsv/auth/simplified_fetch_transport'
+    autoload :Peer,                     'bsv/auth/peer'
     autoload :Certificate,             'bsv/auth/certificate'
     autoload :VerifiableCertificate,   'bsv/auth/verifiable_certificate'
     autoload :MasterCertificate,       'bsv/auth/master_certificate'
     autoload :ValidateCertificates,        'bsv/auth/validate_certificates'
     autoload :GetVerifiableCertificates,   'bsv/auth/get_verifiable_certificates'
+    autoload :AuthResponse, 'bsv/auth/auth_fetch'
+    autoload :AuthFetch,    'bsv/auth/auth_fetch'
 
     # Protocol version
     AUTH_VERSION = '0.1'
