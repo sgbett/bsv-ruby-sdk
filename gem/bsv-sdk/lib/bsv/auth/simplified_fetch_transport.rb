@@ -61,20 +61,6 @@ module BSV
         end
       end
 
-      # Well-known camelCase <-> snake_case pairs that appear in every handshake.
-      # Falls back to generic conversion for any key not in the table.
-      SNAKE_TO_CAMEL = {
-        'message_type' => 'messageType',
-        'identity_key' => 'identityKey',
-        'initial_nonce' => 'initialNonce',
-        'your_nonce' => 'yourNonce',
-        'requested_certificates' => 'requestedCertificates',
-        'serial_number' => 'serialNumber',
-        'revocation_outpoint' => 'revocationOutpoint'
-      }.freeze
-
-      CAMEL_TO_SNAKE = SNAKE_TO_CAMEL.invert.freeze
-
       private
 
       # -------------------------------------------------------------------------
@@ -83,7 +69,7 @@ module BSV
 
       def send_non_general(message)
         auth_url  = "#{@base_url}/.well-known/auth"
-        body_json = JSON.generate(to_camel_case(message))
+        body_json = JSON.generate(BSV::WireFormat.shallow_to_wire(message))
 
         uri      = URI.parse(auth_url)
         response = perform_http_request(uri, 'POST', { 'Content-Type' => 'application/json' }, body_json)
@@ -94,7 +80,7 @@ module BSV
         end
 
         response_hash = JSON.parse(response_body(response))
-        @on_data_callback.call(to_snake_case(response_hash))
+        @on_data_callback.call(BSV::WireFormat.shallow_from_wire(response_hash))
       end
 
       # -------------------------------------------------------------------------
@@ -231,41 +217,6 @@ module BSV
         rescue JSON::ParserError => e
           raise "Failed to parse #{AuthHeaders::REQUESTED_CERTIFICATES} returned by #{url}: #{raw}. #{e.message}"
         end
-      end
-
-      # -------------------------------------------------------------------------
-      # camelCase <-> snake_case conversion
-      # -------------------------------------------------------------------------
-
-      # Converts a symbol-keyed message hash to camelCase string keys for JSON wire format.
-      # Uses the lookup table for known keys, generic conversion for the rest.
-      def to_camel_case(hash)
-        hash.each_with_object({}) do |(k, v), out|
-          snake = k.to_s
-          out[SNAKE_TO_CAMEL.fetch(snake) { generic_snake_to_camel(snake) }] = v
-        end
-      end
-
-      # Converts a camelCase string-keyed response hash to snake_case symbol keys.
-      # Uses the lookup table for known keys, generic conversion for the rest.
-      def to_snake_case(hash)
-        hash.each_with_object({}) do |(k, v), out|
-          camel = k.to_s
-          out[CAMEL_TO_SNAKE.fetch(camel) { generic_camel_to_snake(camel) }.to_sym] = v
-        end
-      end
-
-      # Generic snake_case → camelCase conversion.
-      def generic_snake_to_camel(str)
-        parts = str.split('_')
-        return str if parts.length <= 1
-
-        parts[0] + parts[1..].map(&:capitalize).join
-      end
-
-      # Generic camelCase → snake_case conversion.
-      def generic_camel_to_snake(str)
-        str.gsub(/([A-Z])/) { "_#{::Regexp.last_match(1).downcase}" }
       end
 
       # -------------------------------------------------------------------------

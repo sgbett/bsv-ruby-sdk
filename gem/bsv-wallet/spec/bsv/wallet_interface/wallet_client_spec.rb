@@ -810,6 +810,188 @@ RSpec.describe BSV::Wallet::WalletClient do
   end
 
   # -------------------------------------------------------------------------
+  # list_actions include flags
+  # -------------------------------------------------------------------------
+  describe '#list_actions include flags' do
+    before do
+      wallet.create_action({ description: 'labelled action', outputs: [output_spec], labels: ['payment'] })
+    end
+
+    it 'strips :labels by default (flag absent)' do
+      result = wallet.list_actions({ labels: ['payment'] })
+      expect(result[:actions].first).not_to have_key(:labels)
+    end
+
+    it 'strips :labels when include_labels is false' do
+      result = wallet.list_actions({ labels: ['payment'], include_labels: false })
+      expect(result[:actions].first).not_to have_key(:labels)
+    end
+
+    it 'strips :labels when include_labels is nil' do
+      result = wallet.list_actions({ labels: ['payment'], include_labels: nil })
+      expect(result[:actions].first).not_to have_key(:labels)
+    end
+
+    it 'preserves :labels when include_labels is true' do
+      result = wallet.list_actions({ labels: ['payment'], include_labels: true })
+      expect(result[:actions].first).to have_key(:labels)
+      expect(result[:actions].first[:labels]).to include('payment')
+    end
+
+    it 'strips :inputs by default (field not currently stored, no-op)' do
+      result = wallet.list_actions({ labels: ['payment'] })
+      expect(result[:actions].first).not_to have_key(:inputs)
+    end
+
+    it 'strips :outputs by default (field not currently stored, no-op)' do
+      result = wallet.list_actions({ labels: ['payment'] })
+      expect(result[:actions].first).not_to have_key(:outputs)
+    end
+
+    it 'does not affect total_actions count' do
+      result_default = wallet.list_actions({ labels: ['payment'] })
+      result_with_flags = wallet.list_actions({ labels: ['payment'], include_labels: true })
+      expect(result_default[:total_actions]).to eq(result_with_flags[:total_actions])
+    end
+
+    it 'strips nested :source_locking_script from inputs when present' do
+      action = wallet.list_actions({ labels: ['payment'], include_inputs: true })[:actions].first
+      action[:inputs] = [{ source_locking_script: 'aabbcc', unlocking_script: 'ddeeff' }]
+      # Simulate: call strip_action_fields directly via the stripping logic
+      # Verify by calling list_actions with a storage that returns inputs
+      # (MemoryStore does not populate inputs, so we test via private method)
+      result = wallet.send(:strip_action_fields, [action], { include_inputs: true })
+      expect(result.first[:inputs].first).not_to have_key(:source_locking_script)
+    end
+
+    it 'strips nested :unlocking_script from inputs when present' do
+      action = wallet.list_actions({ labels: ['payment'], include_inputs: true })[:actions].first
+      action[:inputs] = [{ source_locking_script: 'aabbcc', unlocking_script: 'ddeeff' }]
+      result = wallet.send(:strip_action_fields, [action], { include_inputs: true, include_input_unlocking_scripts: false })
+      expect(result.first[:inputs].first).not_to have_key(:unlocking_script)
+    end
+
+    it 'preserves nested :source_locking_script when include_input_source_locking_scripts is true' do
+      action = wallet.list_actions({ labels: ['payment'], include_inputs: true })[:actions].first
+      action[:inputs] = [{ source_locking_script: 'aabbcc' }]
+      result = wallet.send(:strip_action_fields, [action],
+                           { include_inputs: true, include_input_source_locking_scripts: true })
+      expect(result.first[:inputs].first).to have_key(:source_locking_script)
+    end
+
+    it 'strips nested :locking_script from outputs when present' do
+      action = wallet.list_actions({ labels: ['payment'], include_outputs: true })[:actions].first
+      action[:outputs] = [{ locking_script: 'aabbcc', satoshis: 1000 }]
+      result = wallet.send(:strip_action_fields, [action], { include_outputs: true })
+      expect(result.first[:outputs].first).not_to have_key(:locking_script)
+    end
+
+    it 'preserves nested :locking_script when include_output_locking_scripts is true' do
+      action = wallet.list_actions({ labels: ['payment'], include_outputs: true })[:actions].first
+      action[:outputs] = [{ locking_script: 'aabbcc', satoshis: 1000 }]
+      result = wallet.send(:strip_action_fields, [action],
+                           { include_outputs: true, include_output_locking_scripts: true })
+      expect(result.first[:outputs].first).to have_key(:locking_script)
+    end
+
+    it 'does not mutate the original action hashes' do
+      stored = wallet.list_actions({ labels: ['payment'], include_labels: true })[:actions]
+      original_keys = stored.first.keys.dup
+      wallet.list_actions({ labels: ['payment'] })
+      expect(stored.first.keys).to eq(original_keys)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # list_outputs include flags
+  # -------------------------------------------------------------------------
+  describe '#list_outputs include flags' do
+    before do
+      wallet.create_action({
+                             description: 'create tagged output',
+                             outputs: [{
+                               locking_script: locking_script_hex,
+                               satoshis: 500,
+                               output_description: 'tagged token',
+                               basket: 'flag test',
+                               tags: ['rare'],
+                               custom_instructions: 'handle with care'
+                             }]
+                           })
+    end
+
+    it 'strips :tags by default (flag absent)' do
+      result = wallet.list_outputs({ basket: 'flag test' })
+      expect(result[:outputs].first).not_to have_key(:tags)
+    end
+
+    it 'strips :tags when include_tags is false' do
+      result = wallet.list_outputs({ basket: 'flag test', include_tags: false })
+      expect(result[:outputs].first).not_to have_key(:tags)
+    end
+
+    it 'strips :tags when include_tags is nil' do
+      result = wallet.list_outputs({ basket: 'flag test', include_tags: nil })
+      expect(result[:outputs].first).not_to have_key(:tags)
+    end
+
+    it 'preserves :tags when include_tags is true' do
+      result = wallet.list_outputs({ basket: 'flag test', include_tags: true })
+      expect(result[:outputs].first).to have_key(:tags)
+      expect(result[:outputs].first[:tags]).to include('rare')
+    end
+
+    it 'strips :labels by default (field not currently stored, no-op)' do
+      result = wallet.list_outputs({ basket: 'flag test' })
+      expect(result[:outputs].first).not_to have_key(:labels)
+    end
+
+    it 'strips :custom_instructions by default' do
+      result = wallet.list_outputs({ basket: 'flag test' })
+      expect(result[:outputs].first).not_to have_key(:custom_instructions)
+    end
+
+    it 'strips :custom_instructions when include_custom_instructions is false' do
+      result = wallet.list_outputs({ basket: 'flag test', include_custom_instructions: false })
+      expect(result[:outputs].first).not_to have_key(:custom_instructions)
+    end
+
+    it 'preserves :custom_instructions when include_custom_instructions is true' do
+      result = wallet.list_outputs({ basket: 'flag test', include_custom_instructions: true })
+      expect(result[:outputs].first).to have_key(:custom_instructions)
+      expect(result[:outputs].first[:custom_instructions]).to eq('handle with care')
+    end
+
+    it 'preserves :tags and strips :custom_instructions with mixed flags' do
+      result = wallet.list_outputs({ basket: 'flag test', include_tags: true })
+      expect(result[:outputs].first).to have_key(:tags)
+      expect(result[:outputs].first).not_to have_key(:custom_instructions)
+    end
+
+    it 'preserves all fields when all flags are true' do
+      result = wallet.list_outputs({ basket: 'flag test',
+                                     include_tags: true,
+                                     include_labels: true,
+                                     include_custom_instructions: true })
+      expect(result[:outputs].first).to have_key(:tags)
+      expect(result[:outputs].first).to have_key(:custom_instructions)
+    end
+
+    it 'does not affect total_outputs count' do
+      result_default = wallet.list_outputs({ basket: 'flag test' })
+      result_with_flags = wallet.list_outputs({ basket: 'flag test', include_tags: true })
+      expect(result_default[:total_outputs]).to eq(result_with_flags[:total_outputs])
+    end
+
+    it 'does not mutate the original output hashes' do
+      stored = wallet.list_outputs({ basket: 'flag test', include_tags: true, include_custom_instructions: true })[:outputs]
+      original_keys = stored.first.keys.dup
+      wallet.list_outputs({ basket: 'flag test' })
+      expect(stored.first.keys).to eq(original_keys)
+    end
+  end
+
+  # -------------------------------------------------------------------------
   # #relinquish_output
   # -------------------------------------------------------------------------
   describe '#relinquish_output' do
@@ -1357,6 +1539,261 @@ RSpec.describe BSV::Wallet::WalletClient do
       # visited set but this is primarily a "does not crash" assertion.
       sourced = root_tx.inputs.count(&:source_transaction)
       expect(sourced).to be >= 1
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # substrate: delegation
+  # -------------------------------------------------------------------------
+  describe 'substrate: delegation' do
+    # rubocop:disable RSpec/VerifiedDoubles
+    let(:mock_substrate) do
+      spy('substrate',
+          create_action: { txid: 'abc' },
+          sign_action: { txid: 'abc' },
+          abort_action: { aborted: true },
+          list_actions: { total_actions: 0, actions: [] },
+          internalize_action: { accepted: true },
+          list_outputs: { total_outputs: 0, outputs: [] },
+          relinquish_output: { relinquished: true },
+          get_public_key: { public_key: '02deadbeef' },
+          reveal_counterparty_key_linkage: { encryption_revelation: {} },
+          reveal_specific_key_linkage: { revelation: {} },
+          encrypt: { ciphertext: [1, 2, 3] },
+          decrypt: { plaintext: [104] },
+          create_hmac: { hmac: [0] * 32 },
+          verify_hmac: { valid: true },
+          create_signature: { signature: [0] * 71 },
+          verify_signature: { valid: true },
+          acquire_certificate: { type: 'test' },
+          list_certificates: { total_certificates: 0, certificates: [] },
+          prove_certificate: { keyring_for_verifier: {} },
+          relinquish_certificate: { relinquished: true },
+          discover_by_identity_key: { total_certificates: 0, certificates: [] },
+          discover_by_attributes: { total_certificates: 0, certificates: [] },
+          is_authenticated: { authenticated: true },
+          wait_for_authentication: { authenticated: true },
+          get_height: { height: 999 },
+          get_header_for_height: { header: 'ff' * 80 },
+          get_network: { network: 'mainnet' },
+          get_version: { version: 'remote-1.0.0' })
+    end
+    # rubocop:enable RSpec/VerifiedDoubles
+
+    let(:wallet_with_substrate) do
+      described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, substrate: mock_substrate)
+    end
+
+    it 'exposes the substrate via #substrate' do
+      expect(wallet_with_substrate.substrate).to equal(mock_substrate)
+    end
+
+    it 'delegates create_action to the substrate' do
+      wallet_with_substrate.create_action({ description: 'pay' })
+      expect(mock_substrate).to have_received(:create_action).with({ description: 'pay' }, originator: nil)
+    end
+
+    it 'forwards originator to create_action' do
+      wallet_with_substrate.create_action({ description: 'pay' }, originator: 'app.example.com')
+      expect(mock_substrate).to have_received(:create_action).with(anything, originator: 'app.example.com')
+    end
+
+    it 'delegates sign_action to the substrate' do
+      wallet_with_substrate.sign_action({ reference: 'ref' })
+      expect(mock_substrate).to have_received(:sign_action).with({ reference: 'ref' }, originator: nil)
+    end
+
+    it 'delegates abort_action to the substrate' do
+      wallet_with_substrate.abort_action({ reference: 'ref' })
+      expect(mock_substrate).to have_received(:abort_action).with({ reference: 'ref' }, originator: nil)
+    end
+
+    it 'delegates list_actions to the substrate' do
+      wallet_with_substrate.list_actions({ labels: ['pay'] })
+      expect(mock_substrate).to have_received(:list_actions).with({ labels: ['pay'] }, originator: nil)
+    end
+
+    it 'delegates internalize_action to the substrate' do
+      wallet_with_substrate.internalize_action({ tx: [] })
+      expect(mock_substrate).to have_received(:internalize_action).with({ tx: [] }, originator: nil)
+    end
+
+    it 'delegates list_outputs to the substrate' do
+      wallet_with_substrate.list_outputs({ basket: 'default' })
+      expect(mock_substrate).to have_received(:list_outputs).with({ basket: 'default' }, originator: nil)
+    end
+
+    it 'delegates relinquish_output to the substrate' do
+      wallet_with_substrate.relinquish_output({ output: 'abc.0' })
+      expect(mock_substrate).to have_received(:relinquish_output).with({ output: 'abc.0' }, originator: nil)
+    end
+
+    it 'delegates get_public_key to the substrate' do
+      wallet_with_substrate.get_public_key({ identity_key: true })
+      expect(mock_substrate).to have_received(:get_public_key).with({ identity_key: true }, originator: nil)
+    end
+
+    it 'forwards originator to get_public_key' do
+      wallet_with_substrate.get_public_key({ identity_key: true }, originator: 'app.example.com')
+      expect(mock_substrate).to have_received(:get_public_key).with(anything, originator: 'app.example.com')
+    end
+
+    it 'delegates reveal_counterparty_key_linkage to the substrate' do
+      args = { counterparty: '02abc', protocol_id: [0, 'test'], key_id: '1' }
+      wallet_with_substrate.reveal_counterparty_key_linkage(args)
+      expect(mock_substrate).to have_received(:reveal_counterparty_key_linkage).with(args, originator: nil)
+    end
+
+    it 'delegates reveal_specific_key_linkage to the substrate' do
+      args = { counterparty: '02abc', protocol_id: [0, 'test'], key_id: '1', privilege_level: 'low' }
+      wallet_with_substrate.reveal_specific_key_linkage(args)
+      expect(mock_substrate).to have_received(:reveal_specific_key_linkage).with(args, originator: nil)
+    end
+
+    it 'delegates encrypt to the substrate' do
+      args = { plaintext: [1, 2, 3], protocol_id: [0, 'test'], key_id: '1', counterparty: 'self' }
+      wallet_with_substrate.encrypt(args)
+      expect(mock_substrate).to have_received(:encrypt).with(args, originator: nil)
+    end
+
+    it 'delegates decrypt to the substrate' do
+      args = { ciphertext: [1, 2, 3], protocol_id: [0, 'test'], key_id: '1', counterparty: 'self' }
+      wallet_with_substrate.decrypt(args)
+      expect(mock_substrate).to have_received(:decrypt).with(args, originator: nil)
+    end
+
+    it 'delegates create_hmac to the substrate' do
+      args = { data: [1, 2, 3], protocol_id: [0, 'test'], key_id: '1', counterparty: 'self' }
+      wallet_with_substrate.create_hmac(args)
+      expect(mock_substrate).to have_received(:create_hmac).with(args, originator: nil)
+    end
+
+    it 'delegates verify_hmac to the substrate' do
+      args = { data: [1], hmac: [0] * 32, protocol_id: [0, 'test'], key_id: '1', counterparty: 'self' }
+      wallet_with_substrate.verify_hmac(args)
+      expect(mock_substrate).to have_received(:verify_hmac).with(args, originator: nil)
+    end
+
+    it 'delegates create_signature to the substrate' do
+      args = { data: [1], protocol_id: [0, 'test'], key_id: '1', counterparty: 'self' }
+      wallet_with_substrate.create_signature(args)
+      expect(mock_substrate).to have_received(:create_signature).with(args, originator: nil)
+    end
+
+    it 'delegates verify_signature to the substrate' do
+      args = { data: [1], signature: [0] * 71, protocol_id: [0, 'test'], key_id: '1', counterparty: 'self' }
+      wallet_with_substrate.verify_signature(args)
+      expect(mock_substrate).to have_received(:verify_signature).with(args, originator: nil)
+    end
+
+    it 'delegates acquire_certificate to the substrate' do
+      args = { type: 'test', certifier: '02abc', acquisition_protocol: 'direct' }
+      wallet_with_substrate.acquire_certificate(args)
+      expect(mock_substrate).to have_received(:acquire_certificate).with(args, originator: nil)
+    end
+
+    it 'delegates list_certificates to the substrate' do
+      args = { certifiers: ['02abc'], types: ['test'] }
+      wallet_with_substrate.list_certificates(args)
+      expect(mock_substrate).to have_received(:list_certificates).with(args, originator: nil)
+    end
+
+    it 'delegates prove_certificate to the substrate' do
+      args = { certificate: { type: 'test', serial_number: 'sn', certifier: '02abc' },
+               fields_to_reveal: ['name'], verifier: '02abc' }
+      wallet_with_substrate.prove_certificate(args)
+      expect(mock_substrate).to have_received(:prove_certificate).with(args, originator: nil)
+    end
+
+    it 'delegates relinquish_certificate to the substrate' do
+      args = { type: 'test', serial_number: 'sn', certifier: '02abc' }
+      wallet_with_substrate.relinquish_certificate(args)
+      expect(mock_substrate).to have_received(:relinquish_certificate).with(args, originator: nil)
+    end
+
+    it 'delegates discover_by_identity_key to the substrate' do
+      args = { identity_key: '02abc' }
+      wallet_with_substrate.discover_by_identity_key(args)
+      expect(mock_substrate).to have_received(:discover_by_identity_key).with(args, originator: nil)
+    end
+
+    it 'delegates discover_by_attributes to the substrate' do
+      args = { attributes: { name: 'Alice' } }
+      wallet_with_substrate.discover_by_attributes(args)
+      expect(mock_substrate).to have_received(:discover_by_attributes).with(args, originator: nil)
+    end
+
+    it 'delegates is_authenticated to the substrate' do
+      wallet_with_substrate.is_authenticated
+      expect(mock_substrate).to have_received(:is_authenticated).with({}, originator: nil)
+    end
+
+    it 'delegates wait_for_authentication to the substrate' do
+      wallet_with_substrate.wait_for_authentication
+      expect(mock_substrate).to have_received(:wait_for_authentication).with({}, originator: nil)
+    end
+
+    it 'delegates get_height to the substrate' do
+      wallet_with_substrate.get_height
+      expect(mock_substrate).to have_received(:get_height).with({}, originator: nil)
+    end
+
+    it 'delegates get_header_for_height to the substrate' do
+      wallet_with_substrate.get_header_for_height({ height: 100 })
+      expect(mock_substrate).to have_received(:get_header_for_height).with({ height: 100 }, originator: nil)
+    end
+
+    it 'delegates get_network to the substrate' do
+      wallet_with_substrate.get_network
+      expect(mock_substrate).to have_received(:get_network).with({}, originator: nil)
+    end
+
+    it 'delegates get_version to the substrate' do
+      wallet_with_substrate.get_version
+      expect(mock_substrate).to have_received(:get_version).with({}, originator: nil)
+    end
+
+    it 'returns the substrate result for get_height' do
+      expect(wallet_with_substrate.get_height).to eq({ height: 999 })
+    end
+
+    it 'returns the substrate result for get_network' do
+      expect(wallet_with_substrate.get_network).to eq({ network: 'mainnet' })
+    end
+
+    it 'returns the substrate result for get_version' do
+      expect(wallet_with_substrate.get_version).to eq({ version: 'remote-1.0.0' })
+    end
+
+    it 'leaves the local wallet (no substrate) unchanged for get_height' do
+      # NullChainProvider raises UnsupportedActionError — confirms local path is taken, not substrate
+      chain = BSV::Wallet::NullChainProvider.new
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new,
+                                           chain_provider: chain)
+      expect { w.get_height }.to raise_error(BSV::Wallet::UnsupportedActionError)
+    end
+
+    it 'leaves the local wallet (no substrate) unchanged for is_authenticated' do
+      expect(wallet.is_authenticated).to eq({ authenticated: true })
+    end
+
+    it 'leaves the local wallet (no substrate) unchanged for get_network' do
+      expect(wallet.get_network).to eq({ network: 'mainnet' })
+    end
+
+    it 'constructs without error when given an HTTPWalletJSON substrate' do
+      substrate = BSV::Wallet::Substrates::HTTPWalletJSON.new('http://localhost:3321')
+      expect do
+        described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, substrate: substrate)
+      end.not_to raise_error
+    end
+
+    it 'constructs without error when given a WalletWireTransceiver substrate' do
+      wire = double('wire', transmit_to_wallet: []) # rubocop:disable RSpec/VerifiedDoubles
+      transceiver = BSV::Wallet::Substrates::WalletWireTransceiver.new(wire)
+      expect do
+        described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, substrate: transceiver)
+      end.not_to raise_error
     end
   end
 end

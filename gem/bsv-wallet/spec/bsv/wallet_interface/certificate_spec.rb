@@ -230,30 +230,38 @@ RSpec.describe 'WalletClient certificate methods' do
     end
 
     context 'with issuance protocol' do
-      let(:issuance_response) do
-        {
-          'type' => cert_type,
-          'subject' => wallet.key_deriver.identity_key,
-          'serialNumber' => serial_number,
-          'certifier' => certifier_hex,
-          'revocationOutpoint' => revocation_outpoint,
-          'signature' => signature,
-          'fields' => fields,
-          'keyringForSubject' => keyring
-        }
+      let(:issuance_response_body) do
+        JSON.generate({
+                        'type' => cert_type,
+                        'subject' => wallet.key_deriver.identity_key,
+                        'serialNumber' => serial_number,
+                        'certifier' => certifier_hex,
+                        'revocationOutpoint' => revocation_outpoint,
+                        'signature' => signature,
+                        'fields' => fields,
+                        'keyringForSubject' => keyring
+                      })
       end
 
-      let(:mock_http) do
-        resp = issuance_response
-        Class.new do
-          define_method(:request) do |_uri, _req|
-            Struct.new(:code, :body).new('200', JSON.generate(resp))
-          end
-        end.new
+      let(:mock_auth_response) do
+        BSV::Auth::AuthResponse.new(
+          status: 200,
+          headers: {},
+          body: issuance_response_body,
+          identity_key: certifier_hex
+        )
+      end
+
+      let(:mock_auth_fetch) do
+        # rubocop:disable RSpec/VerifiedDoubles
+        double('auth_fetch', fetch: mock_auth_response)
+        # rubocop:enable RSpec/VerifiedDoubles
       end
 
       let(:issuance_wallet) do
-        BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new, http_client: mock_http)
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        allow(w).to receive(:auth_fetch_client).and_return(mock_auth_fetch)
+        w
       end
 
       let(:issuance_args) do
@@ -285,20 +293,81 @@ RSpec.describe 'WalletClient certificate methods' do
         expect(certs[:total_certificates]).to eq(1)
       end
 
+      it 'calls AuthFetch#fetch with correct URL, method, headers, and body' do
+        expected_body = JSON.generate({
+                                        type: cert_type,
+                                        subject: issuance_wallet.key_deriver.identity_key,
+                                        certifier: certifier_hex,
+                                        fields: fields
+                                      })
+        allow(mock_auth_fetch).to receive(:fetch).and_return(mock_auth_response)
+        issuance_wallet.acquire_certificate(issuance_args)
+        expect(mock_auth_fetch).to have_received(:fetch).with(
+          'https://certifier.example.com/api/issue',
+          method: 'POST',
+          headers: { 'content-type' => 'application/json' },
+          body: expected_body
+        )
+      end
+
       it 'raises WalletError on HTTP failure' do
-        failing_http = Class.new do
-          define_method(:request) { |_uri, _req| Struct.new(:code, :body).new('500', 'error') }
-        end.new
-        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new, http_client: failing_http)
+        # rubocop:disable RSpec/VerifiedDoubles
+        failing_auth_fetch = double('auth_fetch')
+        # rubocop:enable RSpec/VerifiedDoubles
+        allow(failing_auth_fetch).to receive(:fetch).and_return(
+          BSV::Auth::AuthResponse.new(status: 500, headers: {}, body: 'error', identity_key: certifier_hex)
+        )
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        allow(w).to receive(:auth_fetch_client).and_return(failing_auth_fetch)
         expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /HTTP 500/)
       end
 
       it 'raises WalletError on invalid JSON response' do
-        bad_http = Class.new do
-          define_method(:request) { |_uri, _req| Struct.new(:code, :body).new('200', 'not json') }
-        end.new
-        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new, http_client: bad_http)
+        # rubocop:disable RSpec/VerifiedDoubles
+        bad_auth_fetch = double('auth_fetch')
+        # rubocop:enable RSpec/VerifiedDoubles
+        allow(bad_auth_fetch).to receive(:fetch).and_return(
+          BSV::Auth::AuthResponse.new(status: 200, headers: {}, body: 'not json', identity_key: certifier_hex)
+        )
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        allow(w).to receive(:auth_fetch_client).and_return(bad_auth_fetch)
         expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /invalid JSON/)
+      end
+
+      it 'verifies the certifier signature on the issuance response' do
+        # rubocop:disable RSpec/VerifiedDoubles
+        tampered_auth_fetch = double('auth_fetch')
+        # rubocop:enable RSpec/VerifiedDoubles
+        tampered_body = JSON.generate({
+                                        'type' => cert_type,
+                                        'serialNumber' => serial_number,
+                                        'revocationOutpoint' => revocation_outpoint,
+                                        'signature' => 'ff' * 70,
+                                        'fields' => fields
+                                      })
+        allow(tampered_auth_fetch).to receive(:fetch).and_return(
+          BSV::Auth::AuthResponse.new(status: 200, headers: {}, body: tampered_body, identity_key: certifier_hex)
+        )
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        allow(w).to receive(:auth_fetch_client).and_return(tampered_auth_fetch)
+        expect { w.acquire_certificate(issuance_args) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'lazily initialises auth_fetch_client on first call and memoises it' do
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        allow(BSV::Auth::AuthFetch).to receive(:new).and_call_original
+        client1 = w.send(:auth_fetch_client)
+        client2 = w.send(:auth_fetch_client)
+        expect(client1).to be(client2)
+        expect(BSV::Auth::AuthFetch).to have_received(:new).once
+      end
+
+      it 'passes self as the wallet to AuthFetch' do
+        w = BSV::Wallet::WalletClient.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        allow(BSV::Auth::AuthFetch).to receive(:new).and_call_original
+        w.send(:auth_fetch_client)
+        expect(BSV::Auth::AuthFetch).to have_received(:new).with(wallet: w)
       end
     end
 

@@ -106,6 +106,7 @@ Metrics/ModuleLength:
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
+    - 'gem/bsv-sdk/lib/bsv/wire_format.rb'
     - 'gem/*/spec/**/*'
 
 Metrics/ClassLength:
@@ -213,6 +214,7 @@ RSpec/ExampleLength:
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
+    - 'gem/bsv-sdk/spec/bsv/wire_format_spec.rb'
 
 # Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
 # Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
