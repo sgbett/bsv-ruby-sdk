@@ -532,6 +532,14 @@ RSpec.describe BSV::Auth::Peer do
   describe 'certificateResponse dispatch and processing' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
+    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:bob) do
+      described_class.new(
+        wallet: bob_wallet,
+        transport: transport_b,
+        certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
+      )
+    end
 
     let(:verifiable_cert) do
       build_verifiable_certificate(
@@ -929,6 +937,14 @@ RSpec.describe BSV::Auth::Peer do
   describe '#send_certificate_response' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
+    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:bob) do
+      described_class.new(
+        wallet: bob_wallet,
+        transport: transport_b,
+        certificates_to_request: { certifiers: [certifier_hex], types: { cert_type => ['name'] } }
+      )
+    end
 
     let(:verifiable_cert) do
       build_verifiable_certificate(

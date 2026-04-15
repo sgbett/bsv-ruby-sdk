@@ -738,7 +738,10 @@ module BSV
 
         if certs.is_a?(Array) && !certs.empty?
           validation_msg = { identity_key: session.peer_identity_key, certificates: certs }
-          BSV::Auth.validate_certificates(@wallet, validation_msg)
+          # Filter by configured certifier/type allowlist when present; skip when
+          # no certifier requirements are configured (dynamic request_certificates flow).
+          cert_filter = certifiers_present? ? @certificates_to_request : nil
+          BSV::Auth.validate_certificates(@wallet, validation_msg, cert_filter)
           session.certificates_validated = true
           session.last_update = current_time_ms
           @session_manager.update_session(session)
