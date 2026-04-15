@@ -5,6 +5,28 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.0 — 2026-04-15
+
+### Added
+- BRC-100 substrates: `HTTPWalletJSON` for JSON-over-HTTP, `HTTPWalletWire`
+  for binary transport, and `WalletWireTransceiver` Interface adapter (#449–#451)
+- `WalletClient` accepts `substrate:` constructor param for remote wallet
+  delegation — all Interface methods delegate to the substrate when set (#452)
+- `list_actions` and `list_outputs` honour `include_labels`, `include_inputs`,
+  and `include_outputs` flags (#448)
+- `acquire_certificate` uses `AuthFetch` for BRC-104 authenticated certificate
+  issuance (#453)
+
+### Fixed
+- `prove_certificate` now uses correct protocol ID (`'certificate field encryption'`)
+  and key ID format (`"#{serial_number} #{field_name}"`) matching TS/Go SDKs —
+  previously incompatible cross-SDK (#424)
+- Code review findings addressed for substrates and include flags
+
+### Changed
+- `BSV::WalletInterface` module removed — `VERSION` now lives in `BSV::Wallet::VERSION`
+  where all other wallet constants already reside
+
 ## 0.7.0 — 2026-04-12
 
 ### Added
