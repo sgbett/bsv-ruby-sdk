@@ -215,7 +215,7 @@ module BSV
         query = build_action_query(args)
         total = @storage.count_actions(query)
         actions = @storage.find_actions(query)
-        { total_actions: total, actions: actions }
+        { total_actions: total, actions: strip_action_fields(actions, args) }
       end
 
       # Lists spendable outputs in a basket.
@@ -233,7 +233,7 @@ module BSV
         query = build_output_query(args)
         total = @storage.count_outputs(query)
         outputs = @storage.find_outputs(query)
-        { total_outputs: total, outputs: outputs }
+        { total_outputs: total, outputs: strip_output_fields(outputs, args) }
       end
 
       # Removes an output from basket tracking.
@@ -1436,6 +1436,42 @@ module BSV
         query
       end
 
+      # --- Include-flag stripping ---
+
+      def strip_action_fields(actions, args)
+        actions.map do |action|
+          a = action.dup
+          a.delete(:labels) unless args[:include_labels] == true
+          a.delete(:inputs) unless args[:include_inputs] == true
+
+          if a.key?(:inputs) && args[:include_input_source_locking_scripts] != true
+            a[:inputs] = a[:inputs].map { |i| i.dup.tap { |h| h.delete(:source_locking_script) } }
+          end
+
+          if a.key?(:inputs) && args[:include_input_unlocking_scripts] != true
+            a[:inputs] = a[:inputs].map { |i| i.dup.tap { |h| h.delete(:unlocking_script) } }
+          end
+
+          a.delete(:outputs) unless args[:include_outputs] == true
+
+          if a.key?(:outputs) && args[:include_output_locking_scripts] != true
+            a[:outputs] = a[:outputs].map { |o| o.dup.tap { |h| h.delete(:locking_script) } }
+          end
+
+          a
+        end
+      end
+
+      def strip_output_fields(outputs, args)
+        outputs.map do |output|
+          o = output.dup
+          o.delete(:tags) unless args[:include_tags] == true
+          o.delete(:labels) unless args[:include_labels] == true
+          o.delete(:custom_instructions) unless args[:include_custom_instructions] == true
+          o
+        end
+      end
+
       # --- Internalize helpers ---
 
       def store_proofs_from_beef(beef)
@@ -1580,20 +1616,19 @@ module BSV
       end
 
       def acquire_via_issuance(args)
-        uri = URI(args[:certifier_url])
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request.body = JSON.generate({
-                                       type: args[:type],
-                                       subject: @key_deriver.identity_key,
-                                       certifier: args[:certifier],
-                                       fields: args[:fields]
-                                     })
+        response = auth_fetch_client.fetch(
+          args[:certifier_url],
+          method: 'POST',
+          headers: { 'content-type' => 'application/json' },
+          body: JSON.generate({
+                                type: args[:type],
+                                subject: @key_deriver.identity_key,
+                                certifier: args[:certifier],
+                                fields: args[:fields]
+                              })
+        )
 
-        response = execute_http(uri, request)
-        code = response.code.to_i
-
-        raise WalletError, "Certificate issuance failed: HTTP #{code}" unless (200..299).cover?(code)
+        raise WalletError, "Certificate issuance failed: HTTP #{response.status}" unless (200..299).cover?(response.status)
 
         body = JSON.parse(response.body)
 
@@ -1617,6 +1652,10 @@ module BSV
         cert
       rescue JSON::ParserError
         raise WalletError, 'Certificate issuance failed: invalid JSON response'
+      end
+
+      def auth_fetch_client
+        @auth_fetch ||= BSV::Auth::AuthFetch.new(wallet: self)
       end
 
       def execute_http(uri, request)
