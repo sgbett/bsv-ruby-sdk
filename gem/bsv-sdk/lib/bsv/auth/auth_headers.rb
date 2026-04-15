@@ -19,6 +19,9 @@ module BSV
       # Common prefix for all BSV auth headers.
       AUTH_PREFIX = 'x-bsv-auth'
 
+      # Prefix for BSV payment headers (excluded from signed payload).
+      PAYMENT_PREFIX = 'x-bsv-payment'
+
       # Prefix for all BSV custom headers (non-auth).
       BSV_PREFIX = 'x-bsv-'
 
@@ -78,6 +81,7 @@ module BSV
           key = k.to_s.downcase
           if key.start_with?(BSV_PREFIX)
             raise ArgumentError, "BSV auth headers are not allowed in the request payload: #{key}" if key.start_with?(AUTH_PREFIX)
+            next if key.start_with?(PAYMENT_PREFIX) # payment headers are transport-level, not signed
 
             result << [key, v.to_s]
           elsif key == 'authorization'

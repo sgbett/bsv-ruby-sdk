@@ -142,12 +142,18 @@ module BSV
           payload: payload_bin.bytes
         }
 
-        @bridge.inject(auth_message)
-        # Wait for Peer to process — Peer fires no response for general messages
-        # but may raise AuthError if signature verification fails.
-        # The bridge may not receive a queued response; we just need to know it
-        # succeeded without an error.
-        @bridge.drain_if_pending
+        begin
+          @bridge.inject(auth_message)
+          # Wait for Peer to process — Peer fires no response for general messages
+          # but may raise AuthError if signature verification fails.
+          # The bridge may not receive a queued response; we just need to know it
+          # succeeded without an error.
+          @bridge.drain_if_pending
+        rescue ArgumentError
+          # DER parsing or other signature-related ArgumentErrors from the
+          # crypto layer should be treated as auth failures, not programming errors.
+          return [401, { 'content-type' => 'text/plain' }, ['Unauthorized']]
+        end
 
         # Rewind body so downstream app can read it
         rewind_body(env)
@@ -195,7 +201,7 @@ module BSV
 
         merged_headers = downstream_headers.merge(auth_response_headers)
         [downstream_status, merged_headers, [body_str]]
-      rescue AuthError, ArgumentError
+      rescue AuthError
         [401, { 'content-type' => 'text/plain' }, ['Unauthorized']]
       end
 
@@ -229,8 +235,7 @@ module BSV
       def collect_body(body)
         return '' if body.nil?
 
-        parts = body.map { |chunk| chunk }
-        parts.join
+        body.to_a.join
       end
 
       # Extracts x-bsv-auth-* headers from the Rack env.

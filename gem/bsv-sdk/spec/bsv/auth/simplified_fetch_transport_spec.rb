@@ -94,7 +94,7 @@ RSpec.describe 'BSV::Auth::SimplifiedFetchTransport' do
     it 'raises an error' do
       message = { version: '0.1', message_type: 'initialRequest', identity_key: 'aabbcc',
                   initial_nonce: 'nonce123', requested_certificates: {} }
-      expect { transport.send(message) }.to raise_error(/Listen before you start speaking/)
+      expect { transport.send(message) }.to raise_error(/on_data callback was registered/)
     end
   end
 

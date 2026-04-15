@@ -84,7 +84,7 @@ module BSV
         filtered_headers = AuthHeaders.filter_request_headers(headers)
 
         # Normalise body: Hash → JSON string, set content-type if not already set
-        effective_body, filtered_headers = normalise_body(body, method, filtered_headers)
+        effective_body, filtered_headers = normalise_body(body, filtered_headers)
 
         # Generate 32-byte request nonce
         request_nonce = SecureRandom.random_bytes(32)
@@ -282,7 +282,9 @@ module BSV
           }]
         )
 
-        tx_bytes = action_result[:tx]
+        tx_bytes = action_result[:tx] || action_result['tx']
+        raise AuthError, 'wallet.create_action did not return a :tx byte array' unless tx_bytes.is_a?(Array)
+
         transaction_base64 = Base64.strict_encode64(tx_bytes.pack('C*'))
 
         {
@@ -336,11 +338,10 @@ module BSV
       # Normalises the request body and updates headers accordingly.
       #
       # - Hash body → JSON.generate, sets content-type to application/json if absent
-      # - nil body + body-carrying method + JSON content-type → defaults to '{}'
-      # - String body → used as-is
+      # - String/nil body → used as-is (nil body defaults handled by AuthPayload)
       #
       # Returns [normalised_body, updated_filtered_headers].
-      def normalise_body(body, _method, filtered_headers)
+      def normalise_body(body, filtered_headers)
         if body.is_a?(Hash)
           json_body = JSON.generate(body)
           # Add content-type: application/json if not already present
