@@ -1,11 +1,9 @@
 # frozen_string_literal: true
 
 module BSV
-  module WalletInterface
-    autoload :VERSION, 'bsv/wallet_interface/version'
-  end
-
   module Wallet
+    autoload :VERSION,          'bsv/wallet_interface/version'
+
     # BRC-100 Interface
     autoload :Interface,        'bsv/wallet_interface/interface'
     autoload :KeyDeriver,       'bsv/wallet_interface/key_deriver'

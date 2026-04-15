@@ -3,8 +3,8 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe 'BSV::WalletInterface::VERSION' do
+RSpec.describe 'BSV::Wallet::VERSION' do
   it 'is a semver string' do
-    expect(BSV::WalletInterface::VERSION).to match(/\A\d+\.\d+\.\d+\z/)
+    expect(BSV::Wallet::VERSION).to match(/\A\d+\.\d+\.\d+\z/)
   end
 end

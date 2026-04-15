@@ -4,7 +4,7 @@ require_relative 'lib/bsv/wallet_interface/version'
 
 Gem::Specification.new do |spec|
   spec.name    = 'bsv-wallet'
-  spec.version = BSV::WalletInterface::VERSION
+  spec.version = BSV::Wallet::VERSION
   spec.authors = ['Simon Bettison']
 
   spec.summary     = 'BRC-100 Wallet Interface for the BSV Blockchain'

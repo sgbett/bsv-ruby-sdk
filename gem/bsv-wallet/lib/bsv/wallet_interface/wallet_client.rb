@@ -349,7 +349,7 @@ module BSV
       def get_version(args = {}, originator: nil)
         return @substrate.get_version(args, originator: originator) if @substrate
 
-        { version: "bsv-wallet-#{BSV::WalletInterface::VERSION}" }
+        { version: "bsv-wallet-#{BSV::Wallet::VERSION}" }
       end
 
       # Discovers on-chain UTXOs for the wallet's identity address and imports

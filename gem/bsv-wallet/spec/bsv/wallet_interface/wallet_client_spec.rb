@@ -1345,7 +1345,7 @@ RSpec.describe BSV::Wallet::WalletClient do
   describe '#get_version' do
     it 'returns the wallet version string' do
       result = wallet.get_version
-      expect(result[:version]).to eq("bsv-wallet-#{BSV::WalletInterface::VERSION}")
+      expect(result[:version]).to eq("bsv-wallet-#{BSV::Wallet::VERSION}")
     end
 
     it 'matches the BRC-100 vendor-major.minor.patch format' do

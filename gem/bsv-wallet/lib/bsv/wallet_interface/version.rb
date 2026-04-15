@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module BSV
-  module WalletInterface
+  module Wallet
     VERSION = '0.7.0'
   end
 end

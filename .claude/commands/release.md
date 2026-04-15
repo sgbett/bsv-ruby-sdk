@@ -17,7 +17,7 @@ Guided release workflow for a single gem from this monorepo. Releases one gem pe
 
 Version constants:
 - `sdk` → `BSV::VERSION`
-- `wallet` → `BSV::WalletInterface::VERSION`
+- `wallet` → `BSV::Wallet::VERSION`
 - `wallet-postgres` → `BSV::WalletPostgres::VERSION`
 - `attest` → `BSV::Attest::VERSION`
 
