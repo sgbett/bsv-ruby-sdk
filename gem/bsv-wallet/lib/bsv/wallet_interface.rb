@@ -23,6 +23,7 @@ module BSV
     autoload :WhatsOnChainProvider,   'bsv/wallet_interface/whats_on_chain_provider'
     autoload :WalletClient,      'bsv/wallet_interface/wallet_client'
     autoload :Wire,              'bsv/wallet_interface/wire'
+    autoload :Substrates,        'bsv/wallet_interface/substrates'
     autoload :CertificateSignature, 'bsv/wallet_interface/certificate_signature'
     autoload :FeeModel,             'bsv/wallet_interface/fee_model'
     autoload :FeeEstimator,         'bsv/wallet_interface/fee_estimator'
