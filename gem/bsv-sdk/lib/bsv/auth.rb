@@ -3,6 +3,8 @@
 module BSV
   module Auth
     autoload :AuthError,      'bsv/auth/auth_error'
+    autoload :AuthHeaders,    'bsv/auth/auth_headers'
+    autoload :AuthPayload,    'bsv/auth/auth_payload'
     autoload :Nonce,          'bsv/auth/nonce'
     autoload :PeerSession,    'bsv/auth/peer_session'
     autoload :SessionManager, 'bsv/auth/session_manager'

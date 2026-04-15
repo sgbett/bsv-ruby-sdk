@@ -103,6 +103,7 @@ Metrics/ModuleLength:
     - 'gem/bsv-sdk/lib/bsv/script/opcodes.rb'
     - 'gem/bsv-sdk/lib/bsv/script/interpreter/operations/**/*'
     - 'gem/bsv-wallet/lib/bsv/wallet_interface/**/*'
+    - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'gem/*/spec/**/*'
