@@ -45,6 +45,9 @@ module BSV
       # @return [BroadcastQueue] the broadcast queue used to dispatch transactions
       attr_reader :broadcast_queue
 
+      # @return [Interface, nil] the optional substrate for remote wallet delegation
+      attr_reader :substrate
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
@@ -54,6 +57,10 @@ module BSV
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
       # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
       # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to InlineQueue
+      # @param substrate [Interface, nil] optional remote wallet substrate; when set, all Interface
+      #   methods delegate to the substrate instead of using local storage and key derivation.
+      #   Accepts any object implementing {Interface} (e.g. {Substrates::HTTPWalletJSON},
+      #   {Substrates::WalletWireTransceiver}).
       def initialize(
         key,
         storage: FileStore.new,
@@ -65,9 +72,11 @@ module BSV
         coin_selector: nil,
         change_generator: nil,
         broadcaster: nil,
-        broadcast_queue: nil
+        broadcast_queue: nil,
+        substrate: nil
       )
         super(key)
+        @substrate = substrate
         @storage = storage
         @network = network
         @chain_provider = chain_provider
@@ -110,7 +119,9 @@ module BSV
       #   UTXOs and generates change; requires +:outputs+ and no +:inputs+
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] finalised result or signable_transaction
-      def create_action(args, _originator: nil)
+      def create_action(args, originator: nil)
+        return @substrate.create_action(args, originator: originator) if @substrate
+
         validate_create_action!(args)
 
         send_with_txids = Array(args.dig(:options, :send_with))
@@ -156,7 +167,9 @@ module BSV
       # @option args [String] :reference base64 reference from create_action
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] with :txid and :tx (BEEF bytes)
-      def sign_action(args, _originator: nil)
+      def sign_action(args, originator: nil)
+        return @substrate.sign_action(args, originator: originator) if @substrate
+
         reference = args[:reference]
         pending = @pending[reference]
         raise WalletError, 'Transaction not found for the given reference' unless pending
@@ -185,7 +198,9 @@ module BSV
       # @option args [String] :reference base64 reference to abort
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] { aborted: true }
-      def abort_action(args, _originator: nil)
+      def abort_action(args, originator: nil)
+        return @substrate.abort_action(args, originator: originator) if @substrate
+
         reference = args[:reference]
         raise WalletError, 'Transaction not found for the given reference' unless @pending.key?(reference)
 
@@ -210,7 +225,9 @@ module BSV
       # @option args [Integer] :offset results to skip (default 0)
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] { total_actions: Integer, actions: Array }
-      def list_actions(args, _originator: nil)
+      def list_actions(args, originator: nil)
+        return @substrate.list_actions(args, originator: originator) if @substrate
+
         validate_list_actions!(args)
         query = build_action_query(args)
         total = @storage.count_actions(query)
@@ -228,7 +245,9 @@ module BSV
       # @option args [Integer] :offset results to skip (default 0)
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] { total_outputs: Integer, outputs: Array }
-      def list_outputs(args, _originator: nil)
+      def list_outputs(args, originator: nil)
+        return @substrate.list_outputs(args, originator: originator) if @substrate
+
         validate_list_outputs!(args)
         query = build_output_query(args)
         total = @storage.count_outputs(query)
@@ -243,7 +262,9 @@ module BSV
       # @option args [String] :output outpoint string
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] { relinquished: true }
-      def relinquish_output(args, _originator: nil)
+      def relinquish_output(args, originator: nil)
+        return @substrate.relinquish_output(args, originator: originator) if @substrate
+
         Validators.validate_basket!(args[:basket])
         Validators.validate_outpoint!(args[:output])
         raise WalletError, 'Output not found' unless @storage.delete_output(args[:output])
@@ -264,7 +285,9 @@ module BSV
       # @option args [Array<String>] :labels optional labels
       # @param _originator [String, nil] FQDN of the originating application
       # @return [Hash] { accepted: true }
-      def internalize_action(args, _originator: nil)
+      def internalize_action(args, originator: nil)
+        return @substrate.internalize_action(args, originator: originator) if @substrate
+
         validate_internalize_action!(args)
         beef_binary = args[:tx].pack('C*')
         beef = BSV::Transaction::Beef.from_binary(beef_binary)
@@ -290,7 +313,9 @@ module BSV
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { height: Integer }
-      def get_height(_args = {}, _originator: nil)
+      def get_height(args = {}, originator: nil)
+        return @substrate.get_height(args, originator: originator) if @substrate
+
         { height: @chain_provider.get_height }
       end
 
@@ -299,7 +324,9 @@ module BSV
       # @param args [Hash]
       # @option args [Integer] :height block height
       # @return [Hash] { header: String } 80-byte hex-encoded block header
-      def get_header_for_height(args, _originator: nil)
+      def get_header_for_height(args, originator: nil)
+        return @substrate.get_header_for_height(args, originator: originator) if @substrate
+
         raise InvalidParameterError.new('height', 'a positive Integer') unless args[:height].is_a?(Integer) && args[:height].positive?
 
         { header: @chain_provider.get_header(args[:height]) }
@@ -309,7 +336,9 @@ module BSV
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { network: String } 'mainnet' or 'testnet'
-      def get_network(_args = {}, _originator: nil)
+      def get_network(args = {}, originator: nil)
+        return @substrate.get_network(args, originator: originator) if @substrate
+
         { network: @network }
       end
 
@@ -317,7 +346,9 @@ module BSV
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { version: String } in vendor-major.minor.patch format
-      def get_version(_args = {}, _originator: nil)
+      def get_version(args = {}, originator: nil)
+        return @substrate.get_version(args, originator: originator) if @substrate
+
         { version: "bsv-wallet-#{BSV::WalletInterface::VERSION}" }
       end
 
@@ -427,7 +458,9 @@ module BSV
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { authenticated: Boolean }
-      def is_authenticated(_args = {}, _originator: nil)
+      def is_authenticated(args = {}, originator: nil)
+        return @substrate.is_authenticated(args, originator: originator) if @substrate
+
         { authenticated: true }
       end
 
@@ -436,7 +469,9 @@ module BSV
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { authenticated: true }
-      def wait_for_authentication(_args = {}, _originator: nil)
+      def wait_for_authentication(args = {}, originator: nil)
+        return @substrate.wait_for_authentication(args, originator: originator) if @substrate
+
         { authenticated: true }
       end
 
@@ -458,7 +493,9 @@ module BSV
       # @option args [String] :keyring_revealer pubkey hex or 'certifier' (required for direct)
       # @option args [Hash] :keyring_for_subject field_name => base64 key (required for direct)
       # @return [Hash] the stored certificate
-      def acquire_certificate(args, _originator: nil)
+      def acquire_certificate(args, originator: nil)
+        return @substrate.acquire_certificate(args, originator: originator) if @substrate
+
         validate_acquire_certificate!(args)
 
         cert = if args[:acquisition_protocol] == 'issuance'
@@ -479,7 +516,9 @@ module BSV
       # @option args [Integer] :limit max results (default 10)
       # @option args [Integer] :offset number to skip (default 0)
       # @return [Hash] { total_certificates:, certificates: [...] }
-      def list_certificates(args, _originator: nil)
+      def list_certificates(args, originator: nil)
+        return @substrate.list_certificates(args, originator: originator) if @substrate
+
         raise InvalidParameterError.new('certifiers', 'a non-empty Array') unless args[:certifiers].is_a?(Array) && !args[:certifiers].empty?
         raise InvalidParameterError.new('types', 'a non-empty Array') unless args[:types].is_a?(Array) && !args[:types].empty?
 
@@ -505,7 +544,9 @@ module BSV
       # @option args [Array<String>] :fields_to_reveal field names to reveal
       # @option args [String] :verifier verifier public key hex
       # @return [Hash] { keyring_for_verifier: { field_name => Array<Integer> } }
-      def prove_certificate(args, _originator: nil)
+      def prove_certificate(args, originator: nil)
+        return @substrate.prove_certificate(args, originator: originator) if @substrate
+
         cert_arg = args[:certificate]
         fields_to_reveal = args[:fields_to_reveal]
         verifier = args[:verifier]
@@ -545,7 +586,9 @@ module BSV
       # @option args [String] :serial_number serial number
       # @option args [String] :certifier certifier public key hex
       # @return [Hash] { relinquished: true }
-      def relinquish_certificate(args, _originator: nil)
+      def relinquish_certificate(args, originator: nil)
+        return @substrate.relinquish_certificate(args, originator: originator) if @substrate
+
         deleted = @storage.delete_certificate(
           type: args[:type],
           serial_number: args[:serial_number],
@@ -566,7 +609,9 @@ module BSV
       # @option args [Integer] :limit max results (default 10)
       # @option args [Integer] :offset number to skip (default 0)
       # @return [Hash] { total_certificates:, certificates: [...] }
-      def discover_by_identity_key(args, _originator: nil)
+      def discover_by_identity_key(args, originator: nil)
+        return @substrate.discover_by_identity_key(args, originator: originator) if @substrate
+
         Validators.validate_pub_key_hex!(args[:identity_key], 'identity_key')
 
         query = { subject: args[:identity_key], limit: args[:limit] || 10, offset: args[:offset] || 0 }
@@ -585,13 +630,74 @@ module BSV
       # @option args [Integer] :limit max results (default 10)
       # @option args [Integer] :offset number to skip (default 0)
       # @return [Hash] { total_certificates:, certificates: [...] }
-      def discover_by_attributes(args, _originator: nil)
+      def discover_by_attributes(args, originator: nil)
+        return @substrate.discover_by_attributes(args, originator: originator) if @substrate
+
         raise InvalidParameterError.new('attributes', 'a non-empty Hash') unless args[:attributes].is_a?(Hash) && !args[:attributes].empty?
 
         query = { attributes: args[:attributes], limit: args[:limit] || 10, offset: args[:offset] || 0 }
         total = @storage.count_certificates(query)
         certs = @storage.find_certificates(query)
         { total_certificates: total, certificates: certs.map { |c| cert_without_keyring(c) } }
+      end
+
+      # --- ProtoWallet crypto method overrides for substrate delegation ---
+      #
+      # When a substrate is configured, these methods delegate to it rather than
+      # performing local key derivation and cryptographic operations.
+
+      def get_public_key(args, originator: nil)
+        return @substrate.get_public_key(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def reveal_counterparty_key_linkage(args, originator: nil)
+        return @substrate.reveal_counterparty_key_linkage(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def reveal_specific_key_linkage(args, originator: nil)
+        return @substrate.reveal_specific_key_linkage(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def encrypt(args, originator: nil)
+        return @substrate.encrypt(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def decrypt(args, originator: nil)
+        return @substrate.decrypt(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def create_hmac(args, originator: nil)
+        return @substrate.create_hmac(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def verify_hmac(args, originator: nil)
+        return @substrate.verify_hmac(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def create_signature(args, originator: nil)
+        return @substrate.create_signature(args, originator: originator) if @substrate
+
+        super
+      end
+
+      def verify_signature(args, originator: nil)
+        return @substrate.verify_signature(args, originator: originator) if @substrate
+
+        super
       end
 
       # Maximum ancestor depth to traverse when wiring source transactions.
