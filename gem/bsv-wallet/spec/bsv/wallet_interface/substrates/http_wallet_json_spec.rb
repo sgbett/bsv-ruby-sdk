@@ -13,8 +13,7 @@ RSpec.describe BSV::Wallet::Substrates::HTTPWalletJSON do
   # Builds a minimal fake Net::HTTP response.
   def stub_response(body, code: '200')
     response = instance_double(Net::HTTPResponse)
-    allow(response).to receive(:code).and_return(code)
-    allow(response).to receive(:body).and_return(JSON.generate(body))
+    allow(response).to receive_messages(code: code, body: JSON.generate(body))
     response
   end
 
@@ -92,9 +91,8 @@ RSpec.describe BSV::Wallet::Substrates::HTTPWalletJSON do
 
   describe 'HTTP endpoint routing' do
     BSV::Wallet::Wire::Serializer::CALL_CODES.each_key do |method_sym|
-      camel = BSV::WireFormat.snake_to_camel(method_sym.to_s)
-
-      it "POSTs to /#{camel} for ##{method_sym}" do
+      it "POSTs to /#{BSV::WireFormat.snake_to_camel(method_sym.to_s)} for ##{method_sym}" do
+        camel = BSV::WireFormat.snake_to_camel(method_sym.to_s)
         expected_uri = URI.parse("#{base_url}/#{camel}")
         response = stub_response({})
 
@@ -103,6 +101,9 @@ RSpec.describe BSV::Wallet::Substrates::HTTPWalletJSON do
           .and_yield(stub_http_session(response))
 
         substrate.public_send(method_sym, {})
+
+        expect(Net::HTTP).to have_received(:start)
+          .with(expected_uri.host, expected_uri.port, use_ssl: false)
       end
     end
   end
