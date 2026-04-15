@@ -70,6 +70,10 @@ module BSV
           )
         end
       rescue StandardError
+        # Auto-fetch is best-effort: wallet may raise UnsupportedActionError,
+        # key derivation errors, or other failures. The peer protocol handles
+        # "no certificates" gracefully — the requesting peer enforces its own
+        # certificate requirements independently.
         []
       end
     end

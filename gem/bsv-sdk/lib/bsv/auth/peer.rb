@@ -81,29 +81,7 @@ module BSV
           raise AuthError, 'Cannot send general message before certificate validation is complete'
         end
 
-        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
-        key_id        = key_id_for(request_nonce, session.peer_nonce)
-
-        sig_result = @wallet.create_signature({
-                                                data: payload,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: session.peer_identity_key
-                                              })
-
-        session.last_update = current_time_ms
-        @session_manager.update_session(session)
-
-        message = {
-          version: AUTH_VERSION,
-          message_type: MSG_GENERAL,
-          identity_key: self.identity_key,
-          nonce: request_nonce,
-          your_nonce: session.peer_nonce,
-          payload: payload,
-          signature: sig_result[:signature]
-        }
-
+        message = create_general_message(session.peer_identity_key, payload)
         @transport.send(message)
         @last_interacted_peer = session.peer_identity_key if @auto_persist_last_session
       end
@@ -137,32 +115,7 @@ module BSV
       def request_certificates(certificates_to_request, identity_key = nil)
         identity_key = resolve_identity_key(identity_key)
         session      = get_authenticated_session(identity_key)
-
-        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
-        key_id        = key_id_for(request_nonce, session.peer_nonce)
-        data          = JSON.generate(certificates_to_request).encode('UTF-8').bytes
-
-        sig_result = @wallet.create_signature({
-                                                data: data,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: session.peer_identity_key
-                                              })
-
-        session.last_update = current_time_ms
-        @session_manager.update_session(session)
-
-        message = {
-          version: AUTH_VERSION,
-          message_type: MSG_CERT_REQUEST,
-          identity_key: self.identity_key,
-          nonce: request_nonce,
-          initial_nonce: session.session_nonce,
-          your_nonce: session.peer_nonce,
-          requested_certificates: certificates_to_request,
-          signature: sig_result[:signature]
-        }
-
+        message      = create_certificate_request(session.peer_identity_key, certificates_to_request)
         @transport.send(message)
       end
 
@@ -172,33 +125,7 @@ module BSV
       # @param certificates [Array<VerifiableCertificate, Hash>] certificates to send
       def send_certificate_response(peer_identity_key, certificates)
         session = get_authenticated_session(peer_identity_key)
-
-        request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
-        key_id        = key_id_for(request_nonce, session.peer_nonce)
-        cert_data     = certificates.map { |c| c.respond_to?(:to_h) ? c.to_h : c }
-        data          = JSON.generate(cert_data).encode('UTF-8').bytes
-
-        sig_result = @wallet.create_signature({
-                                                data: data,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: session.peer_identity_key
-                                              })
-
-        session.last_update = current_time_ms
-        @session_manager.update_session(session)
-
-        message = {
-          version: AUTH_VERSION,
-          message_type: MSG_CERT_RESPONSE,
-          identity_key: identity_key,
-          nonce: request_nonce,
-          initial_nonce: session.session_nonce,
-          your_nonce: session.peer_nonce,
-          certificates: cert_data,
-          signature: sig_result[:signature]
-        }
-
+        message = create_certificate_response(session.peer_identity_key, certificates)
         @transport.send(message)
       end
 
@@ -670,7 +597,7 @@ module BSV
 
       def process_certificate_request(message)
         our_nonce = fetch!(message, :your_nonce)
-        peer_key  = message[:identity_key] || message['identity_key']
+        peer_key  = fetch!(message, :identity_key)
         msg_nonce = fetch!(message, :nonce)
         requested = message[:requested_certificates] || message['requested_certificates']
         signature = fetch!(message, :signature)
@@ -715,7 +642,7 @@ module BSV
 
       def process_certificate_response(message)
         our_nonce = fetch!(message, :your_nonce)
-        peer_key  = message[:identity_key] || message['identity_key']
+        peer_key  = fetch!(message, :identity_key)
         msg_nonce = fetch!(message, :nonce)
         certs     = message[:certificates] || message['certificates'] || []
         signature = fetch!(message, :signature)
