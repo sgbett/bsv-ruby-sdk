@@ -113,6 +113,38 @@ module BSV
       end
     end
 
+    # Converts top-level Hash keys only from snake_case to camelCase strings.
+    #
+    # Unlike {.to_wire}, this does NOT recurse into nested hashes. Use this
+    # for auth handshake messages where nested values may contain user-data
+    # keys (e.g. base64 certificate type identifiers) that must not be mangled.
+    #
+    # @param hash [Hash] the hash to convert
+    # @return [Hash] a new hash with camelCase string keys (values unchanged)
+    def shallow_to_wire(hash)
+      raise ArgumentError, 'argument must not be nil' if hash.nil?
+
+      hash.each_with_object({}) do |(k, v), out|
+        out[snake_to_camel(k.to_s)] = v
+      end
+    end
+
+    # Converts top-level Hash keys only from camelCase to snake_case symbols.
+    #
+    # Unlike {.from_wire}, this does NOT recurse into nested hashes. Use this
+    # for auth handshake messages where nested values may contain user-data
+    # keys (e.g. base64 certificate type identifiers) that must not be mangled.
+    #
+    # @param hash [Hash] the hash to convert
+    # @return [Hash] a new hash with snake_case symbol keys (values unchanged)
+    def shallow_from_wire(hash)
+      raise ArgumentError, 'argument must not be nil' if hash.nil?
+
+      hash.each_with_object({}) do |(k, v), out|
+        out[camel_to_snake(k.to_s).to_sym] = v
+      end
+    end
+
     # Converts a single snake_case string to camelCase.
     #
     # Uses the lookup table for known protocol keys (preserving acronyms like protocolID).

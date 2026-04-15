@@ -174,6 +174,66 @@ RSpec.describe BSV::WireFormat do
     end
   end
 
+  describe '.shallow_to_wire' do
+    it 'converts top-level keys only' do
+      result = described_class.shallow_to_wire({ identity_key: '02abc', your_nonce: 'n1' })
+      expect(result).to eq({ 'identityKey' => '02abc', 'yourNonce' => 'n1' })
+    end
+
+    it 'does NOT recurse into nested hashes' do
+      input = {
+        requested_certificates: {
+          'certifiers' => ['02abc'],
+          'types' => { 'dHlwZUFBQQ==' => %w[name email] }
+        }
+      }
+      result = described_class.shallow_to_wire(input)
+      # The nested hash should be passed through unchanged — keys not converted
+      expect(result['requestedCertificates']['types']).to eq({ 'dHlwZUFBQQ==' => %w[name email] })
+    end
+
+    it 'preserves base64 certificate type keys in requested_certificates' do
+      cert_types = { 'dHlwZUFBQUFBQQ==' => %w[name email], 'Zm9vQmFy' => ['age'] }
+      input = { requested_certificates: { 'certifiers' => [], 'types' => cert_types } }
+      result = described_class.shallow_to_wire(input)
+      expect(result['requestedCertificates']['types'].keys).to eq(%w[dHlwZUFBQUFBQQ== Zm9vQmFy])
+    end
+
+    it 'raises ArgumentError for nil input' do
+      expect { described_class.shallow_to_wire(nil) }.to raise_error(ArgumentError)
+    end
+  end
+
+  describe '.shallow_from_wire' do
+    it 'converts top-level keys only' do
+      result = described_class.shallow_from_wire({ 'identityKey' => '02abc', 'yourNonce' => 'n1' })
+      expect(result).to eq({ identity_key: '02abc', your_nonce: 'n1' })
+    end
+
+    it 'does NOT recurse into nested hashes' do
+      input = {
+        'requestedCertificates' => {
+          'certifiers' => ['02abc'],
+          'types' => { 'dHlwZUFBQQ==' => %w[name email] }
+        }
+      }
+      result = described_class.shallow_from_wire(input)
+      # The nested hash should be passed through unchanged — keys not converted
+      expect(result[:requested_certificates]['types']).to eq({ 'dHlwZUFBQQ==' => %w[name email] })
+    end
+
+    it 'preserves base64 certificate type keys in requested_certificates' do
+      cert_types = { 'dHlwZUFBQUFBQQ==' => %w[name email], 'Zm9vQmFy' => ['age'] }
+      input = { 'requestedCertificates' => { 'certifiers' => [], 'types' => cert_types } }
+      result = described_class.shallow_from_wire(input)
+      expect(result[:requested_certificates]['types'].keys).to eq(%w[dHlwZUFBQUFBQQ== Zm9vQmFy])
+    end
+
+    it 'raises ArgumentError for nil input' do
+      expect { described_class.shallow_from_wire(nil) }.to raise_error(ArgumentError)
+    end
+  end
+
   describe 'round-trip' do
     it 'round-trips a representative BRC-100 payload' do
       original = {

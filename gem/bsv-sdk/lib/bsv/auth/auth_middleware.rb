@@ -82,12 +82,12 @@ module BSV
         return json_error(400, 'Empty body') if body_str.nil? || body_str.empty?
 
         raw = JSON.parse(body_str)
-        message = BSV::WireFormat.from_wire(raw)
+        message = BSV::WireFormat.shallow_from_wire(raw)
 
         @bridge.inject(message)
         response_message = @bridge.wait_for_response
 
-        camel = BSV::WireFormat.to_wire(response_message)
+        camel = BSV::WireFormat.shallow_to_wire(response_message)
         [200, { 'content-type' => 'application/json' }, [JSON.generate(camel)]]
       rescue JSON::ParserError => e
         json_error(400, "Invalid JSON: #{e.message}")

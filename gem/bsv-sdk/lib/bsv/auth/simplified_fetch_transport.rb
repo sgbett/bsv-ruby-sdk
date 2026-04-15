@@ -69,7 +69,7 @@ module BSV
 
       def send_non_general(message)
         auth_url  = "#{@base_url}/.well-known/auth"
-        body_json = JSON.generate(BSV::WireFormat.to_wire(message))
+        body_json = JSON.generate(BSV::WireFormat.shallow_to_wire(message))
 
         uri      = URI.parse(auth_url)
         response = perform_http_request(uri, 'POST', { 'Content-Type' => 'application/json' }, body_json)
@@ -80,7 +80,7 @@ module BSV
         end
 
         response_hash = JSON.parse(response_body(response))
-        @on_data_callback.call(BSV::WireFormat.from_wire(response_hash))
+        @on_data_callback.call(BSV::WireFormat.shallow_from_wire(response_hash))
       end
 
       # -------------------------------------------------------------------------
