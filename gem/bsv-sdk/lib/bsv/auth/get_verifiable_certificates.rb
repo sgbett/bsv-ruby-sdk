@@ -9,10 +9,6 @@ module BSV
     # +prove_certificate+ for each to obtain a verifier-specific keyring for
     # selective field revelation.
     #
-    # NOTE: Issue #424 documents a known bug in +WalletClient#prove_certificate+ — it
-    # uses the wrong protocol ID (+certificate field revelation+ vs +certificate field
-    # encryption+) and an incorrect key ID format. Until that bug is fixed, the keyring
-    # produced here will be cryptographically incompatible with the TS/Go SDKs.
     module GetVerifiableCertificates
       module_function
 

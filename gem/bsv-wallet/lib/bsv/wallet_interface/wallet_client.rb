@@ -569,8 +569,8 @@ module BSV
           # Encrypt the keyring entry for the verifier
           encrypted = encrypt({
                                 plaintext: key_value.bytes,
-                                protocol_id: [2, 'certificate field revelation'],
-                                key_id: "#{cert_arg[:type]} #{cert_arg[:serial_number]} #{field_name}",
+                                protocol_id: [2, 'certificate field encryption'],
+                                key_id: "#{cert_arg[:serial_number]} #{field_name}",
                                 counterparty: verifier
                               })
           keyring_for_verifier[field_name] = encrypted[:ciphertext]

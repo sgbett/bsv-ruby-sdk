@@ -462,8 +462,8 @@ RSpec.describe 'WalletClient certificate methods' do
 
       decrypted = verifier_wallet.decrypt({
                                             ciphertext: result[:keyring_for_verifier]['name'],
-                                            protocol_id: [2, 'certificate field revelation'],
-                                            key_id: "#{cert_type} #{serial_number} name",
+                                            protocol_id: [2, 'certificate field encryption'],
+                                            key_id: "#{serial_number} name",
                                             counterparty: prover_identity
                                           })
       expect(decrypted[:plaintext].pack('C*')).to eq(keyring['name'])
