@@ -148,6 +148,12 @@ wallet.internalize_action({
 })
 ```
 
+The full internalize → create → broadcast round-trip is exercised by the integration
+spec suite. `internalize_action` persists every transaction in the BEEF (not just the
+subject), so ancestor chain data is available when the wallet later builds a new
+transaction spending the internalised UTXO. This ensures `to_ef_hex` can serialise the
+spending transaction correctly for ARC broadcast, even when the parent is unconfirmed.
+
 ## Status meanings
 
 Each action stored by the wallet carries a `status` field that reflects its

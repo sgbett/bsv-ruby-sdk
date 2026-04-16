@@ -50,7 +50,7 @@ RSpec.describe BSV::Transaction::Transaction do
         expect(ef.bytesize).to be > tx.to_binary.bytesize
       end
 
-      it 'raises on missing source_satoshis' do
+      it 'raises when source_satoshis and source_locking_script both absent and no source_transaction' do
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
           prev_tx_id: "\x01".b * 32,
@@ -58,10 +58,10 @@ RSpec.describe BSV::Transaction::Transaction do
         )
         tx.add_input(input)
 
-        expect { tx.to_ef }.to raise_error(ArgumentError, /source_satoshis/)
+        expect { tx.to_ef }.to raise_error(ArgumentError, /source_satoshis.*source_locking_script|no wired source_transaction/)
       end
 
-      it 'raises on missing source_locking_script' do
+      it 'raises when source_locking_script absent and no source_transaction' do
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
           prev_tx_id: "\x01".b * 32,
@@ -70,7 +70,184 @@ RSpec.describe BSV::Transaction::Transaction do
         input.source_satoshis = 1000
         tx.add_input(input)
 
-        expect { tx.to_ef }.to raise_error(ArgumentError, /source_locking_script/)
+        expect { tx.to_ef }.to raise_error(ArgumentError, /source_locking_script.*no wired source_transaction/)
+      end
+
+      it 'derives source_satoshis from wired source_transaction when only source_locking_script is explicit' do
+        priv = BSV::Primitives::PrivateKey.generate
+        lock_script = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+
+        source_tx = described_class.new
+        source_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 75_000, locking_script: lock_script))
+
+        # Build unlocking script with full explicit fields, then strip source_satoshis
+        prep_tx = described_class.new
+        prep_input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x02".b * 32,
+          prev_tx_out_index: 0
+        )
+        prep_input.source_satoshis = 75_000
+        prep_input.source_locking_script = lock_script
+        prep_tx.add_input(prep_input)
+        prep_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 74_000, locking_script: lock_script))
+        prep_tx.sign(0, priv)
+
+        tx = described_class.new
+        input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x02".b * 32,
+          prev_tx_out_index: 0
+        )
+        input.unlocking_script = prep_tx.inputs[0].unlocking_script
+        input.source_transaction = source_tx
+        # source_locking_script explicit, source_satoshis nil — to_ef derives satoshis
+        input.source_locking_script = lock_script
+        tx.add_input(input)
+        tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 74_000, locking_script: lock_script))
+
+        ef = tx.to_ef
+        expect(ef.byteslice(4, 6)).to eq("\x00\x00\x00\x00\x00\xEF".b)
+
+        restored = described_class.from_ef(ef)
+        expect(restored.inputs[0].source_satoshis).to eq(75_000)
+        expect(restored.inputs[0].source_locking_script.to_hex).to eq(lock_script.to_hex)
+      end
+
+      it 'derives both source fields from source_transaction when input has a pre-built unlocking_script' do
+        priv = BSV::Primitives::PrivateKey.generate
+        lock_script = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+
+        source_tx = described_class.new
+        source_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 75_000, locking_script: lock_script))
+
+        # Build and sign a tx with explicit fields, then strip them to simulate a BEEF-parsed input
+        prep_tx = described_class.new
+        prep_input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x05".b * 32,
+          prev_tx_out_index: 0
+        )
+        prep_input.source_satoshis = 75_000
+        prep_input.source_locking_script = lock_script
+        prep_tx.add_input(prep_input)
+        prep_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 74_000, locking_script: lock_script))
+        prep_tx.sign(0, priv)
+
+        # Simulate BEEF-parsed input: has unlocking_script + source_transaction, no explicit source fields
+        tx = described_class.new
+        input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x05".b * 32,
+          prev_tx_out_index: 0
+        )
+        input.unlocking_script = prep_tx.inputs[0].unlocking_script
+        input.source_transaction = source_tx
+        tx.add_input(input)
+        tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 74_000, locking_script: lock_script))
+
+        ef = tx.to_ef
+        expect(ef.byteslice(4, 6)).to eq("\x00\x00\x00\x00\x00\xEF".b)
+
+        restored = described_class.from_ef(ef)
+        expect(restored.inputs[0].source_satoshis).to eq(75_000)
+        expect(restored.inputs[0].source_locking_script.to_hex).to eq(lock_script.to_hex)
+      end
+
+      it 'does not mutate input when deriving from source_transaction' do
+        priv = BSV::Primitives::PrivateKey.generate
+        lock_script = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+
+        source_tx = described_class.new
+        source_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 50_000, locking_script: lock_script))
+
+        # Build unlocking script using a separate signed tx
+        prep_tx = described_class.new
+        prep_input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x03".b * 32,
+          prev_tx_out_index: 0
+        )
+        prep_input.source_satoshis = 50_000
+        prep_input.source_locking_script = lock_script
+        prep_tx.add_input(prep_input)
+        prep_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 49_000, locking_script: lock_script))
+        prep_tx.sign(0, priv)
+
+        tx = described_class.new
+        input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x03".b * 32,
+          prev_tx_out_index: 0
+        )
+        input.unlocking_script = prep_tx.inputs[0].unlocking_script
+        input.source_transaction = source_tx
+        tx.add_input(input)
+        tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 49_000, locking_script: lock_script))
+
+        ef1 = tx.to_ef
+        expect(input.source_satoshis).to be_nil
+        expect(input.source_locking_script).to be_nil
+
+        ef2 = tx.to_ef
+        expect(ef1).to eq(ef2)
+      end
+
+      it 'handles mixed inputs: some with explicit fields, some derived from source_transaction' do
+        priv = BSV::Primitives::PrivateKey.generate
+        lock_script = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+
+        source_tx = described_class.new
+        source_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 30_000, locking_script: lock_script))
+
+        # Prepare a signed unlocking script for input1
+        prep_tx = described_class.new
+        prep_input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x02".b * 32,
+          prev_tx_out_index: 0
+        )
+        prep_input.source_satoshis = 30_000
+        prep_input.source_locking_script = lock_script
+        prep_tx.add_input(prep_input)
+        prep_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 29_000, locking_script: lock_script))
+        prep_tx.sign(0, priv)
+
+        tx = described_class.new
+
+        # Input 0: explicit fields
+        input0 = BSV::Transaction::TransactionInput.new(prev_tx_id: "\x01".b * 32, prev_tx_out_index: 0)
+        input0.source_satoshis = 20_000
+        input0.source_locking_script = lock_script
+        input0.unlocking_script_template = BSV::Transaction::P2PKH.new(priv)
+        tx.add_input(input0)
+
+        # Input 1: only source_transaction (no explicit source_satoshis / source_locking_script)
+        input1 = BSV::Transaction::TransactionInput.new(prev_tx_id: "\x02".b * 32, prev_tx_out_index: 0)
+        input1.source_transaction = source_tx
+        input1.unlocking_script = prep_tx.inputs[0].unlocking_script
+        tx.add_input(input1)
+
+        tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 49_000, locking_script: lock_script))
+        tx.sign_all
+
+        ef = tx.to_ef
+        restored = described_class.from_ef(ef)
+
+        expect(restored.inputs[0].source_satoshis).to eq(20_000)
+        expect(restored.inputs[1].source_satoshis).to eq(30_000)
+        expect(restored.inputs[1].source_locking_script.to_hex).to eq(lock_script.to_hex)
+      end
+
+      it 'raises when source_output_index is out of range' do
+        priv = BSV::Primitives::PrivateKey.generate
+        lock_script = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+
+        source_tx = described_class.new
+        source_tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 10_000, locking_script: lock_script))
+
+        tx = described_class.new
+        input = BSV::Transaction::TransactionInput.new(
+          prev_tx_id: "\x04".b * 32,
+          prev_tx_out_index: 99 # out of range
+        )
+        input.source_transaction = source_tx
+        tx.add_input(input)
+
+        expect { tx.to_ef }.to raise_error(ArgumentError, /no output at index 99/)
       end
     end
 

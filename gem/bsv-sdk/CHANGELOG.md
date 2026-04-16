@@ -5,6 +5,26 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- `Transaction#to_ef` now derives `source_satoshis` and `source_locking_script`
+  from `input.source_transaction.outputs[input.prev_tx_out_index]` when the
+  explicit fields are unset. Previously `to_ef` raised `ArgumentError` on inputs
+  wired via `Transaction.from_beef`, causing `ARC#broadcast` to silently fall back
+  to raw hex — which ARC rejects when parent transactions are unconfirmed.
+  Consumer impact: recently-received UTXOs that previously could not be
+  re-broadcast now can. Matches TS SDK `writeEF` behaviour. (#467, HLR #466)
+- `Transaction.from_beef` and `from_beef_hex` now use `Beef#find_atomic_transaction`
+  to locate the subject transaction, ensuring that `FORMAT_RAW_TX` ancestors whose
+  txid appears as a leaf in a separately-stored BUMP have their `merkle_path`
+  attached. Covers a late-bound BUMP attachment gap not handled by the initial
+  `wire_source_transactions` pass. Matches `Transaction.fromAtomicBEEF` semantics
+  in the TS SDK. (#468, HLR #466)
+
+**Related upstream issue:** [wallet-toolbox#149](https://github.com/bsv-blockchain/wallet-toolbox/issues/149) — same architectural gap in the TS SDK.
+
 ## 0.12.0 — 2026-04-15
 
 ### Added

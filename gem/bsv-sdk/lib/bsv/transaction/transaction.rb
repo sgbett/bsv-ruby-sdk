@@ -102,19 +102,29 @@ module BSV
       # EF embeds source satoshis and source locking scripts in each input,
       # allowing ARC to validate sighashes without fetching parent transactions.
       #
+      # Source data is resolved in priority order:
+      # 1. Explicit +source_satoshis+ / +source_locking_script+ on the input.
+      # 2. Derived from +input.source_transaction.outputs[input.prev_tx_out_index]+.
+      #
+      # Source fields on input objects are never mutated — derivation happens on
+      # each call, so calling +to_ef+ twice produces identical output.
+      #
       # @return [String] raw EF transaction bytes
-      # @raise [ArgumentError] if any input is missing source_satoshis or source_locking_script
+      # @raise [ArgumentError] if any input cannot supply source_satoshis or
+      #   source_locking_script via either mechanism
       def to_ef
         buf = [@version].pack('V')
         buf << "\x00\x00\x00\x00\x00\xEF".b
         buf << VarInt.encode(@inputs.length)
-        @inputs.each do |input|
-          raise ArgumentError, 'inputs must have source_satoshis for EF' if input.source_satoshis.nil?
-          raise ArgumentError, 'inputs must have source_locking_script for EF' if input.source_locking_script.nil?
+        @inputs.each_with_index do |input, idx|
+          source_output = ef_source_output(input, idx)
+
+          satoshis = input.source_satoshis || source_output.satoshis
+          locking_script = input.source_locking_script || source_output.locking_script
 
           buf << input.to_binary
-          buf << [input.source_satoshis].pack('Q<')
-          lock_bytes = input.source_locking_script.to_binary
+          buf << [satoshis].pack('Q<')
+          lock_bytes = locking_script.to_binary
           buf << VarInt.encode(lock_bytes.bytesize)
           buf << lock_bytes
         end
@@ -343,21 +353,35 @@ module BSV
         to_beef.unpack1('H*')
       end
 
-      # Parse a BEEF binary bundle and return the subject transaction
-      # (the last transaction in the bundle).
+      # Parse a BEEF binary bundle and return the subject transaction with
+      # full ancestry wired, including late-bound BUMP attachment.
+      #
+      # For Atomic BEEFs (BRC-95), the subject transaction is identified by
+      # the embedded subject_txid field. For plain BEEFs, the last transaction
+      # with a raw tx entry is used as the subject.
+      #
+      # Uses +find_atomic_transaction+ so that FORMAT_RAW_TX ancestors whose
+      # txid appears as a leaf in a separately-stored BUMP get their
+      # +merkle_path+ wired correctly — a gap not covered by the initial
+      # +wire_source_transactions+ pass in +Beef.from_binary+.
       #
       # @param data [String] raw BEEF binary
-      # @return [Transaction] the subject transaction with ancestry wired
+      # @return [Transaction, nil] the subject transaction with ancestry wired,
+      #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef(data)
         beef = Beef.from_binary(data)
-        last_tx_entry = beef.transactions.reverse.find(&:transaction)
-        last_tx_entry&.transaction
+        subject_txid = beef.subject_txid ||
+                       beef.transactions.reverse.find(&:transaction)&.transaction&.txid
+        return nil unless subject_txid
+
+        beef.find_atomic_transaction(subject_txid)
       end
 
       # Parse a BEEF hex string and return the subject transaction.
       #
       # @param hex [String] hex-encoded BEEF
-      # @return [Transaction] the subject transaction with ancestry wired
+      # @return [Transaction, nil] the subject transaction with ancestry wired,
+      #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef_hex(hex)
         from_beef(BSV::Primitives::Hex.decode(hex, name: 'BEEF hex'))
       end
@@ -682,6 +706,39 @@ module BSV
       end
 
       private
+
+      # Resolve the source TransactionOutput for EF serialisation.
+      #
+      # Returns nil when both explicit fields (+source_satoshis+ and
+      # +source_locking_script+) are already set on the input, so no derivation
+      # is required. Otherwise, requires a wired +source_transaction+ and a
+      # valid output at +prev_tx_out_index+.
+      #
+      # @param input [TransactionInput]
+      # @param idx [Integer] input index, used in error messages
+      # @return [TransactionOutput, nil]
+      def ef_source_output(input, idx)
+        return nil if input.source_satoshis && input.source_locking_script
+
+        unless input.source_transaction
+          missing = []
+          missing << 'source_satoshis' unless input.source_satoshis
+          missing << 'source_locking_script' unless input.source_locking_script
+          raise ArgumentError,
+                "input #{idx} is missing #{missing.join(' and ')} and has no wired source_transaction"
+        end
+
+        if input.prev_tx_out_index.nil?
+          raise ArgumentError,
+                "input #{idx} has no prev_tx_out_index — cannot derive EF source data"
+        end
+
+        output = input.source_transaction.outputs[input.prev_tx_out_index]
+        return output if output
+
+        raise ArgumentError,
+              "input #{idx} source_transaction has no output at index #{input.prev_tx_out_index}"
+      end
 
       def verify_input_requirements(tx, input, index)
         tx_id = tx.txid_hex
