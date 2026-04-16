@@ -30,10 +30,7 @@ The fix was to go through `findAtomicTransaction` / `find_atomic_transaction` ra
 
 The end-to-end symptom is: `internaliseAction` runs fine, the UTXO lands in the wallet, but when you try to spend it in a later `createAction`, the broadcast silently falls back to raw hex (or fails to build EF), and ARC rejects it with "must be valid transaction on chain".
 
-The fix in the Ruby SDK is in [PR #N] (sgbett/bsv-ruby-sdk) if it's useful as a reference.
+The fix in the Ruby SDK is in [sgbett/bsv-ruby-sdk#473](https://github.com/sgbett/bsv-ruby-sdk/pull/473) if it's useful as a reference.
 
 Whether the TS SDK has the same gap in `fromBEEF` / `fromAtomicBEEF` is worth a look — if `writeEF` already handles the `sourceTransaction` fallback correctly (which it looks like it does), the TS issue might be narrower than "persist ancestors in `internaliseAction`". Happy to dig into it further if that's useful.
 
----
-
-*[Team lead: fill in PR #N before posting. Remove this line.]*
