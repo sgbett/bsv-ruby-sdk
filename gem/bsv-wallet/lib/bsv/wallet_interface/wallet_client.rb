@@ -311,7 +311,6 @@ module BSV
         tx = extract_subject_transaction(beef)
 
         store_proofs_from_beef(beef)
-        @storage.store_transaction(tx.txid_hex, tx.to_hex)
         process_internalize_outputs(tx, args[:outputs])
         has_proof = !beef.find_bump(tx.txid).nil?
         store_action(tx, args, status: has_proof ? 'completed' : 'unproven')

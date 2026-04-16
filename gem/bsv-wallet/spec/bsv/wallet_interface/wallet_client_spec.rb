@@ -1993,4 +1993,222 @@ RSpec.describe BSV::Wallet::WalletClient do
       end.not_to raise_error
     end
   end
+
+  # -------------------------------------------------------------------------
+  # HLR #466 / Task 3 — internalize_action persists all BEEF ancestors (#469)
+  # Regression spec: ensures store_proofs_from_beef covers every tx in the
+  # bundle, including multi-generation ancestors, not just the subject.
+  # -------------------------------------------------------------------------
+  describe '#internalize_action — ancestor persistence (HLR #466)' do
+    # Build a helper MerklePath for a given transaction.
+    def build_merkle_path(tx, block_height: 800_000)
+      txid_bytes = tx.txid.reverse
+      sibling = ("\xAB" * 32).b
+      tx_elem = BSV::Transaction::MerklePath::PathElement.new(
+        offset: 0, hash: txid_bytes, txid: true
+      )
+      sibling_elem = BSV::Transaction::MerklePath::PathElement.new(
+        offset: 1, hash: sibling
+      )
+      BSV::Transaction::MerklePath.new(block_height: block_height, path: [[tx_elem, sibling_elem]])
+    end
+
+    # Build a minimal transaction with one P2PKH output.
+    def build_tx(satoshis: 5000)
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: satoshis,
+          locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+        )
+      )
+      tx
+    end
+
+    # Wire tx as spending output 0 of parent_tx.
+    def wire_input(tx, parent_tx)
+      tx.add_input(
+        BSV::Transaction::TransactionInput.new(
+          prev_tx_id: [parent_tx.txid_hex].pack('H*').reverse,
+          prev_tx_out_index: 0,
+          unlocking_script: BSV::Script::Script.new
+        )
+      )
+    end
+
+    let(:storage) { BSV::Wallet::MemoryStore.new }
+    let(:wallet_instance) do
+      described_class.new(private_key, storage: storage, broadcaster: broadcaster)
+    end
+
+    let(:grandparent_tx) { build_tx(satoshis: 10_000) }
+    let(:parent_tx) do
+      tx = build_tx(satoshis: 8_000)
+      wire_input(tx, grandparent_tx)
+      tx
+    end
+    let(:subject_tx) do
+      tx = build_tx(satoshis: 6_000)
+      wire_input(tx, parent_tx)
+      tx
+    end
+    let(:grandparent_merkle_path) { build_merkle_path(grandparent_tx) }
+
+    # BEEF with 3 generations: grandparent (FORMAT_RAW_TX_AND_BUMP), parent
+    # (FORMAT_RAW_TX), subject (FORMAT_RAW_TX — no proof, so status = unproven).
+    let(:three_generation_beef) do
+      grandparent_tx.merkle_path = grandparent_merkle_path
+
+      beef = BSV::Transaction::Beef.new
+      bump_idx = beef.merge_bump(grandparent_merkle_path)
+      beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+        format: BSV::Transaction::Beef::FORMAT_RAW_TX_AND_BUMP,
+        transaction: grandparent_tx,
+        bump_index: bump_idx
+      )
+      beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+        format: BSV::Transaction::Beef::FORMAT_RAW_TX,
+        transaction: parent_tx
+      )
+      beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+        format: BSV::Transaction::Beef::FORMAT_RAW_TX,
+        transaction: subject_tx
+      )
+      beef.to_binary
+    end
+
+    let(:internalize_args) do
+      {
+        tx: three_generation_beef.unpack('C*'),
+        description: 'three generation ancestry test',
+        outputs: [{
+          output_index: 0,
+          protocol: 'basket insertion',
+          insertion_remittance: { basket: 'ancestry test funds' }
+        }]
+      }
+    end
+
+    it 'persists every ancestor raw tx from the BEEF (grandparent, parent, subject)' do
+      wallet_instance.internalize_action(internalize_args)
+
+      expect(storage.find_transaction(grandparent_tx.txid_hex)).not_to be_nil
+      expect(storage.find_transaction(parent_tx.txid_hex)).not_to be_nil
+      expect(storage.find_transaction(subject_tx.txid_hex)).not_to be_nil
+    end
+
+    it 'stores the correct raw tx hex for each ancestor' do
+      wallet_instance.internalize_action(internalize_args)
+
+      expect(storage.find_transaction(grandparent_tx.txid_hex)).to eq(grandparent_tx.to_hex)
+      expect(storage.find_transaction(parent_tx.txid_hex)).to eq(parent_tx.to_hex)
+      expect(storage.find_transaction(subject_tx.txid_hex)).to eq(subject_tx.to_hex)
+    end
+
+    it 'persists the merkle proof for the proven ancestor (grandparent)' do
+      wallet_instance.internalize_action(internalize_args)
+
+      proof = wallet_instance.proof_store.resolve_proof(grandparent_tx.txid_hex)
+      expect(proof).to be_a(BSV::Transaction::MerklePath)
+      expect(proof.block_height).to eq(800_000)
+      expect(proof.to_hex).to eq(grandparent_merkle_path.to_hex)
+    end
+
+    it 'does not store a proof for ancestors without a BUMP (parent, subject)' do
+      wallet_instance.internalize_action(internalize_args)
+
+      expect(wallet_instance.proof_store.resolve_proof(parent_tx.txid_hex)).to be_nil
+      expect(wallet_instance.proof_store.resolve_proof(subject_tx.txid_hex)).to be_nil
+    end
+
+    it 'stores the action with status "unproven" when subject has no BUMP' do
+      wallet_instance.internalize_action(internalize_args)
+
+      actions = storage.find_actions({ limit: 10, offset: 0 })
+      expect(actions).not_to be_empty
+      expect(actions.last[:status]).to eq('unproven')
+    end
+
+    context 'when BEEF contains FORMAT_TXID_ONLY entries' do
+      let(:txid_only_beef) do
+        # Build a BEEF where the grandparent is represented as TXID_ONLY.
+        # store_proofs_from_beef skips entries with no .transaction — must not raise.
+        # FORMAT_TXID_ONLY requires BEEF V2 (BRC-96) for serialisation.
+        known_txid = grandparent_tx.txid
+
+        beef = BSV::Transaction::Beef.new
+        beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+          format: BSV::Transaction::Beef::FORMAT_TXID_ONLY,
+          known_txid: known_txid
+        )
+        beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+          format: BSV::Transaction::Beef::FORMAT_RAW_TX,
+          transaction: parent_tx
+        )
+        beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+          format: BSV::Transaction::Beef::FORMAT_RAW_TX,
+          transaction: subject_tx
+        )
+        beef.to_binary(version: BSV::Transaction::Beef::BEEF_V2)
+      end
+
+      # A BEEF with TXID_ONLY entries fails structural validation by default
+      # (Beef#valid? requires allow_txid_only: true). For these edge-case tests
+      # we stub Beef#verify to bypass the gate and exercise store_proofs_from_beef
+      # directly — the method under test.
+      before do
+        allow_any_instance_of(BSV::Transaction::Beef).to receive(:verify).and_return(true) # rubocop:disable RSpec/AnyInstance
+      end
+
+      it 'does not raise when the BEEF has TXID_ONLY ancestor entries' do
+        args = {
+          tx: txid_only_beef.unpack('C*'),
+          description: 'txid only ancestor test ok',
+          outputs: [{
+            output_index: 0,
+            protocol: 'basket insertion',
+            insertion_remittance: { basket: 'txid only funds' }
+          }]
+        }
+        expect { wallet_instance.internalize_action(args) }.not_to raise_error
+      end
+
+      it 'persists the raw txs that are present (parent and subject), but not the TXID_ONLY entry' do
+        args = {
+          tx: txid_only_beef.unpack('C*'),
+          description: 'txid only ancestor store ok',
+          outputs: [{
+            output_index: 0,
+            protocol: 'basket insertion',
+            insertion_remittance: { basket: 'txid only funds' }
+          }]
+        }
+        wallet_instance.internalize_action(args)
+
+        # TXID_ONLY entry has no raw tx to store
+        expect(storage.find_transaction(grandparent_tx.txid_hex)).to be_nil
+        # Entries with raw txs are stored
+        expect(storage.find_transaction(parent_tx.txid_hex)).to eq(parent_tx.to_hex)
+        expect(storage.find_transaction(subject_tx.txid_hex)).to eq(subject_tx.to_hex)
+      end
+    end
+
+    context 'when called twice with the same BEEF (idempotency)' do
+      it 'does not raise on the second call' do
+        expect do
+          wallet_instance.internalize_action(internalize_args)
+          wallet_instance.internalize_action(internalize_args)
+        end.not_to raise_error
+      end
+
+      it 'leaves storage in a consistent state after two identical calls' do
+        wallet_instance.internalize_action(internalize_args)
+        wallet_instance.internalize_action(internalize_args)
+
+        expect(storage.find_transaction(grandparent_tx.txid_hex)).to eq(grandparent_tx.to_hex)
+        expect(storage.find_transaction(parent_tx.txid_hex)).to eq(parent_tx.to_hex)
+        expect(storage.find_transaction(subject_tx.txid_hex)).to eq(subject_tx.to_hex)
+      end
+    end
+  end
 end
