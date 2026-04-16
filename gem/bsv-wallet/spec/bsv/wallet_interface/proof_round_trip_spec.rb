@@ -5,10 +5,6 @@ require 'bsv-wallet'
 
 RSpec.describe 'Proof round-trip: internalize_action → create_action → valid BEEF' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:pub_key) { private_key.public_key }
-  let(:storage) { BSV::Wallet::MemoryStore.new }
-  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage) }
-
   # Build a minimal source transaction (coin we're receiving).
   let(:source_tx) do
     tx = BSV::Transaction::Transaction.new
@@ -20,7 +16,6 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
     )
     tx
   end
-
   # Build a simple merkle proof for the source transaction.
   # Level 0 leaf hashes are in internal byte order (reverse of display
   # order), matching the BRC-74 wire format and compute_root lookup.
@@ -35,7 +30,6 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
     )
     BSV::Transaction::MerklePath.new(block_height: 800_000, path: [[tx_elem, sibling_elem]])
   end
-
   # Attach the proof to the source tx, then build a BEEF that carries it.
   let(:beef_for_internalize) do
     source_tx.merkle_path = merkle_path
@@ -71,13 +65,11 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
 
     beef.to_binary
   end
-
   let(:subject_txid) do
     # Parse the BEEF to retrieve the subject transaction's txid.
     beef = BSV::Transaction::Beef.from_binary(beef_for_internalize)
     beef.transactions.last.transaction.txid_hex
   end
-
   let(:internalize_args) do
     {
       tx: beef_for_internalize.unpack('C*'),
@@ -90,6 +82,17 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
         }
       ]
     }
+  end
+  let(:pub_key) { private_key.public_key }
+  let(:storage) { BSV::Wallet::MemoryStore.new }
+  # Post-HLR #455: broadcaster required; create_action raises without one.
+  let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster) }
+
+  before do
+    allow(broadcaster).to receive(:broadcast).and_return(
+      BSV::Network::BroadcastResponse.new(txid: 'stub', tx_status: 'SEEN_ON_NETWORK')
+    )
   end
 
   describe 'internalize_action' do

@@ -68,6 +68,21 @@ module BSV
         false
       end
 
+      # Returns +false+ by default — adapters without a broadcaster cannot
+      # broadcast on-chain.
+      #
+      # Override in adapters that hold a broadcaster reference so that
+      # +WalletClient+ can determine broadcast availability from the queue
+      # alone. This is the correct delegation point because users may pass a
+      # broadcaster-equipped queue (e.g.
+      # +SolidQueueAdapter.new(broadcaster: arc)+) without also passing
+      # +broadcaster:+ directly to +WalletClient+.
+      #
+      # @return [Boolean]
+      def broadcast_enabled?
+        false
+      end
+
       # Returns the broadcast status for a previously enqueued transaction.
       #
       # @param _txid [String] hex transaction identifier

@@ -259,8 +259,9 @@ RSpec.describe 'BSV::Wallet::SolidQueueAdapter', :postgres do
       expect(output_state('chg:0').to_s).to eq('spendable')
     end
 
-    it 'updates action status to completed' do
-      expect(action_status(txid_a)).to eq('completed')
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'updates action status to unproven' do
+      expect(action_status(txid_a)).to eq('unproven')
     end
   end
 
@@ -329,8 +330,9 @@ RSpec.describe 'BSV::Wallet::SolidQueueAdapter', :postgres do
       adapter.drain
     end
 
-    it 'updates action status to completed' do
-      expect(action_status(txid_a)).to eq('completed')
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'updates action status to unproven' do
+      expect(action_status(txid_a)).to eq('unproven')
     end
 
     it 'marks job as completed' do

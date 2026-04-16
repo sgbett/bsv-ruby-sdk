@@ -121,7 +121,17 @@ RSpec.describe 'Pending UTXO locking and double-spend prevention' do
   describe 'abort_action releases pending UTXOs' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
     let(:storage)     { BSV::Wallet::MemoryStore.new }
-    let(:wallet)      { BSV::Wallet::WalletClient.new(private_key, storage: storage) }
+    # Post-HLR #455: broadcaster required; create_action raises without one.
+    let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+    let(:wallet) do
+      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+    end
+
+    before do
+      allow(broadcaster).to receive(:broadcast).and_return(
+        BSV::Network::BroadcastResponse.new(txid: 'stub', tx_status: 'SEEN_ON_NETWORK')
+      )
+    end
 
     def seed_wallet_utxo(satoshis:)
       prefix = SecureRandom.hex(16)

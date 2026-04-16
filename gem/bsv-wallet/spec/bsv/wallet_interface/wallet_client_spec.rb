@@ -7,15 +7,10 @@ require 'base64'
 
 RSpec.describe BSV::Wallet::WalletClient do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:pub_key) { private_key.public_key }
-  let(:wallet) { described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
-
   # P2PKH locking script for the wallet's own public key
   let(:locking_script_hex) { BSV::Script::Script.p2pkh_lock(pub_key.hash160).to_hex }
-
   # Minimal valid description (5-50 chars)
   let(:description) { 'test transaction action' }
-
   # A simple output spec
   let(:output_spec) do
     {
@@ -23,6 +18,23 @@ RSpec.describe BSV::Wallet::WalletClient do
       satoshis: 1000,
       output_description: 'test output one'
     }
+  end
+  let(:pub_key) { private_key.public_key }
+  # Post-HLR #455: broadcaster required; most tests use a stubbed broadcaster so
+  # create_action does not raise. Tests that specifically exercise the no-broadcaster
+  # guard use `no_broadcaster_wallet` instead.
+  let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+  let(:wallet) do
+    described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
+  end
+  let(:no_broadcaster_wallet) do
+    described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+  end
+
+  before do
+    allow(broadcaster).to receive(:broadcast).and_return(
+      BSV::Network::BroadcastResponse.new(txid: 'stub', tx_status: 'SEEN_ON_NETWORK')
+    )
   end
 
   # Build a source transaction and its BEEF bytes for use as input_beef
@@ -63,22 +75,24 @@ RSpec.describe BSV::Wallet::WalletClient do
     end
 
     it 'defaults broadcaster to nil' do
-      expect(wallet.broadcaster).to be_nil
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+      expect(w.broadcaster).to be_nil
     end
 
     it 'accepts a broadcaster: keyword argument' do
-      broadcaster = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
-      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
-      expect(w.broadcaster).to equal(broadcaster)
+      br = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: br)
+      expect(w.broadcaster).to equal(br)
     end
 
     it 'returns false from broadcast_enabled? when broadcaster is nil' do
-      expect(wallet.broadcast_enabled?).to be(false)
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+      expect(w.broadcast_enabled?).to be(false)
     end
 
     it 'returns true from broadcast_enabled? when broadcaster is set' do
-      broadcaster = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
-      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
+      br = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: br)
       expect(w.broadcast_enabled?).to be(true)
     end
 
@@ -99,10 +113,19 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect(w.broadcast_queue).to equal(custom_queue)
     end
 
-    it 'broadcast_enabled? reflects broadcaster presence, not queue presence' do
-      custom_queue = double('custom_queue') # rubocop:disable RSpec/VerifiedDoubles
+    # broadcast_enabled? delegates to the queue so queue-embedded broadcasters
+    # (e.g. SolidQueueAdapter) are recognised even without a direct broadcaster:.
+    it 'broadcast_enabled? delegates to the broadcast queue' do
+      # A custom queue that reports broadcast_enabled? = false
+      custom_queue = double('custom_queue', broadcast_enabled?: false) # rubocop:disable RSpec/VerifiedDoubles
       w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcast_queue: custom_queue)
       expect(w.broadcast_enabled?).to be(false)
+    end
+
+    it 'broadcast_enabled? returns true when the queue reports it has a broadcaster' do
+      custom_queue = double('custom_queue', broadcast_enabled?: true) # rubocop:disable RSpec/VerifiedDoubles
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcast_queue: custom_queue)
+      expect(w.broadcast_enabled?).to be(true)
     end
   end
 
@@ -165,6 +188,187 @@ RSpec.describe BSV::Wallet::WalletClient do
       expect do
         wallet.create_action({ description: description, outputs: [bad_output] })
       end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # HLR #455: broadcast configuration guard (Task 1 new specs)
+  # -------------------------------------------------------------------------
+  describe 'broadcast configuration guard (HLR #455)' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+
+    let(:base_args) do
+      {
+        description: 'broadcast guard test action',
+        input_beef: input_beef_bytes,
+        inputs: [{
+          outpoint: "#{source_txid}.0",
+          unlocking_script: 'aabb',
+          input_description: 'broadcast guard input'
+        }],
+        outputs: [{
+          locking_script: locking_script_hex,
+          satoshis: 4000,
+          output_description: 'broadcast guard output'
+        }]
+      }
+    end
+
+    it 'raises WalletError when no broadcaster and no_send is absent' do
+      expect do
+        no_broadcaster_wallet.create_action(base_args)
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
+    end
+
+    it 'raises WalletError before any storage writes' do
+      expect do
+        no_broadcaster_wallet.create_action(base_args)
+      end.to raise_error(BSV::Wallet::WalletError)
+      actions = no_broadcaster_wallet.storage.find_actions({ limit: 100, offset: 0 })
+      expect(actions).to be_empty
+    end
+
+    it 'succeeds with no_send: true and no broadcaster, action status is "nosend"' do
+      result = no_broadcaster_wallet.create_action(base_args.merge(options: { no_send: true }))
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+      all_actions = no_broadcaster_wallet.storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('nosend')
+    end
+
+    it 'does not raise when broadcast_queue carries an embedded broadcaster' do
+      # A queue that reports broadcast_enabled? = true without a direct broadcaster: arg.
+      custom_queue = double('custom_queue', broadcast_enabled?: true, async?: false) # rubocop:disable RSpec/VerifiedDoubles
+      allow(custom_queue).to receive(:enqueue).and_return(
+        { txid: 'a' * 64, tx: [], broadcast_status: 'success' }
+      )
+      w = described_class.new(
+        private_key,
+        storage: BSV::Wallet::MemoryStore.new,
+        broadcast_queue: custom_queue
+      )
+      expect do
+        w.create_action(base_args)
+      end.not_to raise_error
+    end
+
+    # Post-HLR #455: successful broadcast sets 'unproven'; 'completed' requires a merkle proof
+    it 'sets action status to "unproven" after successful broadcast' do
+      result = wallet.create_action(base_args)
+      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      action = all_actions.find { |a| a[:txid] == result[:txid] }
+      expect(action[:status]).to eq('unproven')
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # HLR #455: sign_action broadcast guard
+  # -------------------------------------------------------------------------
+  describe 'sign_action broadcast guard (HLR #455)' do
+    let(:source_tx_and_beef) { build_source_beef }
+    let(:source_tx) { source_tx_and_beef[0] }
+    let(:input_beef_bytes) { source_tx_and_beef[1] }
+    let(:source_txid) { source_tx.txid_hex }
+    let(:dummy_unlock_hex) { 'aabb' }
+
+    # Create a signable tx using no_send: true so the guard doesn't fire at create time
+    let(:signable_result) do
+      no_broadcaster_wallet.create_action({
+                                            description: 'sign action guard test',
+                                            input_beef: input_beef_bytes,
+                                            inputs: [{
+                                              outpoint: "#{source_txid}.0",
+                                              unlocking_script_length: 107,
+                                              input_description: 'spend for sign action guard test'
+                                            }],
+                                            outputs: [{
+                                              locking_script: locking_script_hex,
+                                              satoshis: 4000,
+                                              output_description: 'payment output'
+                                            }],
+                                            options: { no_send: true }
+                                          })
+    end
+
+    let(:reference) { signable_result[:signable_transaction][:reference] }
+
+    it 'raises WalletError when no_send is flipped false at sign_action time' do
+      # create_action with no_send: true stores a signable tx (guard bypassed).
+      # sign_action with no_send: false overrides the original option; the guard
+      # re-runs on the merged args and raises because broadcast is needed.
+      expect do
+        no_broadcaster_wallet.sign_action({
+                                            reference: reference,
+                                            spends: { 0 => { unlocking_script: dummy_unlock_hex } },
+                                            options: { no_send: false }
+                                          })
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
+    end
+  end
+
+  # -------------------------------------------------------------------------
+  # HLR #455: internalize_action status based on BEEF proof presence (Task 4)
+  # -------------------------------------------------------------------------
+  describe 'internalize_action status from BEEF proof (HLR #455)' do
+    let(:incoming_tx) do
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 2000,
+          locking_script: BSV::Script::Script.p2pkh_lock(pub_key.hash160)
+        )
+      )
+      tx
+    end
+
+    let(:internalize_args_base) do
+      {
+        description: 'internalize status test',
+        outputs: [{
+          output_index: 0,
+          protocol: 'basket insertion',
+          insertion_remittance: { basket: 'proof status tokens' }
+        }]
+      }
+    end
+
+    it 'sets action status to "unproven" when BEEF carries no merkle proof' do
+      beef_bytes = incoming_tx.to_beef.unpack('C*')
+      wallet.internalize_action(internalize_args_base.merge(tx: beef_bytes))
+      actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      expect(actions).not_to be_empty
+      expect(actions.last[:status]).to eq('unproven')
+    end
+
+    it 'sets action status to "completed" when BEEF carries a merkle proof' do
+      # Attach a merkle proof to the incoming tx so find_bump returns non-nil
+      txid_bytes = incoming_tx.txid.reverse
+      sibling = ("\xCD" * 32).b
+      tx_elem = BSV::Transaction::MerklePath::PathElement.new(
+        offset: 0, hash: txid_bytes, txid: true
+      )
+      sibling_elem = BSV::Transaction::MerklePath::PathElement.new(
+        offset: 1, hash: sibling
+      )
+      merkle_path = BSV::Transaction::MerklePath.new(block_height: 900_000, path: [[tx_elem, sibling_elem]])
+      incoming_tx.merkle_path = merkle_path
+
+      beef = BSV::Transaction::Beef.new
+      bump_idx = beef.merge_bump(merkle_path)
+      beef.transactions << BSV::Transaction::Beef::BeefTx.new(
+        format: BSV::Transaction::Beef::FORMAT_RAW_TX_AND_BUMP,
+        transaction: incoming_tx,
+        bump_index: bump_idx
+      )
+      beef_bytes = beef.to_binary.unpack('C*')
+
+      wallet.internalize_action(internalize_args_base.merge(tx: beef_bytes))
+      actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
+      expect(actions).not_to be_empty
+      expect(actions.last[:status]).to eq('completed')
     end
   end
 
@@ -250,7 +454,7 @@ RSpec.describe BSV::Wallet::WalletClient do
 
       # Run enough times that shuffling is virtually certain to swap at least once
       10.times do |i|
-        w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcaster: broadcaster)
         w.create_action({
                           description: "shuffle test #{i} check",
                           outputs: [untracked, tracked]
@@ -506,42 +710,35 @@ RSpec.describe BSV::Wallet::WalletClient do
       }
     end
 
-    it 'accepts accept_delayed_broadcast: false without error' do
-      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
-      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
-    end
-
-    it 'stores the action as completed when accept_delayed_broadcast is false' do
-      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
-      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
-      action = all_actions.find { |a| a[:txid] == result[:txid] }
-      expect(action[:status]).to eq('completed')
-    end
-
-    it 'accepts accept_delayed_broadcast: true without raising' do
+    # Post-HLR #455: no broadcaster raises WalletError unless accept_delayed_broadcast
+    # or no_send: true is set. Use no_broadcaster_wallet to exercise the guard.
+    it 'raises WalletError when no broadcaster and accept_delayed_broadcast: false' do
       expect do
-        wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+        no_broadcaster_wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
+    end
+
+    # accept_delayed_broadcast: true does NOT bypass the broadcaster guard —
+    # only no_send: true does. The option relaxes error handling at the InlineQueue
+    # level but the wallet still requires a broadcaster to be configured.
+    it 'raises WalletError when no broadcaster and accept_delayed_broadcast: true' do
+      expect do
+        no_broadcaster_wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
+    end
+
+    # With no_send: true, the broadcaster guard is bypassed and the action succeeds
+    it 'succeeds with no_send: true and no broadcaster' do
+      expect do
+        no_broadcaster_wallet.create_action(base_args.merge(options: { no_send: true }))
       end.not_to raise_error
     end
 
-    it 'stores the action as unproven when accept_delayed_broadcast: true' do
-      result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
-      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
-      action = all_actions.find { |a| a[:txid] == result[:txid] }
-      expect(action[:status]).to eq('unproven')
-    end
-
-    it 'does not log a warning when accept_delayed_broadcast: true' do
+    # Post-HLR #455: no broadcaster + no no_send raises rather than silently 'completing'
+    it 'raises WalletError when no broadcaster and option is absent' do
       expect do
-        wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: true }))
-      end.not_to output(/accept_delayed_broadcast/i).to_stderr
-    end
-
-    it 'defaults to completed status when option is absent' do
-      result = wallet.create_action(base_args)
-      all_actions = wallet.storage.find_actions({ limit: 100, offset: 0 })
-      action = all_actions.find { |a| a[:txid] == result[:txid] }
-      expect(action[:status]).to eq('completed')
+        no_broadcaster_wallet.create_action(base_args)
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
     end
   end
 

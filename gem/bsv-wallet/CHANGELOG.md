@@ -5,6 +5,47 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.0 (unreleased)
+
+### Changed — **Breaking**
+
+#### Action status taxonomy aligned with BRC-100 reference SDK (HLR #455)
+
+This release realigns the action status values with the wallet-toolbox reference
+implementation. The meaning of `'completed'` has changed — **consumers must
+update any code that checks for `'completed'` as the post-broadcast success
+state**.
+
+| Status | Old meaning | New meaning |
+|--------|-------------|-------------|
+| `'nosend'` | No change | Transaction built but not broadcast (`no_send: true`) |
+| `'sending'` | No change | Async queue accepted; worker has not yet attempted broadcast |
+| `'unproven'` | *(new)* | Broadcast succeeded; awaiting merkle proof |
+| `'completed'` | Broadcast succeeded | **Merkle proof received and stored** |
+| `'failed'` | No change | Broadcast rejected or transaction invalid |
+
+**Migration:**
+
+- Code querying `list_actions(status: 'completed')` will return fewer results
+  until a proof-watcher is implemented (out of scope for this release). To find
+  successfully-broadcast actions that have not yet received a proof, query
+  `status: 'unproven'` instead.
+- `create_action` and `sign_action` now raise `BSV::Wallet::WalletError` when
+  no broadcaster is configured and `options: { no_send: true }` is not set.
+  Previously these calls succeeded silently. To resolve: pass
+  `broadcaster: BSV::Network::ARC.default` to `WalletClient.new`, or pass
+  `options: { no_send: true }` to `create_action` to build without
+  broadcasting.
+- `internalize_action` now sets status to `'completed'` only when the supplied
+  BEEF contains a merkle proof for the subject transaction. Plain BEEF (raw
+  transaction, no BUMP) results in status `'unproven'`.
+- Wallets configured with a `SolidQueueAdapter` satisfy the broadcaster
+  requirement if the adapter carries an embedded `broadcaster:` — the
+  `WalletClient` itself does not need one.
+
+**Related upstream incidents:** x402-rack #148, x402-rack #158, x402-doom #196.
+**Tracking issue:** #455.
+
 ## 0.8.0 — 2026-04-15
 
 ### Added

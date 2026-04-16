@@ -5,6 +5,22 @@ require 'bsv-wallet'
 
 RSpec.describe 'WalletClient P2PKH template signing' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
+  # P2PKH locking script for the wallet's own public key
+  let(:locking_script) { BSV::Script::Script.p2pkh_lock(pub_key.hash160) }
+  let(:locking_script_hex) { locking_script.to_hex }
+  # A real source transaction (needed to produce valid hex for BEEF ancestry)
+  let(:source_tx) do
+    tx = BSV::Transaction::Transaction.new
+    tx.add_output(BSV::Transaction::TransactionOutput.new(
+                    satoshis: source_satoshis,
+                    locking_script: locking_script
+                  ))
+    tx
+  end
+  let(:source_tx_hex) { source_tx.to_hex }
+  let(:source_txid) { source_tx.txid_hex }
+  let(:source_outpoint) { "#{source_txid}.0" }
+  let(:source_satoshis) { 5000 }
   let(:template) { BSV::Transaction::P2PKH.new(private_key) }
   let(:result) do
     wallet.create_action({
@@ -23,27 +39,14 @@ RSpec.describe 'WalletClient P2PKH template signing' do
   end
   let(:pub_key) { private_key.public_key }
   let(:storage) { BSV::Wallet::MemoryStore.new }
-  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage) }
-
-  # P2PKH locking script for the wallet's own public key
-  let(:locking_script) { BSV::Script::Script.p2pkh_lock(pub_key.hash160) }
-  let(:locking_script_hex) { locking_script.to_hex }
-
-  # A real source transaction (needed to produce valid hex for BEEF ancestry)
-  let(:source_tx) do
-    tx = BSV::Transaction::Transaction.new
-    tx.add_output(BSV::Transaction::TransactionOutput.new(
-                    satoshis: source_satoshis,
-                    locking_script: locking_script
-                  ))
-    tx
-  end
-  let(:source_tx_hex) { source_tx.to_hex }
-  let(:source_txid) { source_tx.txid_hex }
-  let(:source_outpoint) { "#{source_txid}.0" }
-  let(:source_satoshis) { 5000 }
+  # Post-HLR #455: broadcaster required; create_action raises without one.
+  let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster) }
 
   before do
+    allow(broadcaster).to receive(:broadcast).and_return(
+      BSV::Network::BroadcastResponse.new(txid: 'stub', tx_status: 'SEEN_ON_NETWORK')
+    )
     storage.store_output({
                            outpoint: source_outpoint,
                            satoshis: source_satoshis,
