@@ -289,8 +289,10 @@ module BSV
       # Promotes UTXO state after a successful broadcast.
       #
       # Marks inputs as +:spent+, change as +:spendable+, and updates the action
-      # status to +completed+. When outpoints are +nil+ (finalize path), UTXO
-      # transitions are skipped.
+      # status to +unproven+. The transaction has been accepted by the network but
+      # is not yet proven on-chain — status advances to +completed+ once a merkle
+      # proof arrives. When outpoints are +nil+ (finalize path), UTXO transitions
+      # are skipped.
       #
       # @param input_outpoints [Array<String>, nil]
       # @param change_outpoints [Array<String>, nil]
@@ -298,7 +300,7 @@ module BSV
       def promote(input_outpoints, change_outpoints, txid)
         Array(input_outpoints).each { |op| @storage.update_output_state(op, :spent) }
         Array(change_outpoints).each { |op| @storage.update_output_state(op, :spendable) }
-        @storage.update_action_status(txid, 'completed') if txid
+        @storage.update_action_status(txid, 'unproven') if txid
       end
 
       # Rolls back wallet state after a failed broadcast.
