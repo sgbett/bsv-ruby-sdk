@@ -30,6 +30,17 @@ module BSV
         false
       end
 
+      # Returns +true+ when a broadcaster has been configured.
+      #
+      # +WalletClient+ delegates its own +broadcast_enabled?+ to this method
+      # so the check works correctly when the broadcaster is embedded in the
+      # queue rather than passed directly to the wallet.
+      #
+      # @return [Boolean]
+      def broadcast_enabled?
+        !@broadcaster.nil?
+      end
+
       # Returns the broadcast status for a previously enqueued transaction.
       #
       # Delegates to storage and returns the action status field, or +nil+ if

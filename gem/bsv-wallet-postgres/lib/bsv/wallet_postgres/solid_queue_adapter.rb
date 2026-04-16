@@ -82,6 +82,15 @@ module BSV
         true
       end
 
+      # Returns +true+ — +SolidQueueAdapter+ requires a broadcaster at
+      # construction time (+ArgumentError+ is raised if +nil+ is passed), so
+      # broadcast is always available.
+      #
+      # @return [Boolean]
+      def broadcast_enabled?
+        !@broadcaster.nil?
+      end
+
       # Persists a transaction to the broadcast job queue and returns immediately.
       #
       # Inserts a row into +wallet_broadcast_jobs+ with status +unsent+. If a row
