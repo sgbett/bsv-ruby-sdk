@@ -148,6 +148,30 @@ wallet.internalize_action({
 })
 ```
 
+## Status meanings
+
+Each action stored by the wallet carries a `status` field that reflects its
+current lifecycle state:
+
+| Status | Meaning |
+|--------|---------|
+| `'nosend'` | Transaction built but not broadcast (caller opted into `options: { no_send: true }`) |
+| `'sending'` | Broadcast queued for background processing (async adapter); worker has not yet attempted broadcast |
+| `'unproven'` | Broadcast succeeded; awaiting merkle proof |
+| `'completed'` | Merkle proof received and stored |
+| `'failed'` | Broadcast attempted and rejected by the network |
+
+> **Note for consumers:** Querying `list_actions(status: 'completed')` returns
+> fewer results under the current taxonomy until a proof-watcher is implemented
+> (out of scope for the current release). Most fresh broadcasts will be in
+> `'unproven'` state until their merkle proof arrives. This aligns with the TS
+> reference SDK's semantics. To find all successfully-broadcast actions, query
+> for both `'unproven'` and `'completed'`, or rely on `'failed'` to detect
+> broadcast rejection.
+
+This taxonomy matches the [wallet-toolbox](https://github.com/bitcoin-sv/wallet-toolbox)
+reference implementation (BRC-100).
+
 ## Balance and UTXOs
 
 ```ruby
