@@ -193,6 +193,20 @@ tx = beef.find_transaction(txid_bytes)
 
 BEEF automatically wires source transactions: inputs that reference other transactions in the bundle will have their `source_transaction` set.
 
+### Extracting a transaction from a BEEF
+
+`Transaction.from_beef` returns the subject transaction with full ancestry wired, including late-bound BUMP attachment for ancestors stored as raw transactions alongside a separately-bundled merkle proof:
+
+```ruby
+tx = BSV::Transaction::Transaction.from_beef(beef_bytes)
+
+# Source data is derived from the wired ancestry — no need to set
+# source_satoshis or source_locking_script explicitly.
+ef_bytes = tx.to_ef_hex  # ready for ARC broadcast
+```
+
+This is the canonical flow for re-broadcasting a received BEEF (e.g. after `internalize_action`). `to_ef_hex` resolves source satoshis and locking scripts directly from `source_transaction.outputs[prev_tx_out_index]` when the explicit fields are not set on an input.
+
 ### Transaction Entries
 
 Each entry in a BEEF bundle has a format:
