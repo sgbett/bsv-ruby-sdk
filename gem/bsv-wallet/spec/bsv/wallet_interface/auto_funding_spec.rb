@@ -66,7 +66,19 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
 
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:storage) { BSV::Wallet::MemoryStore.new }
-  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage) }
+  # Post-HLR #455: broadcaster required; create_action raises when absent and no_send unset.
+  let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+  let(:wallet) do
+    BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+  end
+
+  # Stub broadcast for all tests — auto_funding_spec tests auto-fund plumbing,
+  # not broadcast behaviour. SEEN_ON_NETWORK is the standard success response.
+  before do
+    allow(broadcaster).to receive(:broadcast).and_return(
+      BSV::Network::BroadcastResponse.new(txid: 'stub', tx_status: 'SEEN_ON_NETWORK')
+    )
+  end
 
   # ---------------------------------------------------------------------------
   # 1. Happy path — simple spend
@@ -130,11 +142,12 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       expect(change[:basket]).to eq('default')
     end
 
-    it 'stores the action as completed' do
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'stores the action as unproven' do
       result
       actions = storage.find_actions({})
       expect(actions).not_to be_empty
-      expect(actions.last[:status]).to eq('completed')
+      expect(actions.last[:status]).to eq('unproven')
     end
 
     it 'produces a valid BEEF' do
@@ -418,6 +431,7 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       bad_wallet = BSV::Wallet::WalletClient.new(
         private_key,
         storage: storage,
+        broadcaster: broadcaster,
         change_generator: bad_generator
       )
 
@@ -656,6 +670,7 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       custom_wallet = BSV::Wallet::WalletClient.new(
         private_key,
         storage: storage,
+        broadcaster: broadcaster,
         fee_estimator: fee_estimator,
         coin_selector: coin_selector,
         change_generator: change_generator

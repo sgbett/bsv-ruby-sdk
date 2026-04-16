@@ -130,11 +130,12 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
       change.each { |o| expect(o[:state]).to eq(:spendable) }
     end
 
-    it 'stores the action with status "completed"' do
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'stores the action with status "unproven"' do
       txid = result[:txid]
       actions = storage.find_actions({ limit: 100, offset: 0 })
       action = actions.find { |a| a[:txid] == txid }
-      expect(action[:status]).to eq('completed')
+      expect(action[:status]).to eq('unproven')
     end
   end
 

@@ -6,13 +6,21 @@ require 'securerandom'
 
 RSpec.describe 'WalletClient auto-fund mode' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:storage)     { BSV::Wallet::MemoryStore.new }
-  let(:wallet)      { BSV::Wallet::WalletClient.new(private_key, storage: storage) }
-  let(:description) { 'auto fund test action' }
-
   # A P2PKH locking script to an arbitrary external recipient.
   let(:recipient_key)      { BSV::Primitives::PrivateKey.generate }
   let(:recipient_lock_hex) { BSV::Script::Script.p2pkh_lock(recipient_key.public_key.hash160).to_hex }
+  let(:storage)     { BSV::Wallet::MemoryStore.new }
+  # Post-HLR #455: broadcaster required; most tests stub it so create_action does not raise.
+  # Describe blocks that exercise broadcast-specific paths define their own let(:broadcaster).
+  let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
+  let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster) }
+  let(:description) { 'auto fund test action' }
+
+  before do
+    allow(broadcaster).to receive(:broadcast).and_return(
+      BSV::Network::BroadcastResponse.new(txid: 'stub', tx_status: 'SEEN_ON_NETWORK')
+    )
+  end
 
   # Helper: creates a real spendable UTXO in storage, using the wallet's key
   # deriver to produce a genuine P2PKH locking script. Stores the source
@@ -507,10 +515,11 @@ RSpec.describe 'WalletClient auto-fund mode' do
         expect(change).not_to be_empty
       end
 
-      it 'marks the action as completed' do
+      # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+      it 'marks the action as unproven' do
         wallet.create_action(action_opts)
         actions = storage.find_actions({ limit: 10, offset: 0 })
-        expect(actions.first[:status]).to eq('completed')
+        expect(actions.first[:status]).to eq('unproven')
       end
 
       it 'stores change outputs as :pending before broadcast is called (no TOCTOU window)' do
@@ -693,75 +702,55 @@ RSpec.describe 'WalletClient auto-fund mode' do
   end
 
   # -------------------------------------------------------------------------
-  # Without broadcaster: backwards-compatible (no-broadcaster) behaviour
+  # Without broadcaster: raises WalletError (HLR #455 — no silent fallback)
   # -------------------------------------------------------------------------
-  describe 'without broadcaster (backwards-compatible)' do
+  # Post-HLR #455: create_action raises WalletError when no broadcaster is
+  # configured and no_send/accept_delayed_broadcast is not set. The previous
+  # 'backwards-compatible' promote-without-broadcast path has been removed.
+  describe 'without broadcaster' do
+    let(:no_broadcaster_wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage) }
+
     before { seed_utxo(satoshis: 10_000) }
 
-    it 'promotes inputs to :spent immediately' do
-      wallet.create_action({
-                             description: 'no broadcaster test',
-                             auto_fund: true,
-                             outputs: [{
-                               locking_script: recipient_lock_hex,
-                               satoshis: 1_000,
-                               output_description: 'payment'
-                             }]
-                           })
-      spendable = storage.find_spendable_outputs(basket: 'default')
-      expect(spendable.none? { |o| o[:satoshis] == 10_000 }).to be true
+    it 'raises WalletError when no broadcaster and no options override' do
+      expect do
+        no_broadcaster_wallet.create_action({
+                                              description: 'no broadcaster raises test',
+                                              auto_fund: true,
+                                              outputs: [{
+                                                locking_script: recipient_lock_hex,
+                                                satoshis: 1_000,
+                                                output_description: 'payment'
+                                              }]
+                                            })
+      end.to raise_error(BSV::Wallet::WalletError, /broadcaster/)
     end
 
-    it 'promotes change to :spendable immediately' do
-      wallet.create_action({
-                             description: 'no broadcaster change test',
-                             auto_fund: true,
-                             outputs: [{
-                               locking_script: recipient_lock_hex,
-                               satoshis: 1_000,
-                               output_description: 'payment'
-                             }]
-                           })
-      change = storage.find_spendable_outputs(basket: 'default').select { |o| o[:derivation_prefix] }
-      expect(change).not_to be_empty
-    end
-
-    it 'stores the action as completed' do
-      result = wallet.create_action({
-                                      description: 'no broadcaster action status test',
-                                      auto_fund: true,
-                                      outputs: [{
-                                        locking_script: recipient_lock_hex,
-                                        satoshis: 1_000,
-                                        output_description: 'payment'
-                                      }]
-                                    })
-      all_actions = storage.find_actions({ limit: 100, offset: 0 })
-      action = all_actions.find { |a| a[:txid] == result[:txid] }
-      expect(action[:status]).to eq('completed')
-    end
-
-    it 'does not include :broadcast_result or :broadcast_error in the result' do
-      result = wallet.create_action({
-                                      description: 'no broadcaster result shape test',
-                                      auto_fund: true,
-                                      outputs: [{
-                                        locking_script: recipient_lock_hex,
-                                        satoshis: 1_000,
-                                        output_description: 'payment'
-                                      }]
-                                    })
-      expect(result).not_to have_key(:broadcast_result)
-      expect(result).not_to have_key(:broadcast_error)
+    it 'does not write any storage entries before raising' do
+      expect do
+        no_broadcaster_wallet.create_action({
+                                              description: 'no broadcaster storage test',
+                                              auto_fund: true,
+                                              outputs: [{
+                                                locking_script: recipient_lock_hex,
+                                                satoshis: 1_000,
+                                                output_description: 'payment'
+                                              }]
+                                            })
+      end.to raise_error(BSV::Wallet::WalletError)
+      # No action should have been persisted before the guard fired
+      actions = storage.find_actions({ limit: 100, offset: 0 })
+      expect(actions).to be_empty
     end
   end
 
   # -------------------------------------------------------------------------
   # accept_delayed_broadcast option (stub)
   # -------------------------------------------------------------------------
+  # accept_delayed_broadcast option (stub broadcaster)
+  # -------------------------------------------------------------------------
   describe 'accept_delayed_broadcast option' do
-    before { seed_utxo(satoshis: 10_000) }
-
+    let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:base_args) do
       {
         description: 'delayed broadcast test',
@@ -773,6 +762,17 @@ RSpec.describe 'WalletClient auto-fund mode' do
         }]
       }
     end
+    # Post-HLR #455: broadcaster required; accept_delayed_broadcast controls whether
+    # the caller opts in to deferred broadcast (via InlineQueue no-broadcaster path).
+    # Use a wallet with a broadcaster so create_action does not raise.
+    let(:wallet) { BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster) }
+
+    before do
+      seed_utxo(satoshis: 10_000)
+      allow(broadcaster).to receive(:broadcast).and_return(
+        BSV::Network::BroadcastResponse.new(txid: 'abc', tx_status: 'SEEN_ON_NETWORK')
+      )
+    end
 
     it 'accepts accept_delayed_broadcast: false without error (synchronous default)' do
       args = base_args.merge(options: { accept_delayed_broadcast: false })
@@ -780,11 +780,12 @@ RSpec.describe 'WalletClient auto-fund mode' do
       expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
     end
 
-    it 'stores the action as completed when accept_delayed_broadcast is false' do
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'stores the action as unproven when accept_delayed_broadcast is false' do
       result = wallet.create_action(base_args.merge(options: { accept_delayed_broadcast: false }))
       all_actions = storage.find_actions({ limit: 100, offset: 0 })
       action = all_actions.find { |a| a[:txid] == result[:txid] }
-      expect(action[:status]).to eq('completed')
+      expect(action[:status]).to eq('unproven')
     end
 
     it 'accepts accept_delayed_broadcast: true without error (stub)' do
@@ -810,11 +811,12 @@ RSpec.describe 'WalletClient auto-fund mode' do
       expect(result[:tx]).to be_a(Array)
     end
 
-    it 'defaults to synchronous behaviour (completed) when option is absent' do
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'defaults to unproven status when option is absent' do
       result = wallet.create_action(base_args)
       all_actions = storage.find_actions({ limit: 100, offset: 0 })
       action = all_actions.find { |a| a[:txid] == result[:txid] }
-      expect(action[:status]).to eq('completed')
+      expect(action[:status]).to eq('unproven')
     end
   end
 

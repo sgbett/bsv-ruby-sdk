@@ -115,11 +115,12 @@ RSpec.describe BSV::Wallet::InlineQueue do
       expect(outpoints).to include('xyz:0')
     end
 
-    it 'updates action status to "completed"' do
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'updates action status to "unproven"' do
       result
       actions = storage.find_actions({ limit: 10, offset: 0 })
       action = actions.find { |a| a[:txid] == txid }
-      expect(action[:status]).to eq('completed')
+      expect(action[:status]).to eq('unproven')
     end
   end
 
@@ -181,9 +182,9 @@ RSpec.describe BSV::Wallet::InlineQueue do
   end
 
   # --------------------------------------------------------------------------
-  # 3. Without broadcaster — promotes immediately
+  # 3. Without broadcaster — raises WalletError (HLR #455: no silent fallback)
   # --------------------------------------------------------------------------
-  describe 'without broadcaster' do
+  describe 'without broadcaster, no accept_delayed_broadcast' do
     let(:queue) { described_class.new(storage: storage) }
     let(:payload) do
       build_payload(
@@ -193,48 +194,21 @@ RSpec.describe BSV::Wallet::InlineQueue do
         fund_ref: 'ref-nb'
       )
     end
-    let(:result) { queue.enqueue(payload) }
-    let(:txid)   { 'c' * 64 }
-    let(:input1) { seed_pending_output(storage, outpoint: 'in2:0', fund_ref: 'ref-nb') }
-    let(:change1) { seed_change_output(storage, outpoint: 'ch2:0') }
+    let(:txid) { 'c' * 64 }
 
     before do
-      input1
-      change1
+      seed_pending_output(storage, outpoint: 'in2:0', fund_ref: 'ref-nb')
+      seed_change_output(storage, outpoint: 'ch2:0')
       seed_action(storage, txid: txid)
     end
 
-    it 'returns the txid' do
-      expect(result[:txid]).to eq(txid)
-    end
-
-    it 'returns tx bytes' do
-      expect(result[:tx]).to be_an(Array)
-    end
-
-    it 'does not return broadcast_status' do
-      expect(result).not_to have_key(:broadcast_status)
-    end
-
-    it 'promotes input outputs to :spent' do
-      result
-      all = storage.find_outputs({ include_spent: true, limit: 100, offset: 0 })
-      input = all.find { |o| o[:outpoint] == 'in2:0' }
-      expect(input[:state]).to eq(:spent)
-    end
-
-    it 'promotes change outputs to :spendable' do
-      result
-      spendable = storage.find_spendable_outputs
-      outpoints = spendable.map { |o| o[:outpoint] }
-      expect(outpoints).to include('ch2:0')
-    end
-
-    it 'sets action status to "completed"' do
-      result
-      actions = storage.find_actions({ limit: 10, offset: 0 })
-      action = actions.find { |a| a[:txid] == txid }
-      expect(action[:status]).to eq('completed')
+    # Post-HLR #455: silent fallback to 'completed' removed; raises WalletError
+    # unless accept_delayed_broadcast is explicitly set on the payload.
+    it 'raises WalletError when accept_delayed_broadcast is false' do
+      expect { queue.enqueue(payload) }.to raise_error(
+        BSV::Wallet::WalletError,
+        /accept_delayed_broadcast/
+      )
     end
   end
 
@@ -299,11 +273,12 @@ RSpec.describe BSV::Wallet::InlineQueue do
       expect(result[:broadcast_status]).to eq('success')
     end
 
-    it 'updates action status to "completed"' do
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'updates action status to "unproven"' do
       result
       actions = storage.find_actions({ limit: 10, offset: 0 })
       action = actions.find { |a| a[:txid] == txid }
-      expect(action[:status]).to eq('completed')
+      expect(action[:status]).to eq('unproven')
     end
 
     it 'does not add any extra outputs' do
