@@ -5,6 +5,20 @@ All notable changes to the `bsv-wallet-postgres` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 — 2026-04-16
+
+### Changed — **Breaking**
+
+- `SolidQueueAdapter` now sets the wallet action status to `'unproven'` instead of `'completed'` on successful broadcast. Aligns with the status taxonomy change in bsv-wallet 0.9.0 (HLR #455). The `wallet_broadcast_jobs` row status is unchanged (job queue lifecycle is a separate domain).
+
+### Added
+
+- `BroadcastQueue#broadcast_enabled?` interface method; `SolidQueueAdapter` returns `true` (broadcaster required at construction time). Enables `WalletClient#broadcast_enabled?` to detect a queue-embedded broadcaster.
+
+### Changed
+
+- Minimum `bsv-wallet` version raised from `>= 0.6.0` to `>= 0.9.0`. Required for the new status taxonomy and `broadcast_enabled?` interface.
+
 ## 0.4.0 — 2026-04-12
 
 ### Added
