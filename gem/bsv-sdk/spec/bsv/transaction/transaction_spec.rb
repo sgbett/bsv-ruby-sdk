@@ -793,7 +793,15 @@ RSpec.describe BSV::Transaction::Transaction do
     end
 
     it 'attaches late-bound BUMPs on FORMAT_RAW_TX ancestors' do
-      # Build a transaction with no merkle_path (raw tx only).
+      # This spec proves `from_beef` routes through `find_atomic_transaction`
+      # for the late-bind case: ancestor stored on-wire as FORMAT_RAW_TX
+      # (has_bump=0) while its BUMP lives in @bumps separately.
+      #
+      # We deliberately bypass `merge_bump`, which runs F5.6's retroactive
+      # upgrade and would promote the ancestor to FORMAT_RAW_TX_AND_BUMP —
+      # that path is already tested elsewhere and doesn't exercise
+      # `find_atomic_transaction`'s late-bind because the parser wires
+      # `merkle_path` at read time from `has_bump=1`.
       ancestor = described_class.new
       ancestor.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 1500, locking_script: lock))
 
@@ -801,8 +809,6 @@ RSpec.describe BSV::Transaction::Transaction do
       subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: lock))
       add_input(subject, ancestor)
 
-      # Build a BEEF manually: ancestor as FORMAT_RAW_TX, then add a BUMP
-      # whose level-0 leaf matches the ancestor's txid — the late-bound case.
       # PathElement hashes use internal (wire) byte order: txid.reverse.
       ancestor_txid_internal = ancestor.txid.reverse
       sibling_hash           = BSV::Primitives::Digest.sha256('late_sibling')
@@ -814,16 +820,26 @@ RSpec.describe BSV::Transaction::Transaction do
 
       beef = BSV::Transaction::Beef.new
       beef.merge_transaction(subject)
-      # merge_bump after merge_transaction to trigger the F5.6 retroactive upgrade
-      # from FORMAT_RAW_TX to FORMAT_RAW_TX_AND_BUMP for the ancestor entry.
-      beef.merge_bump(bump)
+      # Push the BUMP directly into @bumps, bypassing merge_bump so F5.6 does
+      # NOT fire. The ancestor entry stays FORMAT_RAW_TX on-wire.
+      beef.bumps << bump
       binary = beef.to_binary
+
+      # Sanity: the serialised ancestor must be FORMAT_RAW_TX (has_bump=0).
+      # If this fails the spec is no longer exercising the late-bind path.
+      reparsed = BSV::Transaction::Beef.from_binary(binary)
+      ancestor_entry = reparsed.transactions.find { |bt| bt.transaction&.txid == ancestor.txid }
+      expect(ancestor_entry.format).to eq(BSV::Transaction::Beef::FORMAT_RAW_TX)
 
       result = described_class.from_beef(binary)
       expect(result).not_to be_nil
       ancestor_recovered = result.inputs[0].source_transaction
       expect(ancestor_recovered).not_to be_nil
       expect(ancestor_recovered.merkle_path).not_to be_nil
+      # Proof the BUMP really came from late-bind: the wired merkle_path must
+      # be the same object (or equal by block_height + leaf hash) as the one
+      # we pushed into @bumps.
+      expect(ancestor_recovered.merkle_path.block_height).to eq(850_000)
     end
 
     it 'returns the subject tx for an Atomic BEEF (subject_txid set)' do
