@@ -30,5 +30,5 @@ Gem::Specification.new do |spec|
 
   # Floor raised with each paired release so consumers of bsv-wallet
   # also pick up the corresponding bsv-sdk correctness fixes.
-  spec.add_dependency 'bsv-sdk', '>= 0.11.0', '< 1.0'
+  spec.add_dependency 'bsv-sdk', '>= 0.12.1', '< 1.0'
 end

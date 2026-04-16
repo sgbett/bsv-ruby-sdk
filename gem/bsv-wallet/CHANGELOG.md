@@ -5,6 +5,18 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.1 — 2026-04-16
+
+### Changed
+
+- Raised `bsv-sdk` dependency floor to `>= 0.12.1` to pick up BEEF ancestry correctness fixes ([bsv-sdk#467](https://github.com/sgbett/bsv-ruby-sdk/issues/467), [bsv-sdk#468](https://github.com/sgbett/bsv-ruby-sdk/issues/468), HLR #466). Consumer impact: recently-received UTXOs that previously could not be re-broadcast now can — the wallet's `create_action` flow relies on `Transaction.from_beef` producing fully-wired ancestry, which the old SDK didn't do.
+
+### Fixed
+
+- Removed redundant `store_transaction` call in `internalize_action` — `store_proofs_from_beef` already persists every transaction in the BEEF bundle, so the subject tx was being written twice. No behaviour change; minor cleanup. (#469)
+
+**Related:** [wallet-toolbox#149](https://github.com/bsv-blockchain/wallet-toolbox/issues/149) — same architectural gap reported upstream.
+
 ## 0.9.0 — 2026-04-16
 
 ### Changed — **Breaking**
