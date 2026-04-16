@@ -107,8 +107,10 @@ module BSV
           }
         end
 
-        # Broadcast succeeded — promote all pending state to final.
-        promote(input_outpoints, change_outpoints, txid)
+        # Broadcast succeeded — promote all pending state; set status to
+        # 'unproven' (transaction is on-chain but lacks a merkle proof).
+        # 'completed' is reserved for transactions confirmed by a proof-watcher.
+        promote(input_outpoints, change_outpoints, txid, status: 'unproven')
 
         result = {
           txid: txid,
@@ -120,14 +122,24 @@ module BSV
         result
       end
 
-      # Promotes UTXO state without broadcasting — backwards-compatible fallback
-      # used when no broadcaster is configured.
+      # Promotes UTXO state without broadcasting.
       #
-      # If +accept_delayed_broadcast+ is set the action status is +unproven+;
-      # otherwise it is +completed+.
+      # This path is reached when no broadcaster is configured. It is only
+      # valid when +accept_delayed_broadcast+ is set on the create_action
+      # call — the caller explicitly accepts that the transaction will be
+      # broadcast out-of-band. Action status is set to +unproven+.
+      #
+      # +completed+ is reserved for transactions that have received a merkle
+      # proof (set by +internalize_action+ or a future proof-watcher).
+      #
+      # Defensive guard: raises +WalletError+ if reached without
+      # +accept_delayed_broadcast+. The normal entry point for this guard is
+      # the +create_action+ validation added in Task 1 (#456), but this guard
+      # protects against other code paths that bypass it.
       #
       # @param payload [Hash] broadcast payload
       # @return [Hash] result hash containing +:txid+ and +:tx+
+      # @raise [BSV::Wallet::WalletError] if +accept_delayed_broadcast+ is not set
       def promote_without_broadcast(payload)
         txid             = payload[:txid]
         beef_binary      = payload[:beef_binary]
@@ -135,8 +147,14 @@ module BSV
         change_outpoints = payload[:change_outpoints]
         delayed          = payload[:accept_delayed_broadcast]
 
-        final_status = delayed ? 'unproven' : 'completed'
-        promote(input_outpoints, change_outpoints, txid, status: final_status)
+        unless delayed
+          raise BSV::Wallet::WalletError,
+                'InlineQueue cannot promote without a broadcaster unless ' \
+                'accept_delayed_broadcast is set. This indicates a bypass of ' \
+                'the create_action guard — report as a bug.'
+        end
+
+        promote(input_outpoints, change_outpoints, txid, status: 'unproven')
 
         { txid: txid, tx: beef_binary.unpack('C*') }
       end
