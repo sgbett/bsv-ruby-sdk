@@ -700,6 +700,150 @@ RSpec.describe BSV::Transaction::Transaction do
     end
   end
 
+  describe '.from_beef' do
+    # Shared helpers for building synthetic BEEF fixtures.
+    let(:lock) { BSV::Script::Script.new }
+    let(:pe)   { BSV::Transaction::MerklePath::PathElement }
+
+    # Build a minimal proven ancestor with a synthetic merkle path.
+    #
+    # PathElement hashes must be raw binary in internal byte order
+    # (i.e. txid.reverse — the wire order used by MerklePath serialisation).
+    def proven_tx(satoshis: 1000, block_height: 800_000, offset: 0)
+      tx = BSV::Transaction::Transaction.new
+      tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: lock))
+      txid_internal = tx.txid.reverse # internal (wire) byte order
+      sibling_hash  = BSV::Primitives::Digest.sha256("sibling_#{offset}") # 32 raw bytes
+      tx.merkle_path = BSV::Transaction::MerklePath.new(
+        block_height: block_height,
+        path: [[pe.new(offset: offset, hash: txid_internal, txid: true),
+                pe.new(offset: offset ^ 1, hash: sibling_hash)]]
+      )
+      tx
+    end
+
+    # Wire an input from parent_tx output 0 into child_tx.
+    # prev_tx_id must be in internal byte order (wire order = txid.reverse).
+    def add_input(child_tx, parent_tx)
+      inp = BSV::Transaction::TransactionInput.new(
+        prev_tx_id: parent_tx.txid.reverse, prev_tx_out_index: 0
+      )
+      inp.source_transaction = parent_tx
+      inp.source_satoshis = parent_tx.outputs[0].satoshis
+      inp.source_locking_script = lock
+      child_tx.add_input(inp)
+    end
+
+    it 'returns nil for an empty BEEF' do
+      # Build a minimal BEEF with no transactions
+      empty_beef = BSV::Transaction::Beef.new
+      binary = empty_beef.to_binary
+      expect(described_class.from_beef(binary)).to be_nil
+    end
+
+    it 'returns the subject tx for a plain BEEF (no subject_txid)' do
+      ancestor = proven_tx(satoshis: 2000)
+      subject  = described_class.new
+      subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
+      add_input(subject, ancestor)
+
+      beef = BSV::Transaction::Beef.new
+      beef.merge_transaction(subject)
+      binary = beef.to_binary
+
+      result = described_class.from_beef(binary)
+      expect(result).not_to be_nil
+      expect(result.txid).to eq(subject.txid)
+    end
+
+    it 'wires source_transaction on every input when ancestry is present' do
+      ancestor = proven_tx(satoshis: 3000)
+      subject  = described_class.new
+      subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
+      add_input(subject, ancestor)
+
+      beef = BSV::Transaction::Beef.new
+      beef.merge_transaction(subject)
+      binary = beef.to_binary
+
+      result = described_class.from_beef(binary)
+      expect(result.inputs.all?(&:source_transaction)).to be true
+    end
+
+    it 'wires ancestry across 2 generations' do
+      grandparent = proven_tx(satoshis: 5000, block_height: 700_000, offset: 0)
+
+      parent = described_class.new
+      parent.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 4000, locking_script: lock))
+      add_input(parent, grandparent)
+
+      subject = described_class.new
+      subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 3000, locking_script: lock))
+      add_input(subject, parent)
+
+      beef = BSV::Transaction::Beef.new
+      beef.merge_transaction(subject)
+      binary = beef.to_binary
+
+      result = described_class.from_beef(binary)
+      expect(result.inputs[0].source_transaction).not_to be_nil
+      parent_recovered = result.inputs[0].source_transaction
+      expect(parent_recovered.inputs[0].source_transaction).not_to be_nil
+      expect(parent_recovered.inputs[0].source_transaction.txid).to eq(grandparent.txid)
+    end
+
+    it 'attaches late-bound BUMPs on FORMAT_RAW_TX ancestors' do
+      # Build a transaction with no merkle_path (raw tx only).
+      ancestor = described_class.new
+      ancestor.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 1500, locking_script: lock))
+
+      subject = described_class.new
+      subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: lock))
+      add_input(subject, ancestor)
+
+      # Build a BEEF manually: ancestor as FORMAT_RAW_TX, then add a BUMP
+      # whose level-0 leaf matches the ancestor's txid — the late-bound case.
+      # PathElement hashes use internal (wire) byte order: txid.reverse.
+      ancestor_txid_internal = ancestor.txid.reverse
+      sibling_hash           = BSV::Primitives::Digest.sha256('late_sibling')
+      bump = BSV::Transaction::MerklePath.new(
+        block_height: 850_000,
+        path: [[pe.new(offset: 0, hash: ancestor_txid_internal, txid: true),
+                pe.new(offset: 1, hash: sibling_hash)]]
+      )
+
+      beef = BSV::Transaction::Beef.new
+      beef.merge_transaction(subject)
+      # merge_bump after merge_transaction to trigger the F5.6 retroactive upgrade
+      # from FORMAT_RAW_TX to FORMAT_RAW_TX_AND_BUMP for the ancestor entry.
+      beef.merge_bump(bump)
+      binary = beef.to_binary
+
+      result = described_class.from_beef(binary)
+      expect(result).not_to be_nil
+      ancestor_recovered = result.inputs[0].source_transaction
+      expect(ancestor_recovered).not_to be_nil
+      expect(ancestor_recovered.merkle_path).not_to be_nil
+    end
+
+    it 'returns the subject tx for an Atomic BEEF (subject_txid set)' do
+      ancestor = proven_tx(satoshis: 4000, offset: 2)
+      subject  = described_class.new
+      subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: lock))
+      add_input(subject, ancestor)
+
+      beef = BSV::Transaction::Beef.new
+      beef.merge_transaction(subject)
+      # Serialise as Atomic BEEF so subject_txid is embedded
+      binary = beef.to_atomic_binary(subject.txid)
+
+      result = described_class.from_beef(binary)
+      expect(result).not_to be_nil
+      expect(result.txid).to eq(subject.txid)
+      expect(result.inputs.all?(&:source_transaction)).to be true
+    end
+  end
+
   describe 'full attestation flow' do
     it 'constructs, signs, and serialises a transaction with P2PKH input, OP_RETURN, and change' do
       private_key = BSV::Primitives::PrivateKey.generate
