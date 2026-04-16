@@ -94,9 +94,13 @@ module BSV
         )
       end
 
-      # Returns true when a broadcaster has been configured.
+      # Returns +true+ when broadcast is available.
+      #
+      # Delegates to the broadcast queue so that queue-embedded broadcasters
+      # (e.g. +SolidQueueAdapter.new(broadcaster: arc)+) are recognised even
+      # when no +broadcaster:+ was passed directly to +WalletClient+.
       def broadcast_enabled?
-        !@broadcaster.nil?
+        @broadcast_queue.broadcast_enabled?
       end
 
       # --- Transaction Operations ---
@@ -123,6 +127,7 @@ module BSV
         return @substrate.create_action(args, originator: originator) if @substrate
 
         validate_create_action!(args)
+        validate_broadcast_configuration!(args)
 
         send_with_txids = Array(args.dig(:options, :send_with))
 
@@ -185,6 +190,11 @@ module BSV
                       else
                         pending[:args]
                       end
+
+        # Re-validate broadcast configuration on merged args — options may have
+        # been flipped between create_action and sign_action (e.g. no_send toggled).
+        validate_broadcast_configuration!(merged_args)
+
         finalize_action(tx, merged_args)
       end
 
@@ -303,7 +313,8 @@ module BSV
         store_proofs_from_beef(beef)
         @storage.store_transaction(tx.txid_hex, tx.to_hex)
         process_internalize_outputs(tx, args[:outputs])
-        store_action(tx, args, status: 'completed')
+        has_proof = !beef.find_bump(tx.txid).nil?
+        store_action(tx, args, status: has_proof ? 'completed' : 'unproven')
         { accepted: true }
       end
 
@@ -1067,6 +1078,25 @@ module BSV
       end
 
       # --- Validation ---
+
+      # Raises +WalletError+ when a broadcast is required but unavailable.
+      #
+      # Broadcast is required whenever +no_send+ is absent or false. Callers
+      # that do not intend to broadcast on-chain must pass
+      # +options: { no_send: true }+ to opt out.
+      #
+      # @param args [Hash] action arguments (merged, as seen at call site)
+      # @raise [WalletError] if broadcast is needed but +broadcast_enabled?+ is false
+      def validate_broadcast_configuration!(args)
+        no_send = args.dig(:options, :no_send)
+        return if no_send
+        return if broadcast_enabled?
+
+        raise WalletError,
+              'create_action requires a broadcaster for on-chain broadcast. ' \
+              'Pass broadcaster: BSV::Network::ARC.default to WalletClient.new, ' \
+              'or options: { no_send: true } to build a transaction without broadcasting.'
+      end
 
       def validate_create_action!(args)
         Validators.validate_description!(args[:description])
