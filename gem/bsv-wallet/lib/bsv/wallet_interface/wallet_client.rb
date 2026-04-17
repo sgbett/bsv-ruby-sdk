@@ -1546,7 +1546,10 @@ module BSV
                                   tags: spec[:tags] || [],
                                   custom_instructions: spec[:custom_instructions],
                                   spendable: true,
-                                  source_tx_hex: tx_hex
+                                  source_tx_hex: tx_hex,
+                                  derivation_prefix: spec[:derivation_prefix],
+                                  derivation_suffix: spec[:derivation_suffix],
+                                  sender_identity_key: spec[:sender_identity_key]
                                 })
         end
       end
