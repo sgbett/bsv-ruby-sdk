@@ -686,6 +686,70 @@ RSpec.shared_examples 'a storage adapter' do
     end
   end
 
+  describe '#update_output_basket' do
+    let(:outpoint) { 'basket.0' }
+
+    before do
+      store.store_output(
+        outpoint: outpoint,
+        satoshis: 5_000,
+        basket: 'old basket',
+        state: :spendable,
+        tags: %w[rare gold],
+        derivation_prefix: 'prefix123',
+        derivation_suffix: 'suffix456',
+        sender_identity_key: "02#{'ab' * 32}"
+      )
+    end
+
+    it 'changes the basket of an existing output' do
+      store.update_output_basket(outpoint, 'pool:doom')
+      results = store.find_outputs(basket: 'pool:doom', include_spent: true, limit: 1, offset: 0)
+      expect(results.length).to eq(1)
+      expect(results.first[:outpoint]).to eq(outpoint)
+    end
+
+    it 'returns the updated output hash' do
+      result = store.update_output_basket(outpoint, 'pool:doom')
+      expect(result).to be_a(Hash)
+      expect(result[:outpoint]).to eq(outpoint)
+      expect(result[:basket]).to eq('pool:doom')
+    end
+
+    it 'raises WalletError when outpoint not found' do
+      expect do
+        store.update_output_basket('nonexistent.99', 'pool:doom')
+      end.to raise_error(BSV::Wallet::WalletError)
+    end
+
+    it 'preserves satoshis, state, tags, and derivation fields' do
+      result = store.update_output_basket(outpoint, 'pool:doom')
+      expect(result[:satoshis]).to eq(5_000)
+      expect(result[:state].to_s).to eq('spendable')
+      expect(result[:tags]).to include('rare', 'gold')
+      expect(result[:derivation_prefix]).to eq('prefix123')
+      expect(result[:derivation_suffix]).to eq('suffix456')
+    end
+
+    it 'leaves a pending output still pending (basket change is metadata-only)' do
+      store.update_output_state(outpoint, :pending, pending_reference: 'ref-x')
+      result = store.update_output_basket(outpoint, 'pool:doom')
+      expect(result[:state].to_s).to eq('pending')
+    end
+
+    it 'output appears in new basket via find_spendable_outputs' do
+      store.update_output_basket(outpoint, 'pool:doom')
+      results = store.find_spendable_outputs(basket: 'pool:doom')
+      expect(results.map { |o| o[:outpoint] }).to include(outpoint)
+    end
+
+    it 'output disappears from old basket via find_spendable_outputs' do
+      store.update_output_basket(outpoint, 'pool:doom')
+      results = store.find_spendable_outputs(basket: 'old basket')
+      expect(results.map { |o| o[:outpoint] }).not_to include(outpoint)
+    end
+  end
+
   describe 'settings' do
     describe '#store_setting and #find_setting' do
       it 'persists a setting and retrieves it by key' do
