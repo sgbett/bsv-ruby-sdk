@@ -123,6 +123,11 @@ module BSV
       def validate_structured_basket!(basket)
         normalised = basket.strip.downcase
 
+        unless basket == normalised
+          raise InvalidParameterError.new('basket',
+                                          'already normalised (lowercase, trimmed) — received mixed-case or padded input')
+        end
+
         raise InvalidParameterError.new('basket', 'between 1 and 300 bytes') if normalised.bytesize < 1 || normalised.bytesize > 300
         unless normalised.match?(/\A[a-z0-9 :.\-_]+\z/)
           raise InvalidParameterError.new('basket',

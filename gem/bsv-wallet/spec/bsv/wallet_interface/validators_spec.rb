@@ -243,8 +243,12 @@ RSpec.describe BSV::Wallet::Validators do
         expect { described_class.validate_basket!("pool:#{'a' * 300}") }.to raise_error(BSV::Wallet::InvalidParameterError)
       end
 
-      it 'normalises case (Pool:DOOM becomes pool:doom via strip/downcase)' do
-        expect { described_class.validate_basket!('Pool:DOOM') }.not_to raise_error
+      it 'rejects non-normalised input (Pool:DOOM must be pool:doom)' do
+        expect { described_class.validate_basket!('Pool:DOOM') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'accepts already-normalised input' do
+        expect { described_class.validate_basket!('pool:test123') }.not_to raise_error
       end
 
       it 'rejects consecutive spaces in the content portion' do

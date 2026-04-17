@@ -479,6 +479,10 @@ module BSV
       #   <tt>(target_count * low_water_mark).ceil</tt>
       # @return [LocalPool]
       def utxo_pool(name:, target_count: 20, target_satoshis: 10_000, low_water_mark: 0.5)
+        basket = "pool:#{name}"
+        Validators.validate_basket!(basket)
+        raise WalletError, 'utxo_pool requires a broadcaster for replenishment' unless broadcast_enabled?
+
         threshold = (target_count * low_water_mark).ceil
         pool = LocalPool.new(
           name: name,

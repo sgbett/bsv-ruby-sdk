@@ -100,18 +100,28 @@ module BSV
       # Each replenishment cycle is wrapped in a rescue so that a single
       # error never kills the thread.
       def run_loop
+        # Replenish immediately on start — do not sleep first.
+        # A newly created pool has zero outputs; sleeping before the first
+        # cycle creates a chicken-and-egg deadlock where acquire raises
+        # PoolDepletedError and the signal path is never reached.
+        safe_replenish
+
         loop do
           @mutex.synchronize { @cv.wait(@mutex, @interval) }
           break unless @running
 
-          begin
-            replenish
-          rescue BSV::Wallet::WalletError => e
-            warn "[ReplenishmentWorker] WalletError during replenishment: #{e.message}"
-          rescue StandardError => e
-            warn "[ReplenishmentWorker] Unexpected error during replenishment: #{e.message}"
-          end
+          safe_replenish
         end
+      end
+
+      # Wraps a single replenishment cycle in error handling so that
+      # transient failures never kill the background thread.
+      def safe_replenish
+        replenish
+      rescue BSV::Wallet::WalletError => e
+        warn "[ReplenishmentWorker] WalletError during replenishment: #{e.message}"
+      rescue StandardError => e
+        warn "[ReplenishmentWorker] Unexpected error during replenishment: #{e.message}"
       end
 
       # Calculates the pool deficit and funds new outputs when needed.
