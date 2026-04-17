@@ -45,9 +45,11 @@ Build order follows the same dependency chain as the other SDKs: primitives → 
 
 ### Declarative vs Imperative Split
 
-The SDK is **declarative** — it defines what things *are*: data structures, serialisation formats, cryptographic algorithms, protocol rules. It answers questions like "what is a transaction?", "how do you derive an HD key?", "how is a script encoded?".
+The SDK (`bsv-sdk`) is **declarative** — it defines what things *are*: data structures, serialisation formats, cryptographic algorithms, protocol rules. It answers questions like "what is a transaction?", "how do you derive an HD key?", "how is a script encoded?".
 
-Companion gems (e.g. `bsv-attest`, a future `bsv-wallet`) are **imperative** — they define what to *do*: workflows, use-cases, and orchestration. They answer questions like "attest a document", "set up a wallet from a mnemonic", "broadcast and track a payment".
+The declarative/imperative split applies **only to the SDK itself**. The SDK should not contain workflows, use-cases, or orchestration logic — those belong in companion gems.
+
+Companion gems (`bsv-wallet`, `bsv-attest`, `bsv-wallet-postgres`) are free to mix declarative and imperative code as their scope of responsibility demands. `bsv-wallet` manages UTXO pools, background replenishment workers, broadcast queues, and storage adapters — all imperative — alongside declarative concerns like BRC-29 key derivation and output state models. This is normal; each gem owns its domain and organises code by responsibility, not by declarative/imperative taxonomy.
 
 The SDK should be substantially complete before building new companion gems. Early gem development tends to collide with missing SDK primitives. When the SDK covers the declarative layer thoroughly, gems become thin orchestration layers that pick and choose the SDK capabilities they need. Every companion gem pulls in `bsv-sdk` as its core dependency.
 
