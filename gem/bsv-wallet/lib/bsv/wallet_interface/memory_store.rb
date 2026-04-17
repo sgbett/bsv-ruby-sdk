@@ -144,6 +144,22 @@ module BSV
         end
       end
 
+      # Reassigns the basket of an existing output without altering any other field.
+      #
+      # @param outpoint [String] the outpoint identifier
+      # @param new_basket [String] the target basket name
+      # @return [Hash] the updated output hash
+      # @raise [BSV::Wallet::WalletError] if the outpoint is not found
+      def update_output_basket(outpoint, new_basket)
+        @mutex.synchronize do
+          output = @outputs.find { |o| o[:outpoint] == outpoint }
+          raise WalletError, "Output not found: #{outpoint}" unless output
+
+          output[:basket] = new_basket
+          output
+        end
+      end
+
       # Atomically locks the specified outpoints as +:pending+.
       #
       # Holds the mutex for the entire operation so no other thread can
