@@ -152,7 +152,11 @@ module BSV
       #
       # @return [Result::Success, Result::Error, Result::NotFound]
       def safe_call(provider, command_name, *args, **kwargs)
-        provider.call(command_name, *args, **kwargs)
+        if kwargs.empty?
+          provider.call(command_name, *args)
+        else
+          provider.call(command_name, *args, **kwargs)
+        end
       rescue StandardError => e
         Result::Error.new(e.message, retryable: true)
       end
