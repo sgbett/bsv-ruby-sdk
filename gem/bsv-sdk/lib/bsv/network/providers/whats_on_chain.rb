@@ -2,6 +2,7 @@
 
 require 'net/http'
 require 'json'
+require 'openssl'
 require 'uri'
 
 module BSV
@@ -17,7 +18,8 @@ module BSV
       #   result = provider.call(:get_tx, 'abc123...')
       #   result.data if result.success?
       class WhatsOnChain < Provider
-        provides :get_tx, :get_utxos, :current_height, :valid_root
+        provides :get_tx, :get_utxos, :current_height, :valid_root,
+                 :is_utxo, :get_merkle_path, :get_script_unspent
 
         BASE_URL = 'https://api.whatsonchain.com'
 
@@ -109,7 +111,111 @@ module BSV
           success(merkle_root.downcase == root.downcase)
         end
 
+        # Check whether a given outpoint is currently unspent.
+        #
+        # If +script_hash:+ is provided the check requires a single HTTP call.
+        # If omitted, the transaction is fetched first, the locking script at
+        # +vout+ is extracted, its SHA-256 hash is computed, and then the
+        # unspent endpoint is queried — two HTTP calls total.
+        #
+        # @param txid [String] transaction ID (hex)
+        # @param vout [Integer] output index
+        # @param script_hash [String, nil] SHA-256 of locking script (LE hex), optional
+        # @return [Result::Success<Boolean>, Result::NotFound, Result::Error]
+        def call_is_utxo(txid, vout, script_hash: nil)
+          if script_hash.nil?
+            result = compute_script_hash(txid, vout)
+            return result unless result.is_a?(String)
+
+            script_hash = result
+          end
+
+          check_utxo_in_unspent(txid, vout, script_hash)
+        end
+
+        # Fetch the TSC Merkle proof for a confirmed transaction.
+        #
+        # Returns raw proof components — caller must supply the block height
+        # when converting to a {BSV::Transaction::MerklePath} object.
+        #
+        # @param txid [String] transaction ID (hex)
+        # @return [Result::Success<Hash>, Result::NotFound, Result::Error]
+        def call_get_merkle_path(txid)
+          response = get("/v1/bsv/#{@network}/tx/#{txid}/proof/tsc")
+          return response if response.is_a?(Result::Error) || response.is_a?(Result::NotFound)
+
+          body = parse_json(response.body)
+          return body if body.is_a?(Result::Error)
+
+          # WoC returns null for unconfirmed transactions
+          return not_found if body.nil?
+
+          # WoC returns an array; take the first element (canonical proof)
+          proof = body.is_a?(Array) ? body.first : body
+          return not_found if proof.nil?
+
+          success(
+            index: proof['index'],
+            tx_or_id: proof['txOrId'],
+            target: proof['target'],
+            nodes: proof['nodes']
+          )
+        end
+
+        # Fetch all unspent outputs for a given script hash.
+        #
+        # @param script_hash [String] SHA-256 of locking script (LE hex)
+        # @return [Result::Success<Array>, Result::Error]
+        def call_get_script_unspent(script_hash)
+          response = get("/v1/bsv/#{@network}/script/#{script_hash}/unspent", not_found_returns_empty: true)
+          return response if response.is_a?(Result::Success) || response.is_a?(Result::Error)
+
+          body = parse_json(response.body)
+          return body if body.is_a?(Result::Error)
+
+          utxos = body.map do |entry|
+            {
+              tx_hash: entry['tx_hash'],
+              tx_pos: entry['tx_pos'],
+              satoshis: entry['value'],
+              height: entry['height']
+            }
+          end
+
+          success(utxos)
+        end
+
         private
+
+        # Fetch a transaction, extract the output at +vout+, and compute its script hash.
+        #
+        # @return [String] the script hash on success, or a {Result} on failure
+        def compute_script_hash(txid, vout)
+          result = call_get_tx(txid)
+          return result unless result.success?
+
+          tx = BSV::Transaction::Transaction.from_hex(result.data)
+          output = tx.outputs[vout]
+          return error("vout #{vout} out of range (tx has #{tx.outputs.length} outputs)", retryable: false) if output.nil?
+
+          script_bytes = output.locking_script.to_binary
+          digest = OpenSSL::Digest::SHA256.digest(script_bytes)
+          # Script hash is SHA-256 of the script in little-endian (reversed byte order)
+          digest.reverse.unpack1('H*')
+        rescue StandardError => e
+          error("failed to parse transaction: #{e.message}", retryable: false)
+        end
+
+        # Query the script unspent endpoint and check for the given outpoint.
+        #
+        # @return [Result::Success<Boolean>, Result::Error]
+        def check_utxo_in_unspent(txid, vout, script_hash)
+          result = call_get_script_unspent(script_hash)
+          return result unless result.success?
+
+          found = result.data.any? { |u| u[:tx_hash] == txid && u[:tx_pos] == vout }
+          success(found)
+        end
 
         # Perform a GET request to the given path.
         #
