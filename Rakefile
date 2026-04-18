@@ -52,6 +52,20 @@ def generate_reference_index(output_dir) # rubocop:disable Metrics/AbcSize,Metri
   end
 end
 
+namespace :network do
+  desc 'Print the network command inventory'
+  task :commands do
+    require 'bsv-sdk'
+    puts BSV::Network.command_docs_markdown
+  end
+
+  desc 'Print the provider capability matrix'
+  task :capabilities do
+    require 'bsv-sdk'
+    puts BSV::Network.capability_matrix_markdown
+  end
+end
+
 namespace :docs do
   desc 'Generate YARD markdown into docs/reference/'
   task :generate do

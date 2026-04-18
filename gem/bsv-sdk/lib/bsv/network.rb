@@ -81,5 +81,65 @@ module BSV
     def self.capability_matrix
       default_registry.capability_matrix
     end
+
+    # Returns a structured command inventory for documentation.
+    #
+    # Each entry includes the command's name, params, returns, and description
+    # as declared via {Command.define}. The inventory stays accurate as
+    # commands are added — no manual maintenance.
+    #
+    # @return [Array<Hash>] array of command metadata hashes, sorted by name
+    def self.command_docs
+      Command.all.values.sort_by(&:name).map do |cmd|
+        {
+          name: cmd.name,
+          params: cmd.params,
+          returns: cmd.returns,
+          description: cmd.description
+        }
+      end
+    end
+
+    # Formats the capability matrix as a human-readable Markdown table.
+    #
+    # Useful for CLI output and generated documentation.
+    #
+    # @param registry [Registry] the registry to report on (default: default_registry)
+    # @return [String] Markdown table
+    def self.capability_matrix_markdown(registry: default_registry)
+      matrix = registry.capability_matrix
+      return 'No providers registered.' if matrix.empty?
+
+      all_commands = Command.all.keys.sort
+      providers = matrix.keys
+
+      header = "| Command | #{providers.map { |p| p.class.name.split('::').last }.join(' | ')} |"
+      separator = "| ------- | #{providers.map { |_| '---' }.join(' | ')} |"
+
+      rows = all_commands.map do |cmd|
+        cells = providers.map { |p| matrix[p]&.include?(cmd) ? "\u2713" : '' }
+        "| :#{cmd} | #{cells.join(' | ')} |"
+      end
+
+      [header, separator, *rows].join("\n")
+    end
+
+    # Formats the command inventory as a human-readable Markdown table.
+    #
+    # @return [String] Markdown table of all registered commands
+    def self.command_docs_markdown
+      docs = command_docs
+      return 'No commands registered.' if docs.empty?
+
+      header = '| Command | Params | Returns | Description |'
+      separator = '| ------- | ------ | ------- | ----------- |'
+
+      rows = docs.map do |d|
+        params_str = d[:params].is_a?(Hash) ? d[:params].map { |k, v| "#{k}: #{v}" }.join(', ') : d[:params].to_s
+        "| :#{d[:name]} | #{params_str} | #{d[:returns]} | #{d[:description]} |"
+      end
+
+      [header, separator, *rows].join("\n")
+    end
   end
 end
