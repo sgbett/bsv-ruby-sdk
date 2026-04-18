@@ -260,6 +260,7 @@ module BSV
 
         # Escape hatch for get_tx_status: returns a normalised data hash using the
         # same field set as broadcast responses rather than the raw parsed JSON.
+        # Also checks for rejection status and missing txid (malformed 2xx).
         #
         # @param txid [String] the transaction ID to query
         # @return [Result::Success, Result::Error, Result::NotFound]
@@ -268,6 +269,23 @@ module BSV
           return response unless response.is_a?(Result::Success)
 
           body = response.data
+
+          if rejected_status?(body)
+            return Result::Error.new(
+              message: body['detail'] || body['title'] || body['txStatus'],
+              retryable: false,
+              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+            )
+          end
+
+          unless body['txid']
+            return Result::Error.new(
+              message: 'ARC returned a malformed 2xx response',
+              retryable: false,
+              metadata: {}
+            )
+          end
+
           Result::Success.new(
             data: arc_data_from(body),
             metadata: { arc_status: body['txStatus'].to_s.upcase }

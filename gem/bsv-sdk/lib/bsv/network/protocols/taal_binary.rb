@@ -53,7 +53,7 @@ module BSV
           code = response.code.to_i
           body = parse_json_body(response.body)
 
-          return Result::Success.new(data: { txid: body['txid'] }) if already_known?(body)
+          return Result::Success.new(data: { txid: body['txid'] }) if already_known?(body) && body['txid']
 
           retryable = code == 429 || (500..599).cover?(code)
 
