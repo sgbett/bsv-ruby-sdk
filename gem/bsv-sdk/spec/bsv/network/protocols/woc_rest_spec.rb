@@ -112,12 +112,14 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   # ---------------------------------------------------------------------------
 
   describe '.commands' do
-    it 'declares all 12 expected commands' do
+    it 'declares all expected commands' do
       expected = %i[
-        current_height get_block_header
+        current_height get_chain_info get_block_header get_block_headers
         get_tx get_merkle_path broadcast get_tx_status
-        get_utxos is_utxo valid_root
-        get_script_unspent get_balance health
+        get_utxos is_utxo is_utxo_bulk valid_root
+        get_script_unspent get_balance
+        get_unconfirmed_balance get_history is_address_used
+        health
       ]
       expected.each do |cmd|
         expect(described_class.commands).to include(cmd),
@@ -708,6 +710,198 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       expect(http_client.last_uri.path).to end_with('/txs/status')
       expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_chain_info — full chain info object
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_chain_info)' do
+    let(:chain_info_json) { '{"chain":"main","blocks":812345,"bestblockhash":"abcd1234"}' }
+
+    it 'returns parsed JSON chain info on success' do
+      http_client = fake(200, chain_info_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_chain_info)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['blocks']).to eq(812_345)
+      expect(result.data['bestblockhash']).to eq('abcd1234')
+    end
+
+    it 'sends GET to /chain/info' do
+      http_client = fake(200, chain_info_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_chain_info)
+
+      expect(http_client.last_uri.path).to end_with('/chain/info')
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_chain_info)
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_block_headers — bulk header sync
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_block_headers)' do
+    let(:headers_json) do
+      [
+        { 'hash' => 'abc', 'height' => 800_000, 'merkleroot' => 'dead' },
+        { 'hash' => 'def', 'height' => 800_001, 'merkleroot' => 'beef' }
+      ].to_json
+    end
+
+    it 'returns a JSON array of block headers on success' do
+      http_client = fake(200, headers_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_headers)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.length).to eq(2)
+      expect(result.data[0]['height']).to eq(800_000)
+    end
+
+    it 'sends GET to /block/headers' do
+      http_client = fake(200, headers_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_block_headers)
+
+      expect(http_client.last_uri.path).to end_with('/block/headers')
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_headers)
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_unconfirmed_balance
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_unconfirmed_balance)' do
+    it 'returns parsed JSON balance object on success' do
+      body = '{"unconfirmed":25000}'
+      http_client = fake(200, body)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_unconfirmed_balance, '1AddressBSV')
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['unconfirmed']).to eq(25_000)
+    end
+
+    it 'sends GET to /address/{address}/unconfirmed/balance' do
+      http_client = fake(200, '{"unconfirmed":0}')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_unconfirmed_balance, '1TestAddr')
+
+      expect(http_client.last_uri.path).to end_with('/address/1TestAddr/unconfirmed/balance')
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_unconfirmed_balance, '1UnknownAddress')
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_history — confirmed transaction history
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_history)' do
+    let(:history_json) do
+      [
+        { 'tx_hash' => 'abc123', 'height' => 800_000 },
+        { 'tx_hash' => 'def456', 'height' => 800_001 }
+      ].to_json
+    end
+
+    it 'returns a JSON array of history entries on success' do
+      http_client = fake(200, history_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_history, '1AddressBSV')
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.length).to eq(2)
+      expect(result.data[0]['tx_hash']).to eq('abc123')
+    end
+
+    it 'sends GET to /address/{address}/confirmed/history' do
+      http_client = fake(200, '[]')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_history, '1TestAddr')
+
+      expect(http_client.last_uri.path).to end_with('/address/1TestAddr/confirmed/history')
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_history, '1UnknownAddress')
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # is_address_used — HD wallet gap detection
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:is_address_used)' do
+    it 'returns parsed JSON response on success' do
+      http_client = fake(200, 'true')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_address_used, '1AddressBSV')
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be(true)
+    end
+
+    it 'sends GET to /address/{address}/used' do
+      http_client = fake(200, 'false')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:is_address_used, '1TestAddr')
+
+      expect(http_client.last_uri.path).to end_with('/address/1TestAddr/used')
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_address_used, '1UnknownAddress')
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
     end
   end
 

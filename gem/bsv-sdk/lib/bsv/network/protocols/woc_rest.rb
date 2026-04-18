@@ -7,9 +7,9 @@ module BSV
     module Protocols
       # WoCREST implements the WhatsOnChain REST API as a Protocol subclass.
       #
-      # Provides 12 endpoints covering chain info, block headers, transactions,
-      # UTXOs, scripts, broadcast, and health. Three escape hatches handle
-      # WoC-specific body formats and field remapping.
+      # Provides 22 endpoints covering chain info, block headers, transactions,
+      # UTXOs, scripts, address queries, broadcast, and health. Four escape hatches
+      # handle WoC-specific body formats and field remapping.
       #
       # == Network resolution
       #
@@ -39,7 +39,9 @@ module BSV
         # Chain
         endpoint :current_height,   :get, '/chain/info',
                  response: ->(body) { JSON.parse(body)['blocks'] }
+        endpoint :get_chain_info,   :get, '/chain/info', response: :json
         endpoint :get_block_header, :get, '/block/{height}/header', response: :json
+        endpoint :get_block_headers, :get, '/block/headers', response: :json_array
 
         # Transaction
         endpoint :get_tx,           :get,  '/tx/{txid}/hex'
@@ -53,6 +55,7 @@ module BSV
         endpoint :get_utxos_all,    :get,  '/address/{address}/unspent',
                  response: :json_array
         endpoint :is_utxo,          :get,  '/tx/{txid}/{vout}/spent', response: :json
+        endpoint :is_utxo_bulk,     :post, '/utxos/spent', response: :json_array
         endpoint :valid_root,       :get,  '/block/{height}/header', response: :json
 
         # Script
@@ -60,11 +63,21 @@ module BSV
                  response: :json_array
 
         # Address balance
-        endpoint :get_balance,      :get,  '/address/{address}/confirmed/balance',
+        endpoint :get_balance, :get, '/address/{address}/confirmed/balance',
                  response: :json
+        endpoint :get_unconfirmed_balance, :get, '/address/{address}/unconfirmed/balance',
+                 response: :json
+        endpoint :get_history,           :get, '/address/{address}/confirmed/history',
+                 response: :json_array
+        endpoint :is_address_used,       :get, '/address/{address}/used', response: :json
+
+        # Exchange rate / fees / mempool
+        endpoint :get_exchange_rate,      :get, '/exchangerate',      response: :json
+        endpoint :get_fee_recommendation, :get, '/feerecommendation', response: :json
+        endpoint :get_mempool_info,       :get, '/mempool/info',      response: :json
 
         # Health
-        endpoint :health,           :get,  '/health'
+        endpoint :health, :get, '/health'
 
         attr_reader :network_name
 
@@ -161,6 +174,40 @@ module BSV
 
           spent = result.data['spent']
           Result::Success.new(data: !spent)
+        end
+
+        # Bulk-checks whether a set of outputs are unspent.
+        #
+        # WoC expects a JSON array of +{ txid, vout }+ objects. It returns an
+        # array of entries, each containing +txid+, +vout+, and +spent+ fields.
+        # Entries absent from the response (unknown outputs) are treated as spent.
+        #
+        # @param outpoints [Array<Hash>] array of +{ txid:, vout: }+ hashes
+        # @return [Result::Success<Hash{String => Boolean}>, Result::Error]
+        #   On success, data is a hash mapping +"txid.vout"+ keys to booleans
+        #   (+true+ = unspent, +false+ = spent).
+        def call_is_utxo_bulk(outpoints)
+          return Result::Success.new(data: {}) if outpoints.empty?
+
+          body = JSON.generate(outpoints.map { |op| { 'txid' => op[:txid].to_s, 'vout' => op[:vout].to_i } })
+          result = default_call(:is_utxo_bulk, body: body)
+          return result unless result.success?
+
+          # Build a lookup from the response — unknown outpoints default to spent
+          spent_map = {}
+          result.data.each do |entry|
+            next unless entry.is_a?(Hash) && entry.key?('txid') && entry.key?('vout')
+
+            key = "#{entry['txid']}.#{entry['vout']}"
+            spent_map[key] = entry['spent']
+          end
+
+          normalised = outpoints.each_with_object({}) do |op, h|
+            key = "#{op[:txid]}.#{op[:vout]}"
+            h[key] = spent_map.key?(key) ? !spent_map[key] : false
+          end
+
+          Result::Success.new(data: normalised)
         end
 
         # Broadcasts a raw transaction to WhatsOnChain.
