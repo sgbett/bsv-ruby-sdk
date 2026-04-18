@@ -250,8 +250,10 @@ RSpec/DescribeClass:
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/provider_spec.rb'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
+# Provider spec defines top-level test subclasses to avoid RSpec/LeakyConstantDeclaration.
 Lint/ConstantDefinitionInBlock:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
@@ -259,6 +261,11 @@ Lint/ConstantDefinitionInBlock:
 RSpec/LeakyConstantDeclaration:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
+
+# Spec files that define multiple top-level test helper classes.
+Style/OneClassPerFile:
+  Exclude:
+    - 'gem/bsv-sdk/spec/bsv/network/provider_spec.rb'
 
 # Dynamic test generation produces describe blocks populated at runtime.
 RSpec/EmptyExampleGroup:
