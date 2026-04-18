@@ -337,7 +337,43 @@ RSpec.describe 'BSV::Network integration — Registry + Provider composition' do
   end
 
   # ---------------------------------------------------------------------------
-  # 11. No interference with legacy BSV::Network::ARC / BSV::Network::WhatsOnChain
+  # 11. BSV::Network.call convenience method
+  # ---------------------------------------------------------------------------
+
+  describe 'BSV::Network.call convenience method' do
+    after do
+      BSV::Network.reset_default_registry!
+    end
+
+    it 'delegates to the cached default registry' do
+      registry = BSV::Network.default_registry
+      allow(BSV::Network).to receive(:default_registry).and_return(registry)
+      allow(registry).to receive(:call).and_return(BSV::Network::Result::Success.new(data: 42))
+
+      result = BSV::Network.call(:current_height)
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to eq(42)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # 12. Environment variable configuration
+  # ---------------------------------------------------------------------------
+
+  describe 'default_registry environment variable configuration' do
+    it 'uses BSV_ARC_MAINNET_URL by default for :main network' do
+      registry = BSV::Network.default_registry(network: :main)
+      expect(registry).to be_a(BSV::Network::Registry)
+    end
+
+    it 'uses BSV_ARC_TESTNET_URL for :test network' do
+      registry = BSV::Network.default_registry(network: :test)
+      expect(registry).to be_a(BSV::Network::Registry)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # 13. No interference with legacy BSV::Network::ARC / BSV::Network::WhatsOnChain
   # ---------------------------------------------------------------------------
 
   describe 'legacy namespace coexistence' do
