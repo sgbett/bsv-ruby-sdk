@@ -22,6 +22,16 @@ module BSV
       # @param broadcaster [#broadcast] legacy broadcaster (e.g. {BSV::Network::ARC})
       def initialize(broadcaster)
         super()
+        unless ENV['BSV_SUPPRESS_DEPRECATIONS']
+          self.class.instance_variable_get(:@deprecation_warnings) ||
+            self.class.instance_variable_set(:@deprecation_warnings, {})
+          unless self.class.instance_variable_get(:@deprecation_warnings)[:new]
+            warn '[DEPRECATION] broadcaster: is deprecated. ' \
+                 'Pass a BSV::Network::Registry with a broadcast provider via network: instead. ' \
+                 'See https://github.com/sgbett/bsv-ruby-sdk/issues/498'
+            self.class.instance_variable_get(:@deprecation_warnings)[:new] = true
+          end
+        end
         @broadcaster = broadcaster
       end
 

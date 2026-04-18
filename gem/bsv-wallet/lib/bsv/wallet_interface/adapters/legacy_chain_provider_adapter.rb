@@ -22,6 +22,16 @@ module BSV
       # @param chain_provider [#get_utxos, #get_transaction, #get_height] legacy chain provider
       def initialize(chain_provider)
         super()
+        unless ENV['BSV_SUPPRESS_DEPRECATIONS']
+          self.class.instance_variable_get(:@deprecation_warnings) ||
+            self.class.instance_variable_set(:@deprecation_warnings, {})
+          unless self.class.instance_variable_get(:@deprecation_warnings)[:new]
+            warn '[DEPRECATION] chain_provider: is deprecated. ' \
+                 'Pass a BSV::Network::Registry via network: instead. ' \
+                 'See https://github.com/sgbett/bsv-ruby-sdk/issues/498'
+            self.class.instance_variable_get(:@deprecation_warnings)[:new] = true
+          end
+        end
         @chain_provider = chain_provider
       end
 

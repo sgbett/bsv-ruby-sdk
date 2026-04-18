@@ -30,8 +30,22 @@ module BSV
       # @return [StorageAdapter] the underlying persistence adapter
       attr_reader :storage
 
-      # @return [ChainProvider] the blockchain data provider
-      attr_reader :chain_provider
+      # @deprecated The +chain_provider+ accessor is deprecated.
+      #   Use +network_registry+ to access the underlying {BSV::Network::Registry} instead.
+      # @return [ChainProvider, nil] the legacy chain provider (if any)
+      def chain_provider
+        unless ENV['BSV_SUPPRESS_DEPRECATIONS']
+          self.class.instance_variable_get(:@deprecation_warnings) ||
+            self.class.instance_variable_set(:@deprecation_warnings, {})
+          unless self.class.instance_variable_get(:@deprecation_warnings)[:chain_provider_accessor]
+            warn '[DEPRECATION] WalletClient#chain_provider is deprecated. ' \
+                 'Use #network_registry to access the BSV::Network::Registry instead. ' \
+                 'See https://github.com/sgbett/bsv-ruby-sdk/issues/498'
+            self.class.instance_variable_get(:@deprecation_warnings)[:chain_provider_accessor] = true
+          end
+        end
+        @chain_provider
+      end
 
       # @return [String] the network ('mainnet' or 'testnet')
       attr_reader :network
@@ -72,7 +86,7 @@ module BSV
         key,
         storage: FileStore.new,
         network: 'mainnet',
-        chain_provider: NullChainProvider.new,
+        chain_provider: nil,
         proof_store: nil,
         http_client: nil,
         fee_estimator: nil,
@@ -320,9 +334,11 @@ module BSV
         beef = BSV::Transaction::Beef.from_binary(beef_binary)
 
         # F8.14: verify the BEEF bundle before trusting its contents.
-        # Pass the chain provider if it supports SPV root verification;
-        # otherwise fall back to structural validation via valid?.
-        chain_tracker = @chain_provider.respond_to?(:valid_root_for_height?) ? @chain_provider : nil
+        # Use RegistryChainTracker when a :valid_root provider is available so
+        # SPV root verification routes through the registry. When no provider is
+        # registered, pass nil so beef.verify falls back to structural validation
+        # only — matching the behaviour of a wallet with no chain tracker.
+        chain_tracker = (RegistryChainTracker.new(@network_registry) if @network_registry.providers_for(:valid_root).any?)
         raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(chain_tracker)
 
         tx = extract_subject_transaction(beef)
@@ -336,17 +352,22 @@ module BSV
 
       # --- Blockchain & Network Data ---
 
-      # Returns the current blockchain height from the chain provider.
+      # Returns the current blockchain height from the registry.
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { height: Integer }
       def get_height(args = {}, originator: nil)
         return @substrate.get_height(args, originator: originator) if @substrate
 
-        { height: @chain_provider.get_height }
+        { height: registry_call!(:current_height) }
       end
 
       # Returns the block header at the given height from the chain provider.
+      #
+      # Note: no +:get_block_header+ command is currently defined in the Registry,
+      # so this method delegates to the legacy chain_provider if it responds to
+      # +#get_header+. When no legacy provider with header support is available,
+      # raises {UnsupportedActionError}.
       #
       # @param args [Hash]
       # @option args [Integer] :height block height
@@ -355,6 +376,10 @@ module BSV
         return @substrate.get_header_for_height(args, originator: originator) if @substrate
 
         raise InvalidParameterError.new('height', 'a positive Integer') unless args[:height].is_a?(Integer) && args[:height].positive?
+
+        unless @chain_provider.respond_to?(:get_header)
+          raise UnsupportedActionError, 'get_header_for_height (no chain provider with header support configured)'
+        end
 
         { header: @chain_provider.get_header(args[:height]) }
       end
@@ -394,7 +419,7 @@ module BSV
       # @return [Integer] number of new UTXOs imported
       def sync_utxos
         address = identity_address
-        utxos = @chain_provider.get_utxos(address)
+        utxos = registry_call!(:get_utxos, address)
         return 0 if utxos.empty?
 
         imported = 0
@@ -402,7 +427,7 @@ module BSV
           outpoint = "#{utxo[:tx_hash]}.#{utxo[:tx_pos]}"
           next if output_exists?(outpoint)
 
-          tx_hex = @chain_provider.get_transaction(utxo[:tx_hash])
+          tx_hex = registry_call!(:get_tx, utxo[:tx_hash])
           tx = BSV::Transaction::Transaction.from_hex(tx_hex)
 
           pos = utxo[:tx_pos]
@@ -776,6 +801,31 @@ module BSV
       STALE_CHECK_INTERVAL = 30
 
       private
+
+      # --- Registry helpers ---
+
+      # Dispatches a command through the internal network registry and unwraps
+      # the Result value.
+      #
+      # - On {BSV::Network::Result::Success}: returns +result.data+
+      # - On {BSV::Network::Result::Error}: raises {WalletError}
+      # - On {BSV::Network::Registry::NoProviderError}: raises {UnsupportedActionError}
+      # - On {BSV::Network::Result::NotFound}: returns +nil+
+      #
+      # @param command [Symbol] the registry command to invoke
+      # @param args [Array] positional arguments forwarded to the provider
+      # @return [Object, nil] the data payload, or nil on not-found
+      # @raise [WalletError] if the provider returns an error result
+      # @raise [UnsupportedActionError] if no provider is registered for the command
+      def registry_call!(command, *args)
+        result = @network_registry.call(command, *args)
+        return result.data if result.success?
+        raise WalletError, result.message if result.error?
+
+        nil # not_found
+      rescue BSV::Network::Registry::NoProviderError
+        raise UnsupportedActionError, "#{command} (no provider registered)"
+      end
 
       # --- Identity helpers ---
 
@@ -1900,7 +1950,7 @@ module BSV
       # @return [BSV::Network::Registry]
       def build_network_registry(network, chain_provider, broadcaster)
         if network.is_a?(BSV::Network::Registry)
-          legacy_supplied = !chain_provider.is_a?(NullChainProvider) || !broadcaster.nil?
+          legacy_supplied = !chain_provider.nil? || !broadcaster.nil?
           raise ArgumentError, 'Cannot combine network: Registry with legacy chain_provider:/broadcaster: params' if legacy_supplied
 
           return network
@@ -1908,7 +1958,10 @@ module BSV
 
         registry = BSV::Network::Registry.new
 
-        registry.register(LegacyChainProviderAdapter.new(chain_provider)) unless chain_provider.is_a?(NullChainProvider)
+        # Register the chain provider only when a real provider is given (not nil or NullChainProvider).
+        # NullChainProvider is a no-op sentinel that must not be wrapped in the adapter.
+        real_chain_provider = chain_provider && !chain_provider.is_a?(NullChainProvider)
+        registry.register(LegacyChainProviderAdapter.new(chain_provider)) if real_chain_provider
 
         registry.register(LegacyBroadcasterAdapter.new(broadcaster)) if broadcaster
 
