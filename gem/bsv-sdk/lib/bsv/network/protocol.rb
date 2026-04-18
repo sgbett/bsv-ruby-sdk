@@ -18,8 +18,10 @@ module BSV
     # receives its own empty +@endpoints+ and +@subscriptions+ hashes. Adding
     # endpoints to a subclass never affects the parent.
     #
-    # HTTP dispatch is not yet implemented (Task 3). Calling +call+ raises
-    # +NotImplementedError+.
+    # HTTP dispatch routes through +call+: if a +call_<name>+ escape hatch
+    # method exists on the instance, it is called; otherwise +default_call+
+    # interpolates the URL template, makes the HTTP request, and maps the
+    # response to a +Result+.
     #
     # == Example
     #
@@ -29,7 +31,7 @@ module BSV
     #   end
     #
     #   p = MyProtocol.new(base_url: 'https://api.example.com', network: 'main')
-    #   p.commands #=> #<Set: {:get_tx, :broadcast}>
+    #   MyProtocol.commands #=> #<Set: {:get_tx, :broadcast}>
     class Protocol
       class << self
         # Registers an endpoint definition for this protocol class.
@@ -214,7 +216,7 @@ module BSV
             else
               raise ArgumentError, "missing path parameter: #{name}"
             end
-          result = result.sub("{#{name}}", value.to_s)
+          result = result.sub("{#{name}}") { value.to_s }
         end
         result
       end
@@ -234,7 +236,10 @@ module BSV
           end
 
         request['Authorization'] = "Bearer #{@api_key}" if @api_key
-        request.body = body if body && request.respond_to?(:body=)
+        if body && request.respond_to?(:body=)
+          request.body = body
+          request.content_type = 'application/json' unless request.content_type
+        end
         request
       end
 
@@ -279,22 +284,29 @@ module BSV
 
       # Applies the response handler to a raw body string.
       #
-      # @param body    [String]
+      # @param body    [String, nil]
       # @param handler [Symbol, #call]
       # @return [Object, Result::Error]
       def apply_handler(body, handler)
+        return body if body.nil?
+
         case handler
         when :raw
           body
-        when :json, :json_array
-          begin
-            JSON.parse(body)
-          rescue JSON::ParserError => e
-            Result::Error.new(message: "JSON parse error: #{e.message}", retryable: false)
-          end
+        when :json
+          JSON.parse(body)
+        when :json_array
+          parsed = JSON.parse(body)
+          raise TypeError, "expected Array, got #{parsed.class}" unless parsed.is_a?(Array)
+
+          parsed
         else
-          handler.call(body) if handler.respond_to?(:call)
+          raise ArgumentError, "unsupported response handler: #{handler.inspect}" unless handler.respond_to?(:call)
+
+          handler.call(body)
         end
+      rescue JSON::ParserError, TypeError => e
+        Result::Error.new(message: "JSON/response error: #{e.message}", retryable: false)
       end
     end
   end

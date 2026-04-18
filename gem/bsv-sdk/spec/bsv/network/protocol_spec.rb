@@ -326,7 +326,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'JSON parse failure returns Result::Error' do
       result = make_instance(bad_json_response).default_call(:get_info)
       expect(result).to be_a(BSV::Network::Result::Error)
-      expect(result.message).to match(/JSON parse error/)
+      expect(result.message).to match(%r{JSON/response error})
       expect(result.retryable?).to be(false)
     end
   end
