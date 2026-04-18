@@ -74,10 +74,11 @@ module BSV
       # Dispatch a command to eligible providers, applying failover semantics.
       #
       # @param command_name [Symbol, String] the command to invoke
-      # @param args [Array] arguments forwarded to the provider
+      # @param args [Array] positional arguments forwarded to the provider
+      # @param kwargs [Hash] keyword arguments forwarded to the provider
       # @return [Result::Success, Result::Error, Result::NotFound]
       # @raise [NoProviderError] if no providers are registered for the command
-      def call(command_name, *args)
+      def call(command_name, *args, **kwargs)
         sym = command_name.to_sym
         candidates = providers_for(sym)
 
@@ -86,7 +87,7 @@ module BSV
         last_error = nil
 
         candidates.map(&:first).each do |provider|
-          result = safe_call(provider, sym, *args)
+          result = safe_call(provider, sym, *args, **kwargs)
 
           return result if result.success?
           return result if result.not_found?
@@ -150,8 +151,12 @@ module BSV
       # Calls provider#call, wrapping any raised exception as a retryable error.
       #
       # @return [Result::Success, Result::Error, Result::NotFound]
-      def safe_call(provider, command_name, *args)
-        provider.call(command_name, *args)
+      def safe_call(provider, command_name, *args, **kwargs)
+        if kwargs.empty?
+          provider.call(command_name, *args)
+        else
+          provider.call(command_name, *args, **kwargs)
+        end
       rescue StandardError => e
         Result::Error.new(e.message, retryable: true)
       end

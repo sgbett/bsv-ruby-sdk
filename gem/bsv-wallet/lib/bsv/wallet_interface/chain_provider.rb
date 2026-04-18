@@ -4,22 +4,47 @@ module BSV
   module Wallet
     # Duck-typed interface for blockchain data providers.
     #
-    # Include this module in chain provider adapters and override all methods.
-    # The default implementations raise NotImplementedError.
+    # @deprecated Use {BSV::Network::Registry} with a {BSV::Network::Provider} subclass instead.
+    #   The ChainProvider interface is superseded by the Network Registry pattern, which
+    #   supports all blockchain commands via a unified dispatch mechanism.
     #
-    # @example Custom provider
-    #   class MyChainProvider
-    #     include BSV::Wallet::ChainProvider
-    #
-    #     def get_height
-    #       # query your node/API
+    #   Migration example — before:
+    #     class MyChainProvider
+    #       include BSV::Wallet::ChainProvider
+    #       def get_height = MyNode.height
     #     end
+    #     wallet = BSV::Wallet::WalletClient.new(key, chain_provider: MyChainProvider.new)
     #
-    #     def get_header(height)
-    #       # return 80-byte hex block header
+    #   After:
+    #     class MyProvider < BSV::Network::Provider
+    #       provides :current_height
+    #       private
+    #       def call_current_height
+    #         success(MyNode.height)
+    #       rescue => e
+    #         error(e.message)
+    #       end
     #     end
-    #   end
+    #     registry = BSV::Network::Registry.new
+    #     registry.register(MyProvider.new)
+    #     wallet = BSV::Wallet::WalletClient.new(key, network: registry)
+    #
+    # @see https://github.com/sgbett/bsv-ruby-sdk/issues/498
     module ChainProvider
+      # Emit a deprecation warning the first time this module is included.
+      def self.included(base)
+        unless ENV['BSV_SUPPRESS_DEPRECATIONS']
+          @deprecation_warnings ||= {}
+          unless @deprecation_warnings[:included]
+            warn '[DEPRECATION] BSV::Wallet::ChainProvider is deprecated. ' \
+                 'Use BSV::Network::Registry with a BSV::Network::Provider subclass instead. ' \
+                 'See https://github.com/sgbett/bsv-ruby-sdk/issues/498'
+            @deprecation_warnings[:included] = true
+          end
+        end
+        super
+      end
+
       # Returns the current blockchain height.
       # @return [Integer]
       def get_height

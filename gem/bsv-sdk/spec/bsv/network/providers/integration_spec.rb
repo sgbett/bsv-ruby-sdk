@@ -361,14 +361,22 @@ RSpec.describe 'BSV::Network integration — Registry + Provider composition' do
   # ---------------------------------------------------------------------------
 
   describe 'default_registry environment variable configuration' do
-    it 'uses BSV_ARC_MAINNET_URL by default for :main network' do
+    it 'selects mainnet ARC URL for :main network' do
       registry = BSV::Network.default_registry(network: :main)
-      expect(registry).to be_a(BSV::Network::Registry)
+      arc_providers = registry.providers_for(:broadcast).map(&:first)
+      expect(arc_providers).not_to be_empty
     end
 
-    it 'uses BSV_ARC_TESTNET_URL for :test network' do
+    it 'selects testnet ARC URL for :test network' do
       registry = BSV::Network.default_registry(network: :test)
-      expect(registry).to be_a(BSV::Network::Registry)
+      arc_providers = registry.providers_for(:broadcast).map(&:first)
+      expect(arc_providers).not_to be_empty
+    end
+
+    it 'correctly routes :testnet alias to testnet ARC URL' do
+      registry = BSV::Network.default_registry(network: :testnet)
+      arc_providers = registry.providers_for(:broadcast).map(&:first)
+      expect(arc_providers).not_to be_empty
     end
   end
 

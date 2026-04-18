@@ -30,8 +30,22 @@ module BSV
       # @return [StorageAdapter] the underlying persistence adapter
       attr_reader :storage
 
-      # @return [ChainProvider] the blockchain data provider
-      attr_reader :chain_provider
+      # @deprecated The +chain_provider+ accessor is deprecated.
+      #   Use +network_registry+ to access the underlying {BSV::Network::Registry} instead.
+      # @return [ChainProvider, nil] the legacy chain provider (if any)
+      def chain_provider
+        unless ENV['BSV_SUPPRESS_DEPRECATIONS']
+          self.class.instance_variable_get(:@deprecation_warnings) ||
+            self.class.instance_variable_set(:@deprecation_warnings, {})
+          unless self.class.instance_variable_get(:@deprecation_warnings)[:chain_provider_accessor]
+            warn '[DEPRECATION] WalletClient#chain_provider is deprecated. ' \
+                 'Use #network_registry to access the BSV::Network::Registry instead. ' \
+                 'See https://github.com/sgbett/bsv-ruby-sdk/issues/498'
+            self.class.instance_variable_get(:@deprecation_warnings)[:chain_provider_accessor] = true
+          end
+        end
+        @chain_provider
+      end
 
       # @return [String] the network ('mainnet' or 'testnet')
       attr_reader :network
@@ -51,11 +65,18 @@ module BSV
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
-      # @param network [String] 'mainnet' (default) or 'testnet'
-      # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
+      # @param network [String, BSV::Network::Registry, nil] either a network name string
+      #   ('mainnet'/'testnet'), a {BSV::Network::Registry} instance, or nil.
+      #   When a Registry is provided, legacy +chain_provider:+ and +broadcaster:+
+      #   params must not also be given (raises +ArgumentError+).
+      #   When nil or a String, legacy params are wrapped in adapter classes and
+      #   composed into an internal Registry.
+      # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider).
+      #   Deprecated — prefer passing a {BSV::Network::Registry} via +network:+.
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
-      # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
+      # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx).
+      #   Deprecated — prefer passing a {BSV::Network::Registry} via +network:+.
       # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to InlineQueue
       # @param substrate [Interface, nil] optional remote wallet substrate; when set, all Interface
       #   methods delegate to the substrate instead of using local storage and key derivation.
@@ -65,7 +86,7 @@ module BSV
         key,
         storage: FileStore.new,
         network: 'mainnet',
-        chain_provider: NullChainProvider.new,
+        chain_provider: nil,
         proof_store: nil,
         http_client: nil,
         fee_estimator: nil,
@@ -78,11 +99,18 @@ module BSV
         super(key)
         @substrate = substrate
         @storage = storage
-        @network = network
-        @chain_provider = chain_provider
+        @network_registry = build_network_registry(network, chain_provider, broadcaster)
+        @network = network.is_a?(String) ? network : 'mainnet'
+        @chain_provider = network.is_a?(BSV::Network::Registry) ? RegistryChainTracker.new(@network_registry) : chain_provider
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
         @broadcaster = broadcaster
+        # When a Registry with broadcast capability is provided, build a RegistryBroadcaster
+        # for the queue so dispatches go through the registry. For the legacy broadcaster:
+        # param path, use the raw broadcaster directly — this preserves ARC status codes
+        # that would otherwise be lost in the adapter translation layer.
+        has_registry_broadcast = network.is_a?(BSV::Network::Registry) && @network_registry.providers_for(:broadcast).any?
+        @registry_broadcaster = has_registry_broadcast ? RegistryBroadcaster.new(@network_registry) : broadcaster
         @pending = {}
         @pending_by_txid = {}
         @injected_fee_estimator    = fee_estimator
@@ -90,9 +118,12 @@ module BSV
         @injected_change_generator = change_generator
         @broadcast_queue = broadcast_queue || InlineQueue.new(
           storage: @storage,
-          broadcaster: @broadcaster
+          broadcaster: @registry_broadcaster
         )
       end
+
+      # @return [BSV::Network::Registry] the internal network registry
+      attr_reader :network_registry
 
       # Returns +true+ when broadcast is available.
       #
@@ -303,9 +334,11 @@ module BSV
         beef = BSV::Transaction::Beef.from_binary(beef_binary)
 
         # F8.14: verify the BEEF bundle before trusting its contents.
-        # Pass the chain provider if it supports SPV root verification;
-        # otherwise fall back to structural validation via valid?.
-        chain_tracker = @chain_provider.respond_to?(:valid_root_for_height?) ? @chain_provider : nil
+        # Use RegistryChainTracker when a :valid_root provider is available so
+        # SPV root verification routes through the registry. When no provider is
+        # registered, pass nil so beef.verify falls back to structural validation
+        # only — matching the behaviour of a wallet with no chain tracker.
+        chain_tracker = (RegistryChainTracker.new(@network_registry) if @network_registry.providers_for(:valid_root).any?)
         raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(chain_tracker)
 
         tx = extract_subject_transaction(beef)
@@ -319,17 +352,22 @@ module BSV
 
       # --- Blockchain & Network Data ---
 
-      # Returns the current blockchain height from the chain provider.
+      # Returns the current blockchain height from the registry.
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { height: Integer }
       def get_height(args = {}, originator: nil)
         return @substrate.get_height(args, originator: originator) if @substrate
 
-        { height: @chain_provider.get_height }
+        { height: registry_call!(:current_height) }
       end
 
       # Returns the block header at the given height from the chain provider.
+      #
+      # Note: no +:get_block_header+ command is currently defined in the Registry,
+      # so this method delegates to the legacy chain_provider if it responds to
+      # +#get_header+. When no legacy provider with header support is available,
+      # raises {UnsupportedActionError}.
       #
       # @param args [Hash]
       # @option args [Integer] :height block height
@@ -338,6 +376,10 @@ module BSV
         return @substrate.get_header_for_height(args, originator: originator) if @substrate
 
         raise InvalidParameterError.new('height', 'a positive Integer') unless args[:height].is_a?(Integer) && args[:height].positive?
+
+        unless @chain_provider.respond_to?(:get_header)
+          raise UnsupportedActionError, 'get_header_for_height (no chain provider with header support configured)'
+        end
 
         { header: @chain_provider.get_header(args[:height]) }
       end
@@ -377,7 +419,7 @@ module BSV
       # @return [Integer] number of new UTXOs imported
       def sync_utxos
         address = identity_address
-        utxos = @chain_provider.get_utxos(address)
+        utxos = registry_call!(:get_utxos, address)
         return 0 if utxos.empty?
 
         imported = 0
@@ -385,7 +427,7 @@ module BSV
           outpoint = "#{utxo[:tx_hash]}.#{utxo[:tx_pos]}"
           next if output_exists?(outpoint)
 
-          tx_hex = @chain_provider.get_transaction(utxo[:tx_hash])
+          tx_hex = registry_call!(:get_tx, utxo[:tx_hash])
           tx = BSV::Transaction::Transaction.from_hex(tx_hex)
 
           pos = utxo[:tx_pos]
@@ -413,6 +455,130 @@ module BSV
       end
 
       # --- UTXO Pool & Settings ---
+
+      # Returns a health report of the wallet's UTXO state.
+      #
+      # Without +verify:+, the report reflects storage state only (no network
+      # calls). With +verify: true+, each spendable output is checked against
+      # the network via +:is_utxo+. Any output no longer unspent on-chain is
+      # quarantined (state updated to +:invalid+) and listed in the report.
+      #
+      # Network verification is sequential. With large numbers of spendable
+      # outputs this may be slow and subject to provider rate limiting. For v1
+      # sequential calls are acceptable; callers should be aware of the trade-off.
+      #
+      # When +verify: true+ and no +:is_utxo+ provider is registered, raises
+      # {UnsupportedActionError}.
+      #
+      # @param verify [Boolean] when +true+, validates each spendable output
+      #   against the network (default: +false+)
+      # @return [Hash] health report with keys:
+      #   +:total_outputs+ (Integer), +:total_satoshis+ (Integer),
+      #   +:baskets+ (Hash of basket_name => {count:, satoshis:}),
+      #   +:verified+ (Integer, only when verify: true),
+      #   +:quarantined+ (Array<String>, only when verify: true),
+      #   +:verification_errors+ (Array<Hash>, only when verify: true)
+      # @raise [UnsupportedActionError] when +verify: true+ and no +:is_utxo+
+      #   provider is registered
+      def wallet_health(verify: false)
+        raise UnsupportedActionError, 'is_utxo (no provider registered)' if verify && @network_registry.providers_for(:is_utxo).empty?
+
+        outputs = @storage.find_spendable_outputs
+        report = {
+          total_outputs: outputs.size,
+          total_satoshis: outputs.sum { |o| o[:satoshis].to_i },
+          baskets: {}
+        }
+
+        outputs.group_by { |o| o[:basket] || 'default' }.each do |basket, outs|
+          report[:baskets][basket] = {
+            count: outs.size,
+            satoshis: outs.sum { |o| o[:satoshis].to_i }
+          }
+        end
+
+        return report unless verify
+
+        quarantined = []
+        verification_errors = []
+        verified = 0
+
+        outputs.each do |o|
+          outpoint = o[:outpoint]
+          txid, raw_vout = outpoint.split('.')
+          vout = raw_vout.to_i
+
+          begin
+            result = @network_registry.call(:is_utxo, txid, vout)
+            if result.success?
+              if result.data == false
+                quarantined << outpoint
+                @storage.update_output_state(outpoint, :invalid)
+              else
+                verified += 1
+              end
+            else
+              warn "[BSV::Wallet] wallet_health: is_utxo error for #{outpoint}: #{result.message}"
+              verification_errors << { outpoint: outpoint, error: result.message }
+            end
+          rescue BSV::Network::Registry::NoProviderError => e
+            raise UnsupportedActionError, "is_utxo (no provider registered): #{e.message}"
+          end
+        end
+
+        report[:verified] = verified
+        report[:quarantined] = quarantined
+        report[:verification_errors] = verification_errors
+        report
+      end
+
+      # Checks whether a failed or pending transaction actually made it on-chain
+      # and recovers the wallet's storage state accordingly.
+      #
+      # For an action with status 'failed' or 'pending', calls +:get_tx_status+
+      # via the network registry:
+      # - If the transaction is mined or seen on network → promotes to 'unproven'
+      # - If the transaction is truly not found on-chain → confirms the failure,
+      #   returns the current state
+      # - If still pending in mempool → returns current status with indication
+      # - For an action already 'completed' → no-op, returns current status
+      #
+      # @param txid [String] transaction identifier to check
+      # @return [Hash] recovery result with at minimum +:recovered+ (Boolean)
+      #   and +:txid+ (String) keys. Additional keys depend on outcome.
+      # @raise [WalletError] when no action with the given txid is found
+      # @raise [UnsupportedActionError] when no +:get_tx_status+ provider is
+      #   registered
+      def recover_failed_broadcast(txid)
+        all_actions = @storage.find_actions({ limit: 1_000_000, offset: 0 })
+        action = all_actions.find { |a| a[:txid] == txid }
+        raise WalletError, "Action not found: #{txid}" unless action
+
+        current_status = action[:status].to_s
+
+        # No-op for already-completed actions
+        return { recovered: false, txid: txid, status: current_status } if current_status == 'completed'
+
+        raise UnsupportedActionError, 'get_tx_status (no provider registered)' if @network_registry.providers_for(:get_tx_status).empty?
+
+        result = @network_registry.call(:get_tx_status, txid)
+
+        if result.success?
+          status_info = result.data
+          tx_status = (status_info[:tx_status] || status_info[:status]).to_s
+
+          if %w[MINED SEEN_ON_NETWORK].include?(tx_status)
+            @storage.update_action_status(txid, 'unproven')
+            { recovered: true, txid: txid, new_status: 'unproven', on_chain_status: tx_status }
+          else
+            { recovered: false, txid: txid, status: current_status, on_chain_status: tx_status }
+          end
+        elsif result.not_found?
+          { recovered: false, txid: txid, reason: 'not_found_on_chain' }
+        else
+          { recovered: false, txid: txid, error: result.message }
+        end
+      end
 
       # Returns the total spendable satoshis across all baskets (or a named basket).
       #
@@ -759,6 +925,31 @@ module BSV
       STALE_CHECK_INTERVAL = 30
 
       private
+
+      # --- Registry helpers ---
+
+      # Dispatches a command through the internal network registry and unwraps
+      # the Result value.
+      #
+      # - On {BSV::Network::Result::Success}: returns +result.data+
+      # - On {BSV::Network::Result::Error}: raises {WalletError}
+      # - On {BSV::Network::Registry::NoProviderError}: raises {UnsupportedActionError}
+      # - On {BSV::Network::Result::NotFound}: returns +nil+
+      #
+      # @param command [Symbol] the registry command to invoke
+      # @param args [Array] positional arguments forwarded to the provider
+      # @return [Object, nil] the data payload, or nil on not-found
+      # @raise [WalletError] if the provider returns an error result
+      # @raise [UnsupportedActionError] if no provider is registered for the command
+      def registry_call!(command, *args)
+        result = @network_registry.call(command, *args)
+        return result.data if result.success?
+        raise WalletError, result.message if result.error?
+
+        nil # not_found
+      rescue BSV::Network::Registry::NoProviderError
+        raise UnsupportedActionError, "#{command} (no provider registered)"
+      end
 
       # --- Identity helpers ---
 
@@ -1463,7 +1654,7 @@ module BSV
       # never be deleted. See +broadcast_and_promote+ for the same invariant.
       def promote_no_send(tx, txid, fund_ref, pending_entry)
         begin
-          @broadcaster.broadcast(tx)
+          @registry_broadcaster.broadcast(tx)
         rescue StandardError => e
           rollback_pending_action(
             pending_entry[:locked_outpoints],
@@ -1864,6 +2055,41 @@ module BSV
         result = cert.dup
         result.delete(:keyring)
         result
+      end
+
+      # Builds the internal {BSV::Network::Registry} from the constructor params.
+      #
+      # Resolution rules:
+      # - If +network+ is a {BSV::Network::Registry}: use it directly.
+      #   Raises +ArgumentError+ if legacy +chain_provider+ or +broadcaster+ were
+      #   also supplied (ambiguous configuration).
+      # - If +network+ is a String (or nil): wrap legacy params in adapter classes
+      #   and register both in a fresh Registry. Either param may be absent.
+      # - If neither a Registry nor any legacy param is provided: returns an empty
+      #   Registry (equivalent to the former NullChainProvider behaviour).
+      #
+      # @param network [String, BSV::Network::Registry, nil]
+      # @param chain_provider [ChainProvider]
+      # @param broadcaster [#broadcast, nil]
+      # @return [BSV::Network::Registry]
+      def build_network_registry(network, chain_provider, broadcaster)
+        if network.is_a?(BSV::Network::Registry)
+          legacy_supplied = !chain_provider.nil? || !broadcaster.nil?
+          raise ArgumentError, 'Cannot combine network: Registry with legacy chain_provider:/broadcaster: params' if legacy_supplied
+
+          return network
+        end
+
+        registry = BSV::Network::Registry.new
+
+        # Register the chain provider only when a real provider is given (not nil or NullChainProvider).
+        # NullChainProvider is a no-op sentinel that must not be wrapped in the adapter.
+        real_chain_provider = chain_provider && !chain_provider.is_a?(NullChainProvider)
+        registry.register(LegacyChainProviderAdapter.new(chain_provider)) if real_chain_provider
+
+        registry.register(LegacyBroadcasterAdapter.new(broadcaster)) if broadcaster
+
+        registry
       end
     end
   end

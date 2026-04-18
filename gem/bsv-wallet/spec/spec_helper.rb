@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Suppress deprecation warnings in the test suite — the deprecated classes are
+# used extensively in existing specs and the warnings would create noise. Tests
+# that specifically verify deprecation warnings must unset this env var locally.
+ENV['BSV_SUPPRESS_DEPRECATIONS'] = '1'
+
 if ENV['COVERAGE']
   require 'simplecov'
   require 'simplecov-cobertura'

@@ -4,19 +4,33 @@ module BSV
   module Wallet
     # ChainProvider implementation backed by the WhatsOnChain public API.
     #
-    # Delegates to {BSV::Network::WhatsOnChain} for all HTTP communication,
-    # adapting its responses to the {ChainProvider} contract.
+    # @deprecated Use {BSV::Network::Providers::WhatsOnChain} with {BSV::Network.default_registry} instead.
+    #   This class is superseded by the Network Registry pattern.
     #
-    # @example Use with WalletClient
-    #   provider = BSV::Wallet::WhatsOnChainProvider.new(network: :main)
-    #   wallet = BSV::Wallet::WalletClient.new(key, chain_provider: provider)
-    #   wallet.sync_utxos
+    #   Migration example — before:
+    #     provider = BSV::Wallet::WhatsOnChainProvider.new(network: :main)
+    #     wallet = BSV::Wallet::WalletClient.new(key, chain_provider: provider)
+    #
+    #   After:
+    #     wallet = BSV::Wallet::WalletClient.new(key, network: BSV::Network.default_registry)
+    #
+    # @see https://github.com/sgbett/bsv-ruby-sdk/issues/498
     class WhatsOnChainProvider
       include ChainProvider
 
       # @param network [Symbol] :main (default) or :test
       # @param http_client [#request, nil] injectable HTTP client for testing
       def initialize(network: :main, http_client: nil)
+        unless ENV['BSV_SUPPRESS_DEPRECATIONS']
+          self.class.instance_variable_get(:@deprecation_warnings) ||
+            self.class.instance_variable_set(:@deprecation_warnings, {})
+          unless self.class.instance_variable_get(:@deprecation_warnings)[:new]
+            warn '[DEPRECATION] BSV::Wallet::WhatsOnChainProvider is deprecated. ' \
+                 'Use BSV::Network::Providers::WhatsOnChain with BSV::Network.default_registry instead. ' \
+                 'See https://github.com/sgbett/bsv-ruby-sdk/issues/498'
+            self.class.instance_variable_get(:@deprecation_warnings)[:new] = true
+          end
+        end
         woc_network = network == :main ? :mainnet : :testnet
         @woc = BSV::Network::WhatsOnChain.new(network: woc_network, http_client: http_client)
       end
