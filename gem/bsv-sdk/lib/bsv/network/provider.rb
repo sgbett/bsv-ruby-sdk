@@ -69,11 +69,16 @@ module BSV
 
       # Dispatch a command to the corresponding +call_<name>+ method.
       #
+      # Both positional and keyword arguments are forwarded so command
+      # implementations can use keyword-only options (e.g. +wait_for:+,
+      # +skip_fee_validation:+) without wrapper shims.
+      #
       # @param command_name [Symbol, String] the command to invoke
-      # @param args [Array] arguments forwarded to the handler method
+      # @param args [Array] positional arguments forwarded to the handler method
+      # @param kwargs [Hash] keyword arguments forwarded to the handler method
       # @return [Result::Success, Result::Error, Result::NotFound]
       # @raise [ArgumentError] when the command is not in {.capabilities}
-      def call(command_name, *args)
+      def call(command_name, *args, **kwargs)
         sym = command_name.to_sym
         unless self.class.capabilities.include?(sym)
           raise ArgumentError,
@@ -81,7 +86,11 @@ module BSV
                 "Provided: #{self.class.capabilities.to_a.sort.inspect}"
         end
 
-        send(:"call_#{sym}", *args)
+        if kwargs.empty?
+          send(:"call_#{sym}", *args)
+        else
+          send(:"call_#{sym}", *args, **kwargs)
+        end
       end
 
       private
