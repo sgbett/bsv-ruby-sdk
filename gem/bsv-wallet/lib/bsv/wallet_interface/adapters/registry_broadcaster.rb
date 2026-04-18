@@ -34,7 +34,14 @@ module BSV
       def broadcast(tx)
         result = @registry.call(:broadcast, tx)
 
-        raise BSV::Network::BroadcastError, result.message || 'Broadcast failed' unless result.success?
+        unless result.success?
+          meta = result.respond_to?(:metadata) ? result.metadata : {}
+          raise BSV::Network::BroadcastError.new(
+            result.message || 'Broadcast failed',
+            arc_status: meta[:arc_status],
+            txid: meta[:txid]
+          )
+        end
 
         build_response(result.data)
       rescue BSV::Network::Registry::NoProviderError => e

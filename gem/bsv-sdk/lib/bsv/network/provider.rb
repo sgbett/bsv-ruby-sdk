@@ -107,9 +107,10 @@ module BSV
       #
       # @param message [String] human-readable error description
       # @param retryable [Boolean] whether another provider may succeed (default: false)
+      # @param metadata [Hash, nil] optional structured data (e.g. +{ arc_status: 'REJECTED' }+)
       # @return [Result::Error]
-      def error(message, retryable: false)
-        Result::Error.new(message, retryable: retryable)
+      def error(message, retryable: false, metadata: nil)
+        Result::Error.new(message, retryable: retryable, metadata: metadata)
       end
 
       # Returns a {Result::NotFound} indicating the resource does not exist.

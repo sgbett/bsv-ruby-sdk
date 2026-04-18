@@ -100,7 +100,7 @@ module BSV
         @substrate = substrate
         @storage = storage
         @network_registry = build_network_registry(network, chain_provider, broadcaster)
-        @network = network.is_a?(String) ? network : 'mainnet'
+        @network = resolve_network_name(network)
         @chain_provider = network.is_a?(BSV::Network::Registry) ? RegistryChainTracker.new(@network_registry) : chain_provider
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
@@ -428,6 +428,8 @@ module BSV
           next if output_exists?(outpoint)
 
           tx_hex = registry_call!(:get_tx, utxo[:tx_hash])
+          next unless tx_hex # skip UTXOs whose source tx is not found
+
           tx = BSV::Transaction::Transaction.from_hex(tx_hex)
 
           pos = utxo[:tx_pos]
@@ -439,7 +441,7 @@ module BSV
 
           @storage.store_output({
                                   outpoint: outpoint,
-                                  satoshis: utxo[:value],
+                                  satoshis: utxo[:satoshis] || utxo[:value],
                                   locking_script: locking_script_hex,
                                   basket: 'default',
                                   tags: [],
@@ -517,6 +519,8 @@ module BSV
               else
                 verified += 1
               end
+            elsif result.not_found?
+              verification_errors << { outpoint: outpoint, error: 'transaction not found' }
             else
               warn "[BSV::Wallet] wallet_health: is_utxo error for #{outpoint}: #{result.message}"
               verification_errors << { outpoint: outpoint, error: result.message }
@@ -949,6 +953,26 @@ module BSV
         nil # not_found
       rescue BSV::Network::Registry::NoProviderError
         raise UnsupportedActionError, "#{command} (no provider registered)"
+      end
+
+      # Resolves the network name string from the constructor's +network:+ param.
+      #
+      # - String → used directly ('mainnet', 'testnet')
+      # - Registry → attempts to infer from registered WoC provider's network,
+      #   falls back to 'mainnet'
+      #
+      # @param network [String, BSV::Network::Registry, nil]
+      # @return [String] 'mainnet' or 'testnet'
+      def resolve_network_name(network)
+        return network if network.is_a?(String)
+
+        # Attempt to infer from WoC provider's network setting
+        if network.is_a?(BSV::Network::Registry)
+          woc = network.registered_providers.find { |p| p.is_a?(BSV::Network::Providers::WhatsOnChain) }
+          return woc.network_name == 'test' ? 'testnet' : 'mainnet' if woc.respond_to?(:network_name)
+        end
+
+        'mainnet'
       end
 
       # --- Identity helpers ---

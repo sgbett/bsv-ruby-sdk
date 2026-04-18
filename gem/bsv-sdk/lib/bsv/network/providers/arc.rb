@@ -196,7 +196,8 @@ module BSV
 
           if rejected_status?(body)
             msg = body['detail'] || body['title'] || body['txStatus']
-            return error(msg, retryable: false)
+            arc_status = body['txStatus'].to_s.upcase
+            return error(msg, retryable: false, metadata: { arc_status: arc_status, txid: body['txid'] })
           end
 
           return error('ARC returned a malformed 2xx response', retryable: false) unless body['txid']

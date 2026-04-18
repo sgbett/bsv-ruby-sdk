@@ -60,11 +60,15 @@ module BSV
       class Error
         include Predicates
 
-        attr_reader :message, :retryable
+        attr_reader :message, :retryable, :metadata
 
-        def initialize(message, retryable: false)
+        # @param message [String] human-readable error description
+        # @param retryable [Boolean] whether another provider may succeed
+        # @param metadata [Hash] optional structured data (e.g. +{ arc_status: 'REJECTED' }+)
+        def initialize(message, retryable: false, metadata: nil)
           @message = message
           @retryable = retryable
+          @metadata = metadata || {}
           freeze
         end
 

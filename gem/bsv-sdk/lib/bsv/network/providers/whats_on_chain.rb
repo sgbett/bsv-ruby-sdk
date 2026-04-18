@@ -34,9 +34,13 @@ module BSV
         # @param network [Symbol] :main, :mainnet, :test, :testnet, or :stn
         # @param api_key [String, nil] optional WoC API key sent in Authorization header
         # @param http_client [#request, nil] injectable HTTP client for testing
+        # @return [String] the resolved network name ('main', 'test', or 'stn')
+        attr_reader :network_name
+
         def initialize(network: :main, api_key: nil, http_client: nil)
           super(http_client: http_client)
           @network = NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
+          @network_name = @network
           @api_key = api_key
         end
 
