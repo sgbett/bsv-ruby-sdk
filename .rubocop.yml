@@ -157,6 +157,7 @@ Layout/LineLength:
 RSpec/ContextWording:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
 
 # Specs for low-level modules legitimately need multiple assertions
 # per example and longer examples for thorough test coverage.
@@ -185,6 +186,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
     - 'gem/bsv-sdk/spec/bsv/script/**/*'
     - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/bsv/auth/**/*'
     - 'gem/bsv-sdk/spec/bsv/overlay/**/*'
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
