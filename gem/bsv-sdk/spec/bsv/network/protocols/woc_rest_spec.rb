@@ -115,10 +115,12 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'declares all expected commands' do
       expected = %i[
         current_height get_chain_info get_block_header get_block_headers
-        get_tx get_merkle_path broadcast get_tx_status
+        get_tx get_tx_details get_output_script get_opreturn
+        get_merkle_path broadcast decode_tx get_tx_status get_tx_hex_bulk
         get_utxos is_utxo is_utxo_bulk valid_root
-        get_script_unspent get_balance
-        get_unconfirmed_balance get_history is_address_used
+        get_script_unspent get_script_history get_script_all_unspent get_script_unspent_bulk
+        get_balance get_unconfirmed_balance get_history is_address_used
+        get_exchange_rate get_fee_recommendation get_mempool_info
         health
       ]
       expected.each do |cmd|
@@ -466,6 +468,94 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       expect(result).to be_a(BSV::Network::Result::Error)
       expect(result.message).to include('missing spent field')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # is_utxo_bulk — bulk spent check (escape hatch)
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:is_utxo_bulk)' do
+    let(:first_txid) { 'a' * 64 }
+    let(:second_txid) { 'b' * 64 }
+
+    it 'returns a hash mapping outpoints to booleans — mix of spent and unspent' do
+      response = [
+        { 'txid' => first_txid, 'vout' => 0, 'spent' => false },
+        { 'txid' => second_txid, 'vout' => 1, 'spent' => true }
+      ].to_json
+      http_client = fake(200, response)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }, { txid: second_txid, vout: 1 }])
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data["#{first_txid}.0"]).to be(true)
+      expect(result.data["#{second_txid}.1"]).to be(false)
+    end
+
+    it 'sends POST to /utxos/spent with correct body format' do
+      response = [{ 'txid' => first_txid, 'vout' => 0, 'spent' => false }].to_json
+      http_client = fake(200, response)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
+
+      expect(http_client.last_uri.path).to end_with('/utxos/spent')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_an(Array)
+      expect(body.first).to include('txid' => first_txid, 'vout' => 0)
+    end
+
+    it 'returns an empty hash for an empty input array without making an HTTP request' do
+      http_client = fake(500, 'should not be called')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo_bulk, [])
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to eq({})
+    end
+
+    it 'treats outpoints absent from the response as spent (false)' do
+      # Response only includes one of the two queried outpoints
+      response = [{ 'txid' => first_txid, 'vout' => 0, 'spent' => false }].to_json
+      http_client = fake(200, response)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }, { txid: second_txid, vout: 1 }])
+
+      expect(result.data["#{first_txid}.0"]).to be(true)
+      expect(result.data["#{second_txid}.1"]).to be(false)
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+
+    it 'returns Result::Error on malformed (non-array) response body' do
+      http_client = fake(200, '{"not":"an array"}')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
+
+      expect(result).to be_a(BSV::Network::Result::Error)
     end
   end
 
@@ -902,6 +992,114 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       result = protocol.call(:is_address_used, '1UnknownAddress')
 
       expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_exchange_rate
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_exchange_rate)' do
+    it 'returns parsed JSON exchange rate on success' do
+      body = '{"rate":62500.0,"currency":"USD"}'
+      http_client = fake(200, body)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_exchange_rate)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['rate']).to eq(62_500.0)
+    end
+
+    it 'sends GET to /exchangerate' do
+      http_client = fake(200, '{"rate":62500.0}')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_exchange_rate)
+
+      expect(http_client.last_uri.path).to end_with('/exchangerate')
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_exchange_rate)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_fee_recommendation
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_fee_recommendation)' do
+    it 'returns parsed JSON fee recommendation on success' do
+      body = '{"miningFee":{"satoshis":1,"bytes":1000}}'
+      http_client = fake(200, body)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_fee_recommendation)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['miningFee']).to be_a(Hash)
+    end
+
+    it 'sends GET to /feerecommendation' do
+      http_client = fake(200, '{"miningFee":{}}')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_fee_recommendation)
+
+      expect(http_client.last_uri.path).to end_with('/feerecommendation')
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_fee_recommendation)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_mempool_info
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_mempool_info)' do
+    it 'returns parsed JSON mempool info on success' do
+      body = '{"size":1234,"bytes":5000000}'
+      http_client = fake(200, body)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_mempool_info)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['size']).to eq(1234)
+    end
+
+    it 'sends GET to /mempool/info' do
+      http_client = fake(200, '{"size":0}')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_mempool_info)
+
+      expect(http_client.last_uri.path).to end_with('/mempool/info')
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_mempool_info)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
     end
   end
 

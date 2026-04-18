@@ -7,8 +7,8 @@ module BSV
     module Protocols
       # WoCREST implements the WhatsOnChain REST API as a Protocol subclass.
       #
-      # Provides 22 endpoints covering chain info, block headers, transactions,
-      # UTXOs, scripts, address queries, broadcast, and health. Four escape hatches
+      # Provides 30 endpoints covering chain info, block headers, transactions,
+      # UTXOs, scripts, address queries, broadcast, and health. Seven escape hatches
       # handle WoC-specific body formats and field remapping.
       #
       # == Network resolution
@@ -39,15 +39,20 @@ module BSV
         # Chain
         endpoint :current_height,   :get, '/chain/info',
                  response: ->(body) { JSON.parse(body)['blocks'] }
-        endpoint :get_chain_info,   :get, '/chain/info', response: :json
-        endpoint :get_block_header, :get, '/block/{height}/header', response: :json
+        endpoint :get_chain_info,    :get, '/chain/info', response: :json
+        endpoint :get_block_header,  :get, '/block/{height}/header', response: :json
         endpoint :get_block_headers, :get, '/block/headers', response: :json_array
 
         # Transaction
-        endpoint :get_tx,           :get,  '/tx/{txid}/hex'
-        endpoint :get_merkle_path,  :get,  '/tx/{txid}/proof/tsc', response: :json
-        endpoint :broadcast,        :post, '/tx/raw'
-        endpoint :get_tx_status,    :post, '/txs/status', response: :json
+        endpoint :get_tx,            :get,  '/tx/{txid}/hex'
+        endpoint :get_tx_details,    :get,  '/tx/hash/{txid}', response: :json
+        endpoint :get_output_script, :get,  '/tx/{txid}/out/{index}/hex'
+        endpoint :get_opreturn,      :get,  '/tx/{txid}/opreturn', response: :json
+        endpoint :get_merkle_path,   :get,  '/tx/{txid}/proof/tsc', response: :json
+        endpoint :broadcast,         :post, '/tx/raw'
+        endpoint :decode_tx,         :post, '/tx/decode', response: :json
+        endpoint :get_tx_status,     :post, '/txs/status', response: :json
+        endpoint :get_tx_hex_bulk,   :post, '/txs/hex', response: :json
 
         # UTXO / spent status
         endpoint :get_utxos,        :get,  '/address/{address}/confirmed/unspent',
@@ -59,17 +64,22 @@ module BSV
         endpoint :valid_root,       :get,  '/block/{height}/header', response: :json
 
         # Script
-        endpoint :get_script_unspent, :get, '/script/{script_hash}/confirmed/unspent',
+        endpoint :get_script_unspent,     :get,  '/script/{script_hash}/confirmed/unspent',
                  response: :json_array
+        endpoint :get_script_history,     :get,  '/script/{script_hash}/confirmed/history',
+                 response: :json_array
+        endpoint :get_script_all_unspent, :get,  '/script/{script_hash}/unspent/all',
+                 response: :json_array
+        endpoint :get_script_unspent_bulk, :post, '/scripts/confirmed/unspent', response: :json
 
-        # Address balance
-        endpoint :get_balance, :get, '/address/{address}/confirmed/balance',
+        # Address balance / history
+        endpoint :get_balance,             :get, '/address/{address}/confirmed/balance',
                  response: :json
         endpoint :get_unconfirmed_balance, :get, '/address/{address}/unconfirmed/balance',
                  response: :json
-        endpoint :get_history,           :get, '/address/{address}/confirmed/history',
+        endpoint :get_history,             :get, '/address/{address}/confirmed/history',
                  response: :json_array
-        endpoint :is_address_used,       :get, '/address/{address}/used', response: :json
+        endpoint :is_address_used,         :get, '/address/{address}/used', response: :json
 
         # Exchange rate / fees / mempool
         endpoint :get_exchange_rate,      :get, '/exchangerate',      response: :json
@@ -157,11 +167,11 @@ module BSV
         #
         # WoC returns a JSON object indicating whether the output has been spent.
         # The +script_hash:+ keyword is accepted for future fallback support
-        # (Phase E) but not used in this implementation.
+        # but not used in this implementation.
         #
         # @param txid        [String]  transaction ID
         # @param vout        [Integer] output index
-        # @param script_hash [String, nil] ignored in Phase B
+        # @param script_hash [String, nil] ignored
         # @return [Result::Success<Boolean>, Result::Error, Result::NotFound]
         def call_is_utxo(txid, vout, script_hash: nil) # rubocop:disable Lint/UnusedMethodArgument
           result = default_call(:is_utxo, txid, vout)
@@ -227,6 +237,40 @@ module BSV
 
           # WoC returns plain-text txid — result.data is the raw body string
           Result::Success.new(data: { txid: result.data.strip })
+        end
+
+        # Decodes a raw transaction hex by posting to the WoC decode endpoint.
+        #
+        # WoC expects the body as +{ txhex: "..." }+ (JSON) and returns a
+        # full decoded transaction object.
+        #
+        # @param txhex [String] raw transaction hex string
+        # @return [Result::Success<Hash>, Result::Error]
+        def call_decode_tx(txhex)
+          body = JSON.generate(txhex: txhex.to_s)
+          default_call(:decode_tx, body: body)
+        end
+
+        # Fetches raw hex for multiple transactions in a single request.
+        #
+        # WoC expects a bare JSON array of txid strings as the request body.
+        #
+        # @param txids [Array<String>] list of transaction IDs
+        # @return [Result::Success<Array>, Result::Error]
+        def call_get_tx_hex_bulk(txids)
+          body = JSON.generate(txids)
+          default_call(:get_tx_hex_bulk, body: body)
+        end
+
+        # Fetches confirmed UTXOs for multiple script hashes in a single request.
+        #
+        # WoC expects a bare JSON array of script hash strings as the request body.
+        #
+        # @param script_hashes [Array<String>] list of script hashes
+        # @return [Result::Success<Hash>, Result::Error]
+        def call_get_script_unspent_bulk(script_hashes)
+          body = JSON.generate(script_hashes)
+          default_call(:get_script_unspent_bulk, body: body)
         end
 
         # Verifies that a merkle root matches the one recorded for a given
