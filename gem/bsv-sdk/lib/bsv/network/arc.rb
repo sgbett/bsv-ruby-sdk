@@ -15,11 +15,21 @@ module BSV
       # Returns an ARC instance pointed at the GorillaPool public ARC endpoint.
       #
       # @param testnet [Boolean] when true, uses the GorillaPool testnet endpoint
-      # @param opts [Hash] forwarded to {#initialize} (e.g. +api_key:+, +callback_url:+)
+      # @param api_key [String, nil] optional bearer token for Authorization
+      # @param http_client [#request, nil] injectable HTTP client for testing
+      # @param opts [Hash] ARC-specific options forwarded to the protocol
+      #   (e.g. +deployment_id:+, +callback_url:+, +callback_token:+)
       # @return [ARC]
-      def self.default(testnet: false, **opts)
-        url = testnet ? BSV::TESTNET_URL : BSV::MAINNET_URL
-        new(url, **opts)
+      def self.default(testnet: false, api_key: nil, http_client: nil, **opts)
+        provider = Providers::GorillaPool.default(testnet: testnet)
+        arc_protocol = provider.protocol_for(:broadcast)
+        base_url = arc_protocol.base_url
+        new(
+          base_url,
+          api_key: api_key,
+          http_client: http_client,
+          **opts
+        )
       end
 
       # ARC response statuses that indicate the transaction was NOT accepted.
@@ -31,7 +41,11 @@ module BSV
         MINED_IN_STALE_BLOCK
       ].freeze
 
-      # @param url [String] ARC base URL (without trailing slash)
+      # @param url_or_protocol [String, Protocols::ARC] ARC base URL (without
+      #   trailing slash) or a pre-configured +Protocols::ARC+ instance. When a
+      #   URL string is supplied, the remaining keyword arguments are forwarded to
+      #   the underlying protocol constructor. When a protocol instance is supplied,
+      #   all keyword arguments are ignored.
       # @param api_key [String, nil] optional bearer token for Authorization
       # @param deployment_id [String, nil] optional deployment identifier for
       #   the +XDeployment-ID+ header; defaults to a per-instance random value
@@ -40,16 +54,21 @@ module BSV
       # @param callback_token [String, nil] optional +X-CallbackToken+ for
       #   ARC status callback authentication
       # @param http_client [#request, nil] injectable HTTP client for testing
-      def initialize(url, api_key: nil, deployment_id: nil, callback_url: nil,
+      def initialize(url_or_protocol, api_key: nil, deployment_id: nil, callback_url: nil,
                      callback_token: nil, http_client: nil)
-        @protocol = Protocols::ARC.new(
-          base_url: url,
-          api_key: api_key,
-          deployment_id: deployment_id,
-          callback_url: callback_url,
-          callback_token: callback_token,
-          http_client: http_client
-        )
+        @protocol =
+          if url_or_protocol.is_a?(String)
+            Protocols::ARC.new(
+              base_url: url_or_protocol,
+              api_key: api_key,
+              deployment_id: deployment_id,
+              callback_url: callback_url,
+              callback_token: callback_token,
+              http_client: http_client
+            )
+          else
+            url_or_protocol
+          end
       end
 
       # Submit a transaction to ARC.

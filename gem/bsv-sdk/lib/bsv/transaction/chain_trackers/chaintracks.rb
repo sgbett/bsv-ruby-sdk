@@ -19,14 +19,28 @@ module BSV
         MAINNET_URL = BSV::MAINNET_URL
         TESTNET_URL = BSV::TESTNET_URL
 
+        # Returns a Chaintracks instance using the GorillaPool provider default.
+        #
+        # @param testnet [Boolean] when true, uses the testnet endpoint
+        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+)
+        # @return [Chaintracks]
+        def self.default(testnet: false, **opts)
+          provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **opts)
+          protocol = provider.protocol_for(:current_height)
+          url = testnet ? TESTNET_URL : MAINNET_URL
+          new(url: url, protocol: protocol, **opts.slice(:api_key))
+        end
+
         # @param url [String] base URL for the Chaintracks API
         # @param api_key [String, nil] optional Bearer API key
         # @param http_client [#request, nil] injectable HTTP client for testing
-        def initialize(url: MAINNET_URL, api_key: nil, http_client: nil)
+        # @param protocol [BSV::Network::Protocols::Chaintracks, nil] pre-configured
+        #   protocol instance; when supplied, +http_client+ is ignored
+        def initialize(url: MAINNET_URL, api_key: nil, http_client: nil, protocol: nil)
           super()
           @url = url.chomp('/')
           @api_key = api_key
-          @protocol = BSV::Network::Protocols::Chaintracks.new(
+          @protocol = protocol || BSV::Network::Protocols::Chaintracks.new(
             base_url: @url,
             api_key: api_key,
             http_client: http_client

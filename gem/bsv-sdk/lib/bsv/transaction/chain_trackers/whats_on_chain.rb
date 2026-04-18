@@ -25,22 +25,39 @@ module BSV
           stn: 'stn'
         }.freeze
 
+        WOC_BASE_URL = 'https://api.whatsonchain.com/v1/bsv/{network}'
+
+        # Returns a WhatsOnChain chain tracker using the provider default.
+        #
+        # @param testnet [Boolean] when true, uses the testnet endpoint
+        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+)
+        # @return [WhatsOnChain]
+        def self.default(testnet: false, **opts)
+          provider = BSV::Network::Providers::WhatsOnChain.default(testnet: testnet, **opts)
+          protocol = provider.protocol_for(:valid_root)
+          new(protocol: protocol)
+        end
+
         # @param network [Symbol] :main, :mainnet, :test, :testnet, or :stn
         # @param api_key [String, nil] optional WoC API key; sent as a raw
         #   Authorization header value (not Bearer-prefixed)
         # @param http_client [#request, nil] injectable HTTP client for testing
-        WOC_BASE_URL = 'https://api.whatsonchain.com/v1/bsv/{network}'
-
-        def initialize(network: :main, api_key: nil, http_client: nil)
+        # @param protocol [BSV::Network::Protocols::WoCREST, nil] pre-configured protocol
+        #   instance; when supplied, all other keyword arguments are ignored
+        def initialize(network: :main, api_key: nil, http_client: nil, protocol: nil)
           super()
-          NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
-          wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
-          @protocol = BSV::Network::Protocols::WoCREST.new(
-            base_url: WOC_BASE_URL,
-            network: network,
-            api_key: nil,
-            http_client: wrapped_client
-          )
+          if protocol
+            @protocol = protocol
+          else
+            NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
+            wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
+            @protocol = BSV::Network::Protocols::WoCREST.new(
+              base_url: WOC_BASE_URL,
+              network: network,
+              api_key: nil,
+              http_client: wrapped_client
+            )
+          end
         end
 
         # Verify that a merkle root is valid for the given block height.

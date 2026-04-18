@@ -15,8 +15,18 @@ module BSV
     class WhatsOnChain
       WOC_BASE_URL = 'https://api.whatsonchain.com/v1/bsv/{network}'
 
-      def initialize(network: :mainnet, http_client: nil)
-        @protocol = Protocols::WoCREST.new(base_url: WOC_BASE_URL, network: network, http_client: http_client)
+      # Returns a WhatsOnChain instance using the provider default.
+      #
+      # @param testnet [Boolean] when true, uses the testnet endpoint
+      # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+)
+      # @return [WhatsOnChain]
+      def self.default(testnet: false, **opts)
+        provider = Providers::WhatsOnChain.default(testnet: testnet, **opts)
+        new(protocol: provider.protocol_for(:get_tx))
+      end
+
+      def initialize(network: :mainnet, http_client: nil, protocol: nil)
+        @protocol = protocol || Protocols::WoCREST.new(base_url: WOC_BASE_URL, network: network, http_client: http_client)
       end
 
       # Fetch unspent transaction outputs for an address.
