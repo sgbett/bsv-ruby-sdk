@@ -66,13 +66,15 @@ module BSV
 
         attr_reader :network_name
 
+        # @param base_url    [String, nil] override the default base URL; may contain
+        #   +{network}+ which will be interpolated with the resolved network name
         # @param network  [Symbol, String] :main, :mainnet, :test, :testnet, :stn
         # @param api_key  [String, nil]    optional Bearer API key
         # @param http_client [Object, nil] injectable HTTP client for testing
-        def initialize(network: :main, api_key: nil, http_client: nil)
+        def initialize(base_url: nil, network: :main, api_key: nil, http_client: nil)
           @network_name = resolve_network(network)
           super(
-            base_url: BASE_URL,
+            base_url: base_url || BASE_URL,
             api_key: api_key,
             network: @network_name,
             http_client: http_client

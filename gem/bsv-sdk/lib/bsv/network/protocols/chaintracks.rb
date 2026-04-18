@@ -29,10 +29,11 @@ module BSV
         endpoint :current_height,   :get, '/chaintracks/v2/tip',
                  response: ->(body) { JSON.parse(body)['height'] }
 
+        # @param base_url    [String, nil] override the default base URL
         # @param api_key     [String, nil] optional Bearer API key
         # @param http_client [Object, nil] injectable HTTP client for testing
-        def initialize(api_key: nil, http_client: nil)
-          super(base_url: BASE_URL, api_key: api_key, http_client: http_client)
+        def initialize(base_url: nil, api_key: nil, http_client: nil)
+          super(base_url: base_url || BASE_URL, api_key: api_key, http_client: http_client)
         end
       end
     end

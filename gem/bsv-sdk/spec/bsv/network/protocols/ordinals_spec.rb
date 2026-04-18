@@ -112,6 +112,29 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
     end
   end
 
+  describe 'base_url override' do
+    let(:hex_body) { '01000000' }
+
+    it 'uses BASE_URL when base_url: is omitted' do
+      http = mock_http.new(200, hex_body)
+      instance = described_class.new(http_client: http)
+      expect(instance.base_url).to eq(described_class::BASE_URL)
+    end
+
+    it 'overrides the base URL when base_url: is provided' do
+      http = mock_http.new(200, hex_body)
+      instance = described_class.new(base_url: 'https://my.ordinals.example', http_client: http)
+      expect(instance.base_url).to eq('https://my.ordinals.example')
+    end
+
+    it 'uses the overridden base URL when building request URLs' do
+      http = mock_http.new(200, hex_body)
+      instance = described_class.new(base_url: 'https://my.ordinals.example', http_client: http)
+      instance.call(:get_tx, txid)
+      expect(http.last_uri.to_s).to start_with('https://my.ordinals.example')
+    end
+  end
+
   describe 'authentication' do
     let(:hex_body) { '01000000' }
 
