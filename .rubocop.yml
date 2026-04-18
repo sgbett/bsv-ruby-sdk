@@ -157,6 +157,7 @@ Layout/LineLength:
 RSpec/ContextWording:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
 
 # Specs for low-level modules legitimately need multiple assertions
 # per example and longer examples for thorough test coverage.
@@ -185,6 +186,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/primitives/**/*'
     - 'gem/bsv-sdk/spec/bsv/script/**/*'
     - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/bsv/auth/**/*'
     - 'gem/bsv-sdk/spec/bsv/overlay/**/*'
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
@@ -250,8 +252,10 @@ RSpec/DescribeClass:
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/provider_spec.rb'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
+# Provider spec defines top-level test subclasses to avoid RSpec/LeakyConstantDeclaration.
 Lint/ConstantDefinitionInBlock:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
@@ -259,6 +263,11 @@ Lint/ConstantDefinitionInBlock:
 RSpec/LeakyConstantDeclaration:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
+
+# Spec files that define multiple top-level test helper classes.
+Style/OneClassPerFile:
+  Exclude:
+    - 'gem/bsv-sdk/spec/bsv/network/provider_spec.rb'
 
 # Dynamic test generation produces describe blocks populated at runtime.
 RSpec/EmptyExampleGroup:
