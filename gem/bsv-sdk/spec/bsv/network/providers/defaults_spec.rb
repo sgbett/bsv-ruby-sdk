@@ -160,6 +160,49 @@ RSpec.describe 'BSV::Network::Providers defaults' do
     end
   end
 
+  # ── .default convenience methods ─────────────────────────────────────────────
+
+  describe 'GorillaPool.default' do
+    it 'returns mainnet provider when testnet: false (default)' do
+      p = BSV::Network::Providers::GorillaPool.default(http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://arcade.gorillapool.io')
+    end
+
+    it 'returns testnet provider when testnet: true' do
+      p = BSV::Network::Providers::GorillaPool.default(testnet: true, http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://testnet.arcade.gorillapool.io')
+    end
+
+    it 'forwards opts to the provider' do
+      p = BSV::Network::Providers::GorillaPool.default(api_key: 'gp-key', http_client: http_client)
+      expect(p.protocols[0].api_key).to eq('gp-key')
+    end
+  end
+
+  describe 'WhatsOnChain.default' do
+    it 'returns mainnet provider when testnet: false (default)' do
+      p = BSV::Network::Providers::WhatsOnChain.default(http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://api.whatsonchain.com/v1/bsv/main')
+    end
+
+    it 'returns testnet provider when testnet: true' do
+      p = BSV::Network::Providers::WhatsOnChain.default(testnet: true, http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://api.whatsonchain.com/v1/bsv/test')
+    end
+  end
+
+  describe 'TAAL.default' do
+    it 'returns mainnet provider when testnet: false (default)' do
+      p = BSV::Network::Providers::TAAL.default(http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://arc.taal.com')
+    end
+
+    it 'returns testnet provider when testnet: true' do
+      p = BSV::Network::Providers::TAAL.default(testnet: true, http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://arc-test.taal.com')
+    end
+  end
+
   # ── TAAL ──────────────────────────────────────────────────────────────────────
 
   describe 'TAAL.mainnet' do
