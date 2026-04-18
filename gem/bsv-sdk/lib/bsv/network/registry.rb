@@ -129,6 +129,15 @@ module BSV
       # In practice the hash key is the provider object, so multiple
       # registrations of the same object are merged.
       #
+      # Returns the commands a specific provider handles in this registry,
+      # filtered by its specifier(s).
+      #
+      # @param provider [Provider] the provider to query
+      # @return [Array<Symbol>] sorted list of command names
+      def commands_for(provider)
+        capability_matrix[provider] || []
+      end
+
       # @return [Hash{Provider => Array<Symbol>}] capability matrix
       def capability_matrix
         matrix = {}
