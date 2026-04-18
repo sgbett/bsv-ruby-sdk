@@ -30,20 +30,46 @@ module BSV
     #
     # WoC handles chain-data commands; ARC handles broadcast commands.
     # Options allow the registry to be tailored without subclassing.
+    # Environment variables provide defaults when keyword arguments are omitted:
+    #
+    # - +BSV_ARC_MAINNET_URL+ / +BSV_ARC_TESTNET_URL+ — ARC endpoint
+    # - +BSV_WOC_API_KEY+ — WhatsOnChain API key
+    # - +BSV_ARC_API_KEY+ — ARC bearer token
     #
     # @param network [Symbol] :main or :test — passed to WhatsOnChain
-    # @param arc_url [String] ARC base URL (defaults to GorillaPool ARCADE)
-    # @param woc_api_key [String, nil] optional WhatsOnChain API key
-    # @param arc_api_key [String, nil] optional ARC bearer token
+    # @param arc_url [String, nil] ARC base URL (defaults to env or GorillaPool ARCADE)
+    # @param woc_api_key [String, nil] WhatsOnChain API key (defaults to env)
+    # @param arc_api_key [String, nil] ARC bearer token (defaults to env)
     # @return [Registry]
-    def self.default_registry(network: :main, arc_url: BSV::MAINNET_URL,
+    def self.default_registry(network: :main, arc_url: nil,
                               woc_api_key: nil, arc_api_key: nil)
+      arc_url     ||= network == :test ? BSV::TESTNET_URL : BSV::MAINNET_URL
+      woc_api_key ||= ENV.fetch('BSV_WOC_API_KEY', nil)
+      arc_api_key ||= ENV.fetch('BSV_ARC_API_KEY', nil)
+
       woc = Providers::WhatsOnChain.new(network: network, api_key: woc_api_key)
       arc = Providers::ARC.new(url: arc_url, api_key: arc_api_key)
 
       Registry.new
               .register(woc)
               .register(arc)
+    end
+
+    # Dispatches a command through the default registry.
+    #
+    # @param command [Symbol] command name (e.g. +:broadcast+, +:get_tx+)
+    # @param args [Array] positional arguments forwarded to the provider
+    # @param kwargs [Hash] keyword arguments forwarded to the provider
+    # @return [Result::Success, Result::Error, Result::NotFound]
+    def self.call(command, *args, **kwargs)
+      @default ||= default_registry
+      @default.call(command, *args, **kwargs)
+    end
+
+    # Resets the cached default registry. Primarily for testing.
+    # @api private
+    def self.reset_default_registry!
+      @default = nil
     end
 
     # Returns a capability matrix for a default registry instance.
