@@ -190,6 +190,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
     - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'

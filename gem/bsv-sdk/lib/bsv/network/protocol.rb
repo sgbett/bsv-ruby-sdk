@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require 'set'
+require 'net/http'
+require 'json'
+require 'uri'
 
 module BSV
   module Network
@@ -108,11 +111,60 @@ module BSV
         @base_url    = build_base_url(base_url, network)
       end
 
-      # Dispatches a command. HTTP dispatch is not yet implemented (Task 3).
+      # Dispatches a command by name.
       #
-      # @raise [NotImplementedError]
-      def call(_command_name, *_args, **_kwargs)
-        raise NotImplementedError, 'HTTP dispatch not yet implemented (Task 3)'
+      # If a method named +call_<command_name>+ exists on the instance it is
+      # used as an escape hatch — that method receives +args+ and +kwargs+
+      # and MUST return a +Result+. Otherwise +default_call+ is invoked.
+      #
+      # Subscriptions are not callable; calling one raises +NotImplementedError+.
+      #
+      # @param command_name [Symbol, String] command to invoke
+      # @param args   [Array]  positional arguments forwarded to path interpolation
+      # @param kwargs [Hash]   keyword arguments forwarded to path interpolation
+      # @return [Result::Success, Result::Error, Result::NotFound]
+      # @raise [ArgumentError] when command_name is not registered
+      def call(command_name, *args, **kwargs)
+        name = command_name.to_sym
+
+        if self.class.subscriptions.key?(name)
+          raise NotImplementedError,
+                "#{name} is a subscription — WebSocket dispatch is not yet implemented"
+        end
+
+        escape = :"call_#{name}"
+        return send(escape, *args, **kwargs) if respond_to?(escape, true)
+
+        default_call(name, *args, **kwargs)
+      end
+
+      # Dispatches a command directly via HTTP, bypassing any escape hatch.
+      #
+      # Path placeholders (+{param}+) are filled from +kwargs+ first; any
+      # remaining placeholders are filled positionally from +args+. Named
+      # kwargs take precedence over positional args for the same placeholder.
+      #
+      # POST body is taken from +kwargs.delete(:body)+ (removed before path
+      # interpolation).
+      #
+      # @param command_name [Symbol] registered command name
+      # @param args   [Array]  positional path parameters
+      # @param kwargs [Hash]   named path parameters (and optional +:body+)
+      # @return [Result::Success, Result::Error, Result::NotFound]
+      # @raise [ArgumentError] when command_name is not registered or a
+      #   required path parameter is missing
+      def default_call(command_name, *args, **kwargs)
+        name = command_name.to_sym
+        defn = self.class.endpoints[name]
+        raise ArgumentError, "unknown command: #{name}" unless defn
+
+        body       = kwargs.delete(:body)
+        path       = interpolate_path(defn[:path], args, kwargs)
+        uri        = URI("#{@base_url}#{path}")
+        request    = build_request(defn[:method], uri, body)
+        response   = execute(uri, request)
+
+        map_response(response, defn[:response])
       end
 
       private
@@ -133,6 +185,116 @@ module BSV
         end
 
         url.chomp('/')
+      end
+
+      # Interpolates +{placeholder}+ tokens in a path template.
+      #
+      # Named kwargs are matched first (removing matched keys from the hash).
+      # Remaining positional args fill placeholders in template order.
+      #
+      # @param template [String]  path template with +{name}+ tokens
+      # @param args     [Array]   positional substitution values
+      # @param kwargs   [Hash]    named substitution values (modified in place)
+      # @return [String]
+      # @raise [ArgumentError] when a placeholder cannot be filled
+      def interpolate_path(template, args, kwargs)
+        pos_args  = args.dup
+        remaining = kwargs.dup
+
+        # Extract ordered placeholder names from the template
+        names = template.scan(/\{(\w+)\}/).flatten.map(&:to_sym)
+
+        result = template.dup
+        names.each do |name|
+          value =
+            if remaining.key?(name)
+              remaining.delete(name)
+            elsif !pos_args.empty?
+              pos_args.shift
+            else
+              raise ArgumentError, "missing path parameter: #{name}"
+            end
+          result = result.sub("{#{name}}", value.to_s)
+        end
+        result
+      end
+
+      # Builds a Net::HTTP request for the given method, URI, and optional body.
+      #
+      # @param http_method [Symbol] +:get+ or +:post+
+      # @param uri   [URI]
+      # @param body  [String, nil] raw body for POST requests
+      # @return [Net::HTTPRequest]
+      def build_request(http_method, uri, body)
+        request =
+          case http_method
+          when :get  then Net::HTTP::Get.new(uri)
+          when :post then Net::HTTP::Post.new(uri)
+          else raise ArgumentError, "unsupported HTTP method: #{http_method}"
+          end
+
+        request['Authorization'] = "Bearer #{@api_key}" if @api_key
+        request.body = body if body && request.respond_to?(:body=)
+        request
+      end
+
+      # Executes the request via the injectable client or +Net::HTTP.start+.
+      #
+      # @param uri     [URI]
+      # @param request [Net::HTTPRequest]
+      # @return [Net::HTTPResponse]
+      def execute(uri, request)
+        if @http_client
+          @http_client.request(uri, request)
+        else
+          Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+            http.request(request)
+          end
+        end
+      end
+
+      # Maps an HTTP response to a Result type, applying the response handler
+      # on 2xx bodies.
+      #
+      # @param response [Net::HTTPResponse]
+      # @param handler  [Symbol, #call]
+      # @return [Result::Success, Result::Error, Result::NotFound]
+      def map_response(response, handler)
+        code = response.code.to_i
+
+        case code
+        when 200..299
+          data = apply_handler(response.body, handler)
+          return data if data.is_a?(Result::Error)
+
+          Result::Success.new(data: data)
+        when 404
+          Result::NotFound.new
+        when 429, 500..599
+          Result::Error.new(message: response.body, retryable: true)
+        else
+          Result::Error.new(message: response.body, retryable: false)
+        end
+      end
+
+      # Applies the response handler to a raw body string.
+      #
+      # @param body    [String]
+      # @param handler [Symbol, #call]
+      # @return [Object, Result::Error]
+      def apply_handler(body, handler)
+        case handler
+        when :raw
+          body
+        when :json, :json_array
+          begin
+            JSON.parse(body)
+          rescue JSON::ParserError => e
+            Result::Error.new(message: "JSON parse error: #{e.message}", retryable: false)
+          end
+        else
+          handler.call(body) if handler.respond_to?(:call)
+        end
       end
     end
   end
