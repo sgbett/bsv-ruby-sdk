@@ -51,11 +51,18 @@ module BSV
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
-      # @param network [String] 'mainnet' (default) or 'testnet'
-      # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
+      # @param network [String, BSV::Network::Registry, nil] either a network name string
+      #   ('mainnet'/'testnet'), a {BSV::Network::Registry} instance, or nil.
+      #   When a Registry is provided, legacy +chain_provider:+ and +broadcaster:+
+      #   params must not also be given (raises +ArgumentError+).
+      #   When nil or a String, legacy params are wrapped in adapter classes and
+      #   composed into an internal Registry.
+      # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider).
+      #   Deprecated — prefer passing a {BSV::Network::Registry} via +network:+.
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
-      # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
+      # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx).
+      #   Deprecated — prefer passing a {BSV::Network::Registry} via +network:+.
       # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to InlineQueue
       # @param substrate [Interface, nil] optional remote wallet substrate; when set, all Interface
       #   methods delegate to the substrate instead of using local storage and key derivation.
@@ -78,11 +85,18 @@ module BSV
         super(key)
         @substrate = substrate
         @storage = storage
-        @network = network
-        @chain_provider = chain_provider
+        @network_registry = build_network_registry(network, chain_provider, broadcaster)
+        @network = network.is_a?(String) ? network : 'mainnet'
+        @chain_provider = network.is_a?(BSV::Network::Registry) ? RegistryChainTracker.new(@network_registry) : chain_provider
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
         @broadcaster = broadcaster
+        # When a Registry with broadcast capability is provided, build a RegistryBroadcaster
+        # for the queue so dispatches go through the registry. For the legacy broadcaster:
+        # param path, use the raw broadcaster directly — this preserves ARC status codes
+        # that would otherwise be lost in the adapter translation layer.
+        has_registry_broadcast = network.is_a?(BSV::Network::Registry) && @network_registry.providers_for(:broadcast).any?
+        @registry_broadcaster = has_registry_broadcast ? RegistryBroadcaster.new(@network_registry) : broadcaster
         @pending = {}
         @pending_by_txid = {}
         @injected_fee_estimator    = fee_estimator
@@ -90,9 +104,12 @@ module BSV
         @injected_change_generator = change_generator
         @broadcast_queue = broadcast_queue || InlineQueue.new(
           storage: @storage,
-          broadcaster: @broadcaster
+          broadcaster: @registry_broadcaster
         )
       end
+
+      # @return [BSV::Network::Registry] the internal network registry
+      attr_reader :network_registry
 
       # Returns +true+ when broadcast is available.
       #
@@ -1463,7 +1480,7 @@ module BSV
       # never be deleted. See +broadcast_and_promote+ for the same invariant.
       def promote_no_send(tx, txid, fund_ref, pending_entry)
         begin
-          @broadcaster.broadcast(tx)
+          @registry_broadcaster.broadcast(tx)
         rescue StandardError => e
           rollback_pending_action(
             pending_entry[:locked_outpoints],
@@ -1864,6 +1881,38 @@ module BSV
         result = cert.dup
         result.delete(:keyring)
         result
+      end
+
+      # Builds the internal {BSV::Network::Registry} from the constructor params.
+      #
+      # Resolution rules:
+      # - If +network+ is a {BSV::Network::Registry}: use it directly.
+      #   Raises +ArgumentError+ if legacy +chain_provider+ or +broadcaster+ were
+      #   also supplied (ambiguous configuration).
+      # - If +network+ is a String (or nil): wrap legacy params in adapter classes
+      #   and register both in a fresh Registry. Either param may be absent.
+      # - If neither a Registry nor any legacy param is provided: returns an empty
+      #   Registry (equivalent to the former NullChainProvider behaviour).
+      #
+      # @param network [String, BSV::Network::Registry, nil]
+      # @param chain_provider [ChainProvider]
+      # @param broadcaster [#broadcast, nil]
+      # @return [BSV::Network::Registry]
+      def build_network_registry(network, chain_provider, broadcaster)
+        if network.is_a?(BSV::Network::Registry)
+          legacy_supplied = !chain_provider.is_a?(NullChainProvider) || !broadcaster.nil?
+          raise ArgumentError, 'Cannot combine network: Registry with legacy chain_provider:/broadcaster: params' if legacy_supplied
+
+          return network
+        end
+
+        registry = BSV::Network::Registry.new
+
+        registry.register(LegacyChainProviderAdapter.new(chain_provider)) unless chain_provider.is_a?(NullChainProvider)
+
+        registry.register(LegacyBroadcasterAdapter.new(broadcaster)) if broadcaster
+
+        registry
       end
     end
   end
