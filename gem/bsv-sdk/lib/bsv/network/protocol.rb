@@ -264,6 +264,9 @@ module BSV
       # Maps an HTTP response to a Result type, applying the response handler
       # on 2xx bodies.
       #
+      # All non-2xx results carry +status_code:+ in their +metadata+ hash so
+      # that facades can construct domain exceptions with the original HTTP code.
+      #
       # @param response [Net::HTTPResponse]
       # @param handler  [Symbol, #call]
       # @return [Result::Success, Result::Error, Result::NotFound]
@@ -277,11 +280,11 @@ module BSV
 
           Result::Success.new(data: data)
         when 404
-          Result::NotFound.new
+          Result::NotFound.new(message: response.body, metadata: { status_code: code })
         when 429, 500..599
-          Result::Error.new(message: response.body, retryable: true)
+          Result::Error.new(message: response.body, retryable: true, metadata: { status_code: code })
         else
-          Result::Error.new(message: response.body, retryable: false)
+          Result::Error.new(message: response.body, retryable: false, metadata: { status_code: code })
         end
       end
 
