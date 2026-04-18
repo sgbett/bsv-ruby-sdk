@@ -126,6 +126,13 @@ module BSV
           parse_batch_broadcast_response(response)
         end
 
+        # Override to always include XDeployment-ID on every ARC request.
+        def build_request(http_method, uri, body)
+          request = super
+          request['XDeployment-ID'] = @deployment_id
+          request
+        end
+
         # Prefer Extended Format hex (BRC-30) so ARC can validate sighashes without
         # fetching parent transactions. Falls back to plain raw-tx hex when any input
         # lacks source_satoshis / source_locking_script.
@@ -274,7 +281,7 @@ module BSV
             return Result::Error.new(
               message: body['detail'] || body['title'] || body['txStatus'],
               retryable: false,
-              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'], status_code: 200 }
             )
           end
 
@@ -282,7 +289,7 @@ module BSV
             return Result::Error.new(
               message: 'ARC returned a malformed 2xx response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: 200 }
             )
           end
 
