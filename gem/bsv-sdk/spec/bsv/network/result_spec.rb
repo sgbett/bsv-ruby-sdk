@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# rubocop:disable RSpec/MultipleMemoizedHelpers
 RSpec.describe 'BSV::Network::Result' do
   let(:success) { BSV::Network::Result::Success.new(data: 'payload') }
   let(:success_nil) { BSV::Network::Result::Success.new(data: nil) }
@@ -137,4 +136,3 @@ RSpec.describe 'BSV::Network::Result' do
     end
   end
 end
-# rubocop:enable RSpec/MultipleMemoizedHelpers
