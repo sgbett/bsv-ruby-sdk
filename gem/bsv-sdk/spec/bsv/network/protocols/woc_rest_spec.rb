@@ -1104,6 +1104,365 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   end
 
   # ---------------------------------------------------------------------------
+  # get_tx_details — full transaction JSON
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_tx_details)' do
+    let(:txid) { 'a' * 64 }
+    let(:tx_json) do
+      { 'txid' => txid, 'blockhash' => 'b' * 64, 'confirmations' => 6 }.to_json
+    end
+
+    it 'returns parsed JSON transaction detail on success' do
+      http_client = fake(200, tx_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_details, txid)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['txid']).to eq(txid)
+      expect(result.data['confirmations']).to eq(6)
+    end
+
+    it 'sends GET to /tx/hash/{txid}' do
+      http_client = fake(200, tx_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_details, txid)
+
+      expect(http_client.last_uri.path).to end_with("/tx/hash/#{txid}")
+    end
+
+    it 'returns Result::NotFound for unknown txid' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_details, 'unknown')
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_details, txid)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_output_script — single output script hex
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_output_script)' do
+    let(:txid)   { 'b' * 64 }
+    let(:script) { '76a914deadbeef88ac' }
+
+    it 'returns raw hex script on success' do
+      http_client = fake(200, script)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_output_script, txid, 0)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to eq(script)
+    end
+
+    it 'sends GET to /tx/{txid}/out/{index}/hex' do
+      http_client = fake(200, script)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_output_script, txid, 2)
+
+      expect(http_client.last_uri.path).to end_with("/tx/#{txid}/out/2/hex")
+    end
+
+    it 'returns Result::NotFound for unknown txid or index' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_output_script, 'unknown', 0)
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_opreturn — OP_RETURN data for a transaction
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_opreturn)' do
+    let(:txid)    { 'c' * 64 }
+    let(:op_json) { '{"data":"68656c6c6f","type":"OP_RETURN"}' }
+
+    it 'returns parsed JSON OP_RETURN data on success' do
+      http_client = fake(200, op_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_opreturn, txid)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['data']).to eq('68656c6c6f')
+    end
+
+    it 'sends GET to /tx/{txid}/opreturn' do
+      http_client = fake(200, op_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_opreturn, txid)
+
+      expect(http_client.last_uri.path).to end_with("/tx/#{txid}/opreturn")
+    end
+
+    it 'returns Result::NotFound when no OP_RETURN output exists' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_opreturn, 'no_opreturn_txid')
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_tx_hex_bulk — bulk raw hex fetch (escape hatch)
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_tx_hex_bulk)' do
+    let(:txids)     { ['a' * 64, 'b' * 64] }
+    let(:bulk_json) { [{ 'txid' => 'a' * 64, 'hex' => '01000000' }].to_json }
+
+    it 'returns parsed JSON array on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_hex_bulk, txids)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+    end
+
+    it 'sends POST to /txs/hex' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_hex_bulk, txids)
+
+      expect(http_client.last_uri.path).to end_with('/txs/hex')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends a bare JSON array of txid strings as the body' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_hex_bulk, txids)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_an(Array)
+      expect(body).to eq(txids)
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_hex_bulk, txids)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # decode_tx — decode raw transaction (escape hatch)
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:decode_tx)' do
+    let(:decoded_json) { '{"txid":"abc","vin":[],"vout":[]}' }
+
+    it 'returns parsed JSON decoded transaction on success' do
+      http_client = fake(200, decoded_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:decode_tx, '01000000')
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['txid']).to eq('abc')
+    end
+
+    it 'sends POST to /tx/decode' do
+      http_client = fake(200, decoded_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:decode_tx, '01000000')
+
+      expect(http_client.last_uri.path).to end_with('/tx/decode')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends { txhex: ... } as the body' do
+      http_client = fake(200, decoded_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:decode_tx, 'deadbeef')
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to have_key('txhex')
+      expect(body['txhex']).to eq('deadbeef')
+    end
+
+    it 'returns Result::Error on 400 (malformed hex)' do
+      http_client = fake(400, 'bad request')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:decode_tx, 'not_valid_hex')
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(false)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_script_history — confirmed transaction history for a script
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_script_history)' do
+    let(:script_hash)   { 'e' * 64 }
+    let(:history_array) { [{ 'tx_hash' => 'abc', 'height' => 800_000 }].to_json }
+
+    it 'returns a JSON array of history entries on success' do
+      http_client = fake(200, history_array)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_history, script_hash)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['tx_hash']).to eq('abc')
+    end
+
+    it 'sends GET to /script/{script_hash}/confirmed/history' do
+      http_client = fake(200, '[]')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_script_history, script_hash)
+
+      expect(http_client.last_uri.path).to end_with("/script/#{script_hash}/confirmed/history")
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_history, script_hash)
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_history, script_hash)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_script_all_unspent — all UTXOs (confirmed + unconfirmed) for a script
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_script_all_unspent)' do
+    let(:script_hash) { 'd' * 64 }
+    let(:utxo_array)  { [{ 'tx_hash' => 'fff', 'tx_pos' => 1, 'value' => 9_000, 'height' => 0 }].to_json }
+
+    it 'returns a JSON array of UTXOs on success' do
+      http_client = fake(200, utxo_array)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_all_unspent, script_hash)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.length).to eq(1)
+    end
+
+    it 'sends GET to /script/{script_hash}/unspent/all' do
+      http_client = fake(200, '[]')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_script_all_unspent, script_hash)
+
+      expect(http_client.last_uri.path).to end_with("/script/#{script_hash}/unspent/all")
+    end
+
+    it 'returns Result::NotFound on 404' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_all_unspent, script_hash)
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_script_unspent_bulk — confirmed UTXOs for multiple scripts (escape hatch)
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_script_unspent_bulk)' do
+    let(:hashes)    { ['a' * 64, 'b' * 64] }
+    let(:bulk_json) { '{"aaa...":[],"bbb...":[]}' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_unspent_bulk, hashes)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_a(Hash)
+    end
+
+    it 'sends POST to /scripts/confirmed/unspent' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_script_unspent_bulk, hashes)
+
+      expect(http_client.last_uri.path).to end_with('/scripts/confirmed/unspent')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends a bare JSON array of script hash strings as the body' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      protocol.call(:get_script_unspent_bulk, hashes)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_an(Array)
+      expect(body).to eq(hashes)
+    end
+
+    it 'returns Result::Error(retryable: true) on 500' do
+      http_client = fake(500, 'server error')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_unspent_bulk, hashes)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # API key auth
   # ---------------------------------------------------------------------------
 
