@@ -29,11 +29,14 @@ module BSV
         # @param api_key [String, nil] optional WoC API key; sent as a raw
         #   Authorization header value (not Bearer-prefixed)
         # @param http_client [#request, nil] injectable HTTP client for testing
+        WOC_BASE_URL = 'https://api.whatsonchain.com/v1/bsv/{network}'
+
         def initialize(network: :main, api_key: nil, http_client: nil)
           super()
           NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
           wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
           @protocol = BSV::Network::Protocols::WoCREST.new(
+            base_url: WOC_BASE_URL,
             network: network,
             api_key: nil,
             http_client: wrapped_client

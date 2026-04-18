@@ -13,8 +13,10 @@ module BSV
     # The HTTP client is injectable for testability. It must respond to
     # #request(uri, request) and return an object with #code and #body.
     class WhatsOnChain
+      WOC_BASE_URL = 'https://api.whatsonchain.com/v1/bsv/{network}'
+
       def initialize(network: :mainnet, http_client: nil)
-        @protocol = Protocols::WoCREST.new(network: network, http_client: http_client)
+        @protocol = Protocols::WoCREST.new(base_url: WOC_BASE_URL, network: network, http_client: http_client)
       end
 
       # Fetch unspent transaction outputs for an address.

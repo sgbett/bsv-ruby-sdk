@@ -11,29 +11,27 @@ module BSV
       # GorillaPool Chaintracks v2 REST API. Pure DSL — no escape hatches needed.
       #
       # Chaintracks does not use a +{network}+ placeholder in the URL. Mainnet
-      # and testnet are served from separate base URLs; the default points to
-      # the mainnet ARCADE domain.
+      # and testnet are served from separate base URLs; the provider defaults
+      # supply the correct URL for each network.
       #
       # == Usage
       #
-      #   ct = BSV::Network::Protocols::Chaintracks.new
+      #   ct = BSV::Network::Protocols::Chaintracks.new(base_url: 'https://arcade.gorillapool.io')
       #   result = ct.call(:current_height)
       #   result.data  # => 800000
       #
       #   result = ct.call(:get_block_header, 800_000)
       #   result.data  # => { 'hash' => '...', 'height' => 800000, 'merkleRoot' => '...' }
       class Chaintracks < Protocol
-        BASE_URL = 'https://arcade.gorillapool.io'
-
         endpoint :get_block_header, :get, '/chaintracks/v2/header/height/{height}', response: :json
         endpoint :current_height,   :get, '/chaintracks/v2/tip',
                  response: ->(body) { JSON.parse(body)['height'] }
 
-        # @param base_url    [String, nil] override the default base URL
+        # @param base_url    [String] base URL for the Chaintracks API
         # @param api_key     [String, nil] optional Bearer API key
         # @param http_client [Object, nil] injectable HTTP client for testing
-        def initialize(base_url: nil, api_key: nil, http_client: nil)
-          super(base_url: base_url || BASE_URL, api_key: api_key, http_client: http_client)
+        def initialize(base_url:, api_key: nil, http_client: nil)
+          super
         end
       end
     end

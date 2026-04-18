@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecFilePathFormat
-  subject(:woc) { described_class.new(network: :main, http_client: http) }
+  subject(:woc) { described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/{network}', network: :main, http_client: http) }
 
   # Minimal fake HTTP client — configurable per example or using the shared
   # queue-style helper below.
@@ -41,43 +41,45 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   # ---------------------------------------------------------------------------
 
   describe '#initialize — network resolution' do
+    let(:template_url) { 'https://api.whatsonchain.com/v1/bsv/{network}' }
+
     it 'resolves :main to "main" in the base URL' do
-      protocol = described_class.new(network: :main, http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: :main, http_client: fake(200, ''))
       expect(protocol.base_url).to eq('https://api.whatsonchain.com/v1/bsv/main')
     end
 
     it 'resolves :mainnet to "main"' do
-      protocol = described_class.new(network: :mainnet, http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: :mainnet, http_client: fake(200, ''))
       expect(protocol.base_url).to include('/main')
     end
 
     it 'resolves :test to "test"' do
-      protocol = described_class.new(network: :test, http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: :test, http_client: fake(200, ''))
       expect(protocol.base_url).to include('/test')
     end
 
     it 'resolves :testnet to "test"' do
-      protocol = described_class.new(network: :testnet, http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: :testnet, http_client: fake(200, ''))
       expect(protocol.base_url).to include('/test')
     end
 
     it 'resolves :stn to "stn"' do
-      protocol = described_class.new(network: :stn, http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: :stn, http_client: fake(200, ''))
       expect(protocol.base_url).to include('/stn')
     end
 
     it 'resolves string "main"' do
-      protocol = described_class.new(network: 'main', http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: 'main', http_client: fake(200, ''))
       expect(protocol.base_url).to include('/main')
     end
 
     it 'exposes network_name' do
-      protocol = described_class.new(network: :mainnet, http_client: fake(200, ''))
+      protocol = described_class.new(base_url: template_url, network: :mainnet, http_client: fake(200, ''))
       expect(protocol.network_name).to eq('main')
     end
 
     it 'raises ArgumentError for an unknown network' do
-      expect { described_class.new(network: :unknown) }
+      expect { described_class.new(base_url: template_url, network: :unknown) }
         .to raise_error(ArgumentError, /unknown network/)
     end
   end
@@ -86,18 +88,18 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   # base_url override
   # ---------------------------------------------------------------------------
 
-  describe '#initialize — base_url override' do
-    it 'uses the default BASE_URL when base_url: is omitted' do
-      protocol = described_class.new(network: :main, http_client: fake(200, ''))
-      expect(protocol.base_url).to eq('https://api.whatsonchain.com/v1/bsv/main')
+  describe '#initialize — base_url' do
+    it 'raises ArgumentError when base_url: is omitted' do
+      expect { described_class.new(network: :main, http_client: fake(200, '')) }
+        .to raise_error(ArgumentError)
     end
 
-    it 'uses a fully-qualified override when base_url: is provided without {network}' do
+    it 'uses a fully-qualified URL when base_url: is provided without {network}' do
       protocol = described_class.new(base_url: 'https://my.woc.example', network: :main, http_client: fake(200, ''))
       expect(protocol.base_url).to eq('https://my.woc.example')
     end
 
-    it 'still interpolates {network} in an overridden URL template' do
+    it 'interpolates {network} in a URL template' do
       protocol = described_class.new(
         base_url: 'https://staging.woc.example/v2/bsv/{network}',
         network: :test,
@@ -138,7 +140,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'extracts the blocks field from chain info JSON' do
       body = '{"chain":"main","blocks":812345,"bestblockhash":"abcd"}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:current_height)
 
@@ -149,7 +151,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'sends GET to /chain/info' do
       body = '{"blocks":800000}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:current_height)
 
@@ -158,7 +160,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:current_height)
 
@@ -168,7 +170,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error on 429 (rate limited)' do
       http_client = fake(429, 'rate limited')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:current_height)
 
@@ -192,7 +194,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns JSON header for a given height' do
       http_client = fake(200, header_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_block_header, 800_000)
 
@@ -202,7 +204,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /block/{height}/header' do
       http_client = fake(200, header_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_block_header, 800_000)
 
@@ -211,7 +213,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound for an unknown height' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_block_header, 99_999_999)
 
@@ -227,7 +229,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'returns raw hex body on success' do
       hex = "01000000#{'00' * 100}"
       http_client = fake(200, hex)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx, 'abc123' * 10)
 
@@ -237,7 +239,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /tx/{txid}/hex' do
       http_client = fake(200, '01000000')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
       txid = 'a' * 64
 
       protocol.call(:get_tx, txid)
@@ -247,7 +249,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound for unknown txid' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx, 'unknown_txid')
 
@@ -266,7 +268,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON proof' do
       http_client = fake(200, proof_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_merkle_path, 'abc123')
 
@@ -277,7 +279,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /tx/{txid}/proof/tsc' do
       http_client = fake(200, proof_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
       txid = 'b' * 64
 
       protocol.call(:get_merkle_path, txid)
@@ -287,7 +289,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound when proof does not exist' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_merkle_path, 'unconfirmed_txid')
 
@@ -296,7 +298,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'internal error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_merkle_path, 'abc')
 
@@ -319,7 +321,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'remaps value to satoshis in the result' do
       http_client = fake(200, woc_response)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1AddressBSV')
 
@@ -330,7 +332,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'does not include a value key in remapped entries' do
       http_client = fake(200, woc_response)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1AddressBSV')
 
@@ -340,7 +342,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'preserves tx_hash, tx_pos, and height fields as symbol keys' do
       http_client = fake(200, woc_response)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1AddressBSV')
 
@@ -352,7 +354,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns an empty array when the address has no UTXOs' do
       http_client = fake(200, '[]')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1EmptyAddress')
 
@@ -362,7 +364,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to the confirmed/unspent path' do
       http_client = fake(200, '[]')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_utxos, '1CheckPath')
 
@@ -371,7 +373,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1UnknownAddress')
 
@@ -380,7 +382,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1Addr')
 
@@ -396,7 +398,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   describe '#call(:is_utxo)' do
     it 'returns true when the output is unspent' do
       http_client = fake(200, '{"spent":false}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc123', 0)
 
@@ -406,7 +408,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns false when the output is spent' do
       http_client = fake(200, '{"spent":true}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc123', 1)
 
@@ -416,7 +418,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /tx/{txid}/{vout}/spent' do
       http_client = fake(200, '{"spent":false}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
       txid = 'c' * 64
 
       protocol.call(:is_utxo, txid, 2)
@@ -426,14 +428,14 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'accepts script_hash: keyword without error' do
       http_client = fake(200, '{"spent":false}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       expect { protocol.call(:is_utxo, 'abc', 0, script_hash: 'deadbeef') }.not_to raise_error
     end
 
     it 'returns Result::NotFound when the txid is unknown' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'unknown', 0)
 
@@ -442,7 +444,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc', 0)
 
@@ -452,7 +454,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error when the spent field is absent from the response' do
       http_client = fake(200, '{"something_else":true}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc123', 0)
 
@@ -462,7 +464,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error when the response body is not a Hash' do
       http_client = fake(200, '"just a string"')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc123', 0)
 
@@ -485,7 +487,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
         { 'txid' => second_txid, 'vout' => 1, 'spent' => true }
       ].to_json
       http_client = fake(200, response)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }, { txid: second_txid, vout: 1 }])
 
@@ -497,7 +499,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'sends POST to /utxos/spent with correct body format' do
       response = [{ 'txid' => first_txid, 'vout' => 0, 'spent' => false }].to_json
       http_client = fake(200, response)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
 
@@ -510,7 +512,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns an empty hash for an empty input array without making an HTTP request' do
       http_client = fake(500, 'should not be called')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo_bulk, [])
 
@@ -522,7 +524,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       # Response only includes one of the two queried outpoints
       response = [{ 'txid' => first_txid, 'vout' => 0, 'spent' => false }].to_json
       http_client = fake(200, response)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }, { txid: second_txid, vout: 1 }])
 
@@ -532,7 +534,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
 
@@ -542,7 +544,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
 
@@ -551,7 +553,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error on malformed (non-array) response body' do
       http_client = fake(200, '{"not":"an array"}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo_bulk, [{ txid: first_txid, vout: 0 }])
 
@@ -568,7 +570,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a hash with the txid on success' do
       http_client = fake(200, raw_txid)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
       tx = double('tx', to_hex: '01000000') # rubocop:disable RSpec/VerifiedDoubles
 
       result = protocol.call(:broadcast, tx)
@@ -579,7 +581,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'strips whitespace from the txid response' do
       http_client = fake(200, "#{raw_txid}\n")
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:broadcast, '01000000')
 
@@ -588,7 +590,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'uses txhex as the body field name' do
       http_client = fake(200, raw_txid)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:broadcast, '01000000')
 
@@ -599,7 +601,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'calls to_hex on a transaction object' do
       http_client = fake(200, raw_txid)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
       tx = double('tx', to_hex: 'deadbeef') # rubocop:disable RSpec/VerifiedDoubles
 
       protocol.call(:broadcast, tx)
@@ -610,7 +612,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'uses the string directly when tx does not respond to to_hex' do
       http_client = fake(200, raw_txid)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:broadcast, 'cafebabe')
 
@@ -620,7 +622,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends POST to /tx/raw' do
       http_client = fake(200, raw_txid)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:broadcast, '01000000')
 
@@ -630,7 +632,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error on 400' do
       http_client = fake(400, 'bad request')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:broadcast, '01000000')
 
@@ -640,7 +642,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:broadcast, '01000000')
 
@@ -659,7 +661,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns true when the root matches' do
       http_client = fake(200, header_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:valid_root, merkle_root, 800_000)
 
@@ -669,7 +671,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns false when the root does not match' do
       http_client = fake(200, header_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:valid_root, 'wrong_root', 800_000)
 
@@ -680,7 +682,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'is case-insensitive in comparison' do
       upper_root = merkle_root.upcase
       http_client = fake(200, { 'merkleroot' => merkle_root.downcase }.to_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:valid_root, upper_root, 800_000)
 
@@ -689,7 +691,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound when the block height is unknown' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:valid_root, merkle_root, 99_999_999)
 
@@ -698,7 +700,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error on 500' do
       http_client = fake(500, 'error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:valid_root, merkle_root, 800_000)
 
@@ -716,7 +718,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a JSON array on success' do
       http_client = fake(200, utxo_array)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_unspent, script_hash)
 
@@ -727,7 +729,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /script/{script_hash}/confirmed/unspent' do
       http_client = fake(200, '[]')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_script_unspent, script_hash)
 
@@ -743,7 +745,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'returns parsed JSON balance object' do
       body = '{"confirmed":50000,"unconfirmed":0}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_balance, '1AddressBSV')
 
@@ -753,7 +755,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /address/{address}/confirmed/balance' do
       http_client = fake(200, '{"confirmed":0}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_balance, '1TestAddr')
 
@@ -768,7 +770,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   describe '#call(:health)' do
     it 'returns raw body string on success' do
       http_client = fake(200, 'Whats On Chain')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:health)
 
@@ -778,7 +780,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /health' do
       http_client = fake(200, 'ok')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:health)
 
@@ -794,7 +796,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'sends POST to /txs/status' do
       body = '[{"txid":"abc","status":"mined"}]'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_tx_status, body: '[{"txid":"abc"}]')
 
@@ -812,7 +814,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON chain info on success' do
       http_client = fake(200, chain_info_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_chain_info)
 
@@ -823,7 +825,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /chain/info' do
       http_client = fake(200, chain_info_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_chain_info)
 
@@ -832,7 +834,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_chain_info)
 
@@ -854,7 +856,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a JSON array of block headers on success' do
       http_client = fake(200, headers_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_block_headers)
 
@@ -866,7 +868,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /block/headers' do
       http_client = fake(200, headers_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_block_headers)
 
@@ -875,7 +877,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_block_headers)
 
@@ -891,7 +893,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'returns parsed JSON balance object on success' do
       body = '{"unconfirmed":25000}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_unconfirmed_balance, '1AddressBSV')
 
@@ -901,7 +903,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /address/{address}/unconfirmed/balance' do
       http_client = fake(200, '{"unconfirmed":0}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_unconfirmed_balance, '1TestAddr')
 
@@ -910,7 +912,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_unconfirmed_balance, '1UnknownAddress')
 
@@ -932,7 +934,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a JSON array of history entries on success' do
       http_client = fake(200, history_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_history, '1AddressBSV')
 
@@ -944,7 +946,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /address/{address}/confirmed/history' do
       http_client = fake(200, '[]')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_history, '1TestAddr')
 
@@ -953,7 +955,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_history, '1UnknownAddress')
 
@@ -968,7 +970,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   describe '#call(:is_address_used)' do
     it 'returns parsed JSON response on success' do
       http_client = fake(200, 'true')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_address_used, '1AddressBSV')
 
@@ -978,7 +980,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /address/{address}/used' do
       http_client = fake(200, 'false')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:is_address_used, '1TestAddr')
 
@@ -987,7 +989,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_address_used, '1UnknownAddress')
 
@@ -1003,7 +1005,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'returns parsed JSON exchange rate on success' do
       body = '{"rate":62500.0,"currency":"USD"}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_exchange_rate)
 
@@ -1013,7 +1015,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /exchangerate' do
       http_client = fake(200, '{"rate":62500.0}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_exchange_rate)
 
@@ -1022,7 +1024,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_exchange_rate)
 
@@ -1039,7 +1041,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'returns parsed JSON fee recommendation on success' do
       body = '{"miningFee":{"satoshis":1,"bytes":1000}}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_fee_recommendation)
 
@@ -1049,7 +1051,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /feerecommendation' do
       http_client = fake(200, '{"miningFee":{}}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_fee_recommendation)
 
@@ -1058,7 +1060,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_fee_recommendation)
 
@@ -1075,7 +1077,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'returns parsed JSON mempool info on success' do
       body = '{"size":1234,"bytes":5000000}'
       http_client = fake(200, body)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_mempool_info)
 
@@ -1085,7 +1087,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /mempool/info' do
       http_client = fake(200, '{"size":0}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_mempool_info)
 
@@ -1094,7 +1096,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_mempool_info)
 
@@ -1115,7 +1117,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON transaction detail on success' do
       http_client = fake(200, tx_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx_details, txid)
 
@@ -1126,7 +1128,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /tx/hash/{txid}' do
       http_client = fake(200, tx_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_tx_details, txid)
 
@@ -1135,7 +1137,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound for unknown txid' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx_details, 'unknown')
 
@@ -1144,7 +1146,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx_details, txid)
 
@@ -1163,7 +1165,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns raw hex script on success' do
       http_client = fake(200, script)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_output_script, txid, 0)
 
@@ -1173,7 +1175,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /tx/{txid}/out/{index}/hex' do
       http_client = fake(200, script)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_output_script, txid, 2)
 
@@ -1182,7 +1184,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound for unknown txid or index' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_output_script, 'unknown', 0)
 
@@ -1200,7 +1202,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON OP_RETURN data on success' do
       http_client = fake(200, op_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_opreturn, txid)
 
@@ -1210,7 +1212,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /tx/{txid}/opreturn' do
       http_client = fake(200, op_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_opreturn, txid)
 
@@ -1219,7 +1221,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound when no OP_RETURN output exists' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_opreturn, 'no_opreturn_txid')
 
@@ -1237,7 +1239,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON array on success' do
       http_client = fake(200, bulk_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx_hex_bulk, txids)
 
@@ -1247,7 +1249,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends POST to /txs/hex' do
       http_client = fake(200, bulk_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_tx_hex_bulk, txids)
 
@@ -1257,7 +1259,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends a bare JSON array of txid strings as the body' do
       http_client = fake(200, bulk_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_tx_hex_bulk, txids)
 
@@ -1268,7 +1270,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_tx_hex_bulk, txids)
 
@@ -1286,7 +1288,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON decoded transaction on success' do
       http_client = fake(200, decoded_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:decode_tx, '01000000')
 
@@ -1296,7 +1298,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends POST to /tx/decode' do
       http_client = fake(200, decoded_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:decode_tx, '01000000')
 
@@ -1306,7 +1308,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends { txhex: ... } as the body' do
       http_client = fake(200, decoded_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:decode_tx, 'deadbeef')
 
@@ -1317,7 +1319,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error on 400 (malformed hex)' do
       http_client = fake(400, 'bad request')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:decode_tx, 'not_valid_hex')
 
@@ -1336,7 +1338,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a JSON array of history entries on success' do
       http_client = fake(200, history_array)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_history, script_hash)
 
@@ -1347,7 +1349,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /script/{script_hash}/confirmed/history' do
       http_client = fake(200, '[]')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_script_history, script_hash)
 
@@ -1356,7 +1358,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_history, script_hash)
 
@@ -1365,7 +1367,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_history, script_hash)
 
@@ -1384,7 +1386,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a JSON array of UTXOs on success' do
       http_client = fake(200, utxo_array)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_all_unspent, script_hash)
 
@@ -1395,7 +1397,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends GET to /script/{script_hash}/unspent/all' do
       http_client = fake(200, '[]')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_script_all_unspent, script_hash)
 
@@ -1404,7 +1406,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::NotFound on 404' do
       http_client = fake(404, 'not found')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_all_unspent, script_hash)
 
@@ -1422,7 +1424,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns parsed JSON on success' do
       http_client = fake(200, bulk_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_unspent_bulk, hashes)
 
@@ -1432,7 +1434,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends POST to /scripts/confirmed/unspent' do
       http_client = fake(200, bulk_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_script_unspent_bulk, hashes)
 
@@ -1442,7 +1444,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'sends a bare JSON array of script hash strings as the body' do
       http_client = fake(200, bulk_json)
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_script_unspent_bulk, hashes)
 
@@ -1453,7 +1455,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns Result::Error(retryable: true) on 500' do
       http_client = fake(500, 'server error')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_script_unspent_bulk, hashes)
 
@@ -1469,7 +1471,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   describe 'API key authentication' do
     it 'sends Bearer auth header when api_key is provided' do
       http_client = fake(200, '{"blocks":800000}')
-      protocol = described_class.new(network: :main, api_key: 'my-woc-key', http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, api_key: 'my-woc-key', http_client: http_client)
 
       protocol.call(:current_height)
 
@@ -1478,7 +1480,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'omits Authorization header when api_key is not provided' do
       http_client = fake(200, '{"blocks":800000}')
-      protocol = described_class.new(network: :main, http_client: http_client)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:current_height)
 
