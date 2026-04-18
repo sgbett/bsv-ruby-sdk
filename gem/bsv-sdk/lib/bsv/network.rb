@@ -10,6 +10,7 @@ module BSV
     autoload :ARC,                'bsv/network/arc'
     autoload :Provider,           'bsv/network/provider'
     autoload :Result,             'bsv/network/result'
+    autoload :Registry,           'bsv/network/registry'
     autoload :Specifier,          'bsv/network/specifier'
     autoload :WhatsOnChain,       'bsv/network/whats_on_chain'
   end
