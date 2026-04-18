@@ -236,7 +236,7 @@ module BSV
           return result unless result.success?
 
           # WoC returns plain-text txid — result.data is the raw body string
-          Result::Success.new(data: { txid: result.data.strip })
+          Result::Success.new(data: { txid: result.data.to_s.strip })
         end
 
         # Decodes a raw transaction hex by posting to the WoC decode endpoint.
