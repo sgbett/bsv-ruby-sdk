@@ -99,7 +99,7 @@ module BSV
       #
       # @return [String]
       def to_s
-        protocol_summary = @protocols.map { |p| p.class.name.split('::').last }.join(', ')
+        protocol_summary = @protocols.map { |p| p.class.name&.split('::')&.last || p.class.to_s }.join(', ')
         "#<#{self.class} name=#{@name.inspect} protocols=[#{protocol_summary}]>"
       end
       alias inspect to_s

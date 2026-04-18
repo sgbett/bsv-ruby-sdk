@@ -90,8 +90,11 @@ module BSV
           parent_endpoints = @endpoints.each_with_object({}) do |(k, v), h|
             h[k] = v.dup
           end
+          parent_subscriptions = @subscriptions.each_with_object({}) do |(k, v), h|
+            h[k] = v.dup
+          end
           subclass.instance_variable_set(:@endpoints,     parent_endpoints)
-          subclass.instance_variable_set(:@subscriptions, {})
+          subclass.instance_variable_set(:@subscriptions, parent_subscriptions)
         end
       end
 

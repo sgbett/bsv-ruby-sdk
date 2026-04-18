@@ -58,6 +58,8 @@ module BSV
           retryable = code == 429 || (500..599).cover?(code)
 
           if (200..299).cover?(code)
+            return Result::Error.new(message: 'TAAL returned a malformed 2xx response', retryable: false) unless body['txid']
+
             Result::Success.new(data: { txid: body['txid'] })
           else
             message = (body.is_a?(Hash) && body['error']) || "HTTP #{code}"

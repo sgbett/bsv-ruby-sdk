@@ -176,7 +176,7 @@ module BSV
             return Result::Error.new(
               message: body['detail'] || body['title'] || "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: { arc_status: body['txStatus'], txid: body['txid'] }
+              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
             )
           end
 
@@ -202,7 +202,7 @@ module BSV
               tx_status: body['txStatus'],
               extra_info: body['extraInfo']
             },
-            metadata: { arc_status: body['txStatus'] }
+            metadata: { arc_status: body['txStatus'].to_s.upcase }
           )
         end
 
@@ -261,7 +261,7 @@ module BSV
                 tx_status: item['txStatus'],
                 extra_info: item['extraInfo']
               },
-              metadata: { arc_status: item['txStatus'] }
+              metadata: { arc_status: item['txStatus'].to_s.upcase }
             )
           end
         end
@@ -288,10 +288,11 @@ module BSV
         end
 
         # Parse JSON, returning a hash with a 'detail' key on parse failure.
+        # When the raw input is nil or empty the detail is nil (not an empty string).
         def safe_parse_json(raw)
           JSON.parse(raw.to_s)
         rescue JSON::ParserError
-          { 'detail' => raw.to_s }
+          { 'detail' => (raw.to_s.empty? ? nil : raw.to_s) }
         end
       end
     end

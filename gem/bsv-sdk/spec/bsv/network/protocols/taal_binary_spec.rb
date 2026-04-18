@@ -49,28 +49,29 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       expect(result.data[:txid]).to eq('deadbeef' * 8)
     end
 
-    it 'returns Result::Success with nil txid when body is nil' do
+    it 'returns Result::Error for malformed 2xx when body is nil' do
       instance, _http = make_instance(200, nil)
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[:txid]).to be_nil
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.message).to include('malformed')
+      expect(result.retryable?).to be(false)
     end
 
-    it 'returns Result::Success with nil txid when body is empty' do
+    it 'returns Result::Error for malformed 2xx when body is empty' do
       instance, _http = make_instance(200, '')
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[:txid]).to be_nil
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.message).to include('malformed')
     end
 
-    it 'returns Result::Success with nil txid when body is non-JSON' do
+    it 'returns Result::Error for malformed 2xx when body is non-JSON' do
       instance, _http = make_instance(200, 'OK')
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[:txid]).to be_nil
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.message).to include('malformed')
     end
 
     it 'sends raw binary body as-is when given a String' do
