@@ -30,9 +30,6 @@ module BSV
       # @return [StorageAdapter] the underlying persistence adapter
       attr_reader :storage
 
-      # @return [ChainProvider] the blockchain data provider
-      attr_reader :chain_provider
-
       # @return [String] the network ('mainnet' or 'testnet')
       attr_reader :network
 
@@ -52,7 +49,6 @@ module BSV
       # @param storage [StorageAdapter] persistence adapter (default: FileStore).
       #   Use +storage: MemoryStore.new+ for tests.
       # @param network [String] 'mainnet' (default) or 'testnet'
-      # @param chain_provider [ChainProvider] blockchain data provider (default: NullChainProvider)
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
       # @param broadcaster [#broadcast, nil] optional broadcaster; any object responding to #broadcast(tx)
@@ -65,7 +61,6 @@ module BSV
         key,
         storage: FileStore.new,
         network: 'mainnet',
-        chain_provider: NullChainProvider.new,
         proof_store: nil,
         http_client: nil,
         fee_estimator: nil,
@@ -79,7 +74,6 @@ module BSV
         @substrate = substrate
         @storage = storage
         @network = network
-        @chain_provider = chain_provider
         @proof_store = proof_store || LocalProofStore.new(storage)
         @http_client = http_client
         @broadcaster = broadcaster
@@ -303,10 +297,8 @@ module BSV
         beef = BSV::Transaction::Beef.from_binary(beef_binary)
 
         # F8.14: verify the BEEF bundle before trusting its contents.
-        # Pass the chain provider if it supports SPV root verification;
-        # otherwise fall back to structural validation via valid?.
-        chain_tracker = @chain_provider.respond_to?(:valid_root_for_height?) ? @chain_provider : nil
-        raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(chain_tracker)
+        # Fall back to structural validation — no chain tracker available locally.
+        raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(nil)
 
         tx = extract_subject_transaction(beef)
 
@@ -319,17 +311,23 @@ module BSV
 
       # --- Blockchain & Network Data ---
 
-      # Returns the current blockchain height from the chain provider.
+      # Returns the current blockchain height.
+      #
+      # Requires a substrate — raises {UnsupportedActionError} when called on a
+      # local wallet with no substrate configured.
       #
       # @param _args [Hash] unused (empty hash)
       # @return [Hash] { height: Integer }
       def get_height(args = {}, originator: nil)
         return @substrate.get_height(args, originator: originator) if @substrate
 
-        { height: @chain_provider.get_height }
+        raise UnsupportedActionError, 'get_height requires a remote substrate'
       end
 
-      # Returns the block header at the given height from the chain provider.
+      # Returns the block header at the given height.
+      #
+      # Requires a substrate — raises {UnsupportedActionError} when called on a
+      # local wallet with no substrate configured.
       #
       # @param args [Hash]
       # @option args [Integer] :height block height
@@ -337,9 +335,7 @@ module BSV
       def get_header_for_height(args, originator: nil)
         return @substrate.get_header_for_height(args, originator: originator) if @substrate
 
-        raise InvalidParameterError.new('height', 'a positive Integer') unless args[:height].is_a?(Integer) && args[:height].positive?
-
-        { header: @chain_provider.get_header(args[:height]) }
+        raise UnsupportedActionError, 'get_header_for_height requires a remote substrate'
       end
 
       # Returns the network this wallet is configured for.
@@ -362,54 +358,13 @@ module BSV
         { version: "bsv-wallet-#{BSV::Wallet::VERSION}" }
       end
 
-      # Discovers on-chain UTXOs for the wallet's identity address and imports
-      # any that are not already present in storage.
+      # Raises {UnsupportedActionError}.
       #
-      # Each imported output is stored in the 'default' basket with state
-      # +:spendable+ and +derivation_type: :identity+. The +:identity+
-      # derivation type signals to the auto-fund signing path that the root
-      # private key should be used directly (these outputs lack BRC-29
-      # derivation metadata).
-      #
-      # The method is idempotent — calling it twice with the same UTXO set
-      # produces no duplicates.
-      #
-      # @return [Integer] number of new UTXOs imported
+      # UTXO synchronisation previously required a ChainProvider. That class has
+      # been removed. Use a remote substrate or a custom integration to discover
+      # UTXOs and import them via +store_output+ directly.
       def sync_utxos
-        address = identity_address
-        utxos = @chain_provider.get_utxos(address)
-        return 0 if utxos.empty?
-
-        imported = 0
-        utxos.each do |utxo|
-          outpoint = "#{utxo[:tx_hash]}.#{utxo[:tx_pos]}"
-          next if output_exists?(outpoint)
-
-          tx_hex = @chain_provider.get_transaction(utxo[:tx_hash])
-          tx = BSV::Transaction::Transaction.from_hex(tx_hex)
-
-          pos = utxo[:tx_pos]
-          unless pos.is_a?(Integer) && pos >= 0 && pos < tx.outputs.length
-            raise WalletError, "Invalid tx_pos #{pos.inspect} for #{utxo[:tx_hash]} (#{tx.outputs.length} outputs)"
-          end
-
-          locking_script_hex = tx.outputs[pos].locking_script.to_hex
-
-          @storage.store_output({
-                                  outpoint: outpoint,
-                                  satoshis: utxo[:value],
-                                  locking_script: locking_script_hex,
-                                  basket: 'default',
-                                  tags: [],
-                                  derivation_type: :identity,
-                                  state: :spendable,
-                                  source_tx_hex: tx_hex
-                                })
-          @storage.store_transaction(utxo[:tx_hash], tx_hex)
-          imported += 1
-        end
-
-        imported
+        raise UnsupportedActionError, 'sync_utxos requires a remote substrate or custom integration'
       end
 
       # --- UTXO Pool & Settings ---

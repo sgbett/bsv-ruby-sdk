@@ -1,23 +1,22 @@
 # frozen_string_literal: true
 
 require 'net/http'
-require 'json'
-require 'uri'
 
 module BSV
   module Transaction
     module ChainTrackers
       # Chain tracker that verifies merkle roots using the WhatsOnChain API.
       #
-      # Queries the WoC block header endpoint to retrieve the merkle root for a
-      # given block height and compares it with the provided root.
+      # Delegates all HTTP communication to {BSV::Network::Protocols::WoCREST}.
+      # The constructor signature and {ChainTracker} contract are preserved.
+      #
+      # Note: the WoC API key is sent as a raw +Authorization+ header value
+      # (not Bearer-prefixed) to match the existing WoC API convention.
       #
       # @example
       #   tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.new
       #   tracker.valid_root_for_height?('abcd...', 800_000)
       class WhatsOnChain < ChainTracker
-        BASE_URL = 'https://api.whatsonchain.com'
-
         NETWORKS = {
           main: 'main',
           mainnet: 'main',
@@ -27,13 +26,18 @@ module BSV
         }.freeze
 
         # @param network [Symbol] :main, :mainnet, :test, :testnet, or :stn
-        # @param api_key [String, nil] optional WoC API key
+        # @param api_key [String, nil] optional WoC API key; sent as a raw
+        #   Authorization header value (not Bearer-prefixed)
         # @param http_client [#request, nil] injectable HTTP client for testing
         def initialize(network: :main, api_key: nil, http_client: nil)
           super()
-          @network = NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
-          @api_key = api_key
-          @http_client = http_client
+          NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
+          wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
+          @protocol = BSV::Network::Protocols::WoCREST.new(
+            network: network,
+            api_key: nil,
+            http_client: wrapped_client
+          )
         end
 
         # Verify that a merkle root is valid for the given block height.
@@ -41,51 +45,52 @@ module BSV
         # @param root [String] merkle root as a hex string
         # @param height [Integer] block height
         # @return [Boolean]
+        # @raise [BSV::Network::ChainProviderError] on network or API error
         def valid_root_for_height?(root, height)
-          response = get("/v1/bsv/#{@network}/block/#{height}/header")
-          return false if response.nil?
+          result = @protocol.call(:valid_root, root, height)
+          return false if result.not_found?
 
-          data = JSON.parse(response.body)
-          data['merkleroot'].downcase == root.downcase
+          if result.error?
+            raise BSV::Network::ChainProviderError.new(
+              result.message.to_s,
+              status_code: result.metadata[:status_code]
+            )
+          end
+
+          result.data == true
         end
 
         # Return the current blockchain height.
         #
         # @return [Integer]
+        # @raise [BSV::Network::ChainProviderError] on network or API error
         def current_height
-          response = get("/v1/bsv/#{@network}/chain/info", not_found_returns_nil: false)
-          data = JSON.parse(response.body)
-          data['blocks']
-        end
-
-        private
-
-        # @param path [String] API path
-        # @param not_found_returns_nil [Boolean] if true, return nil on 404 instead of raising
-        # @return [Net::HTTPResponse, nil]
-        def get(path, not_found_returns_nil: true)
-          uri = URI("#{BASE_URL}#{path}")
-          request = Net::HTTP::Get.new(uri)
-          request['Authorization'] = @api_key if @api_key
-
-          response = execute(uri, request)
-          code = response.code.to_i
-
-          return nil if not_found_returns_nil && code == 404
-          return response if (200..299).cover?(code)
+          result = @protocol.call(:current_height)
+          return result.data if result.success?
 
           raise BSV::Network::ChainProviderError.new(
-            response.body || "HTTP #{code}",
-            status_code: code
+            result.message.to_s,
+            status_code: result.metadata[:status_code]
           )
         end
 
-        def execute(uri, request)
-          if @http_client
-            @http_client.request(uri, request)
-          else
-            Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-              http.request(request)
+        # Wraps an injectable HTTP client to set a raw Authorization header value
+        # before forwarding the request. This preserves the WoC convention of
+        # sending the API key without a Bearer prefix.
+        class RawAuthClient
+          def initialize(api_key, inner_client)
+            @api_key = api_key
+            @inner_client = inner_client
+          end
+
+          def request(uri, req)
+            req['Authorization'] = @api_key
+            if @inner_client
+              @inner_client.request(uri, req)
+            else
+              Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+                http.request(req)
+              end
             end
           end
         end

@@ -168,7 +168,7 @@ module BSV
             return Result::Error.new(
               message: "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -176,7 +176,7 @@ module BSV
             return Result::Error.new(
               message: body['detail'] || body['title'] || "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+              metadata: { status_code: code, arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
             )
           end
 
@@ -184,7 +184,7 @@ module BSV
             return Result::Error.new(
               message: body['detail'] || body['title'] || body['txStatus'],
               retryable: false,
-              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+              metadata: { status_code: code, arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
             )
           end
 
@@ -192,16 +192,12 @@ module BSV
             return Result::Error.new(
               message: 'ARC returned a malformed 2xx response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
           Result::Success.new(
-            data: {
-              txid: body['txid'],
-              tx_status: body['txStatus'],
-              extra_info: body['extraInfo']
-            },
+            data: arc_data_from(body),
             metadata: { arc_status: body['txStatus'].to_s.upcase }
           )
         end
@@ -216,7 +212,7 @@ module BSV
             return Result::Error.new(
               message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -224,7 +220,7 @@ module BSV
             return Result::Error.new(
               message: 'ARC returned a malformed batch response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -246,24 +242,72 @@ module BSV
             Result::Error.new(
               message: item['detail'] || item['title'] || item['txStatus'],
               retryable: false,
-              metadata: { arc_status: item['txStatus'].to_s.upcase, txid: item['txid'] }
+              metadata: { status_code: 200, arc_status: item['txStatus'].to_s.upcase, txid: item['txid'] }
             )
           elsif !item['txid']
             Result::Error.new(
               message: 'ARC returned a malformed 2xx response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: 200 }
             )
           else
             Result::Success.new(
-              data: {
-                txid: item['txid'],
-                tx_status: item['txStatus'],
-                extra_info: item['extraInfo']
-              },
+              data: arc_data_from(item),
               metadata: { arc_status: item['txStatus'].to_s.upcase }
             )
           end
+        end
+
+        # Escape hatch for get_tx_status: returns a normalised data hash using the
+        # same field set as broadcast responses rather than the raw parsed JSON.
+        # Also checks for rejection status and missing txid (malformed 2xx).
+        #
+        # @param txid [String] the transaction ID to query
+        # @return [Result::Success, Result::Error, Result::NotFound]
+        def call_get_tx_status(txid, **)
+          response = default_call(:get_tx_status, txid)
+          return response unless response.is_a?(Result::Success)
+
+          body = response.data
+
+          if rejected_status?(body)
+            return Result::Error.new(
+              message: body['detail'] || body['title'] || body['txStatus'],
+              retryable: false,
+              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+            )
+          end
+
+          unless body['txid']
+            return Result::Error.new(
+              message: 'ARC returned a malformed 2xx response',
+              retryable: false,
+              metadata: {}
+            )
+          end
+
+          Result::Success.new(
+            data: arc_data_from(body),
+            metadata: { arc_status: body['txStatus'].to_s.upcase }
+          )
+        end
+
+        # Build the normalised ARC data hash from a parsed JSON response body.
+        # Includes all 8 fields that BroadcastResponse expects.
+        #
+        # @param body [Hash] parsed ARC JSON response
+        # @return [Hash]
+        def arc_data_from(body)
+          {
+            txid: body['txid'],
+            tx_status: body['txStatus'],
+            message: body['title'],
+            extra_info: body['extraInfo'],
+            block_hash: body['blockHash'],
+            block_height: body['blockHeight'],
+            timestamp: body['timestamp'],
+            competing_txs: body['competingTxs']
+          }
         end
 
         # Determine whether a status code indicates a retryable failure.

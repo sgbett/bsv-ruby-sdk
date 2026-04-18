@@ -48,8 +48,8 @@ RSpec.describe 'BSV::Network::Protocols integration' do
     describe 'WoCREST' do
       subject(:commands) { BSV::Network::Protocols::WoCREST.commands }
 
-      it 'has 12 commands' do
-        expect(commands.size).to eq(12)
+      it 'has 13 commands' do
+        expect(commands.size).to eq(13)
       end
 
       it 'includes the expected commands' do

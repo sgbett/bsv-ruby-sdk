@@ -50,6 +50,8 @@ module BSV
         # UTXO / spent status
         endpoint :get_utxos,        :get,  '/address/{address}/confirmed/unspent',
                  response: :json_array
+        endpoint :get_utxos_all,    :get,  '/address/{address}/unspent',
+                 response: :json_array
         endpoint :is_utxo,          :get,  '/tx/{txid}/{vout}/spent', response: :json
         endpoint :valid_root,       :get,  '/block/{height}/header', response: :json
 
@@ -106,7 +108,28 @@ module BSV
           result = default_call(:get_utxos, address)
           return result unless result.success?
 
-          remapped = result.data.map do |entry|
+          Result::Success.new(data: remap_utxo_entries(result.data))
+        end
+
+        # Fetches all UTXOs (confirmed and unconfirmed) for an address and
+        # remaps the +value+ field to +satoshis+. Uses the legacy +/unspent+
+        # endpoint rather than +/confirmed/unspent+.
+        #
+        # @param address [String] BSV address
+        # @return [Result::Success, Result::Error, Result::NotFound]
+        def call_get_utxos_all(address)
+          result = default_call(:get_utxos_all, address)
+          return result unless result.success?
+
+          Result::Success.new(data: remap_utxo_entries(result.data))
+        end
+
+        # Remaps WoC UTXO entries from +{ 'value' => n }+ to +{ satoshis: n }+.
+        #
+        # @param entries [Array<Hash>]
+        # @return [Array<Hash>]
+        def remap_utxo_entries(entries)
+          entries.map do |entry|
             {
               tx_hash: entry['tx_hash'],
               tx_pos: entry['tx_pos'],
@@ -114,8 +137,6 @@ module BSV
               height: entry['height']
             }
           end
-
-          Result::Success.new(data: remapped)
         end
 
         # Checks whether a specific output is unspent by querying the WoC
