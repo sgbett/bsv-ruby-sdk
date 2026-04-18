@@ -123,11 +123,11 @@ RSpec.describe BSV::Transaction::ChainTrackers::Chaintracks do
 
   describe 'URL configuration' do
     it 'defaults to mainnet URL' do
-      expect(described_class.new.instance_variable_get(:@url)).to eq(described_class::MAINNET_URL)
+      expect(described_class.new.instance_variable_get(:@url)).to eq('https://arcade.gorillapool.io')
     end
 
     it 'accepts a custom URL' do
-      testnet_tracker = described_class.new(url: described_class::TESTNET_URL, http_client: http_client)
+      testnet_tracker = described_class.new(url: 'https://testnet.arcade.gorillapool.io', http_client: http_client)
       allow(http_client).to receive(:request).and_return(mock_response(200, { 'height' => 1 }.to_json))
 
       testnet_tracker.current_height
@@ -147,12 +147,12 @@ RSpec.describe BSV::Transaction::ChainTrackers do
 
     it 'uses the mainnet URL by default' do
       tracker = described_class.default
-      expect(tracker.instance_variable_get(:@url)).to eq(BSV::Transaction::ChainTrackers::Chaintracks::MAINNET_URL)
+      expect(tracker.instance_variable_get(:@url)).to eq('https://arcade.gorillapool.io')
     end
 
     it 'uses the testnet URL when testnet: true' do
       tracker = described_class.default(testnet: true)
-      expect(tracker.instance_variable_get(:@url)).to eq(BSV::Transaction::ChainTrackers::Chaintracks::TESTNET_URL)
+      expect(tracker.instance_variable_get(:@url)).to eq('https://testnet.arcade.gorillapool.io')
     end
 
     it 'passes api_key through to the tracker' do

@@ -16,8 +16,8 @@ module BSV
       #   tracker = BSV::Transaction::ChainTrackers::Chaintracks.new(api_key: 'my-key')
       #   tracker.current_height
       class Chaintracks < ChainTracker
-        MAINNET_URL = BSV::MAINNET_URL
-        TESTNET_URL = BSV::TESTNET_URL
+        MAINNET_URL = 'https://arcade.gorillapool.io'
+        TESTNET_URL = 'https://testnet.arcade.gorillapool.io'
 
         # Returns a Chaintracks instance using the GorillaPool provider default.
         #
@@ -27,7 +27,7 @@ module BSV
         def self.default(testnet: false, **opts)
           provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **opts)
           protocol = provider.protocol_for(:current_height)
-          url = testnet ? TESTNET_URL : MAINNET_URL
+          url      = testnet ? TESTNET_URL : MAINNET_URL
           new(url: url, protocol: protocol, **opts.slice(:api_key))
         end
 
