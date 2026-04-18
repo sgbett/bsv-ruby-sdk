@@ -243,6 +243,112 @@ RSpec.describe 'BSV::Wallet::LocalPool' do
       pool.acquire
       expect(pool.status[:state]).to eq(:replenishing)
     end
+
+    context 'with verify: true' do
+      def build_wallet_client_with_is_utxo(responses)
+        private_key = BSV::Primitives::PrivateKey.generate
+        registry = BSV::Network::Registry.new
+        provider = Class.new(BSV::Network::Provider) do
+          provides :is_utxo
+
+          define_method(:call_is_utxo) do |txid, vout|
+            responses["#{txid}.#{vout}"]
+          end
+        end.new
+        registry.register(provider)
+        BSV::Wallet::WalletClient.new(private_key, storage: store, network: registry)
+      end
+
+      it 'returns empty :invalid list when all pool outputs are valid on-chain' do
+        build_pool
+        seed_pool_output(outpoint: "#{'aa' * 32}.0")
+        seed_pool_output(outpoint: "#{'bb' * 32}.1")
+
+        client = build_wallet_client_with_is_utxo(
+          "#{'aa' * 32}.0" => BSV::Network::Result::Success.new(data: true),
+          "#{'bb' * 32}.1" => BSV::Network::Result::Success.new(data: true)
+        )
+        pool2 = BSV::Wallet::LocalPool.new(
+          name: 'test',
+          storage: store,
+          wallet_client: client,
+          target_count: 5,
+          target_satoshis: 10_000,
+          low_water_mark: 2
+        )
+
+        result = pool2.status(verify: true)
+        expect(result[:invalid]).to be_empty
+      end
+
+      it 'quarantines phantom pool outputs and lists them in :invalid' do
+        build_pool
+        seed_pool_output(outpoint: "#{'cc' * 32}.0")
+        seed_pool_output(outpoint: "#{'dd' * 32}.0")
+
+        client = build_wallet_client_with_is_utxo(
+          "#{'cc' * 32}.0" => BSV::Network::Result::Success.new(data: true),
+          "#{'dd' * 32}.0" => BSV::Network::Result::Success.new(data: false)
+        )
+        pool2 = BSV::Wallet::LocalPool.new(
+          name: 'test',
+          storage: store,
+          wallet_client: client,
+          target_count: 5,
+          target_satoshis: 10_000,
+          low_water_mark: 2
+        )
+
+        result = pool2.status(verify: true)
+        expect(result[:invalid]).to eq(["#{'dd' * 32}.0"])
+      end
+
+      it 'updates quarantined output state to :invalid in storage' do
+        outpoint = "#{'ee' * 32}.0"
+        build_pool
+        seed_pool_output(outpoint: outpoint)
+
+        client = build_wallet_client_with_is_utxo(
+          outpoint => BSV::Network::Result::Success.new(data: false)
+        )
+        pool2 = BSV::Wallet::LocalPool.new(
+          name: 'test',
+          storage: store,
+          wallet_client: client,
+          target_count: 5,
+          target_satoshis: 10_000,
+          low_water_mark: 2
+        )
+
+        pool2.status(verify: true)
+
+        spendable = store.find_spendable_outputs(basket: 'pool:test')
+        expect(spendable.map { |o| o[:outpoint] }).not_to include(outpoint)
+      end
+
+      it 'returns empty :invalid list when pool is empty (no network calls)' do
+        client = build_wallet_client_with_is_utxo({})
+        pool2 = BSV::Wallet::LocalPool.new(
+          name: 'test',
+          storage: store,
+          wallet_client: client,
+          target_count: 5,
+          target_satoshis: 10_000,
+          low_water_mark: 2
+        )
+
+        result = pool2.status(verify: true)
+        expect(result[:invalid]).to be_empty
+      end
+
+      it 'omits :invalid key when wallet_client does not expose network_registry' do
+        pool = build_pool(name: 'no-registry')
+        seed_pool_output(outpoint: "#{'ff' * 32}.0", basket: 'pool:no-registry')
+
+        result = pool.status(verify: true)
+        expect(result).not_to have_key(:invalid)
+      end
+    end
   end
 
   # -----------------------------------------------------------------------

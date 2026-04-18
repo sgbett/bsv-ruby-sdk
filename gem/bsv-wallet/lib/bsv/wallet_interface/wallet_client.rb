@@ -456,6 +456,130 @@ module BSV
 
       # --- UTXO Pool & Settings ---
 
+      # Returns a health report of the wallet's UTXO state.
+      #
+      # Without +verify:+, the report reflects storage state only (no network
+      # calls). With +verify: true+, each spendable output is checked against
+      # the network via +:is_utxo+. Any output no longer unspent on-chain is
+      # quarantined (state updated to +:invalid+) and listed in the report.
+      #
+      # Network verification is sequential. With large numbers of spendable
+      # outputs this may be slow and subject to provider rate limiting. For v1
+      # sequential calls are acceptable; callers should be aware of the trade-off.
+      #
+      # When +verify: true+ and no +:is_utxo+ provider is registered, raises
+      # {UnsupportedActionError}.
+      #
+      # @param verify [Boolean] when +true+, validates each spendable output
+      #   against the network (default: +false+)
+      # @return [Hash] health report with keys:
+      #   +:total_outputs+ (Integer), +:total_satoshis+ (Integer),
+      #   +:baskets+ (Hash of basket_name => {count:, satoshis:}),
+      #   +:verified+ (Integer, only when verify: true),
+      #   +:quarantined+ (Array<String>, only when verify: true),
+      #   +:verification_errors+ (Array<Hash>, only when verify: true)
+      # @raise [UnsupportedActionError] when +verify: true+ and no +:is_utxo+
+      #   provider is registered
+      def wallet_health(verify: false)
+        raise UnsupportedActionError, 'is_utxo (no provider registered)' if verify && @network_registry.providers_for(:is_utxo).empty?
+
+        outputs = @storage.find_spendable_outputs
+        report = {
+          total_outputs: outputs.size,
+          total_satoshis: outputs.sum { |o| o[:satoshis].to_i },
+          baskets: {}
+        }
+
+        outputs.group_by { |o| o[:basket] || 'default' }.each do |basket, outs|
+          report[:baskets][basket] = {
+            count: outs.size,
+            satoshis: outs.sum { |o| o[:satoshis].to_i }
+          }
+        end
+
+        return report unless verify
+
+        quarantined = []
+        verification_errors = []
+        verified = 0
+
+        outputs.each do |o|
+          outpoint = o[:outpoint]
+          txid, raw_vout = outpoint.split('.')
+          vout = raw_vout.to_i
+
+          begin
+            result = @network_registry.call(:is_utxo, txid, vout)
+            if result.success?
+              if result.data == false
+                quarantined << outpoint
+                @storage.update_output_state(outpoint, :invalid)
+              else
+                verified += 1
+              end
+            else
+              warn "[BSV::Wallet] wallet_health: is_utxo error for #{outpoint}: #{result.message}"
+              verification_errors << { outpoint: outpoint, error: result.message }
+            end
+          rescue BSV::Network::Registry::NoProviderError => e
+            raise UnsupportedActionError, "is_utxo (no provider registered): #{e.message}"
+          end
+        end
+
+        report[:verified] = verified
+        report[:quarantined] = quarantined
+        report[:verification_errors] = verification_errors
+        report
+      end
+
+      # Checks whether a failed or pending transaction actually made it on-chain
+      # and recovers the wallet's storage state accordingly.
+      #
+      # For an action with status 'failed' or 'pending', calls +:get_tx_status+
+      # via the network registry:
+      # - If the transaction is mined or seen on network → promotes to 'unproven'
+      # - If the transaction is truly not found on-chain → confirms the failure,
+      #   returns the current state
+      # - If still pending in mempool → returns current status with indication
+      # - For an action already 'completed' → no-op, returns current status
+      #
+      # @param txid [String] transaction identifier to check
+      # @return [Hash] recovery result with at minimum +:recovered+ (Boolean)
+      #   and +:txid+ (String) keys. Additional keys depend on outcome.
+      # @raise [WalletError] when no action with the given txid is found
+      # @raise [UnsupportedActionError] when no +:get_tx_status+ provider is
+      #   registered
+      def recover_failed_broadcast(txid)
+        all_actions = @storage.find_actions({ limit: 1_000_000, offset: 0 })
+        action = all_actions.find { |a| a[:txid] == txid }
+        raise WalletError, "Action not found: #{txid}" unless action
+
+        current_status = action[:status].to_s
+
+        # No-op for already-completed actions
+        return { recovered: false, txid: txid, status: current_status } if current_status == 'completed'
+
+        raise UnsupportedActionError, 'get_tx_status (no provider registered)' if @network_registry.providers_for(:get_tx_status).empty?
+
+        result = @network_registry.call(:get_tx_status, txid)
+
+        if result.success?
+          status_info = result.data
+          tx_status = (status_info[:tx_status] || status_info[:status]).to_s
+
+          if %w[MINED SEEN_ON_NETWORK].include?(tx_status)
+            @storage.update_action_status(txid, 'unproven')
+            { recovered: true, txid: txid, new_status: 'unproven', on_chain_status: tx_status }
+          else
+            { recovered: false, txid: txid, status: current_status, on_chain_status: tx_status }
+          end
+        elsif result.not_found?
+          { recovered: false, txid: txid, reason: 'not_found_on_chain' }
+        else
+          { recovered: false, txid: txid, error: result.message }
+        end
+      end
+
       # Returns the total spendable satoshis across all baskets (or a named basket).
       #
       # Includes every output in +:spendable+ state — regardless of whether the

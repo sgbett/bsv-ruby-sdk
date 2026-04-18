@@ -104,16 +104,53 @@ module BSV
 
       # Returns a summary of the pool's current state.
       #
+      # Without +verify:+, the report reflects storage state only. With
+      # +verify: true+, each pool output is checked against the network via
+      # +:is_utxo+. Outputs no longer unspent on-chain are quarantined (state
+      # updated to +:invalid+) and listed in the +:invalid+ key.
+      #
+      # Requires the wallet client to have a +:is_utxo+ provider registered
+      # when +verify: true+. Silently omits the +:invalid+ key when the wallet
+      # client does not expose +#network_registry+ (e.g. in tests that pass
+      # +wallet_client: nil+).
+      #
+      # @param verify [Boolean] when +true+, validates pool outputs against the
+      #   network (default: +false+)
       # @return [Hash] status hash with keys +:available+, +:target+,
-      #   +:satoshis_committed+, and +:state+
-      def status
+      #   +:satoshis_committed+, +:state+, and optionally +:invalid+
+      def status(verify: false)
         spendable = @storage.find_spendable_outputs(basket: @basket)
-        {
+        result = {
           available: spendable.size,
           target: @target_count,
           satoshis_committed: spendable.sum { |o| o[:satoshis].to_i },
           state: current_state(spendable.size)
         }
+
+        if verify && @wallet_client.respond_to?(:network_registry)
+          registry = @wallet_client.network_registry
+          invalid = []
+
+          spendable.each do |o|
+            outpoint = o[:outpoint]
+            txid, raw_vout = outpoint.split('.')
+            vout = raw_vout.to_i
+
+            begin
+              r = registry.call(:is_utxo, txid, vout)
+              if r.success? && r.data == false
+                invalid << outpoint
+                @storage.update_output_state(outpoint, :invalid)
+              end
+            rescue BSV::Network::Registry::NoProviderError
+              # No :is_utxo provider — skip verification for this output
+            end
+          end
+
+          result[:invalid] = invalid
+        end
+
+        result
       end
 
       # Shuts down the pool.
