@@ -48,15 +48,21 @@ RSpec.describe 'BSV::Network::Protocols integration' do
     describe 'WoCREST' do
       subject(:commands) { BSV::Network::Protocols::WoCREST.commands }
 
-      it 'has 13 commands' do
-        expect(commands.size).to eq(13)
+      it 'has 30 commands' do
+        expect(commands.size).to eq(30)
       end
 
       it 'includes the expected commands' do
         expect(commands).to include(
-          :current_height, :get_block_header, :get_tx, :get_merkle_path,
-          :broadcast, :get_tx_status, :get_utxos, :is_utxo,
-          :valid_root, :get_script_unspent, :get_balance, :health
+          :current_height, :get_chain_info, :get_block_header, :get_block_headers,
+          :get_tx, :get_tx_details, :get_output_script, :get_opreturn,
+          :get_merkle_path, :broadcast, :decode_tx, :get_tx_status,
+          :get_tx_hex_bulk, :get_utxos, :get_utxos_all, :is_utxo,
+          :is_utxo_bulk, :valid_root, :get_script_unspent,
+          :get_script_history, :get_script_all_unspent, :get_script_unspent_bulk,
+          :get_balance, :get_unconfirmed_balance, :get_history,
+          :is_address_used, :get_exchange_rate, :get_fee_recommendation,
+          :get_mempool_info, :health
         )
       end
 
