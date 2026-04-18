@@ -127,6 +127,88 @@ RSpec.describe BSV::Wallet::WalletClient do
       w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new, broadcast_queue: custom_queue)
       expect(w.broadcast_enabled?).to be(true)
     end
+
+    context 'with network: Registry parameter' do
+      let(:store) { BSV::Wallet::MemoryStore.new }
+
+      it 'accepts a BSV::Network::Registry and stores it as network_registry' do
+        registry = BSV::Network::Registry.new
+        w = described_class.new(private_key, storage: store, network: registry)
+        expect(w.network_registry).to equal(registry)
+      end
+
+      it 'defaults network name to mainnet when a Registry is provided' do
+        registry = BSV::Network::Registry.new
+        w = described_class.new(private_key, storage: store, network: registry)
+        expect(w.network).to eq('mainnet')
+      end
+
+      it 'preserves the network name string when a String is provided' do
+        w = described_class.new(private_key, storage: store, network: 'testnet')
+        expect(w.network).to eq('testnet')
+      end
+
+      it 'builds an internal Registry from legacy params with a NullChainProvider' do
+        w = described_class.new(private_key, storage: store)
+        expect(w.network_registry).to be_a(BSV::Network::Registry)
+        expect(w.network_registry.registered_providers).to be_empty
+      end
+
+      it 'registers the chain_provider in the internal Registry when a real one is supplied' do
+        chain_prov = BSV::Wallet::WhatsOnChainProvider.new
+        w = described_class.new(private_key, storage: store, chain_provider: chain_prov)
+        expect(w.network_registry).to be_a(BSV::Network::Registry)
+        expect(w.network_registry.registered_providers.first).to be_a(BSV::Wallet::LegacyChainProviderAdapter)
+      end
+
+      it 'registers the broadcaster in the internal Registry when supplied' do
+        br = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+        w = described_class.new(private_key, storage: store, broadcaster: br)
+        expect(w.network_registry).to be_a(BSV::Network::Registry)
+        expect(w.network_registry.registered_providers.map(&:class)).to include(BSV::Wallet::LegacyBroadcasterAdapter)
+      end
+
+      it 'raises ArgumentError when network: Registry and chain_provider: are combined' do
+        registry = BSV::Network::Registry.new
+        chain_prov = BSV::Wallet::WhatsOnChainProvider.new
+        expect do
+          described_class.new(private_key, storage: store, network: registry, chain_provider: chain_prov)
+        end.to raise_error(ArgumentError, /Cannot combine network: Registry/)
+      end
+
+      it 'raises ArgumentError when network: Registry and broadcaster: are combined' do
+        registry = BSV::Network::Registry.new
+        br = double('broadcaster') # rubocop:disable RSpec/VerifiedDoubles
+        expect do
+          described_class.new(private_key, storage: store, network: registry, broadcaster: br)
+        end.to raise_error(ArgumentError, /Cannot combine network: Registry/)
+      end
+
+      it 'broadcast_enabled? returns false when Registry has no broadcast provider' do
+        registry = BSV::Network::Registry.new
+        w = described_class.new(private_key, storage: store, network: registry)
+        expect(w.broadcast_enabled?).to be(false)
+      end
+
+      it 'broadcast_enabled? returns false when no broadcaster is supplied via legacy params' do
+        w = described_class.new(private_key, storage: store)
+        expect(w.broadcast_enabled?).to be(false)
+      end
+
+      it 'broadcast_enabled? returns true when a legacy broadcaster: is supplied' do
+        br = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+        w = described_class.new(private_key, storage: store, broadcaster: br)
+        expect(w.broadcast_enabled?).to be(true)
+      end
+
+      it 'broadcast_enabled? returns true when a Registry with a broadcast provider is supplied' do
+        br = double('broadcaster', broadcast: nil) # rubocop:disable RSpec/VerifiedDoubles
+        registry = BSV::Network::Registry.new
+        registry.register(BSV::Wallet::LegacyBroadcasterAdapter.new(br))
+        w = described_class.new(private_key, storage: store, network: registry)
+        expect(w.broadcast_enabled?).to be(true)
+      end
+    end
   end
 
   # -------------------------------------------------------------------------
