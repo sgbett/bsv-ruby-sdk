@@ -69,6 +69,41 @@ module BSV
         Set.new(@command_index.keys)
       end
 
+      # Returns the protocol instance that serves a given command, or nil if no
+      # registered protocol handles it.
+      #
+      # @param command_name [Symbol, String]
+      # @return [Protocol, nil]
+      def protocol_for(command_name)
+        @command_index[command_name.to_sym]
+      end
+
+      # Returns a hash mapping each protocol instance to the sorted list of
+      # commands it actually serves within this provider (respecting
+      # first-registered-wins — a protocol that lost a command to an earlier
+      # registration is not listed for that command).
+      #
+      # Protocols that serve no commands in this provider are omitted.
+      #
+      # @return [Hash{Protocol => Array<Symbol>}]
+      def capability_matrix
+        matrix = {}
+        @protocols.each do |proto|
+          served = proto.class.commands.select { |cmd| @command_index[cmd] == proto }
+          matrix[proto] = served.sort unless served.empty?
+        end
+        matrix
+      end
+
+      # Returns a human-readable representation of the provider.
+      #
+      # @return [String]
+      def to_s
+        protocol_summary = @protocols.map { |p| p.class.name.split('::').last }.join(', ')
+        "#<#{self.class} name=#{@name.inspect} protocols=[#{protocol_summary}]>"
+      end
+      alias inspect to_s
+
       # Dispatches a command to the first-registered protocol that serves it.
       #
       # @param command_name [Symbol, String] command to invoke

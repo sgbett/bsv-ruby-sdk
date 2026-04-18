@@ -246,4 +246,131 @@ RSpec.describe 'BSV::Network::Provider' do
       expect(result).to be_success
     end
   end
+
+  # ── #protocol_for ─────────────────────────────────────────────────────────────
+
+  describe '#protocol_for' do
+    it 'returns the protocol instance serving the given command' do
+      p = provider.new('Test') do |pr|
+        pr.protocol arc_class, base_url: 'https://arc.example.com', http_client: http_client
+      end
+      result = p.protocol_for(:broadcast)
+      expect(result).to be_a(arc_class)
+    end
+
+    it 'accepts a string command name' do
+      p = provider.new('Test') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
+      end
+      expect(p.protocol_for('current_height')).to be_a(chaintracks_class)
+    end
+
+    it 'returns nil for an unknown command' do
+      p = provider.new('Test') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
+      end
+      expect(p.protocol_for(:nonexistent)).to be_nil
+    end
+
+    it 'returns nil on an empty provider' do
+      p = provider.new('Empty')
+      expect(p.protocol_for(:broadcast)).to be_nil
+    end
+
+    it 'returns the first-registered protocol when commands overlap' do
+      p = provider.new('Overlap') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
+        pr.protocol woc_class, http_client: http_client
+      end
+      # :current_height is served by both; first-registered (Chaintracks) wins
+      expect(p.protocol_for(:current_height)).to be_a(chaintracks_class)
+    end
+  end
+
+  # ── #capability_matrix ────────────────────────────────────────────────────────
+
+  describe '#capability_matrix' do
+    it 'returns an empty hash when no protocols are registered' do
+      p = provider.new('Empty')
+      expect(p.capability_matrix).to eq({})
+    end
+
+    it 'maps each protocol instance to its served commands' do
+      p = provider.new('Single') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
+      end
+      matrix = p.capability_matrix
+      expect(matrix.keys.first).to be_a(chaintracks_class)
+      expect(matrix.values.first).to eq(chaintracks_class.commands.sort)
+    end
+
+    it 'lists commands as a sorted array' do
+      p = provider.new('Sorted') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
+      end
+      commands = p.capability_matrix.values.first
+      expect(commands).to eq(commands.sort)
+    end
+
+    it 'respects first-registered-wins — second protocol loses overlapping commands' do
+      p = provider.new('Overlap') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
+        pr.protocol woc_class,                                              http_client: http_client
+      end
+      matrix = p.capability_matrix
+
+      ct_instance  = p.protocols[0]
+      woc_instance = p.protocols[1]
+
+      overlap = chaintracks_class.commands & woc_class.commands
+
+      # Chaintracks owns all its commands (including the overlapping ones)
+      expect(matrix[ct_instance]).to include(*overlap.to_a)
+      # WoCREST does not list the overlapping commands
+      expect(matrix[woc_instance]).not_to include(*overlap.to_a)
+    end
+
+    it 'omits a protocol instance that serves no commands in this provider' do
+      p = provider.new('Shadowed') do |pr|
+        pr.protocol chaintracks_class, base_url: 'https://ct1.example.com', http_client: http_client
+        pr.protocol chaintracks_class, base_url: 'https://ct2.example.com', http_client: http_client
+      end
+      matrix = p.capability_matrix
+      # Second Chaintracks instance had all its commands taken by the first
+      second_instance = p.protocols[1]
+      expect(matrix).not_to have_key(second_instance)
+    end
+  end
+
+  # ── #to_s / #inspect ──────────────────────────────────────────────────────────
+
+  describe '#to_s' do
+    it 'includes the provider name' do
+      p = provider.new('GorillaPool')
+      expect(p.to_s).to include('GorillaPool')
+    end
+
+    it 'includes protocol class names' do
+      p = provider.new('Test') do |pr|
+        pr.protocol arc_class,         base_url: 'https://arc.example.com', http_client: http_client
+        pr.protocol chaintracks_class, base_url: 'https://ct.example.com',  http_client: http_client
+      end
+      expect(p.to_s).to include('ARC')
+      expect(p.to_s).to include('Chaintracks')
+    end
+
+    it 'shows an empty protocols list when no protocols are registered' do
+      p = provider.new('Empty')
+      expect(p.to_s).to include('protocols=[]')
+    end
+  end
+
+  describe '#inspect' do
+    it 'returns the same string as #to_s' do
+      p = provider.new('GorillaPool') do |pr|
+        pr.protocol arc_class, base_url: 'https://arc.example.com', http_client: http_client
+      end
+      expect(p.inspect).to eq(p.to_s)
+    end
+  end
 end
