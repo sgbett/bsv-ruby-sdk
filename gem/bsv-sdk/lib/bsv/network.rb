@@ -32,9 +32,9 @@ module BSV
     # Options allow the registry to be tailored without subclassing.
     # Environment variables provide defaults when keyword arguments are omitted:
     #
-    # - +BSV_ARC_MAINNET_URL+ / +BSV_ARC_TESTNET_URL+ — ARC endpoint
-    # - +BSV_WOC_API_KEY+ — WhatsOnChain API key
-    # - +BSV_ARC_API_KEY+ — ARC bearer token
+    # - +BSV_ARC_MAINNET_URL+ / +BSV_ARC_TESTNET_URL+ — ARC endpoint (read at require-time, must be set before +require 'bsv-sdk'+)
+    # - +BSV_WOC_API_KEY+ — WhatsOnChain API key (read at call-time)
+    # - +BSV_ARC_API_KEY+ — ARC bearer token (read at call-time)
     #
     # @param network [Symbol] :main or :test — passed to WhatsOnChain
     # @param arc_url [String, nil] ARC base URL (defaults to env or GorillaPool ARCADE)
@@ -43,7 +43,7 @@ module BSV
     # @return [Registry]
     def self.default_registry(network: :main, arc_url: nil,
                               woc_api_key: nil, arc_api_key: nil)
-      arc_url     ||= network == :test ? BSV::TESTNET_URL : BSV::MAINNET_URL
+      arc_url     ||= %i[test testnet stn].include?(network) ? BSV::TESTNET_URL : BSV::MAINNET_URL
       woc_api_key ||= ENV.fetch('BSV_WOC_API_KEY', nil)
       arc_api_key ||= ENV.fetch('BSV_ARC_API_KEY', nil)
 
