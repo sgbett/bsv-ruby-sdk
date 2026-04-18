@@ -17,46 +17,28 @@ module BSV
       #   tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.new
       #   tracker.valid_root_for_height?('abcd...', 800_000)
       class WhatsOnChain < ChainTracker
-        NETWORKS = {
-          main: 'main',
-          mainnet: 'main',
-          test: 'test',
-          testnet: 'test',
-          stn: 'stn'
-        }.freeze
-
-        WOC_BASE_URL = 'https://api.whatsonchain.com/v1/bsv/{network}'
-
         # Returns a WhatsOnChain chain tracker using the provider default.
         #
         # @param testnet [Boolean] when true, uses the testnet endpoint
-        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+)
+        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [WhatsOnChain]
         def self.default(testnet: false, **opts)
           provider = BSV::Network::Providers::WhatsOnChain.default(testnet: testnet, **opts)
-          protocol = provider.protocol_for(:valid_root)
-          new(protocol: protocol)
+          new(protocol: provider.protocol_for(:valid_root))
         end
 
-        # @param network [Symbol] :main, :mainnet, :test, :testnet, or :stn
-        # @param api_key [String, nil] optional WoC API key; sent as a raw
-        #   Authorization header value (not Bearer-prefixed)
+        # @param network [Symbol] :main, :mainnet, :test, :testnet (legacy compat)
+        # @param api_key [String, nil] optional WoC API key
         # @param http_client [#request, nil] injectable HTTP client for testing
         # @param protocol [BSV::Network::Protocols::WoCREST, nil] pre-configured protocol
-        #   instance; when supplied, all other keyword arguments are ignored
         def initialize(network: :main, api_key: nil, http_client: nil, protocol: nil)
           super()
           if protocol
             @protocol = protocol
           else
-            NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
             wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
-            @protocol = BSV::Network::Protocols::WoCREST.new(
-              base_url: WOC_BASE_URL,
-              network: network,
-              api_key: nil,
-              http_client: wrapped_client
-            )
+            provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: wrapped_client)
+            @protocol = provider.protocol_for(:valid_root)
           end
         end
 

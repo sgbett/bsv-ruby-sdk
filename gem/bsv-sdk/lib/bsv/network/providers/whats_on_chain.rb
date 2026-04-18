@@ -38,13 +38,33 @@ module BSV
           end
         end
 
-        # Returns a mainnet or testnet Provider depending on the +testnet:+ flag.
+        # Returns a Provider for the BSV Scaling Test Network (STN).
+        #
+        # @param opts [Hash] keyword arguments forwarded to each protocol constructor
+        # @return [Provider]
+        def self.stn(**opts)
+          Provider.new('WhatsOnChain') do |p|
+            p.protocol Protocols::WoCREST, base_url: 'https://api.whatsonchain.com/v1/bsv/stn', **opts
+          end
+        end
+
+        # Returns a Provider for the given network.
         #
         # @param testnet [Boolean] when true, returns the testnet Provider
-        # @param opts    [Hash]    keyword arguments forwarded to each protocol constructor
+        # @param network [Symbol, nil] explicit network (:main, :test, :stn) — overrides +testnet:+
+        # @param opts [Hash] keyword arguments forwarded to each protocol constructor
         # @return [Provider]
-        def self.default(testnet: false, **opts)
-          testnet ? testnet(**opts) : mainnet(**opts)
+        def self.default(testnet: false, network: nil, **opts)
+          if network
+            case network.to_sym
+            when :main, :mainnet then mainnet(**opts)
+            when :test, :testnet then testnet(**opts)
+            when :stn then stn(**opts)
+            else raise ArgumentError, "unknown network: #{network}"
+            end
+          else
+            testnet ? testnet(**opts) : mainnet(**opts)
+          end
         end
       end
     end

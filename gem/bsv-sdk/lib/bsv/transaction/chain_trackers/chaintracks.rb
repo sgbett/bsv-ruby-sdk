@@ -16,35 +16,37 @@ module BSV
       #   tracker = BSV::Transaction::ChainTrackers::Chaintracks.new(api_key: 'my-key')
       #   tracker.current_height
       class Chaintracks < ChainTracker
-        MAINNET_URL = 'https://arcade.gorillapool.io'
-        TESTNET_URL = 'https://testnet.arcade.gorillapool.io'
-
         # Returns a Chaintracks instance using the GorillaPool provider default.
         #
         # @param testnet [Boolean] when true, uses the testnet endpoint
-        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+)
+        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [Chaintracks]
         def self.default(testnet: false, **opts)
           provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **opts)
           protocol = provider.protocol_for(:current_height)
-          url      = testnet ? TESTNET_URL : MAINNET_URL
-          new(url: url, protocol: protocol, **opts.slice(:api_key))
+          new(protocol: protocol)
         end
 
-        # @param url [String] base URL for the Chaintracks API
+        # @param url [String, nil] base URL (legacy compat — prefer .default or protocol:)
         # @param api_key [String, nil] optional Bearer API key
         # @param http_client [#request, nil] injectable HTTP client for testing
-        # @param protocol [BSV::Network::Protocols::Chaintracks, nil] pre-configured
-        #   protocol instance; when supplied, +http_client+ is ignored
-        def initialize(url: MAINNET_URL, api_key: nil, http_client: nil, protocol: nil)
+        # @param protocol [BSV::Network::Protocols::Chaintracks, nil] pre-configured protocol
+        def initialize(url: nil, api_key: nil, http_client: nil, protocol: nil)
           super()
-          @url = url.chomp('/')
-          @api_key = api_key
-          @protocol = protocol || BSV::Network::Protocols::Chaintracks.new(
-            base_url: @url,
-            api_key: api_key,
-            http_client: http_client
-          )
+          if protocol
+            @protocol = protocol
+          elsif url
+            @url = url.chomp('/')
+            @api_key = api_key
+            @protocol = BSV::Network::Protocols::Chaintracks.new(
+              base_url: @url,
+              api_key: api_key,
+              http_client: http_client
+            )
+          else
+            provider = BSV::Network::Providers::GorillaPool.default(api_key: api_key, http_client: http_client)
+            @protocol = provider.protocol_for(:current_height)
+          end
         end
 
         # Verify that a merkle root is valid for the given block height.
