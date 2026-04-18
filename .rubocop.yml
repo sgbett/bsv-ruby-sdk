@@ -238,6 +238,7 @@ RSpec/SpecFilePathFormat:
     - 'gem/bsv-wallet/spec/bsv/wallet_interface/**/*'
     - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bsv/network/providers/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 # Hardening specs test multiple classes/modules together and use a string description.
