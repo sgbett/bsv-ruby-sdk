@@ -168,7 +168,7 @@ module BSV
             return Result::Error.new(
               message: "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -176,7 +176,7 @@ module BSV
             return Result::Error.new(
               message: body['detail'] || body['title'] || "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+              metadata: { status_code: code, arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
             )
           end
 
@@ -184,7 +184,7 @@ module BSV
             return Result::Error.new(
               message: body['detail'] || body['title'] || body['txStatus'],
               retryable: false,
-              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+              metadata: { status_code: code, arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
             )
           end
 
@@ -192,7 +192,7 @@ module BSV
             return Result::Error.new(
               message: 'ARC returned a malformed 2xx response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -212,7 +212,7 @@ module BSV
             return Result::Error.new(
               message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}",
               retryable: retryable_code?(code),
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -220,7 +220,7 @@ module BSV
             return Result::Error.new(
               message: 'ARC returned a malformed batch response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: code }
             )
           end
 
@@ -242,13 +242,13 @@ module BSV
             Result::Error.new(
               message: item['detail'] || item['title'] || item['txStatus'],
               retryable: false,
-              metadata: { arc_status: item['txStatus'].to_s.upcase, txid: item['txid'] }
+              metadata: { status_code: 200, arc_status: item['txStatus'].to_s.upcase, txid: item['txid'] }
             )
           elsif !item['txid']
             Result::Error.new(
               message: 'ARC returned a malformed 2xx response',
               retryable: false,
-              metadata: {}
+              metadata: { status_code: 200 }
             )
           else
             Result::Success.new(

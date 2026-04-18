@@ -1,19 +1,16 @@
 # frozen_string_literal: true
 
-require 'net/http'
-require 'json'
-require 'uri'
-require 'securerandom'
-
 module BSV
   module Network
     # ARC broadcaster for submitting transactions to the BSV network.
     #
+    # This facade preserves the legacy public API contract while delegating all
+    # HTTP logic to +Protocols::ARC+. It translates +Result+ objects returned by
+    # the protocol into +BroadcastResponse+ instances or raised +BroadcastError+
+    # exceptions as required by consumer code.
+    #
     # Any object responding to #broadcast(tx) can serve as a broadcaster;
     # this class implements that contract using the ARC API.
-    #
-    # The HTTP client is injectable for testability. It must respond to
-    # #request(uri, request) and return an object with #code and #body.
     class ARC
       # Returns an ARC instance pointed at the GorillaPool public ARC endpoint.
       #
@@ -21,15 +18,11 @@ module BSV
       # @param opts [Hash] forwarded to {#initialize} (e.g. +api_key:+, +callback_url:+)
       # @return [ARC]
       def self.default(testnet: false, **opts)
-        url = testnet ? TESTNET_URL : MAINNET_URL
+        url = testnet ? BSV::TESTNET_URL : BSV::MAINNET_URL
         new(url, **opts)
       end
 
       # ARC response statuses that indicate the transaction was NOT accepted.
-      # Matches the TypeScript SDK's ARC broadcaster failure set (issue #305,
-      # finding F5.13). Prior to this fix, Ruby only recognised REJECTED and
-      # DOUBLE_SPEND_ATTEMPTED, silently treating INVALID / MALFORMED /
-      # MINED_IN_STALE_BLOCK responses as successful broadcasts.
       REJECTED_STATUSES = %w[
         REJECTED
         DOUBLE_SPEND_ATTEMPTED
@@ -37,9 +30,6 @@ module BSV
         MALFORMED
         MINED_IN_STALE_BLOCK
       ].freeze
-
-      # Substring match for orphan detection in txStatus or extraInfo fields.
-      ORPHAN_MARKER = 'ORPHAN'
 
       # @param url [String] ARC base URL (without trailing slash)
       # @param api_key [String, nil] optional bearer token for Authorization
@@ -52,243 +42,105 @@ module BSV
       # @param http_client [#request, nil] injectable HTTP client for testing
       def initialize(url, api_key: nil, deployment_id: nil, callback_url: nil,
                      callback_token: nil, http_client: nil)
-        @url = url.chomp('/')
-        @api_key = api_key
-        @deployment_id = deployment_id || "bsv-ruby-sdk-#{SecureRandom.hex(8)}"
-        @callback_url = callback_url
-        @callback_token = callback_token
-        @http_client = http_client
+        @protocol = Protocols::ARC.new(
+          base_url: url,
+          api_key: api_key,
+          deployment_id: deployment_id,
+          callback_url: callback_url,
+          callback_token: callback_token,
+          http_client: http_client
+        )
       end
 
       # Submit a transaction to ARC.
       #
-      # The transaction is encoded as Extended Format (BRC-30) hex when every
-      # input has +source_satoshis+ and +source_locking_script+ populated,
-      # which lets ARC validate sighashes without fetching parents. Falls back
-      # to plain raw-tx hex when EF is unavailable.
-      #
       # @param tx [Transaction] the transaction to broadcast
-      # @param wait_for [String, nil] ARC wait condition — one of
-      #   'RECEIVED', 'STORED', 'ANNOUNCED_TO_NETWORK',
-      #   'SEEN_ON_NETWORK', or 'MINED'. When set, ARC holds the
-      #   connection open until the transaction reaches the requested
-      #   state (or times out). Defaults to nil (no wait).
-      # @param skip_fee_validation [Boolean, nil] when truthy, sends the
-      #   +X-SkipFeeValidation: true+ header, asking ARC to bypass its
-      #   minimum-fee check. Useful for zero-fee data transactions or
-      #   during local testing. Defaults to nil (fee validation applies).
-      # @param skip_script_validation [Boolean, nil] when truthy, sends the
-      #   +X-SkipScriptValidation: true+ header, asking ARC to bypass
-      #   script correctness checks. Defaults to nil (script validation
-      #   applies).
+      # @param wait_for [String, nil] ARC wait condition
+      # @param skip_fee_validation [Boolean, nil] when truthy, sends X-SkipFeeValidation header
+      # @param skip_script_validation [Boolean, nil] when truthy, sends X-SkipScriptValidation header
       # @return [BroadcastResponse]
       # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
       #   rejected/orphan +txStatus+
       def broadcast(tx, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
-        uri = URI("#{@url}/v1/tx")
-        request = build_post_request(uri, wait_for: wait_for,
-                                          skip_fee_validation: skip_fee_validation,
-                                          skip_script_validation: skip_script_validation)
-        request.body = JSON.generate(rawTx: raw_tx_hex(tx))
-
-        response = execute(uri, request)
-        handle_broadcast_response(response)
+        result = @protocol.call(
+          :broadcast, tx,
+          wait_for: wait_for,
+          skip_fee_validation: skip_fee_validation,
+          skip_script_validation: skip_script_validation
+        )
+        result_to_response!(result)
       end
 
       # Submit multiple transactions to ARC in a single batch request.
       #
-      # Each transaction is encoded as Extended Format (BRC-30) hex where
-      # possible, falling back to plain raw-tx hex per transaction independently.
-      #
-      # Returns a mixed array of {BroadcastResponse} and {BroadcastError} objects
-      # — one element per submitted transaction in the same order. Per-transaction
-      # rejections are returned as {BroadcastError} values rather than raised, so
-      # callers can inspect the full result set even when some transactions fail.
-      # Only HTTP-level errors (non-2xx) raise a {BroadcastError} for the whole
-      # batch.
+      # Returns a mixed array of {BroadcastResponse} and {BroadcastError} objects.
+      # Per-transaction rejections are returned as {BroadcastError} values rather
+      # than raised. Only HTTP-level errors raise a {BroadcastError} for the whole batch.
       #
       # @param txs [Array<Transaction>] transactions to broadcast
-      # @param wait_for [String, nil] ARC wait condition (see {#broadcast})
-      # @param skip_fee_validation [Boolean, nil] when truthy, sends
-      #   +X-SkipFeeValidation: true+ for the batch request
-      # @param skip_script_validation [Boolean, nil] when truthy, sends
-      #   +X-SkipScriptValidation: true+ for the batch request
+      # @param wait_for [String, nil] ARC wait condition
+      # @param skip_fee_validation [Boolean, nil]
+      # @param skip_script_validation [Boolean, nil]
       # @return [Array<BroadcastResponse, BroadcastError>]
-      # @raise [BroadcastError] when ARC returns a non-2xx HTTP status or a
-      #   malformed (non-array) response body
+      # @raise [BroadcastError] when ARC returns a non-2xx HTTP status
       def broadcast_many(txs, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
-        return [] if txs.empty?
+        result = @protocol.call(
+          :broadcast_many, txs,
+          wait_for: wait_for,
+          skip_fee_validation: skip_fee_validation,
+          skip_script_validation: skip_script_validation
+        )
 
-        uri = URI("#{@url}/v1/txs")
-        request = build_post_request(uri, wait_for: wait_for,
-                                          skip_fee_validation: skip_fee_validation,
-                                          skip_script_validation: skip_script_validation)
-        request.body = JSON.generate(txs.map { |tx| { rawTx: raw_tx_hex(tx) } })
-
-        response = execute(uri, request)
-        handle_batch_response(response)
+        case result
+        when Result::Success
+          result.data.map { |item| item_to_response_or_error(item) }
+        else
+          raise broadcast_error_from_result(result)
+        end
       end
 
       # Query the status of a previously submitted transaction.
-      # Returns BroadcastResponse on success, raises BroadcastError on failure.
+      #
+      # @param txid [String] transaction ID to query
+      # @return [BroadcastResponse]
+      # @raise [BroadcastError] on failure
       def status(txid)
-        uri = URI("#{@url}/v1/tx/#{txid}")
-        request = Net::HTTP::Get.new(uri)
-        request['XDeployment-ID'] = @deployment_id
-        apply_auth_header(request)
-
-        response = execute(uri, request)
-        handle_broadcast_response(response)
+        result = @protocol.call(:get_tx_status, txid)
+        result_to_response!(result)
       end
 
       private
 
-      # Prefer Extended Format (BRC-30) hex so ARC can validate sighashes
-      # without fetching parent transactions. Falls back to plain raw-tx hex
-      # when any input lacks source_satoshis / source_locking_script.
-      def raw_tx_hex(tx)
-        tx.to_ef_hex
-      rescue ArgumentError
-        tx.to_hex
-      end
-
-      def build_post_request(uri, wait_for: nil, skip_fee_validation: nil, skip_script_validation: nil)
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request['XDeployment-ID'] = @deployment_id
-        request['X-WaitFor'] = wait_for if wait_for
-        request['X-CallbackUrl'] = @callback_url if @callback_url
-        request['X-CallbackToken'] = @callback_token if @callback_token
-        request['X-SkipFeeValidation'] = 'true' if skip_fee_validation
-        request['X-SkipScriptValidation'] = 'true' if skip_script_validation
-        apply_auth_header(request)
-        request
-      end
-
-      def apply_auth_header(request)
-        request['Authorization'] = "Bearer #{@api_key}" if @api_key
-      end
-
-      def execute(uri, request)
-        if @http_client
-          @http_client.request(uri, request)
+      # Translate a single-tx Result into a BroadcastResponse or raise BroadcastError.
+      def result_to_response!(result)
+        case result
+        when Result::Success
+          BroadcastResponse.new(result.data)
         else
-          Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-            http.request(request)
-          end
+          raise broadcast_error_from_result(result)
         end
       end
 
-      def handle_broadcast_response(response)
-        body = parse_json(response.body)
-        code = response.code.to_i
-
-        unless (200..299).cover?(code)
-          raise BroadcastError.new(
-            body['detail'] || body['title'] || "HTTP #{code}",
-            status_code: code,
-            txid: body['txid']
-          )
+      # Translate a per-item batch Result into a BroadcastResponse or BroadcastError
+      # (returned, not raised).
+      def item_to_response_or_error(item)
+        case item
+        when Result::Success
+          BroadcastResponse.new(item.data)
+        else
+          broadcast_error_from_result(item)
         end
-
-        if rejected_status?(body)
-          raise BroadcastError.new(
-            body['detail'] || body['title'] || body['txStatus'],
-            status_code: code,
-            txid: body['txid'],
-            arc_status: body['txStatus'].to_s.upcase
-          )
-        end
-
-        # A 2xx response without a txid is a malformed ARC reply —
-        # `parse_json` falls back to `{'detail' => raw}` on non-JSON,
-        # which would otherwise produce a `BroadcastResponse` full of
-        # `nil`s and `success? => true`. That's the same silent
-        # success-as-failure class of bug F5.13 closed for explicit
-        # error statuses; closing it here for shape corruption too.
-        unless body['txid']
-          raise BroadcastError.new(
-            'ARC returned a malformed 2xx response',
-            status_code: code
-          )
-        end
-
-        build_response(body)
       end
 
-      def rejected_status?(body)
-        # Case-insensitive match — the TypeScript reference
-        # (`ts-sdk/src/transaction/broadcasters/ARC.ts:155-166`) explicitly
-        # `.toUpperCase()`s both fields before membership / substring checks.
-        # ARC has a documented history of emitting values outside its own
-        # OpenAPI enum (e.g. `txStatus: "success"` for orphans in TS issue
-        # #105), so case normalisation is the defensive choice.
-        tx_status = body['txStatus'].to_s.upcase
-        return true if REJECTED_STATUSES.include?(tx_status)
-        return true if tx_status.include?(ORPHAN_MARKER)
-
-        extra_info = body['extraInfo'].to_s.upcase
-        return true if extra_info.include?(ORPHAN_MARKER)
-
-        false
-      end
-
-      def parse_json(raw)
-        JSON.parse(raw)
-      rescue JSON::ParserError
-        { 'detail' => raw }
-      end
-
-      def build_response(body)
-        BroadcastResponse.new(
-          txid: body['txid'],
-          tx_status: body['txStatus'],
-          message: body['title'],
-          extra_info: body['extraInfo'],
-          block_hash: body['blockHash'],
-          block_height: body['blockHeight'],
-          timestamp: body['timestamp'],
-          competing_txs: body['competingTxs']
+      # Build a BroadcastError from a Result::Error or Result::NotFound.
+      def broadcast_error_from_result(result)
+        meta = result.metadata || {}
+        BroadcastError.new(
+          result.message,
+          status_code: meta[:status_code],
+          txid: meta[:txid],
+          arc_status: meta[:arc_status]
         )
-      end
-
-      def handle_batch_response(response)
-        code = response.code.to_i
-        body = parse_json(response.body)
-
-        unless (200..299).cover?(code)
-          raise BroadcastError.new(
-            body['detail'] || body['title'] || "HTTP #{code}",
-            status_code: code
-          )
-        end
-
-        unless body.is_a?(Array)
-          raise BroadcastError.new(
-            'ARC returned a malformed batch response',
-            status_code: code
-          )
-        end
-
-        body.map { |item| build_response_or_error(item) }
-      end
-
-      def build_response_or_error(body)
-        if rejected_status?(body)
-          BroadcastError.new(
-            body['detail'] || body['title'] || body['txStatus'],
-            status_code: 200,
-            txid: body['txid'],
-            arc_status: body['txStatus'].to_s.upcase
-          )
-        elsif !body['txid']
-          BroadcastError.new(
-            'ARC returned a malformed 2xx response',
-            status_code: 200
-          )
-        else
-          build_response(body)
-        end
       end
     end
   end
