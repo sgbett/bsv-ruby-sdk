@@ -2,7 +2,7 @@
 
 RSpec.describe BSV::Network::Command do
   before { described_class.reset! }
-  after  { described_class.reset! }
+  after  { described_class.reset!; load 'bsv/network/commands.rb' }
 
   let(:name)        { :broadcast }
   let(:params)      { { tx: 'Transaction' } }
