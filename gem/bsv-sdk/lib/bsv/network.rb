@@ -2,6 +2,7 @@
 
 module BSV
   module Network
+    autoload :Result,             'bsv/network/result'
     autoload :BroadcastError,     'bsv/network/broadcast_error'
     autoload :BroadcastResponse,  'bsv/network/broadcast_response'
     autoload :ChainProviderError, 'bsv/network/chain_provider_error'
