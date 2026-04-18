@@ -48,7 +48,16 @@ RSpec.describe BSV::Network::Protocols::ARC do
       let(:tx) { make_tx(ef_hex: 'efhex123') }
 
       before do
-        stub_json_response(200, { 'txid' => 'abc123', 'txStatus' => 'RECEIVED' })
+        stub_json_response(200, {
+                             'txid' => 'abc123',
+                             'txStatus' => 'RECEIVED',
+                             'title' => 'Transaction received',
+                             'extraInfo' => 'some info',
+                             'blockHash' => 'blockhash1',
+                             'blockHeight' => 800_000,
+                             'timestamp' => '2024-01-01T00:00:00Z',
+                             'competingTxs' => []
+                           })
       end
 
       it 'sends EF hex in the request body' do
@@ -59,10 +68,17 @@ RSpec.describe BSV::Network::Protocols::ARC do
         end
       end
 
-      it 'returns Result::Success' do
+      it 'returns Result::Success with all 8 ARC fields' do
         result = arc.call(:broadcast, tx)
         expect(result).to be_a(BSV::Network::Result::Success)
         expect(result.data[:txid]).to eq('abc123')
+        expect(result.data[:tx_status]).to eq('RECEIVED')
+        expect(result.data[:message]).to eq('Transaction received')
+        expect(result.data[:extra_info]).to eq('some info')
+        expect(result.data[:block_hash]).to eq('blockhash1')
+        expect(result.data[:block_height]).to eq(800_000)
+        expect(result.data[:timestamp]).to eq('2024-01-01T00:00:00Z')
+        expect(result.data[:competing_txs]).to eq([])
       end
 
       it 'includes arc_status in metadata' do
@@ -290,7 +306,16 @@ RSpec.describe BSV::Network::Protocols::ARC do
     context 'with mixed success and failure responses' do
       before do
         stub_json_response(200, [
-                             { 'txid' => 'tx1id', 'txStatus' => 'RECEIVED' },
+                             {
+                               'txid' => 'tx1id',
+                               'txStatus' => 'RECEIVED',
+                               'title' => 'Received',
+                               'extraInfo' => nil,
+                               'blockHash' => nil,
+                               'blockHeight' => nil,
+                               'timestamp' => '2024-01-01T00:00:00Z',
+                               'competingTxs' => nil
+                             },
                              { 'txid' => 'tx2id', 'txStatus' => 'REJECTED' }
                            ])
       end
@@ -301,10 +326,14 @@ RSpec.describe BSV::Network::Protocols::ARC do
         expect(result.data.length).to eq(2)
       end
 
-      it 'maps successful items to Result::Success' do
+      it 'maps successful items to Result::Success with all 8 ARC fields' do
         result = arc.call(:broadcast_many, [tx_with_ef, tx_without_ef])
-        expect(result.data[0]).to be_a(BSV::Network::Result::Success)
-        expect(result.data[0].data[:txid]).to eq('tx1id')
+        item = result.data[0]
+        expect(item).to be_a(BSV::Network::Result::Success)
+        expect(item.data[:txid]).to eq('tx1id')
+        expect(item.data[:tx_status]).to eq('RECEIVED')
+        expect(item.data[:message]).to eq('Received')
+        expect(item.data[:timestamp]).to eq('2024-01-01T00:00:00Z')
       end
 
       it 'maps rejected items to Result::Error' do
@@ -372,13 +401,35 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
   describe '#call(:get_tx_status)' do
     context 'when transaction exists' do
-      before { stub_json_response(200, { 'txid' => 'abc123', 'txStatus' => 'MINED' }) }
+      before do
+        stub_json_response(200, {
+                             'txid' => 'abc123',
+                             'txStatus' => 'MINED',
+                             'title' => 'Transaction mined',
+                             'extraInfo' => nil,
+                             'blockHash' => 'blockhash999',
+                             'blockHeight' => 850_000,
+                             'timestamp' => '2024-06-01T12:00:00Z',
+                             'competingTxs' => nil
+                           })
+      end
 
-      it 'returns Result::Success with parsed JSON data' do
+      it 'returns Result::Success with all 8 normalised ARC fields' do
         result = arc.call(:get_tx_status, 'abc123')
         expect(result).to be_a(BSV::Network::Result::Success)
-        expect(result.data['txid']).to eq('abc123')
-        expect(result.data['txStatus']).to eq('MINED')
+        expect(result.data[:txid]).to eq('abc123')
+        expect(result.data[:tx_status]).to eq('MINED')
+        expect(result.data[:message]).to eq('Transaction mined')
+        expect(result.data[:extra_info]).to be_nil
+        expect(result.data[:block_hash]).to eq('blockhash999')
+        expect(result.data[:block_height]).to eq(850_000)
+        expect(result.data[:timestamp]).to eq('2024-06-01T12:00:00Z')
+        expect(result.data[:competing_txs]).to be_nil
+      end
+
+      it 'includes arc_status in metadata' do
+        result = arc.call(:get_tx_status, 'abc123')
+        expect(result.metadata[:arc_status]).to eq('MINED')
       end
     end
 

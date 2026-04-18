@@ -197,11 +197,7 @@ module BSV
           end
 
           Result::Success.new(
-            data: {
-              txid: body['txid'],
-              tx_status: body['txStatus'],
-              extra_info: body['extraInfo']
-            },
+            data: arc_data_from(body),
             metadata: { arc_status: body['txStatus'].to_s.upcase }
           )
         end
@@ -256,14 +252,44 @@ module BSV
             )
           else
             Result::Success.new(
-              data: {
-                txid: item['txid'],
-                tx_status: item['txStatus'],
-                extra_info: item['extraInfo']
-              },
+              data: arc_data_from(item),
               metadata: { arc_status: item['txStatus'].to_s.upcase }
             )
           end
+        end
+
+        # Escape hatch for get_tx_status: returns a normalised data hash using the
+        # same field set as broadcast responses rather than the raw parsed JSON.
+        #
+        # @param txid [String] the transaction ID to query
+        # @return [Result::Success, Result::Error, Result::NotFound]
+        def call_get_tx_status(txid, **)
+          response = default_call(:get_tx_status, txid)
+          return response unless response.is_a?(Result::Success)
+
+          body = response.data
+          Result::Success.new(
+            data: arc_data_from(body),
+            metadata: { arc_status: body['txStatus'].to_s.upcase }
+          )
+        end
+
+        # Build the normalised ARC data hash from a parsed JSON response body.
+        # Includes all 8 fields that BroadcastResponse expects.
+        #
+        # @param body [Hash] parsed ARC JSON response
+        # @return [Hash]
+        def arc_data_from(body)
+          {
+            txid: body['txid'],
+            tx_status: body['txStatus'],
+            message: body['title'],
+            extra_info: body['extraInfo'],
+            block_hash: body['blockHash'],
+            block_height: body['blockHeight'],
+            timestamp: body['timestamp'],
+            competing_txs: body['competingTxs']
+          }
         end
 
         # Determine whether a status code indicates a retryable failure.
