@@ -461,6 +461,46 @@ module BSV
         @storage.store_setting('change_params', { count: count, satoshis: satoshis })
       end
 
+      # Creates a UTXO pool for high-frequency transaction pre-allocation.
+      #
+      # The pool maintains a basket of pre-funded outputs (e.g. +'pool:doom'+)
+      # that can be acquired and released without the overhead of full coin
+      # selection. A background {ReplenishmentWorker} keeps the pool at
+      # target capacity.
+      #
+      # The caller is responsible for calling +pool.shutdown+ when the pool
+      # is no longer needed to stop the background worker.
+      #
+      # @param name [String] pool identifier (basket will be +"pool:<name>"+)
+      # @param target_count [Integer] desired number of UTXOs (default 20)
+      # @param target_satoshis [Integer] desired satoshis per UTXO (default 10_000)
+      # @param low_water_mark [Float] replenishment trigger as a fraction of
+      #   +target_count+ (0.0-1.0, default 0.5); threshold is
+      #   <tt>(target_count * low_water_mark).ceil</tt>
+      # @return [LocalPool]
+      def utxo_pool(name:, target_count: 20, target_satoshis: 10_000, low_water_mark: 0.5)
+        basket = "pool:#{name}"
+        Validators.validate_basket!(basket)
+        raise WalletError, 'utxo_pool requires a broadcaster for replenishment' unless broadcast_enabled?
+
+        threshold = (target_count * low_water_mark).ceil
+        pool = LocalPool.new(
+          name: name,
+          storage: @storage,
+          wallet_client: self,
+          target_count: target_count,
+          target_satoshis: target_satoshis,
+          low_water_mark: threshold
+        )
+        worker = ReplenishmentWorker.new(
+          pool: pool,
+          wallet_client: self
+        )
+        pool.replenisher = worker
+        worker.start
+        pool
+      end
+
       # --- Authentication ---
 
       # Checks whether the user is authenticated.
@@ -1546,7 +1586,10 @@ module BSV
                                   tags: spec[:tags] || [],
                                   custom_instructions: spec[:custom_instructions],
                                   spendable: true,
-                                  source_tx_hex: tx_hex
+                                  source_tx_hex: tx_hex,
+                                  derivation_prefix: spec[:derivation_prefix],
+                                  derivation_suffix: spec[:derivation_suffix],
+                                  sender_identity_key: spec[:sender_identity_key]
                                 })
         end
       end

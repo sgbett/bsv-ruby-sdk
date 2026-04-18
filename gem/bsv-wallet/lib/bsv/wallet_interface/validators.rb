@@ -81,16 +81,34 @@ module BSV
         raise InvalidParameterError.new(name, 'between 5 and 50 characters') if description.length < 5 || description.length > 50
       end
 
-      # Basket name rules (BRC-99):
-      # - 5-300 chars
-      # - lowercase letters, numbers, and spaces only
+      # Basket name rules — two-zone model (BRC-99 flat zone, BRC-122 structured zone):
+      #
+      # Flat zone (no colon):
+      # - 5-300 chars, lowercase letters, numbers, and spaces only
       # - no consecutive spaces
       # - must not end with ' basket'
-      # - must not start with 'admin'
+      # - must not start with 'admin' or 'p ' (reserved prefixes)
       # - must not be 'default'
-      # - must not start with 'p ' (BRC-99 reserved)
+      #
+      # Structured zone (contains a colon):
+      # - normalised (stripped and downcased) before validation
+      # - 1-300 bytes after normalisation
+      # - valid characters: lowercase letters, digits, spaces, colons, dots, hyphens, underscores
+      # - no consecutive spaces or consecutive colons
+      # - prefix before the first colon must match [a-z][a-z0-9]*
+      # - content after the first colon must be non-empty after strip
+      # - reserved prefixes apply: must not start with 'admin' or 'p '
       def validate_basket!(basket)
         raise InvalidParameterError.new('basket', 'a String') unless basket.is_a?(String)
+
+        if basket.include?(':')
+          validate_structured_basket!(basket)
+        else
+          validate_flat_basket!(basket)
+        end
+      end
+
+      def validate_flat_basket!(basket)
         raise InvalidParameterError.new('basket', 'between 5 and 300 characters') if basket.length < 5 || basket.length > 300
         raise InvalidParameterError.new('basket', 'lowercase letters, numbers, and spaces only') unless basket.match?(/\A[a-z0-9 ]+\z/)
         raise InvalidParameterError.new('basket', 'free of consecutive spaces') if basket.include?('  ')
@@ -101,6 +119,39 @@ module BSV
         end
         raise InvalidParameterError.new('basket', "not equal to \"#{RESERVED_BASKET_NAME}\"") if basket == RESERVED_BASKET_NAME
       end
+
+      def validate_structured_basket!(basket)
+        normalised = basket.strip.downcase
+
+        unless basket == normalised
+          raise InvalidParameterError.new('basket',
+                                          'already normalised (lowercase, trimmed) — received mixed-case or padded input')
+        end
+
+        raise InvalidParameterError.new('basket', 'between 1 and 300 bytes') if normalised.bytesize < 1 || normalised.bytesize > 300
+        unless normalised.match?(/\A[a-z0-9 :.\-_]+\z/)
+          raise InvalidParameterError.new('basket',
+                                          'lowercase letters, digits, spaces, colons, dots, hyphens, and underscores only')
+        end
+        raise InvalidParameterError.new('basket', 'free of consecutive spaces') if normalised.include?('  ')
+        raise InvalidParameterError.new('basket', 'free of consecutive colons') if normalised.include?('::')
+
+        colon_pos = normalised.index(':')
+        prefix = normalised[0, colon_pos]
+        content = normalised[(colon_pos + 1)..].strip
+
+        unless prefix.match?(/\A[a-z][a-z0-9]*\z/)
+          raise InvalidParameterError.new('basket',
+                                          'a valid namespace prefix before the colon ([a-z][a-z0-9]*)')
+        end
+        raise InvalidParameterError.new('basket', 'non-empty content after the colon') if content.empty?
+
+        RESERVED_BASKET_PREFIXES.each do |rp|
+          raise InvalidParameterError.new('basket', "not starting with \"#{rp}\"") if normalised.start_with?(rp)
+        end
+      end
+
+      private_class_method :validate_flat_basket!, :validate_structured_basket!
 
       # Label: 1-300 characters
       def validate_label!(label)

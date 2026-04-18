@@ -27,6 +27,9 @@ module BSV
     autoload :FeeEstimator,         'bsv/wallet_interface/fee_estimator'
     autoload :CoinSelector,         'bsv/wallet_interface/coin_selector'
     autoload :ChangeGenerator,      'bsv/wallet_interface/change_generator'
+    autoload :UTXOPool,             'bsv/wallet_interface/utxo_pool'
+    autoload :LocalPool,            'bsv/wallet_interface/local_pool'
+    autoload :ReplenishmentWorker,  'bsv/wallet_interface/replenishment_worker'
 
     # Error classes
     autoload :InsufficientFundsError, 'bsv/wallet/insufficient_funds_error'
@@ -35,5 +38,6 @@ module BSV
     autoload :InvalidHmacError,       'bsv/wallet_interface/errors/invalid_hmac_error'
     autoload :InvalidSignatureError,  'bsv/wallet_interface/errors/invalid_signature_error'
     autoload :UnsupportedActionError, 'bsv/wallet_interface/errors/unsupported_action_error'
+    autoload :PoolDepletedError,      'bsv/wallet_interface/errors/pool_depleted_error'
   end
 end

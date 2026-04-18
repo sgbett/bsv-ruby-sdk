@@ -236,6 +236,26 @@ module BSV
         symbolise_keys(row[:data])
       end
 
+      # Moves an output from one basket to another (metadata-only).
+      #
+      # Updates both the +basket+ column and the JSONB +data+ blob.
+      # Does not affect the output's state or pending metadata.
+      #
+      # @param outpoint [String] the outpoint identifier
+      # @param new_basket [String] the destination basket name
+      # @raise [BSV::Wallet::WalletError] if the outpoint is not found
+      # @return [Hash] the updated output hash
+      def update_output_basket(outpoint, new_basket)
+        ds = @db[:wallet_outputs].where(outpoint: outpoint)
+        rows_updated = ds.update(
+          basket: new_basket,
+          data: Sequel.lit("data || jsonb_build_object('basket', ?)", new_basket)
+        )
+        raise WalletError, "Output not found: #{outpoint}" if rows_updated.zero?
+
+        symbolise_keys(ds.first[:data])
+      end
+
       # Atomically marks a set of outpoints as +:pending+.
       #
       # Uses +UPDATE ... WHERE state = 'spendable' ... RETURNING outpoint+ so that

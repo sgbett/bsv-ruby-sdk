@@ -72,6 +72,12 @@ module BSV
         result
       end
 
+      def update_output_basket(outpoint, new_basket)
+        result = super
+        save_outputs
+        result
+      end
+
       def update_output_state(outpoint, new_state, pending_reference: nil, no_send: nil)
         result = super
         save_outputs

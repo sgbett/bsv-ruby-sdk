@@ -87,6 +87,27 @@ module BSV
         raise NotImplementedError, "#{self.class}#delete_action not implemented"
       end
 
+      # Reassigns the basket of an existing output without altering any other field.
+      #
+      # This is a metadata-only operation (BRC-66 principle): it does not affect
+      # the output's lock state, satoshis, locking script, or derivation fields.
+      #
+      # NOTE: There is a benign TOCTOU race between a caller checking that an
+      # output belongs to a particular basket (e.g. via +find_spendable_outputs+)
+      # and calling +update_output_basket+ to move it. A concurrent thread could
+      # have spent or re-locked the output in between. This is benign because any
+      # downstream consumer (e.g. a scavenge path) must re-check the output's state
+      # before use and will self-correct on the next cycle.
+      #
+      # @param _outpoint [String] the outpoint identifier (e.g. "txid.vout")
+      # @param _new_basket [String] the target basket name
+      # @return [Hash] the updated output hash
+      # @raise [BSV::Wallet::WalletError] if no output with the given outpoint is found
+      # @raise [NotImplementedError]
+      def update_output_basket(_outpoint, _new_basket)
+        raise NotImplementedError, "#{self.class}#update_output_basket not implemented"
+      end
+
       # Transitions the state of an existing output.
       #
       # When +new_state+ is +:pending+, pass a +pending_reference:+ string to

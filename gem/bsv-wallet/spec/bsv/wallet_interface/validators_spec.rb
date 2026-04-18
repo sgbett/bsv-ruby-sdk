@@ -213,6 +213,60 @@ RSpec.describe BSV::Wallet::Validators do
     it 'rejects uppercase letters' do
       expect { described_class.validate_basket!('My Tokens') }.to raise_error(BSV::Wallet::InvalidParameterError)
     end
+
+    context 'with a structured zone (BRC-122) basket name' do
+      it 'accepts pool:doom' do
+        expect { described_class.validate_basket!('pool:doom') }.not_to raise_error
+      end
+
+      it 'accepts pool:12345' do
+        expect { described_class.validate_basket!('pool:12345') }.not_to raise_error
+      end
+
+      it 'accepts a structured basket with spaces in content' do
+        expect { described_class.validate_basket!('app:my tokens') }.not_to raise_error
+      end
+
+      it 'rejects trailing colon without content (pool:)' do
+        expect { described_class.validate_basket!('pool:') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'rejects leading colon (:orphan)' do
+        expect { described_class.validate_basket!(':orphan') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'rejects consecutive colons (pool::thing)' do
+        expect { described_class.validate_basket!('pool::thing') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'rejects structured names over 300 bytes' do
+        expect { described_class.validate_basket!("pool:#{'a' * 300}") }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'rejects non-normalised input (Pool:DOOM must be pool:doom)' do
+        expect { described_class.validate_basket!('Pool:DOOM') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'accepts already-normalised input' do
+        expect { described_class.validate_basket!('pool:test123') }.not_to raise_error
+      end
+
+      it 'rejects consecutive spaces in the content portion' do
+        expect { described_class.validate_basket!('pool:my  tokens') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'rejects structured basket with reserved prefix admin' do
+        expect { described_class.validate_basket!('admin:thing') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+
+      it 'accepts a single-character namespace and single-character content (a:b)' do
+        expect { described_class.validate_basket!('a:b') }.not_to raise_error
+      end
+
+      it 'rejects a numeric-only namespace prefix (9:thing)' do
+        expect { described_class.validate_basket!('9:thing') }.to raise_error(BSV::Wallet::InvalidParameterError)
+      end
+    end
   end
 
   describe '.validate_label!' do
