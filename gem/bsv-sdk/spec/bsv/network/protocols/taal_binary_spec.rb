@@ -49,6 +49,30 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       expect(result.data[:txid]).to eq('deadbeef' * 8)
     end
 
+    it 'returns Result::Success with nil txid when body is nil' do
+      instance, _http = make_instance(200, nil)
+      result = instance.call(:broadcast, "\x01\x00")
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data[:txid]).to be_nil
+    end
+
+    it 'returns Result::Success with nil txid when body is empty' do
+      instance, _http = make_instance(200, '')
+      result = instance.call(:broadcast, "\x01\x00")
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data[:txid]).to be_nil
+    end
+
+    it 'returns Result::Success with nil txid when body is non-JSON' do
+      instance, _http = make_instance(200, 'OK')
+      result = instance.call(:broadcast, "\x01\x00")
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data[:txid]).to be_nil
+    end
+
     it 'sends raw binary body as-is when given a String' do
       instance, http = make_instance(200, success_body)
       instance.call(:broadcast, "\xde\xad\xbe\xef")

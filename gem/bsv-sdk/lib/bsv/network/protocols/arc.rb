@@ -164,6 +164,14 @@ module BSV
           code = response.code.to_i
           body = safe_parse_json(response.body)
 
+          unless body.is_a?(Hash)
+            return Result::Error.new(
+              message: "HTTP #{code}",
+              retryable: retryable_code?(code),
+              metadata: {}
+            )
+          end
+
           unless (200..299).cover?(code)
             return Result::Error.new(
               message: body['detail'] || body['title'] || "HTTP #{code}",
@@ -226,6 +234,14 @@ module BSV
 
         # Build a per-item result for a batch response entry.
         def build_item_result(item)
+          unless item.is_a?(Hash)
+            return Result::Error.new(
+              message: 'malformed batch item',
+              retryable: false,
+              metadata: {}
+            )
+          end
+
           if rejected_status?(item)
             Result::Error.new(
               message: item['detail'] || item['title'] || item['txStatus'],

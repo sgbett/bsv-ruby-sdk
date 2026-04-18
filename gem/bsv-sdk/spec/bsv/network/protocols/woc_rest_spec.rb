@@ -295,8 +295,8 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       result = protocol.call(:get_utxos, '1AddressBSV')
 
       expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[0]['satoshis']).to eq(50_000)
-      expect(result.data[1]['satoshis']).to eq(100_000)
+      expect(result.data[0][:satoshis]).to eq(50_000)
+      expect(result.data[1][:satoshis]).to eq(100_000)
     end
 
     it 'does not include a value key in remapped entries' do
@@ -305,19 +305,20 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       result = protocol.call(:get_utxos, '1AddressBSV')
 
+      expect(result.data[0]).not_to have_key(:value)
       expect(result.data[0]).not_to have_key('value')
     end
 
-    it 'preserves tx_hash, tx_pos, and height fields' do
+    it 'preserves tx_hash, tx_pos, and height fields as symbol keys' do
       http_client = fake(200, woc_response)
       protocol = described_class.new(network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1AddressBSV')
 
       entry = result.data[0]
-      expect(entry['tx_hash']).to eq('abc')
-      expect(entry['tx_pos']).to eq(0)
-      expect(entry['height']).to eq(800_000)
+      expect(entry[:tx_hash]).to eq('abc')
+      expect(entry[:tx_pos]).to eq(0)
+      expect(entry[:height]).to eq(800_000)
     end
 
     it 'returns an empty array when the address has no UTXOs' do
@@ -419,6 +420,26 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_a(BSV::Network::Result::Error)
       expect(result.retryable?).to be(true)
     end
+
+    it 'returns Result::Error when the spent field is absent from the response' do
+      http_client = fake(200, '{"something_else":true}')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo, 'abc123', 0)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.message).to include('missing spent field')
+    end
+
+    it 'returns Result::Error when the response body is not a Hash' do
+      http_client = fake(200, '"just a string"')
+      protocol = described_class.new(network: :main, http_client: http_client)
+
+      result = protocol.call(:is_utxo, 'abc123', 0)
+
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.message).to include('missing spent field')
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -436,7 +457,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       result = protocol.call(:broadcast, tx)
 
       expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data['txid']).to eq(raw_txid)
+      expect(result.data[:txid]).to eq(raw_txid)
     end
 
     it 'strips whitespace from the txid response' do
@@ -445,7 +466,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       result = protocol.call(:broadcast, '01000000')
 
-      expect(result.data['txid']).to eq(raw_txid)
+      expect(result.data[:txid]).to eq(raw_txid)
     end
 
     it 'uses txhex as the body field name' do

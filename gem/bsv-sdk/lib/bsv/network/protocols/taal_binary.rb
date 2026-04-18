@@ -76,16 +76,20 @@ module BSV
             body['error'].include?('txn-already-known')
         end
 
-        # Parses a JSON response body, returning nil on failure.
+        # Parses a JSON response body, returning an empty Hash on failure or nil input.
+        #
+        # Always returns a Hash so callers can safely index the result without
+        # a nil-guard.
         #
         # @param raw [String, nil]
-        # @return [Hash, Array, nil]
+        # @return [Hash]
         def parse_json_body(raw)
-          return nil if raw.nil? || raw.empty?
+          return {} if raw.nil? || raw.empty?
 
-          JSON.parse(raw)
+          parsed = JSON.parse(raw)
+          parsed.is_a?(Hash) ? parsed : {}
         rescue JSON::ParserError
-          nil
+          {}
         end
       end
     end

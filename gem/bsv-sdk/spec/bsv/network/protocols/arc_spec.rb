@@ -162,6 +162,12 @@ RSpec.describe BSV::Network::Protocols::ARC do
         result = arc.call(:broadcast, tx)
         expect(result).to be_a(BSV::Network::Result::Error)
       end
+
+      it 'returns Result::Error when JSON parses to a non-Hash (e.g. Array)' do
+        stub_response(200, JSON.generate([{ 'txid' => 'abc' }]))
+        result = arc.call(:broadcast, tx)
+        expect(result).to be_a(BSV::Network::Result::Error)
+      end
     end
 
     context 'when ARC returns non-2xx status' do
@@ -325,6 +331,23 @@ RSpec.describe BSV::Network::Protocols::ARC do
         result = arc.call(:broadcast_many, [tx_with_ef])
         expect(result).to be_a(BSV::Network::Result::Error)
         expect(result.message).to include('malformed batch')
+      end
+    end
+
+    context 'when a batch item is not a Hash' do
+      before { stub_response(200, JSON.generate(['not-a-hash', { 'txid' => 'abc', 'txStatus' => 'RECEIVED' }])) }
+
+      it 'maps non-Hash items to Result::Error' do
+        result = arc.call(:broadcast_many, [tx_with_ef, tx_without_ef])
+        expect(result).to be_a(BSV::Network::Result::Success)
+        expect(result.data[0]).to be_a(BSV::Network::Result::Error)
+        expect(result.data[0].message).to include('malformed batch item')
+      end
+
+      it 'still maps valid Hash items to Result::Success' do
+        result = arc.call(:broadcast_many, [tx_with_ef, tx_without_ef])
+        expect(result.data[1]).to be_a(BSV::Network::Result::Success)
+        expect(result.data[1].data[:txid]).to eq('abc')
       end
     end
 

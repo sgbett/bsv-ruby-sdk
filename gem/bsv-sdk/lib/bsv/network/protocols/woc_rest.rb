@@ -106,10 +106,10 @@ module BSV
 
           remapped = result.data.map do |entry|
             {
-              'tx_hash' => entry['tx_hash'],
-              'tx_pos' => entry['tx_pos'],
-              'satoshis' => entry['value'],
-              'height' => entry['height']
+              tx_hash: entry['tx_hash'],
+              tx_pos: entry['tx_pos'],
+              satoshis: entry['value'],
+              height: entry['height']
             }
           end
 
@@ -132,6 +132,10 @@ module BSV
           return result unless result.success?
 
           # WoC returns { "spent": true/false, ... } — unspent means NOT spent
+          unless result.data.is_a?(Hash) && result.data.key?('spent')
+            return Result::Error.new(message: 'missing spent field in response', retryable: false)
+          end
+
           spent = result.data['spent']
           Result::Success.new(data: !spent)
         end
@@ -152,7 +156,7 @@ module BSV
           return result unless result.success?
 
           # WoC returns plain-text txid — result.data is the raw body string
-          Result::Success.new(data: { 'txid' => result.data.strip })
+          Result::Success.new(data: { txid: result.data.strip })
         end
 
         # Verifies that a merkle root matches the one recorded for a given
