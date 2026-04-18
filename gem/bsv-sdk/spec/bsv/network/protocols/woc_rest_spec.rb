@@ -83,6 +83,31 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   end
 
   # ---------------------------------------------------------------------------
+  # base_url override
+  # ---------------------------------------------------------------------------
+
+  describe '#initialize — base_url override' do
+    it 'uses the default BASE_URL when base_url: is omitted' do
+      protocol = described_class.new(network: :main, http_client: fake(200, ''))
+      expect(protocol.base_url).to eq('https://api.whatsonchain.com/v1/bsv/main')
+    end
+
+    it 'uses a fully-qualified override when base_url: is provided without {network}' do
+      protocol = described_class.new(base_url: 'https://my.woc.example', network: :main, http_client: fake(200, ''))
+      expect(protocol.base_url).to eq('https://my.woc.example')
+    end
+
+    it 'still interpolates {network} in an overridden URL template' do
+      protocol = described_class.new(
+        base_url: 'https://staging.woc.example/v2/bsv/{network}',
+        network: :test,
+        http_client: fake(200, '')
+      )
+      expect(protocol.base_url).to eq('https://staging.woc.example/v2/bsv/test')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Declared commands
   # ---------------------------------------------------------------------------
 
