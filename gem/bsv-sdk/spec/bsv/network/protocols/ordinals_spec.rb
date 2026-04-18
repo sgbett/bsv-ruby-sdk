@@ -2,8 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'BSV::Network::Protocols::Ordinals' do
-  let(:described_class) { BSV::Network::Protocols::Ordinals }
+RSpec.describe BSV::Network::Protocols::Ordinals do
   let(:txid) { 'deadbeefcafe0123456789abcdef0123456789abcdef0123456789abcdef0123' }
 
   let(:mock_http) do
@@ -25,11 +24,7 @@ RSpec.describe 'BSV::Network::Protocols::Ordinals' do
 
   def make_instance(code, body, api_key: nil)
     http = mock_http.new(code, body)
-    instance = described_class.new(
-      base_url: 'https://ordinals.gorillapool.io',
-      api_key: api_key,
-      http_client: http
-    )
+    instance = described_class.new(api_key: api_key, http_client: http)
     [instance, http]
   end
 

@@ -2,9 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe 'BSV::Network::Protocols::Chaintracks' do
-  let(:described_class) { BSV::Network::Protocols::Chaintracks }
-
+RSpec.describe BSV::Network::Protocols::Chaintracks do
   let(:mock_http) do
     Class.new do
       attr_reader :last_uri, :last_request
@@ -24,11 +22,7 @@ RSpec.describe 'BSV::Network::Protocols::Chaintracks' do
 
   def make_instance(code, body, api_key: nil)
     http = mock_http.new(code, body)
-    instance = described_class.new(
-      base_url: 'https://arcade.gorillapool.io',
-      api_key: api_key,
-      http_client: http
-    )
+    instance = described_class.new(api_key: api_key, http_client: http)
     [instance, http]
   end
 
