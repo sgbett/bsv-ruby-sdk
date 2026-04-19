@@ -138,7 +138,9 @@ module BSV
         end
 
         escape = :"call_#{name}"
-        return send(escape, *args, **kwargs) if respond_to?(escape, true)
+        if respond_to?(escape, true)
+          return kwargs.empty? ? send(escape, *args) : send(escape, *args, **kwargs)
+        end
 
         default_call(name, *args, **kwargs)
       end
