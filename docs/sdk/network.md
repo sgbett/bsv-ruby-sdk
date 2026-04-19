@@ -220,8 +220,8 @@ See the **[MCP Server Guide](../general/mcp.md)** for full setup instructions, t
 
 ## What's Next
 
-- **[Network Architecture](network/overview.md)** — how Protocols, Providers, and Commands fit together
-- **[Network Examples](network/examples.md)** — custom providers, failover, protocol DSL
+- **[Network Architecture](../network/overview.md)** — how Protocols, Providers, and Commands fit together
+- **[Network Examples](../network/examples.md)** — custom providers, failover, protocol DSL
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
 - **[Getting Started](../guides/getting-started.md)** — key generation, basic transaction construction
 - **[MCP Server Guide](../general/mcp.md)** — using BSV tools from AI assistants

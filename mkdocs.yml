@@ -52,13 +52,16 @@ nav:
       - Script: sdk/script.md
       - Transaction: sdk/transaction.md
       - Network: sdk/network.md
+  - Network:
+      - Overview: network/overview.md
+      - Examples: network/examples.md
   - Wallet: gems/wallet.md
   - Wallet Storage:
       - Postgres: gems/wallet-postgres.md
   - API: reference/index.md
   - Testing:
-      - Conformance Vectors: testing/conformance-vectors.md
+      Conformance Vectors:
   - General:
-      - Ruby secp256k1: general/secp256k1.md
-      - Naming Conventions: general/naming-conventions.md
-      - MCP Server: general/mcp.md
+    - Ruby secp256k1: general/secp256k1.md
+    - Naming Conventions: general/naming-conventions.md
+    - MCP Server: general/mcp.md
