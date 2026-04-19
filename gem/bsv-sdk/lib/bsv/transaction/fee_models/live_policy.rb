@@ -32,7 +32,6 @@ module BSV
         # @return [Integer] cache TTL in seconds
         attr_reader :cache_ttl
 
-        DEFAULT_ARC_URL = BSV::MAINNET_URL
         DEFAULT_FALLBACK_RATE = 100
 
         # Returns a LivePolicy with sensible defaults (GorillaPool ARC,
@@ -41,7 +40,9 @@ module BSV
         # @param api_key [String, nil] optional ARC API key
         # @return [LivePolicy]
         def self.default(api_key: nil)
-          new(arc_url: DEFAULT_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
+          provider = BSV::Network::Providers::GorillaPool.mainnet
+          arc_protocol = provider.protocol_for(:broadcast)
+          new(arc_url: arc_protocol.base_url, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
         end
 
         # @param arc_url [String] ARC base URL (e.g. 'https://arcade.gorillapool.io')

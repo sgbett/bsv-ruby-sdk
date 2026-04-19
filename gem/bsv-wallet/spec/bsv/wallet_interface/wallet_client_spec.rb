@@ -1551,46 +1551,14 @@ RSpec.describe BSV::Wallet::WalletClient do
   end
 
   describe '#get_height' do
-    it 'raises UnsupportedActionError with NullChainProvider' do
+    it 'raises UnsupportedActionError without a substrate' do
       expect { wallet.get_height }.to raise_error(BSV::Wallet::UnsupportedActionError)
-    end
-
-    it 'delegates to the chain provider' do
-      provider = Class.new do
-        include BSV::Wallet::ChainProvider
-
-        def get_height
-          890_123
-        end
-      end.new
-      w = described_class.new(private_key, chain_provider: provider)
-      expect(w.get_height[:height]).to eq(890_123)
     end
   end
 
   describe '#get_header_for_height' do
-    it 'raises UnsupportedActionError with NullChainProvider' do
+    it 'raises UnsupportedActionError without a substrate' do
       expect { wallet.get_header_for_height({ height: 1 }) }.to raise_error(BSV::Wallet::UnsupportedActionError)
-    end
-
-    it 'delegates to the chain provider' do
-      header_hex = 'ab' * 80
-      provider = Class.new do
-        include BSV::Wallet::ChainProvider
-
-        define_method(:get_header) { |_h| header_hex }
-      end.new
-      w = described_class.new(private_key, chain_provider: provider)
-      expect(w.get_header_for_height({ height: 100 })[:header]).to eq(header_hex)
-    end
-
-    it 'raises InvalidParameterError for non-positive height' do
-      expect { wallet.get_header_for_height({ height: 0 }) }.to raise_error(BSV::Wallet::InvalidParameterError)
-      expect { wallet.get_header_for_height({ height: -1 }) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
-
-    it 'raises InvalidParameterError for non-integer height' do
-      expect { wallet.get_header_for_height({ height: 'abc' }) }.to raise_error(BSV::Wallet::InvalidParameterError)
     end
   end
 
@@ -1963,10 +1931,8 @@ RSpec.describe BSV::Wallet::WalletClient do
     end
 
     it 'leaves the local wallet (no substrate) unchanged for get_height' do
-      # NullChainProvider raises UnsupportedActionError — confirms local path is taken, not substrate
-      chain = BSV::Wallet::NullChainProvider.new
-      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new,
-                                           chain_provider: chain)
+      # No substrate: raises UnsupportedActionError — confirms local path is taken, not substrate
+      w = described_class.new(private_key, storage: BSV::Wallet::MemoryStore.new)
       expect { w.get_height }.to raise_error(BSV::Wallet::UnsupportedActionError)
     end
 

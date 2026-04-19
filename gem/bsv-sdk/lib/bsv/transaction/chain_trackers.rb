@@ -10,11 +10,10 @@ module BSV
       # Return a default chain tracker backed by the Arcade/GorillaPool Chaintracks API.
       #
       # @param testnet [Boolean] use the testnet endpoint when true
-      # @param api_key [String, nil] optional Bearer API key
+      # @param opts [Hash] forwarded to the underlying tracker (e.g. +api_key:+)
       # @return [Chaintracks]
-      def self.default(testnet: false, api_key: nil)
-        url = testnet ? Chaintracks::TESTNET_URL : Chaintracks::MAINNET_URL
-        Chaintracks.new(url: url, api_key: api_key)
+      def self.default(testnet: false, **opts)
+        Chaintracks.default(testnet: testnet, **opts)
       end
     end
   end
