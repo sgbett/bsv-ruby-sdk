@@ -83,8 +83,11 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
 
     it 'calls #to_binary on a transaction object' do
       tx = double('tx') # rubocop:disable RSpec/VerifiedDoubles
+      # rubocop:disable RSpec/ReceiveMessages -- respond_to? stubs use different arg forms
+      allow(tx).to receive(:respond_to?).and_return(false)
       allow(tx).to receive(:respond_to?).with(:to_binary).and_return(true)
       allow(tx).to receive(:to_binary).and_return("\xca\xfe")
+      # rubocop:enable RSpec/ReceiveMessages
 
       instance, http = make_instance(200, success_body)
       instance.call(:broadcast, tx)
