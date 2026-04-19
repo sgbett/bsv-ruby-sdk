@@ -27,20 +27,23 @@ module BSV
         # @param opts [Hash] keyword arguments forwarded to each protocol constructor
         # @return [Provider]
         def self.mainnet(**opts)
+          common = opts.slice(:api_key, :http_client)
           Provider.new('GorillaPool') do |p|
-            p.protocol Protocols::ARC, base_url: 'https://arcade.gorillapool.io', **opts
-            p.protocol Protocols::Chaintracks,  base_url: 'https://arcade.gorillapool.io', **opts
-            p.protocol Protocols::Ordinals,     base_url: 'https://ordinals.gorillapool.io', **opts
+            p.protocol Protocols::ARC,         base_url: 'https://arcade.gorillapool.io', **opts
+            p.protocol Protocols::Chaintracks, base_url: 'https://arcade.gorillapool.io', **common
+            p.protocol Protocols::Ordinals,    base_url: 'https://ordinals.gorillapool.io', **common
           end
         end
 
-        # Returns a testnet Provider configured with ARC only.
+        # Returns a testnet Provider configured with ARC and Chaintracks.
         #
         # @param opts [Hash] keyword arguments forwarded to each protocol constructor
         # @return [Provider]
         def self.testnet(**opts)
+          common = opts.slice(:api_key, :http_client)
           Provider.new('GorillaPool') do |p|
-            p.protocol Protocols::ARC, base_url: 'https://testnet.arcade.gorillapool.io', **opts
+            p.protocol Protocols::ARC,         base_url: 'https://testnet.arcade.gorillapool.io', **opts
+            p.protocol Protocols::Chaintracks, base_url: 'https://testnet.arcade.gorillapool.io', **common
           end
         end
 

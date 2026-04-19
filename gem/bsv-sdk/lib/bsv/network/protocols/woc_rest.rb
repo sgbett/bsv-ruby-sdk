@@ -104,6 +104,14 @@ module BSV
           )
         end
 
+        # WoC expects a raw Authorization header (no Bearer prefix).
+        # Override the base class which adds "Bearer ".
+        def build_request(http_method, uri, body)
+          request = super
+          request['Authorization'] = @api_key if @api_key
+          request
+        end
+
         private
 
         # Resolves network aliases to the WoC URL segment string.

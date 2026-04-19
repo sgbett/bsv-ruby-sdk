@@ -26,9 +26,10 @@ module BSV
         # @param opts [Hash] keyword arguments forwarded to each protocol constructor
         # @return [Provider]
         def self.mainnet(**opts)
+          common = opts.slice(:api_key, :http_client)
           Provider.new('TAAL') do |p|
             p.protocol Protocols::ARC, base_url: 'https://arc.taal.com', **opts
-            p.protocol Protocols::TAALBinary, base_url: 'https://api.taal.com', **opts
+            p.protocol Protocols::TAALBinary, base_url: 'https://api.taal.com', **common
           end
         end
 

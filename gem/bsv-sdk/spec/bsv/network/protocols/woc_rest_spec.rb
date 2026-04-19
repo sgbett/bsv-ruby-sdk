@@ -1475,7 +1475,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       protocol.call(:current_height)
 
-      expect(http_client.last_request['Authorization']).to eq('Bearer my-woc-key')
+      expect(http_client.last_request['Authorization']).to eq('my-woc-key')
     end
 
     it 'omits Authorization header when api_key is not provided' do

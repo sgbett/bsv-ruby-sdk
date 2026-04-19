@@ -84,24 +84,26 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.name).to eq('GorillaPool')
     end
 
-    it 'registers one protocol' do
-      expect(provider.protocols.length).to eq(1)
+    it 'registers two protocols' do
+      expect(provider.protocols.length).to eq(2)
     end
 
-    it 'registers ARC only' do
-      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::ARC)
+    it 'registers ARC and Chaintracks' do
+      classes = provider.protocols.map(&:class)
+      expect(classes).to include(BSV::Network::Protocols::ARC, BSV::Network::Protocols::Chaintracks)
     end
 
     it 'serves :broadcast via ARC' do
       expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
     end
 
-    it 'does not serve :current_height' do
-      expect(provider.protocol_for(:current_height)).to be_nil
+    it 'serves :current_height via Chaintracks' do
+      expect(provider.protocol_for(:current_height)).to be_a(BSV::Network::Protocols::Chaintracks)
     end
 
     it 'sets ARC base_url to testnet.arcade.gorillapool.io' do
-      expect(provider.protocols[0].base_url).to eq('https://testnet.arcade.gorillapool.io')
+      arc = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::ARC) }
+      expect(arc.base_url).to eq('https://testnet.arcade.gorillapool.io')
     end
   end
 
