@@ -17,27 +17,29 @@ module BSV
       #   tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.new
       #   tracker.valid_root_for_height?('abcd...', 800_000)
       class WhatsOnChain < ChainTracker
-        NETWORKS = {
-          main: 'main',
-          mainnet: 'main',
-          test: 'test',
-          testnet: 'test',
-          stn: 'stn'
-        }.freeze
+        # Returns a WhatsOnChain chain tracker using the provider default.
+        #
+        # @param testnet [Boolean] when true, uses the testnet endpoint
+        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
+        # @return [WhatsOnChain]
+        def self.default(testnet: false, **opts)
+          provider = BSV::Network::Providers::WhatsOnChain.default(testnet: testnet, **opts)
+          new(protocol: provider.protocol_for(:valid_root))
+        end
 
-        # @param network [Symbol] :main, :mainnet, :test, :testnet, or :stn
-        # @param api_key [String, nil] optional WoC API key; sent as a raw
-        #   Authorization header value (not Bearer-prefixed)
+        # @param network [Symbol] :main, :mainnet, :test, :testnet (legacy compat)
+        # @param api_key [String, nil] optional WoC API key
         # @param http_client [#request, nil] injectable HTTP client for testing
-        def initialize(network: :main, api_key: nil, http_client: nil)
+        # @param protocol [BSV::Network::Protocols::WoCREST, nil] pre-configured protocol
+        def initialize(network: :main, api_key: nil, http_client: nil, protocol: nil)
           super()
-          NETWORKS.fetch(network) { raise ArgumentError, "unknown network: #{network}" }
-          wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
-          @protocol = BSV::Network::Protocols::WoCREST.new(
-            network: network,
-            api_key: nil,
-            http_client: wrapped_client
-          )
+          if protocol
+            @protocol = protocol
+          else
+            wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
+            provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: wrapped_client)
+            @protocol = provider.protocol_for(:valid_root)
+          end
         end
 
         # Verify that a merkle root is valid for the given block height.

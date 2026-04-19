@@ -13,8 +13,26 @@ module BSV
     # The HTTP client is injectable for testability. It must respond to
     # #request(uri, request) and return an object with #code and #body.
     class WhatsOnChain
-      def initialize(network: :mainnet, http_client: nil)
-        @protocol = Protocols::WoCREST.new(network: network, http_client: http_client)
+      # Returns a WhatsOnChain instance using the provider default.
+      #
+      # @param testnet [Boolean] when true, uses the testnet endpoint
+      # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
+      # @return [WhatsOnChain]
+      def self.default(testnet: false, **opts)
+        provider = Providers::WhatsOnChain.default(testnet: testnet, **opts)
+        new(protocol: provider.protocol_for(:get_tx))
+      end
+
+      # @param network [Symbol] :main, :mainnet, :test, :testnet, :stn (legacy compat)
+      # @param http_client [#request, nil] injectable HTTP client
+      # @param protocol [BSV::Network::Protocols::WoCREST, nil] pre-configured protocol
+      def initialize(network: :mainnet, http_client: nil, protocol: nil)
+        if protocol
+          @protocol = protocol
+        else
+          provider = Providers::WhatsOnChain.default(network: network, http_client: http_client)
+          @protocol = provider.protocol_for(:get_tx)
+        end
       end
 
       # Fetch unspent transaction outputs for an address.

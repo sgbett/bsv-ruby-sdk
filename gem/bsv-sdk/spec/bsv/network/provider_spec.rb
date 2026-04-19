@@ -128,7 +128,7 @@ RSpec.describe 'BSV::Network::Provider' do
     it 'includes commands from all protocols (ARC + WoCREST)' do
       p = provider.new('Full') do |pr|
         pr.protocol arc_class, base_url: 'https://arc.example.com', http_client: http_client
-        pr.protocol woc_class, http_client: http_client
+        pr.protocol woc_class, base_url: 'https://api.whatsonchain.com/v1/bsv/main', http_client: http_client
       end
       expect(p.commands).to include(:broadcast, :get_tx, :current_height, :health)
     end
@@ -199,7 +199,7 @@ RSpec.describe 'BSV::Network::Provider' do
 
       p = provider.new('Competing') do |pr|
         pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: ct_client
-        pr.protocol woc_class, http_client: woc_client
+        pr.protocol woc_class, base_url: 'https://api.whatsonchain.com/v1/bsv/main', http_client: woc_client
       end
 
       result = p.call(:current_height)
@@ -212,7 +212,7 @@ RSpec.describe 'BSV::Network::Provider' do
       allow(woc_client).to receive(:request).and_return(woc_response)
 
       p = provider.new('Reversed') do |pr|
-        pr.protocol woc_class,          http_client: woc_client
+        pr.protocol woc_class,          base_url: 'https://api.whatsonchain.com/v1/bsv/main', http_client: woc_client
         pr.protocol chaintracks_class,  base_url: 'https://ct.example.com', http_client: ct_client
       end
 
@@ -280,7 +280,7 @@ RSpec.describe 'BSV::Network::Provider' do
     it 'returns the first-registered protocol when commands overlap' do
       p = provider.new('Overlap') do |pr|
         pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
-        pr.protocol woc_class, http_client: http_client
+        pr.protocol woc_class, base_url: 'https://api.whatsonchain.com/v1/bsv/main', http_client: http_client
       end
       # :current_height is served by both; first-registered (Chaintracks) wins
       expect(p.protocol_for(:current_height)).to be_a(chaintracks_class)
@@ -315,7 +315,7 @@ RSpec.describe 'BSV::Network::Provider' do
     it 'respects first-registered-wins — second protocol loses overlapping commands' do
       p = provider.new('Overlap') do |pr|
         pr.protocol chaintracks_class, base_url: 'https://ct.example.com', http_client: http_client
-        pr.protocol woc_class,                                              http_client: http_client
+        pr.protocol woc_class,         base_url: 'https://api.whatsonchain.com/v1/bsv/main', http_client: http_client
       end
       matrix = p.capability_matrix
 

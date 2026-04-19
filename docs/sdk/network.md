@@ -1,12 +1,17 @@
 # Network
 
-The `BSV::Network` module handles broadcasting transactions and querying the blockchain. The `BSV::Transaction::ChainTrackers` module provides SPV verification against block headers.
+The `BSV::Network` module handles broadcasting transactions and querying the blockchain.
+The `BSV::Transaction::ChainTrackers` module provides SPV verification against block headers.
+
+For the underlying architecture (Protocols, Providers, Commands), see the
+[Network Architecture Overview](network/overview.md) and [Examples](network/examples.md).
 
 ## Broadcasting Transactions
 
 ### Default Broadcaster
 
-The quickest way to broadcast is via `ARC.default`, which points at GorillaPool's public Arcade endpoint:
+The quickest way to broadcast is via `ARC.default`, which points at GorillaPool's
+public Arcade endpoint:
 
 ```ruby
 arc = BSV::Network::ARC.default
@@ -215,6 +220,8 @@ See the **[MCP Server Guide](../general/mcp.md)** for full setup instructions, t
 
 ## What's Next
 
+- **[Network Architecture](network/overview.md)** — how Protocols, Providers, and Commands fit together
+- **[Network Examples](network/examples.md)** — custom providers, failover, protocol DSL
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
 - **[Getting Started](../guides/getting-started.md)** — key generation, basic transaction construction
 - **[MCP Server Guide](../general/mcp.md)** — using BSV tools from AI assistants

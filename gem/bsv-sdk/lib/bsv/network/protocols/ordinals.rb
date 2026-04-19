@@ -10,23 +10,21 @@ module BSV
       #
       # == Usage
       #
-      #   ord = BSV::Network::Protocols::Ordinals.new
+      #   ord = BSV::Network::Protocols::Ordinals.new(base_url: 'https://ordinals.gorillapool.io')
       #   result = ord.call(:get_tx, 'abc123...')
       #   result.data  # => "01000000..."  (raw hex string)
       #
       #   result = ord.call(:get_merkle_path, 'abc123...')
       #   result.data  # => { 'index' => 0, 'path' => [...] }
       class Ordinals < Protocol
-        BASE_URL = 'https://ordinals.gorillapool.io'
-
         endpoint :get_tx,          :get, '/api/tx/{txid}/hex'
         endpoint :get_merkle_path, :get, '/api/tx/{txid}/proof', response: :json
 
-        # @param base_url    [String, nil] override the default base URL
+        # @param base_url    [String] base URL for the Ordinals API
         # @param api_key     [String, nil] optional Bearer API key
         # @param http_client [Object, nil] injectable HTTP client for testing
-        def initialize(base_url: nil, api_key: nil, http_client: nil)
-          super(base_url: base_url || BASE_URL, api_key: api_key, http_client: http_client)
+        def initialize(base_url:, api_key: nil, http_client: nil)
+          super
         end
       end
     end
