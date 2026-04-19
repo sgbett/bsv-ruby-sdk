@@ -234,7 +234,7 @@ Only for `wallet`. Skip for all other gems.
 
 Extract abstract method names from `StorageAdapter`:
 ```bash
-grep -n "def " gem/bsv-wallet/lib/bsv/wallet_interface/storage_adapter.rb | grep -v "#"
+grep -n "def " gem/bsv-wallet/lib/bsv/wallet_interface/storage/storage_adapter.rb | grep -v "#"
 ```
 
 Find all concrete adapter implementations (scan all `.rb` files under downstream `lib/`):
