@@ -65,7 +65,7 @@ RSpec.describe 'Client auto-funding pipeline' do
   let(:description) { 'auto-funded payment action' }
 
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:storage) { BSV::Wallet::MemoryStore.new }
+  let(:storage) { BSV::Wallet::Store::Memory.new }
   # Post-HLR #455: broadcaster required; create_action raises when absent and no_send unset.
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do

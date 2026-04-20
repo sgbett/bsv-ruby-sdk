@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative 'client/authentication_ops'
-require_relative 'client/crypto'
-require_relative 'client/identity_ops'
-require_relative 'client/network_ops'
-require_relative 'client/transaction_ops'
+require_relative 'client/brc100/authentication_ops'
+require_relative 'client/brc100/crypto'
+require_relative 'client/brc100/identity_ops'
+require_relative 'client/brc100/network_ops'
+require_relative 'client/brc100/transaction_ops'
 
 module BSV
   module Wallet
@@ -32,7 +32,7 @@ module BSV
       # @return [KeyDeriver] the underlying key deriver
       attr_reader :key_deriver
 
-      # @return [StorageAdapter] the underlying persistence adapter
+      # @return [Store] the underlying persistence adapter
       attr_reader :storage
 
       # @return [String] the network ('mainnet' or 'testnet')
@@ -51,8 +51,8 @@ module BSV
       attr_reader :substrate
 
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
-      # @param storage [StorageAdapter] persistence adapter (default: FileStore).
-      #   Use +storage: MemoryStore.new+ for tests.
+      # @param storage [Store] persistence adapter (default: Store::File.new).
+      #   Use +storage: Store::Memory.new+ for tests.
       # @param network [String] 'mainnet' (default) or 'testnet'
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
@@ -60,11 +60,11 @@ module BSV
       # @param coin_selector [CoinSelector, nil] optional coin selector
       # @param change_generator [ChangeGenerator, nil] optional change generator
       # @param broadcaster [#broadcast, nil] optional broadcaster
-      # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to InlineQueue
+      # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to BroadcastQueue::Inline
       # @param substrate [Interface, nil] optional remote wallet substrate
       def initialize(
         key,
-        storage: FileStore.new,
+        storage: Store::File.new,
         network: 'mainnet',
         proof_store: nil,
         http_client: nil,
@@ -87,7 +87,7 @@ module BSV
         @injected_fee_estimator    = fee_estimator
         @injected_coin_selector    = coin_selector
         @injected_change_generator = change_generator
-        @broadcast_queue = broadcast_queue || InlineQueue.new(
+        @broadcast_queue = broadcast_queue || BroadcastQueue::Inline.new(
           storage: @storage,
           broadcaster: @broadcaster
         )

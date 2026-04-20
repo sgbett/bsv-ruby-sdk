@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'bsv-wallet'
 
 RSpec.describe BSV::Wallet::LocalProofStore do
-  let(:storage) { BSV::Wallet::MemoryStore.new }
+  let(:storage) { BSV::Wallet::Store::Memory.new }
   let(:store) { described_class.new(storage) }
 
   # Build a minimal two-leaf merkle path (one txid leaf + one sibling).

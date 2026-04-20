@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe BSV::Wallet::MemoryStore do
+RSpec.describe BSV::Wallet::Store::Memory do
   let(:store) { described_class.new }
 
   it_behaves_like 'a storage adapter'
@@ -155,12 +155,12 @@ RSpec.describe BSV::Wallet::MemoryStore do
 
     it 'emits a warning when RACK_ENV=production' do
       ENV['RACK_ENV'] = 'production'
-      expect { described_class.new }.to output(/MemoryStore is intended for testing/).to_stderr
+      expect { described_class.new }.to output(/Store::Memory is intended for testing/).to_stderr
     end
 
     it 'emits a warning when RAILS_ENV=staging' do
       ENV['RAILS_ENV'] = 'staging'
-      expect { described_class.new }.to output(/MemoryStore is intended for testing/).to_stderr
+      expect { described_class.new }.to output(/Store::Memory is intended for testing/).to_stderr
     end
 
     it 'does not emit a warning when RAILS_ENV=test' do
@@ -178,7 +178,7 @@ RSpec.describe BSV::Wallet::MemoryStore do
       expect { described_class.new }.not_to output.to_stderr
     end
 
-    it 'suppresses the warning when MemoryStore.warn_in_production = false' do
+    it 'suppresses the warning when Store::Memory.warn_in_production = false' do
       ENV['RACK_ENV'] = 'production'
       described_class.warn_in_production = false
       expect { described_class.new }.not_to output.to_stderr

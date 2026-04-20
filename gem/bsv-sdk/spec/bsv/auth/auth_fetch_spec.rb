@@ -10,8 +10,8 @@ RSpec.describe 'BSV::Auth::AuthFetch' do
   # Deterministic keys for reproducibility
   let(:client_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
   let(:server_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(43)) }
-  let(:client_wallet) { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::MemoryStore.new) }
-  let(:server_wallet) { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::MemoryStore.new) }
+  let(:client_wallet) { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new) }
+  let(:server_wallet) { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new) }
 
   let(:base_url) { 'https://api.example.com' }
 

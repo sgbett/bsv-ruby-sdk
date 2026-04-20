@@ -6,7 +6,7 @@ require 'securerandom'
 
 RSpec.describe 'BSV::Wallet::ReplenishmentWorker' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:store)       { BSV::Wallet::MemoryStore.new }
+  let(:store)       { BSV::Wallet::Store::Memory.new }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
     BSV::Wallet::Client.new(private_key, storage: store, broadcaster: broadcaster)

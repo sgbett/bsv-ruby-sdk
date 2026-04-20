@@ -170,13 +170,13 @@ module BSV
       # TS SDK behaviour. If no signature is present, raises +ArgumentError+.
       #
       # @param verifier_wallet [#verify_signature, nil] wallet to verify with;
-      #   defaults to +BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::MemoryStore.new)+
+      #   defaults to +BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new)+
       # @return [Boolean] +true+ if the signature is valid
       # @raise [ArgumentError] if the certificate has no signature
       def verify(verifier_wallet = nil)
         raise ArgumentError, 'certificate has no signature to verify' if @signature.nil? || @signature.empty?
 
-        verifier_wallet ||= BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::MemoryStore.new)
+        verifier_wallet ||= BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new)
         preimage  = to_binary(include_signature: false)
         sig_bytes = [@signature].pack('H*').unpack('C*')
 

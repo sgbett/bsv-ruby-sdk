@@ -5,7 +5,7 @@ require 'bsv-wallet'
 require 'tmpdir'
 
 RSpec.describe 'Pool health and configurable change parameters' do
-  let(:store) { BSV::Wallet::MemoryStore.new }
+  let(:store) { BSV::Wallet::Store::Memory.new }
 
   # --- balance ---
 
@@ -154,10 +154,10 @@ RSpec.describe 'Pool health and configurable change parameters' do
     after { FileUtils.rm_rf(tmpdir) }
 
     it 'persists settings across instances' do
-      file_store = BSV::Wallet::FileStore.new(dir: tmpdir)
+      file_store = BSV::Wallet::Store::File.new(dir: tmpdir)
       file_store.store_setting('change_params', { 'count' => 20, 'satoshis' => 10_000 })
 
-      reloaded = BSV::Wallet::FileStore.new(dir: tmpdir)
+      reloaded = BSV::Wallet::Store::File.new(dir: tmpdir)
       result = reloaded.find_setting('change_params')
       expect(result).to be_a(Hash)
       expect(result['count']).to eq(20)
@@ -165,7 +165,7 @@ RSpec.describe 'Pool health and configurable change parameters' do
     end
 
     it 'returns nil for an absent setting on a fresh store' do
-      file_store = BSV::Wallet::FileStore.new(dir: tmpdir)
+      file_store = BSV::Wallet::Store::File.new(dir: tmpdir)
       expect(file_store.find_setting('change_params')).to be_nil
     end
   end

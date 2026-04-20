@@ -15,7 +15,7 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   # BRC-3 Signature Compliance Vector
   # -------------------------------------------------------------------------
   describe 'BRC-3 signature compliance vector' do
-    let(:wallet) { BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::MemoryStore.new) }
+    let(:wallet) { BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new) }
 
     let(:known_signature_bytes) do
       [
@@ -45,7 +45,7 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   describe 'BRC-2 HMAC compliance vector' do
     let(:wallet) do
       key = BSV::Primitives::PrivateKey.from_hex('6a2991c9de20e38b31d7ea147bf55f5039e4bbc073160f5e0d541d1f17e321b8')
-      BSV::Wallet::Client.new(key, storage: BSV::Wallet::MemoryStore.new)
+      BSV::Wallet::Client.new(key, storage: BSV::Wallet::Store::Memory.new)
     end
 
     let(:known_hmac_bytes) do
@@ -84,7 +84,7 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   describe 'BRC-2 encryption compliance vector' do
     let(:wallet) do
       key = BSV::Primitives::PrivateKey.from_hex('6a2991c9de20e38b31d7ea147bf55f5039e4bbc073160f5e0d541d1f17e321b8')
-      BSV::Wallet::Client.new(key, storage: BSV::Wallet::MemoryStore.new)
+      BSV::Wallet::Client.new(key, storage: BSV::Wallet::Store::Memory.new)
     end
 
     let(:known_ciphertext_bytes) do
@@ -116,8 +116,8 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   describe 'key derivation symmetry' do
     let(:user_key) { BSV::Primitives::PrivateKey.generate }
     let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
-    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::MemoryStore.new) }
-    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::Store::Memory.new) }
+    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::Store::Memory.new) }
 
     it 'derives the same public key from both sides (BRC-42 symmetry)' do
       derived_for_counterparty = user.get_public_key({
@@ -143,8 +143,8 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   describe 'cross-wallet encrypt/decrypt' do
     let(:user_key) { BSV::Primitives::PrivateKey.generate }
     let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
-    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::MemoryStore.new) }
-    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::Store::Memory.new) }
+    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::Store::Memory.new) }
     let(:sample_data) { [3, 1, 4, 1, 5, 9] }
 
     it 'encrypts messages decryptable by the counterparty' do
@@ -208,8 +208,8 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   describe 'cross-wallet sign/verify' do
     let(:user_key) { BSV::Primitives::PrivateKey.generate }
     let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
-    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::MemoryStore.new) }
-    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::Store::Memory.new) }
+    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::Store::Memory.new) }
     let(:sample_data) { [3, 1, 4, 1, 5, 9] }
 
     it 'signs messages verifiable by the counterparty' do
@@ -257,8 +257,8 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   describe 'cross-wallet HMAC' do
     let(:user_key) { BSV::Primitives::PrivateKey.generate }
     let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
-    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::MemoryStore.new) }
-    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::Store::Memory.new) }
+    let(:counterparty_wallet) { BSV::Wallet::Client.new(counterparty_key, storage: BSV::Wallet::Store::Memory.new) }
     let(:sample_data) { [3, 1, 4, 1, 5, 9] }
 
     it 'computes HMACs verifiable by the counterparty' do
@@ -287,7 +287,7 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
   # -------------------------------------------------------------------------
   describe 'default counterparty behaviour' do
     let(:user_key) { BSV::Primitives::PrivateKey.generate }
-    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:user) { BSV::Wallet::Client.new(user_key, storage: BSV::Wallet::Store::Memory.new) }
     let(:sample_data) { [3, 1, 4, 1, 5, 9] }
 
     it 'defaults to "self" for HMAC when no counterparty specified' do
@@ -348,8 +348,8 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
     let(:prover_key) { BSV::Primitives::PrivateKey.generate }
     let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
     let(:verifier_key) { BSV::Primitives::PrivateKey.generate }
-    let(:prover) { BSV::Wallet::Client.new(prover_key, storage: BSV::Wallet::MemoryStore.new) }
-    let(:verifier) { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:prover) { BSV::Wallet::Client.new(prover_key, storage: BSV::Wallet::Store::Memory.new) }
+    let(:verifier) { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::Store::Memory.new) }
 
     it 'reveals counterparty linkage decryptable by the verifier' do
       revelation = prover.reveal_counterparty_key_linkage({
@@ -377,8 +377,8 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
     let(:prover_key) { BSV::Primitives::PrivateKey.generate }
     let(:counterparty_key) { BSV::Primitives::PrivateKey.generate }
     let(:verifier_key) { BSV::Primitives::PrivateKey.generate }
-    let(:prover) { BSV::Wallet::Client.new(prover_key, storage: BSV::Wallet::MemoryStore.new) }
-    let(:verifier) { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::MemoryStore.new) }
+    let(:prover) { BSV::Wallet::Client.new(prover_key, storage: BSV::Wallet::Store::Memory.new) }
+    let(:verifier) { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::Store::Memory.new) }
     let(:protocol_id) { [0, 'tests'] }
     let(:key_id) { 'test key id' }
 

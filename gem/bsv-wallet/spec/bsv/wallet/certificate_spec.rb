@@ -7,10 +7,10 @@ require 'base64'
 
 RSpec.describe 'Client certificate methods' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
+  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.generate }
   let(:certifier_hex) { certifier_key.public_key.to_hex }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::MemoryStore.new) }
+  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new) }
 
   let(:cert_type) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
   let(:serial_number) { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
@@ -125,7 +125,7 @@ RSpec.describe 'Client certificate methods' do
 
       it 'rejects a certificate signed by a different certifier' do
         imposter_key = BSV::Primitives::PrivateKey.generate
-        imposter_wallet = BSV::Wallet::Client.new(imposter_key, storage: BSV::Wallet::MemoryStore.new)
+        imposter_wallet = BSV::Wallet::Client.new(imposter_key, storage: BSV::Wallet::Store::Memory.new)
         preimage = BSV::Wallet::CertificateSignature.serialise_preimage(
           type: cert_type,
           serial_number: serial_number,
@@ -259,7 +259,7 @@ RSpec.describe 'Client certificate methods' do
       end
 
       let(:issuance_wallet) do
-        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
         allow(w).to receive(:auth_fetch_client).and_return(mock_auth_fetch)
         w
       end
@@ -317,7 +317,7 @@ RSpec.describe 'Client certificate methods' do
         allow(failing_auth_fetch).to receive(:fetch).and_return(
           BSV::Auth::AuthResponse.new(status: 500, headers: {}, body: 'error', identity_key: certifier_hex)
         )
-        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
         allow(w).to receive(:auth_fetch_client).and_return(failing_auth_fetch)
         expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /HTTP 500/)
       end
@@ -329,7 +329,7 @@ RSpec.describe 'Client certificate methods' do
         allow(bad_auth_fetch).to receive(:fetch).and_return(
           BSV::Auth::AuthResponse.new(status: 200, headers: {}, body: 'not json', identity_key: certifier_hex)
         )
-        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
         allow(w).to receive(:auth_fetch_client).and_return(bad_auth_fetch)
         expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /invalid JSON/)
       end
@@ -348,14 +348,14 @@ RSpec.describe 'Client certificate methods' do
         allow(tampered_auth_fetch).to receive(:fetch).and_return(
           BSV::Auth::AuthResponse.new(status: 200, headers: {}, body: tampered_body, identity_key: certifier_hex)
         )
-        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
         allow(w).to receive(:auth_fetch_client).and_return(tampered_auth_fetch)
         expect { w.acquire_certificate(issuance_args) }
           .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
       end
 
       it 'lazily initialises auth_fetch_client on first call and memoises it' do
-        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
         allow(BSV::Auth::AuthFetch).to receive(:new).and_call_original
         client1 = w.send(:auth_fetch_client)
         client2 = w.send(:auth_fetch_client)
@@ -364,7 +364,7 @@ RSpec.describe 'Client certificate methods' do
       end
 
       it 'passes self as the wallet to AuthFetch' do
-        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+        w = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
         allow(BSV::Auth::AuthFetch).to receive(:new).and_call_original
         w.send(:auth_fetch_client)
         expect(BSV::Auth::AuthFetch).to have_received(:new).with(wallet: w)
@@ -451,7 +451,7 @@ RSpec.describe 'Client certificate methods' do
     end
 
     it 'allows the verifier to decrypt the keyring entry' do
-      verifier_wallet = BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::MemoryStore.new)
+      verifier_wallet = BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::Store::Memory.new)
       prover_identity = wallet.key_deriver.identity_key
 
       result = wallet.prove_certificate({

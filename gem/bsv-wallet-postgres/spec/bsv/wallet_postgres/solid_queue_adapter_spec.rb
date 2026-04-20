@@ -100,7 +100,7 @@ RSpec.describe 'BSV::Wallet::SolidQueueAdapter', :postgres do
       expect do
         BSV::Wallet::SolidQueueAdapter.new(
           db: db,
-          storage: BSV::Wallet::MemoryStore.new,
+          storage: BSV::Wallet::Store::Memory.new,
           broadcaster: broadcaster
         )
       end.to raise_error(ArgumentError, /MemoryStore/)

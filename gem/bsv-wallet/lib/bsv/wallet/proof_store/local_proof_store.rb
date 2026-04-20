@@ -3,17 +3,17 @@
 module BSV
   module Wallet
     # Default proof store — persists serialised merkle proofs via a
-    # {StorageAdapter}. Requires no external services.
+    # {Store}. Requires no external services.
     #
     # @example Using the default local proof store
-    #   store   = BSV::Wallet::MemoryStore.new
+    #   store   = BSV::Wallet::Store::Memory.new
     #   proofs  = BSV::Wallet::LocalProofStore.new(store)
     #   proofs.store_proof(txid_hex, merkle_path)
     #   proof   = proofs.resolve_proof(txid_hex)
     class LocalProofStore
       include ProofStore
 
-      # @param storage [StorageAdapter] the underlying persistence adapter
+      # @param storage [Store] the underlying persistence adapter
       def initialize(storage)
         @storage = storage
       end

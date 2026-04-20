@@ -11,7 +11,7 @@ RSpec.describe BSV::Wallet::PostgresStore, :postgres do
     POSTGRES_WALLET_TABLES.each { |t| db[t].truncate }
   end
 
-  # The full StorageAdapter contract — same suite MemoryStore and
+  # The full Store contract — same suite MemoryStore and
   # FileStore drive. Running it here guarantees PostgresStore never
   # drifts from the interface.
   it_behaves_like 'a storage adapter'

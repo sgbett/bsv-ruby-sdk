@@ -17,7 +17,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
 
   # A Client backed by PrivateKey(1), used for deterministic lock/unlock tests.
   let(:private_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(1)) }
-  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
+  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new) }
 
   def ship_script(domain: 'example.com', topic: 'tm_tests', identity_key: SHIP_IDENTITY_KEY_BIN)
     BSV::Script::Script.pushdrop_lock(

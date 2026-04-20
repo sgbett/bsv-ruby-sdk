@@ -4,7 +4,7 @@ require 'securerandom'
 
 module BSV
   module Wallet
-    # In-process UTXO pool backed by the wallet's own +StorageAdapter+.
+    # In-process UTXO pool backed by the wallet's own +Store+.
     #
     # +LocalPool+ maintains a named basket of pre-funded outputs that callers
     # can acquire for use as inputs in transactions. Acquired outputs are locked
@@ -43,7 +43,7 @@ module BSV
       attr_writer :replenisher
 
       # @param name [String] pool identifier; basket becomes <tt>"pool:#{name}"</tt>
-      # @param storage [StorageAdapter] wallet storage adapter
+      # @param storage [Store] wallet storage adapter
       # @param wallet_client [#create_action] wallet client for replenishment
       # @param target_count [Integer] desired number of UTXOs in the pool
       # @param target_satoshis [Integer] satoshi value per pool output

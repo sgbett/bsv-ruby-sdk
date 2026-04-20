@@ -18,7 +18,7 @@ require 'bsv-wallet'
 RSpec.describe 'BEEF ancestry round-trip (HLR #466)' do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:pub_key) { private_key.public_key }
-  let(:storage) { BSV::Wallet::MemoryStore.new }
+  let(:storage) { BSV::Wallet::Store::Memory.new }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
     BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)

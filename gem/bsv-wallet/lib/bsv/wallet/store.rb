@@ -6,7 +6,10 @@ module BSV
     #
     # Include this module in storage adapters and override all methods.
     # The default implementations raise NotImplementedError.
-    module StorageAdapter
+    module Store
+      autoload :Memory, 'bsv/wallet/store/memory'
+      autoload :File,   'bsv/wallet/store/file'
+
       def store_action(_action_data)
         raise NotImplementedError, "#{self.class}#store_action not implemented"
       end

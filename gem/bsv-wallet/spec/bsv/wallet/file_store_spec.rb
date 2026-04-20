@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'bsv-wallet'
 require 'tmpdir'
 
-RSpec.describe BSV::Wallet::FileStore do
+RSpec.describe BSV::Wallet::Store::File do
   let(:tmpdir) { Dir.mktmpdir('bsv-wallet-test') }
   let(:store) { described_class.new(dir: tmpdir) }
 

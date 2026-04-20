@@ -67,7 +67,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   end
 
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:storage)     { BSV::Wallet::MemoryStore.new }
+  let(:storage)     { BSV::Wallet::Store::Memory.new }
 
   # A successful broadcast response (no competing_txs).
   let(:broadcast_ok) do

@@ -5,7 +5,7 @@ require 'bsv-wallet'
 require 'securerandom'
 
 RSpec.describe 'BSV::Wallet::LocalPool' do
-  let(:store) { BSV::Wallet::MemoryStore.new }
+  let(:store) { BSV::Wallet::Store::Memory.new }
 
   # Build a pool with sensible defaults. Replenisher is nil unless set explicitly.
   def build_pool(name: 'test', target_count: 5, target_satoshis: 10_000, low_water_mark: 2)
@@ -353,7 +353,7 @@ RSpec.describe 'BSV::Wallet::LocalPool' do
 
   describe 'Client#utxo_pool factory' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
-    let(:storage)     { BSV::Wallet::MemoryStore.new }
+    let(:storage)     { BSV::Wallet::Store::Memory.new }
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
       BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)

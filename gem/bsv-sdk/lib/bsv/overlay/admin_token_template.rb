@@ -24,7 +24,7 @@ module BSV
     #   <derived_pubkey> OP_CHECKSIG
     #
     # @example Lock a SHIP advertisement
-    #   wallet = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
+    #   wallet = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new)
     #   template = BSV::Overlay::AdminTokenTemplate.new(wallet)
     #   locking_script = template.lock('SHIP', 'myhost.example.com', 'tm_payments')
     #   decoded = BSV::Overlay::AdminTokenTemplate.decode(locking_script)

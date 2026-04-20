@@ -53,10 +53,10 @@ module BSV
       #   +:type+, +:serial_number+, +:subject+, +:certifier+,
       #   +:revocation_outpoint+, +:fields+, +:signature+
       # @param verifier [#verify_signature] optional verifier; defaults to
-      #   a fresh +Client.new('anyone', storage: MemoryStore.new)+
+      #   a fresh +Client.new('anyone', storage: Store::Memory.new)+
       # @return [true] when the signature verifies
       # @raise [InvalidError] otherwise
-      def verify!(cert, verifier: Client.new('anyone', storage: MemoryStore.new))
+      def verify!(cert, verifier: Client.new('anyone', storage: Store::Memory.new))
         signature_hex = cert[:signature]
         raise InvalidError, 'signature is missing' if signature_hex.nil? || signature_hex.empty?
 

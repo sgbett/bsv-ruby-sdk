@@ -45,6 +45,8 @@ module BSV
     #     end
     #   end
     module BroadcastQueue
+      autoload :Inline, 'bsv/wallet/broadcast_queue/inline'
+
       # Enqueues a transaction for broadcast and state promotion.
       #
       # For synchronous adapters this executes immediately and returns the

@@ -8,7 +8,7 @@ module BSV
   module Wallet
     # PostgreSQL-backed storage adapter for +BSV::Wallet+.
     #
-    # Implements the full {StorageAdapter} interface against a Sequel
+    # Implements the full {Store} interface against a Sequel
     # +Database+ object. Survives process restarts, scales to multiple
     # instances, and is thread-safe via Sequel's connection pool.
     #
@@ -44,7 +44,7 @@ module BSV
     # * This class is thread-safe because Sequel is — the adapter itself
     #   holds no mutable state beyond the injected database handle.
     class PostgresStore
-      include StorageAdapter
+      include Store
 
       MIGRATIONS_DIR = File.expand_path('migrations', __dir__)
 
