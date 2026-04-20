@@ -19,6 +19,7 @@ module BSV
     autoload :FileStore,         'bsv/wallet/file_store'
     autoload :ProofStore,        'bsv/wallet/proof_store'
     autoload :LocalProofStore,   'bsv/wallet/local_proof_store'
+    autoload :Client,            'bsv/wallet/client'
     autoload :WalletClient,      'bsv/wallet/wallet_client'
     autoload :Wire,              'bsv/wallet/wire'
     autoload :Substrates,        'bsv/wallet/substrates'
