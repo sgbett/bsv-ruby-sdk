@@ -28,7 +28,7 @@ The SDK has **no external dependencies** — it uses only Ruby's standard librar
 require 'bsv-sdk'
 ```
 
-The SDK is organised into three modules:
+The SDK is organised into four modules:
 
 | Module | Purpose |
 |--------|---------|
@@ -146,5 +146,6 @@ For the full picture including edge cases and rationale, see **[Naming Conventio
 - **[Script Guide](../sdk/script.md)** — script construction, templates, detection
 - **[Transaction Guide](../sdk/transaction.md)** — building, signing, fee estimation, BEEF
 - **[Network Guide](../sdk/network.md)** — broadcasting, chain tracking, SPV verification
+- **[Wallet Guide](../gems/wallet.md)** — BRC-100 wallet interface, storage, broadcasting
 - **[MCP Server Guide](../general/mcp.md)** — use BSV operations as AI assistant tools via Claude Code
 - **[Naming Conventions](../general/naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
