@@ -8,9 +8,9 @@ The UTXO pool interface defines a pre-funded output pool for high-frequency tran
 
 | Method | Purpose |
 |--------|---------|
-| `acquire` | Lock and return an available output from the pool |
-| `release(outpoint)` | Release a previously acquired output back to available |
-| `status` | Return pool health: available count, locked count, totals |
+| `acquire` | Lock and return an available outpoint from the pool |
+| `release(outpoint)` | Release a previously acquired outpoint back to available |
+| `status` | Return pool health summary |
 | `shutdown` | Gracefully release all resources and stop background threads |
 
 ### State lifecycle
@@ -44,16 +44,16 @@ pool = wallet.utxo_pool(
   low_water_mark: 0.5       # replenish when available drops to 50%
 )
 
-# Acquire an output for use
-output = pool.acquire
-# => { txid: "abc...", vout: 0, satoshis: 10000, ... }
+# Acquire an outpoint for use
+outpoint = pool.acquire
+# => "abc123...def.0"
 
 # Check pool health
 pool.status
-# => { pool_name: "tokens", available: 15, locked: 1, total: 20, ... }
+# => { available: 15, target: 20, satoshis_committed: 150000, state: :healthy }
 
 # Release if not used
-pool.release(output)
+pool.release(outpoint)
 
 # Shut down when done
 pool.shutdown
@@ -66,6 +66,7 @@ pool.shutdown
 In-process pool with automatic background replenishment. When the available count drops to the low-water mark, a `ReplenishmentWorker` thread creates new funded outputs via `wallet.create_action`.
 
 - Outputs are stored in a structured basket (`"pool:<name>"`)
+- `acquire` returns a string outpoint (`"txid.vout"`)
 - Outputs are locked with `no_send: true` (exempt from stale recovery sweeps)
 - Thread-safe acquisition via Mutex
 - Replenishment runs immediately on start, then on signal or interval (default 60s)
@@ -88,22 +89,23 @@ class RedisPool
       outpoint = @redis.spop("pool:#{@pool_name}:available")
       if outpoint
         @redis.sadd("pool:#{@pool_name}:locked", outpoint)
-        return JSON.parse(outpoint, symbolize_names: true)
+        return outpoint
       end
     end
     raise BSV::Wallet::PoolDepletedError, @pool_name
   end
 
   def release(outpoint)
-    key = outpoint.to_json
-    @redis.srem("pool:#{@pool_name}:locked", key)
-    @redis.sadd("pool:#{@pool_name}:available", key)
+    @redis.srem("pool:#{@pool_name}:locked", outpoint)
+    @redis.sadd("pool:#{@pool_name}:available", outpoint)
   end
 
   def status
-    { pool_name: @pool_name,
-      available: @redis.scard("pool:#{@pool_name}:available"),
-      locked: @redis.scard("pool:#{@pool_name}:locked"),
+    available = @redis.scard("pool:#{@pool_name}:available")
+    locked = @redis.scard("pool:#{@pool_name}:locked")
+
+    { available: available,
+      locked: locked,
       total: available + locked }
   end
 

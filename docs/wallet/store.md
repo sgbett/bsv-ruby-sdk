@@ -22,7 +22,7 @@ The interface covers five data domains:
 
 **Testing only.** In-memory store backed by Ruby hashes. All data is lost when the process exits. If a wallet holds real funds and the process restarts, those funds are irrecoverable.
 
-`Store::Memory` emits a loud stderr warning at instantiation and will refuse to operate silently as a production store. Suppress the warning with `BSV_MEMORY_STORE_OK=1` — but only in test suites.
+`Store::Memory` emits a loud stderr warning at instantiation when `RACK_ENV`, `RAILS_ENV`, or `APP_ENV` is `production` or `staging` and `BSV_MEMORY_STORE_OK` is not set. This is a warning, not a hard failure — the store still initialises. Suppress with `BSV_MEMORY_STORE_OK=1` in test suites only.
 
 ```ruby
 # In specs
