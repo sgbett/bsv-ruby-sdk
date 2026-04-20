@@ -52,9 +52,9 @@ RSpec.describe 'BSV::Wallet::Substrates::WalletWireTransceiver' do
     end
   end
 
-  describe 'implements BSV::Wallet::Interface' do
-    it 'includes BSV::Wallet::Interface' do
-      expect(BSV::Wallet::Substrates::WalletWireTransceiver).to include(BSV::Wallet::Interface)
+  describe 'implements BSV::Wallet::BRC100::Interface' do
+    it 'includes BSV::Wallet::BRC100::Interface' do
+      expect(BSV::Wallet::Substrates::WalletWireTransceiver).to include(BSV::Wallet::BRC100::Interface)
     end
 
     it 'implements all 28 Interface methods' do
