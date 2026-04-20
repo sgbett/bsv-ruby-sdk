@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-# Shared conformance specs for BSV::Wallet::StorageAdapter implementations.
+# Shared conformance specs for BSV::Wallet::Interface::Store implementations.
 #
-# Any class that includes +BSV::Wallet::StorageAdapter+ should pass this
+# Any class that includes +BSV::Wallet::Interface::Store+ should pass this
 # suite. Callers provide a +store+ via +let(:store)+:
 #
-#   RSpec.describe BSV::Wallet::MemoryStore do
+#   RSpec.describe BSV::Wallet::Interface::Store::Memory do
 #     let(:store) { described_class.new }
 #     it_behaves_like 'a storage adapter'
 #   end
@@ -13,8 +13,8 @@
 # The suite exercises the full interface: actions, outputs, certificates,
 # proofs, transactions, count_*, and pagination.
 RSpec.shared_examples 'a storage adapter' do
-  it 'includes StorageAdapter' do
-    expect(store.class.ancestors).to include(BSV::Wallet::StorageAdapter)
+  it 'includes Store' do
+    expect(store.class.ancestors).to include(BSV::Wallet::Interface::Store)
   end
 
   describe 'actions' do

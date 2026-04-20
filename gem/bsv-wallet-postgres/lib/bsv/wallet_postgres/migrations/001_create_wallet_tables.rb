@@ -2,7 +2,7 @@
 
 # Initial wallet schema for BSV::Wallet::PostgresStore.
 #
-# Five tables, all indexed for the query patterns the StorageAdapter
+# Five tables, all indexed for the query patterns the Store
 # interface exposes. JSONB blobs hold the full hash the SDK stored so
 # adding fields to bsv-wallet's output/action/certificate records does
 # not require a schema change — only the fields we actively filter on

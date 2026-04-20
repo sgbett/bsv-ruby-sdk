@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'lib/bsv/wallet_interface/version'
+require_relative 'lib/bsv/wallet/version'
 
 Gem::Specification.new do |spec|
   spec.name    = 'bsv-wallet'

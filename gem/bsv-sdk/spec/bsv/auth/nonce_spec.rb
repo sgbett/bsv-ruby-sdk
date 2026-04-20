@@ -5,7 +5,7 @@ require 'bsv-wallet'
 
 RSpec.describe BSV::Auth::Nonce do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:wallet) { BSV::Wallet::ProtoWallet.new(private_key) }
+  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new) }
 
   describe '.create' do
     subject(:nonce) { described_class.create(wallet) }
@@ -59,7 +59,7 @@ RSpec.describe BSV::Auth::Nonce do
 
     it 'returns false when verified against a different wallet' do
       other_key    = BSV::Primitives::PrivateKey.generate
-      other_wallet = BSV::Wallet::ProtoWallet.new(other_key)
+      other_wallet = BSV::Wallet::Client.new(other_key, storage: BSV::Wallet::Store::Memory.new)
       expect(described_class.verify(nonce, other_wallet)).to be(false)
     end
 

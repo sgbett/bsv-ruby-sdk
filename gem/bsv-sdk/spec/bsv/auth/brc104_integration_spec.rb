@@ -29,10 +29,10 @@ RSpec.describe 'BRC-104 AuthFetch <-> AuthMiddleware integration' do # rubocop:d
   let(:client2_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(52)) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(53)) }
 
-  let(:client_wallet)    { BSV::Wallet::ProtoWallet.new(client_key) }
-  let(:server_wallet)    { BSV::Wallet::ProtoWallet.new(server_key) }
-  let(:client2_wallet)   { BSV::Wallet::ProtoWallet.new(client2_key) }
-  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
+  let(:client_wallet)    { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new) }
+  let(:server_wallet)    { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new) }
+  let(:client2_wallet)   { BSV::Wallet::Client.new(client2_key, storage: BSV::Wallet::Store::Memory.new) }
+  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new) }
 
   # -------------------------------------------------------------------------
   # Simple downstream Rack app

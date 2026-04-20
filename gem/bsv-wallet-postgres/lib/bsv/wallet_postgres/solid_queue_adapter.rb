@@ -38,7 +38,7 @@ module BSV
     # +@running = false+ but before the worker thread exits will remain
     # +unsent+ until the next +start+.
     class SolidQueueAdapter
-      include BSV::Wallet::BroadcastQueue
+      include BSV::Wallet::Interface::BroadcastQueue
 
       # Default number of seconds between poll cycles.
       DEFAULT_POLL_INTERVAL = 8
@@ -52,14 +52,14 @@ module BSV
       MAX_ATTEMPTS = 5
 
       # @param db [Sequel::Database] a Sequel database handle (shared with PostgresStore)
-      # @param storage [StorageAdapter] wallet storage adapter (must not be MemoryStore)
+      # @param storage [Store] wallet storage adapter (must not be MemoryStore)
       # @param broadcaster [#broadcast] broadcaster object
       # @param poll_interval [Integer] seconds between worker poll cycles
       # @param stale_threshold [Integer] seconds before a +sending+ job is retried
-      # @raise [ArgumentError] if +storage+ is a +BSV::Wallet::MemoryStore+
+      # @raise [ArgumentError] if +storage+ is a +BSV::Wallet::Store::Memory+
       # @raise [ArgumentError] if +broadcaster+ is +nil+
       def initialize(db:, storage:, broadcaster:, poll_interval: DEFAULT_POLL_INTERVAL, stale_threshold: STALE_THRESHOLD)
-        if storage.is_a?(BSV::Wallet::MemoryStore)
+        if storage.is_a?(BSV::Wallet::Store::Memory)
           raise ArgumentError, 'SolidQueueAdapter requires a persistent storage adapter — MemoryStore is not supported'
         end
         raise ArgumentError, 'SolidQueueAdapter requires a broadcaster' if broadcaster.nil?

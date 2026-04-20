@@ -100,7 +100,7 @@ RSpec.describe 'BSV::Wallet::SolidQueueAdapter', :postgres do
       expect do
         BSV::Wallet::SolidQueueAdapter.new(
           db: db,
-          storage: BSV::Wallet::MemoryStore.new,
+          storage: BSV::Wallet::Store::Memory.new,
           broadcaster: broadcaster
         )
       end.to raise_error(ArgumentError, /MemoryStore/)
@@ -131,7 +131,7 @@ RSpec.describe 'BSV::Wallet::SolidQueueAdapter', :postgres do
   describe 'BroadcastQueue inclusion' do
     it 'includes BroadcastQueue' do
       expect(described_class).to be_nil # no-op; verify via ancestors
-      expect(BSV::Wallet::SolidQueueAdapter.ancestors).to include(BSV::Wallet::BroadcastQueue)
+      expect(BSV::Wallet::SolidQueueAdapter.ancestors).to include(BSV::Wallet::Interface::BroadcastQueue)
     end
   end
 
