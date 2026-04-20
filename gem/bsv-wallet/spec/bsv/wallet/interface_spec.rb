@@ -3,8 +3,8 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe BSV::Wallet::Interface do
-  let(:wallet_class) { Class.new { include BSV::Wallet::Interface } }
+RSpec.describe BSV::Wallet::Interface::BRC100 do
+  let(:wallet_class) { Class.new { include BSV::Wallet::Interface::BRC100 } }
   let(:wallet) { wallet_class.new }
 
   # All 28 BRC-100 method names

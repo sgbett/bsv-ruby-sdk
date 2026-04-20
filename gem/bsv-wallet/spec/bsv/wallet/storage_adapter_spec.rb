@@ -3,8 +3,8 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe BSV::Wallet::Store do
-  let(:adapter_class) { Class.new { include BSV::Wallet::Store } }
+RSpec.describe BSV::Wallet::Interface::Store do
+  let(:adapter_class) { Class.new { include BSV::Wallet::Interface::Store } }
   let(:adapter) { adapter_class.new }
 
   %i[store_action find_actions store_output find_outputs store_certificate find_certificates].each do |method_name|
@@ -51,7 +51,7 @@ RSpec.describe BSV::Wallet::Store do
 
   it 'can be included in a class that overrides all methods' do
     custom_class = Class.new do
-      include BSV::Wallet::Store
+      include BSV::Wallet::Interface::Store
 
       def store_action(_data)
         :stored

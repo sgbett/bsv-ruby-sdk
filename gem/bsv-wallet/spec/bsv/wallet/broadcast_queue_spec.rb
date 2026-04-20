@@ -8,7 +8,7 @@ RSpec.describe 'BSV::Wallet::BroadcastQueue' do
   # Interface enforcement via a dummy adapter
   # --------------------------------------------------------------------------
   let(:dummy_class) do
-    Class.new { include BSV::Wallet::BroadcastQueue }
+    Class.new { include BSV::Wallet::Interface::BroadcastQueue }
   end
   let(:dummy) { dummy_class.new }
 

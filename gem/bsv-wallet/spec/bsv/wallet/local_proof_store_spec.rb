@@ -22,7 +22,7 @@ RSpec.describe BSV::Wallet::LocalProofStore do
   let(:txid_hex) { 'abcdef1234567890' * 4 }
 
   it 'includes ProofStore' do
-    expect(described_class.ancestors).to include(BSV::Wallet::ProofStore)
+    expect(described_class.ancestors).to include(BSV::Wallet::Interface::ProofStore)
   end
 
   describe '#store_proof / #resolve_proof round-trip' do

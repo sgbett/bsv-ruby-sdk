@@ -3,17 +3,17 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe 'BSV::Wallet::UTXOPool interface' do
+RSpec.describe 'BSV::Wallet::Interface::UTXOPool interface' do
   # Use a fresh includer for each interface test
   let(:includer_class) do
-    Class.new { include BSV::Wallet::UTXOPool }
+    Class.new { include BSV::Wallet::Interface::UTXOPool }
   end
 
   let(:instance) { includer_class.new }
 
   describe 'MAX_RETRIES constant' do
     it 'equals 3' do
-      expect(BSV::Wallet::UTXOPool::MAX_RETRIES).to eq(3)
+      expect(BSV::Wallet::Interface::UTXOPool::MAX_RETRIES).to eq(3)
     end
   end
 

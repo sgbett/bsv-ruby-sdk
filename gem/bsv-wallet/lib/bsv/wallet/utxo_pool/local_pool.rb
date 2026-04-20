@@ -37,7 +37,7 @@ module BSV
     #   :depleted      — pool is empty and worker cannot replenish
     #   :shutdown      — pool has been shut down
     class LocalPool
-      include UTXOPool
+      include Interface::UTXOPool
 
       attr_reader :storage, :basket, :name, :target_count, :target_satoshis
       attr_writer :replenisher

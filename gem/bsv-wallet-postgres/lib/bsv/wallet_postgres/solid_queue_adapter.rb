@@ -38,7 +38,7 @@ module BSV
     # +@running = false+ but before the worker thread exits will remain
     # +unsent+ until the next +start+.
     class SolidQueueAdapter
-      include BSV::Wallet::BroadcastQueue
+      include BSV::Wallet::Interface::BroadcastQueue
 
       # Default number of seconds between poll cycles.
       DEFAULT_POLL_INTERVAL = 8

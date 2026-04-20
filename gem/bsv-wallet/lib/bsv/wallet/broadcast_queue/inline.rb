@@ -15,7 +15,7 @@ module BSV
       # Because this adapter executes synchronously, +async?+ returns +false+ and
       # the caller can rely on the returned hash containing the final result.
       class Inline
-        include BSV::Wallet::BroadcastQueue
+        include BSV::Wallet::Interface::BroadcastQueue
 
         # @param broadcaster [#broadcast, nil] broadcaster object; +nil+ disables broadcasting
         # @param storage [BSV::Wallet::Store] wallet storage adapter

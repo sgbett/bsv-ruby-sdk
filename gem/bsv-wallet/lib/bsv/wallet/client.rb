@@ -22,7 +22,7 @@ module BSV
     #                 output_description: 'Payment' }]
     #   })
     class Client
-      include BRC100::Interface
+      include Interface::BRC100
       include AuthenticationOps
       include Crypto
       include IdentityOps

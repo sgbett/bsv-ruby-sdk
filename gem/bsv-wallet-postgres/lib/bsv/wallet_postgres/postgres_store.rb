@@ -44,7 +44,7 @@ module BSV
     # * This class is thread-safe because Sequel is — the adapter itself
     #   holds no mutable state beyond the injected database handle.
     class PostgresStore
-      include Store
+      include Interface::Store
 
       MIGRATIONS_DIR = File.expand_path('migrations', __dir__)
 

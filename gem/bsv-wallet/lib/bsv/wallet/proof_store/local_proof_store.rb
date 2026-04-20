@@ -11,7 +11,7 @@ module BSV
     #   proofs.store_proof(txid_hex, merkle_path)
     #   proof   = proofs.resolve_proof(txid_hex)
     class LocalProofStore
-      include ProofStore
+      include Interface::ProofStore
 
       # @param storage [Store] the underlying persistence adapter
       def initialize(storage)

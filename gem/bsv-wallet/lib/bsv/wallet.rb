@@ -4,28 +4,29 @@ module BSV
   module Wallet
     autoload :VERSION,          'bsv/wallet/version'
 
-    # BRC-100 abstract contract modules
-    autoload :BRC100,           'bsv/wallet/interface/brc100'
-
-    # BRC-100 Interface
+    # Interfaces (abstract contracts)
     autoload :Interface,        'bsv/wallet/interface'
-    autoload :KeyDeriver,       'bsv/wallet/client/key_deriver'
-    autoload :Validators,       'bsv/wallet/client/validators'
+
+    # Client implementation
+    autoload :Client,            'bsv/wallet/client'
+    autoload :KeyDeriver,        'bsv/wallet/client/key_deriver'
+    autoload :Validators,        'bsv/wallet/client/validators'
+    autoload :CertificateSignature, 'bsv/wallet/client/certificate_signature'
+    autoload :FeeModel,          'bsv/wallet/client/fee_model'
+    autoload :FeeEstimator,      'bsv/wallet/client/fee_estimator'
+    autoload :CoinSelector,      'bsv/wallet/client/coin_selector'
+    autoload :ChangeGenerator,   'bsv/wallet/client/change_generator'
+
+    # Pluggable collaborators
     autoload :Store,             'bsv/wallet/store'
     autoload :BroadcastQueue,    'bsv/wallet/broadcast_queue'
-    autoload :ProofStore,        'bsv/wallet/interface/proof_store'
     autoload :LocalProofStore,   'bsv/wallet/proof_store/local_proof_store'
-    autoload :Client,            'bsv/wallet/client'
+    autoload :LocalPool,         'bsv/wallet/utxo_pool/local_pool'
+    autoload :ReplenishmentWorker, 'bsv/wallet/utxo_pool/replenishment_worker'
+
+    # Communication
     autoload :Wire,              'bsv/wallet/wire'
     autoload :Substrates,        'bsv/wallet/substrates'
-    autoload :CertificateSignature, 'bsv/wallet/client/certificate_signature'
-    autoload :FeeModel,             'bsv/wallet/client/fee_model'
-    autoload :FeeEstimator,         'bsv/wallet/client/fee_estimator'
-    autoload :CoinSelector,         'bsv/wallet/client/coin_selector'
-    autoload :ChangeGenerator,      'bsv/wallet/client/change_generator'
-    autoload :UTXOPool,             'bsv/wallet/interface/utxo_pool'
-    autoload :LocalPool,            'bsv/wallet/utxo_pool/local_pool'
-    autoload :ReplenishmentWorker,  'bsv/wallet/utxo_pool/replenishment_worker'
 
     # Error classes
     autoload :InsufficientFundsError, 'bsv/wallet/errors/insufficient_funds_error'

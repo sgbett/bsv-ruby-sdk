@@ -20,7 +20,7 @@ module BSV
       #   result = wallet.get_public_key({ identity_key: true })
       #   # => { public_key: '02abc...' }
       class WalletWireTransceiver
-        include BSV::Wallet::BRC100::Interface
+        include BSV::Wallet::Interface::BRC100
 
         # @param wire [#transmit_to_wallet] wire transport (duck-typed)
         # @param originator [String, nil] default FQDN of the originating application;

@@ -20,7 +20,7 @@ module BSV
       #   result = wallet.get_public_key({ identity_key: true })
       #   # => { public_key: '02abc...' }
       class HTTPWalletJSON
-        include BSV::Wallet::BRC100::Interface
+        include BSV::Wallet::Interface::BRC100
 
         # Maps the 28 BRC-100 Interface method symbols to their camelCase HTTP endpoint names.
         # Derived from Wire::Serializer::CALL_CODES keys via BSV::WireFormat.snake_to_camel.

@@ -24,7 +24,7 @@ module BSV
       #   BSV_MEMORY_STORE_OK=1               # environment variable
       #   Store::Memory.warn_in_production = false  # Ruby flag (e.g. in test setup)
       class Memory
-        include Store
+        include Interface::Store
 
         # Controls whether the production-environment warning is emitted.
         # Set to +false+ in test suites to silence the warning globally.
