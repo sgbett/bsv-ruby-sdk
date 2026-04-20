@@ -172,7 +172,7 @@ The SDK (`bsv-sdk`) is **declarative** — it defines data structures, serialisa
 | Verify a BEEF proof | `bsv-sdk` — `BSV::Transaction::Beef#verify` |
 | Manage UTXOs and baskets | `bsv-wallet` — `BSV::Wallet::Client` |
 | Track output baskets | `bsv-wallet` — basket parameter on outputs |
-| Auto-fund transactions | `bsv-wallet` — `Client#auto_fund_and_create` |
+| Auto-fund transactions | `bsv-wallet` — `create_action` with `auto_fund: true` |
 | Attest documents on-chain | `bsv-attest` — `BSV::Attest` |
 
 ## MCP Server

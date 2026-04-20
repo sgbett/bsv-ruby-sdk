@@ -161,7 +161,7 @@ wallet.create_action(description:, inputs:, outputs:)
 wallet.internalize_action(tx:, outputs:, description:)
 ```
 
-This is enforced in the project's RuboCop configuration. Methods in `lib/bsv/wallet/brc100/` are exempt from the `Naming/AccessorMethodName` and `Naming/PredicatePrefix` cops for this reason.
+This is enforced in the project's RuboCop configuration. Methods in `lib/bsv/wallet/interface/brc100.rb` and `lib/bsv/wallet/client/brc100/` are exempt from the `Naming/AccessorMethodName` and `Naming/PredicatePrefix` cops for this reason.
 
 If you see `get_`, `set_`, or `is_` on a method *outside* the wallet interface, that's a bug — report it.
 

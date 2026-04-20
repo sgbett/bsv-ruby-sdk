@@ -15,7 +15,7 @@ module BSV
       #
       # Included into {Client}; methods share the instance's scope and access
       # all instance variables initialised in {Client#initialize}.
-      module TransactionOps
+      module Transaction
         # Maximum ancestor depth to traverse when wiring source transactions.
         ANCESTOR_DEPTH_CAP = 64
 
