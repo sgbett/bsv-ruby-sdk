@@ -1,178 +1,117 @@
-# Plan: BRC-100-Driven Wallet Architecture (#566)
+# Plan: BRC-100-Driven Wallet Architecture (#566) — Revised
 
 ## Context
 
-The current wallet grew bottom-up. `WalletClient` (1,825 lines) inherits `ProtoWallet`, which exists only to support an inheritance model ("a wallet that can do crypto but not transactions") that has no basis in BRC-100. The `Interface` module is a flat 28-method stub with no structural relationship to BRC-100's six functional areas. Implementation concerns (storage, broadcast, pools) sit in the same namespace as the contract surface.
+`client.rb` is currently 1,712 lines — the god object renamed. Phase 1 (path rename, BRC100 abstract modules, ProtoWallet deletion) is done. The structural scaffolding exists but the actual decomposition hasn't happened. This revised plan delivers the core transformation: distributing the implementation logic across concern modules aligned with BRC-100's six functional areas.
 
-**Goal:** Restructure so BRC-100's Interface Structure drives the architecture. ProtoWallet is deleted. A new `Client` class uses composition only. The six BRC-100 functional areas become explicit modules.
+## What Exists Now (on the branch)
 
-## Design Decisions
+- `lib/bsv/wallet/client.rb` — 1,712-line monolith with all 28 BRC-100 methods + 70+ private helpers
+- `lib/bsv/wallet/brc100/` — 6 abstract sub-modules + composed Interface (all raise `UnsupportedActionError`)
+- `client.rb` includes `BRC100::Interface` then overrides every method with the implementation
 
-**Rename `wallet_interface` → `wallet` in file paths.** The module is `BSV::Wallet`, so files belong under `lib/bsv/wallet/`, not `lib/bsv/wallet_interface/`. The gem entry point (`lib/bsv-wallet.rb`) and autoload hub (`lib/bsv/wallet.rb`) are updated accordingly.
+## What We're Building
 
-**Abstract contract modules, not implementation mixins.** The 6 BRC-100 sub-modules contain abstract stubs (raise `UnsupportedActionError`), not implementation. Reasons:
-- Wire substrates (`HTTPWalletJSON`, `WalletWireTransceiver`) also include the contract — if it carried implementation, they'd inherit unwanted dependencies
-- Matches the existing `Interface`, `StorageAdapter`, `BroadcastQueue` pattern
-- Composition over inheritance: Client implements, contract declares
-
-**No backward compatibility shims.** We are pre-1.0. `WalletClient` and `ProtoWallet` are deleted outright, not shimmed. `Client` is the only wallet class. Downstream gems update their references in the same release cycle.
-
-**ProtoWallet is deleted.** Its crypto logic (9 methods + 4 private helpers) is absorbed into `Client` using `@key_deriver` directly. The 9 `super`-delegating overrides in WalletClient (lines 654-706) collapse — Client handles substrate delegation and local crypto in a single method.
-
-**Collaborator interface renames deferred.** Renaming `StorageAdapter` → `BSV::Wallet::Store` etc. can happen independently. This plan focuses on the BRC-100 contract structure and the path cleanup.
-
----
-
-## Phase 1: Path Rename + BRC-100 Contract Modules
-
-**One PR. Rename all paths, create BRC-100 modules, bridge Interface.**
-
-### Step 1: Rename `wallet_interface` → `wallet`
-
-`git mv` every file under `lib/bsv/wallet_interface/` to `lib/bsv/wallet/`. Update the autoload hub path from `lib/bsv/wallet_interface.rb` to `lib/bsv/wallet.rb`. Update all `require` and `autoload` path strings. Update `lib/bsv-wallet.rb` entry point if needed.
-
-### Step 2: Create BRC-100 sub-modules
-
-```
-lib/bsv/wallet/brc100.rb                    — autoload hub
-lib/bsv/wallet/brc100/transaction.rb         — codes 1-7 (7 abstract stubs)
-lib/bsv/wallet/brc100/key_management.rb      — codes 8-10 (3 abstract stubs)
-lib/bsv/wallet/brc100/crypto.rb              — codes 11-16 (6 abstract stubs)
-lib/bsv/wallet/brc100/identity.rb            — codes 17-22 (6 abstract stubs)
-lib/bsv/wallet/brc100/network.rb             — codes 25-28 (4 abstract stubs)
-lib/bsv/wallet/brc100/authentication.rb      — codes 23-24 (2 abstract stubs)
-lib/bsv/wallet/brc100/interface.rb           — includes all 6 sub-modules
-```
-
-### Step 3: Bridge Interface
-
-- `lib/bsv/wallet/interface.rb` — replace 28 inline method definitions with `include BRC100::Interface`
-- `lib/bsv/wallet.rb` — add `autoload :BRC100, 'bsv/wallet/brc100'`
-
-### Specs
-
-- Update all `require` paths in spec files for the rename
-- New specs verifying each sub-module and composed `BRC100::Interface`
-
-### Acceptance
-
-- All existing wallet specs pass (with updated paths)
-- `BSV::Wallet::Interface` and `BSV::Wallet::BRC100::Interface` are equivalent
-- Gem builds
-
----
-
-## Phase 2: Create Client, Delete ProtoWallet and WalletClient
-
-**One PR. The core structural change.**
-
-### Files to create
-
-```
-lib/bsv/wallet/client.rb
-spec/bsv/wallet/client_spec.rb
-```
-
-`Client` class structure:
 ```ruby
-class BSV::Wallet::Client
-  include BRC100::Interface
+class Client
+  include BRC100::Interface          # abstract contract (28 stubs)
 
-  attr_reader :key_deriver, :storage, :network, :proof_store,
-              :broadcaster, :broadcast_queue, :substrate
+  include Client::Crypto             # codes 8-16: 9 public + 4 private (~260 lines)
+  include Client::TransactionOps     # codes 1-7: 7 public + ~40 private (~900 lines)
+  include Client::IdentityOps        # codes 17-22: 6 public + 7 private (~200 lines)
+  include Client::NetworkOps         # codes 25-28: 4 public (~40 lines)
+  include Client::AuthenticationOps  # codes 23-24: 2 public (~20 lines)
 
-  def initialize(key, storage: FileStore.new, network: 'mainnet', ...)
-    @key_deriver = key.is_a?(KeyDeriver) ? key : KeyDeriver.new(key)
-    @substrate = substrate
-    @storage = storage
-    # ... (same wiring as current WalletClient#initialize, minus super(key))
-  end
-
-  # All 28 BRC-100 method implementations (from WalletClient)
-  # 9 crypto methods (from ProtoWallet, with substrate delegation inlined)
-  # 4 private crypto helpers (derive_sym_key, bytes_to_string, etc.)
-  # All private transaction/auto-fund/certificate helpers
-  # Non-BRC-100 methods: balance, spendable_balance, set_wallet_change_params, etc.
+  # Constructor, attr_readers, non-BRC-100 public methods only (~100 lines)
 end
 ```
 
-The 9 crypto method overrides in WalletClient (lines 654-706) that did `return @substrate.X if @substrate; super` collapse into Client's own methods which do `return @substrate.X if @substrate; <ProtoWallet's implementation>`.
+The BRC100 modules stay abstract (substrates include them safely). The implementation lives in `Client::*` concern modules that only Client includes. `client.rb` drops from 1,712 lines to ~100.
 
-### Files to delete
+## Method Distribution
 
-- `lib/bsv/wallet/proto_wallet.rb`
-- `lib/bsv/wallet/wallet_client.rb`
+Based on the current client.rb method list:
 
-### Files to modify
+### `client/crypto.rb` — Client::Crypto (~260 lines)
+**Public (9):** get_public_key, encrypt, decrypt, create_hmac, verify_hmac, create_signature, verify_signature, reveal_counterparty_key_linkage, reveal_specific_key_linkage
+**Private (4):** derive_sym_key, bytes_to_string, string_to_bytes, secure_compare
+Each public method has substrate delegation (`return @substrate.X if @substrate`) then local implementation using `@key_deriver`.
 
-- `lib/bsv/wallet/certificate_signature.rb` — change `verifier: ProtoWallet.new('anyone')` to `verifier: Client.new('anyone', storage: MemoryStore.new)`
-- `lib/bsv/wallet.rb` — remove `ProtoWallet` and `WalletClient` autoloads, add `Client`
+### `client/transaction_ops.rb` — Client::TransactionOps (~900 lines)
+**Public (7):** create_action, sign_action, abort_action, list_actions, list_outputs, relinquish_output, internalize_action
+**Private — validation:** validate_broadcast_configuration!, validate_create_action!, validate_action_inputs!, validate_action_outputs!, validate_list_actions!, validate_list_outputs!, validate_internalize_action!
+**Private — build:** parse_input_beef, build_transaction, build_inputs, wire_source, wire_source_from_storage, wire_source_tx_ancestors, build_outputs, shuffle_outputs, needs_signing?, create_signable, apply_spends
+**Private — store:** store_action, store_tracked_outputs, build_action_query, build_output_query, strip_action_fields, strip_output_fields, finalize_action
+**Private — internalise:** store_proofs_from_beef, extract_subject_transaction, find_by_subject_txid, process_internalize_outputs, internalize_payment, internalize_basket
+**Private — auto-fund:** auto_fund_and_create, auto_fund_select, converge_change, load_pool_opts, build_auto_funded_transaction, add_auto_funded_input, add_output_from_spec, store_change_outputs, change_output_entry, auto_fee_estimator, auto_coin_selector, auto_change_generator
+**Private — broadcast/state:** release_stale_if_due, release_pending_utxos, rollback_pending_action, broadcast_and_promote, broadcast_send_with, broadcast_single_no_send, promote_no_send, broadcast_status_for
 
-### Spec changes
+### `client/identity_ops.rb` — Client::IdentityOps (~200 lines)
+**Public (6):** acquire_certificate, list_certificates, prove_certificate, relinquish_certificate, discover_by_identity_key, discover_by_attributes
+**Private (7):** validate_acquire_certificate!, acquire_via_direct, acquire_via_issuance, auth_fetch_client, execute_http, find_stored_certificate, cert_without_keyring
 
-- **Delete** `spec/bsv/wallet/proto_wallet_spec.rb` — crypto method coverage moves to `client_spec.rb`
-- **Delete** `spec/bsv/wallet/wallet_client_spec.rb` — all coverage moves to `client_spec.rb`
-- `spec/bsv/wallet/certificate_spec.rb` — change `ProtoWallet.new(key)` to `Client.new(key, storage: MemoryStore.new)`
-- All other specs: replace `WalletClient.new(...)` with `Client.new(...)`
+### `client/network_ops.rb` — Client::NetworkOps (~40 lines)
+**Public (4):** get_height, get_header_for_height, get_network, get_version
 
-### Critical detail: `super` chain elimination
+### `client/authentication_ops.rb` — Client::AuthenticationOps (~20 lines)
+**Public (2):** is_authenticated, wait_for_authentication
 
-Current: `WalletClient#encrypt` → `super` → `ProtoWallet#encrypt` (uses `@key_deriver`)
-After: `Client#encrypt` uses `@key_deriver` directly — no inheritance, no `super`
-
-### Acceptance
-
-- All specs pass (rewritten for Client)
-- `BSV::Wallet::Client.new(key)` returns a working wallet
-- `ProtoWallet` and `WalletClient` are gone — no files, no autoloads, no references
-- No inheritance — Client includes `BRC100::Interface` directly
-
----
-
-## Phase 3: Substrates + Documentation
-
-**One PR. Cleanup.**
-
-### Files to modify
-
-- `lib/bsv/wallet/substrates/http_wallet_json.rb` — change `include BSV::Wallet::Interface` to `include BSV::Wallet::BRC100::Interface`
-- `lib/bsv/wallet/substrates/wallet_wire_transceiver.rb` — same change
-- `docs/wallet/brc-100.md` — update "Implications for bsv-wallet" section to reflect new structure
-- `docs/wallet/brc-100-sdk-implementation.md` — update to reflect completed work
-
-### Acceptance
-
-- All specs pass
-- Substrate specs pass
-- Gem builds
+### `client.rb` — Client (~100 lines)
+**Constructor:** initialize (wiring collaborators)
+**Attr readers:** key_deriver, storage, network, proof_store, broadcaster, broadcast_queue, substrate
+**Non-BRC-100 public:** broadcast_enabled?, sync_utxos, balance, spendable_balance, set_wallet_change_params, utxo_pool
+**Private utility:** identity_address, output_exists?, spendable_pool_eligible?
+**Constants:** ANCESTOR_DEPTH_CAP, STALE_CHECK_INTERVAL
 
 ---
 
-## Out of Scope (Future Work)
+## Implementation Tasks
 
-- **Collaborator interface renames** (`StorageAdapter` → `BSV::Wallet::Store`, etc.) — separate HLR
-- **Client internal decomposition** — extracting the 70+ private methods into concern modules. Client inherits the current complexity; future work can decompose by BRC-100 functional area
-- **BRCs for collaborator interfaces** — research whether BRCs exist that define storage/broadcaster/proof contracts (noted in user's implementation doc)
+### Task 1: Extract Client::Crypto (sequential)
+Move the 9 crypto public methods + 4 private helpers from client.rb into `lib/bsv/wallet/client/crypto.rb`. Add `include Client::Crypto` to client.rb.
+**Files:** create `client/crypto.rb`, modify `client.rb`
+**Test:** all specs pass, crypto round-trips work
+
+### Task 2: Extract Client::TransactionOps (sequential, after Task 1)
+Move the 7 transaction public methods + all private transaction/auto-fund/broadcast helpers. This is the largest extraction (~900 lines).
+**Files:** create `client/transaction_ops.rb`, modify `client.rb`
+**Test:** all specs pass, create_action/sign_action/auto-fund work
+
+### Task 3: Extract Client::IdentityOps (sequential, after Task 2)
+Move the 6 identity/certificate public methods + 7 private helpers.
+**Files:** create `client/identity_ops.rb`, modify `client.rb`
+**Test:** all specs pass, certificate operations work
+
+### Task 4: Extract Client::NetworkOps + Client::AuthenticationOps (sequential, after Task 3)
+Move the 4 network methods and 2 auth methods. Small enough to do together.
+**Files:** create `client/network_ops.rb`, `client/authentication_ops.rb`, modify `client.rb`
+**Test:** all specs pass
+
+### Task 5: Verify client.rb is thin
+After all extractions, `client.rb` should be ~100 lines: constructor, attr_readers, non-BRC-100 methods, includes, constants. If it's significantly larger, something was missed.
+**Acceptance:** `client.rb` under 150 lines, all 1,054 wallet specs pass, gem builds
 
 ---
 
 ## Critical Files
 
-| File | Phase | Role |
-|------|-------|------|
-| `lib/bsv/wallet_interface/` → `lib/bsv/wallet/` | 1 | Full directory rename |
-| `lib/bsv/wallet/interface.rb` | 1 | Bridge to BRC100::Interface |
-| `lib/bsv/wallet/brc100/` | 1 | New: 6 abstract contract modules |
-| `lib/bsv/wallet/client.rb` | 2 | New: composition-based wallet |
-| `lib/bsv/wallet/wallet_client.rb` | 2 | Deleted |
-| `lib/bsv/wallet/proto_wallet.rb` | 2 | Deleted |
-| `lib/bsv/wallet/certificate_signature.rb` | 2 | ProtoWallet ref → Client |
-| `lib/bsv/wallet.rb` | 1,2 | Autoload hub (renamed from wallet_interface.rb) |
+| File | Action |
+|------|--------|
+| `lib/bsv/wallet/client.rb` | Shrink from 1,712 to ~100 lines |
+| `lib/bsv/wallet/client/crypto.rb` | New: ~260 lines |
+| `lib/bsv/wallet/client/transaction_ops.rb` | New: ~900 lines |
+| `lib/bsv/wallet/client/identity_ops.rb` | New: ~200 lines |
+| `lib/bsv/wallet/client/network_ops.rb` | New: ~40 lines |
+| `lib/bsv/wallet/client/authentication_ops.rb` | New: ~20 lines |
 
 ## Verification
 
-After each phase:
+After each task:
 1. `cd gem/bsv-wallet && bundle exec rspec` — all specs pass
-2. `cd gem/bsv-wallet-postgres && bundle exec rspec` — downstream specs pass
-3. `bundle exec rubocop` — clean
-4. `cd gem/bsv-wallet && gem build bsv-wallet.gemspec` — gem builds
+2. `bundle exec rubocop gem/bsv-wallet/lib/bsv/wallet/client*` — clean
+3. `wc -l gem/bsv-wallet/lib/bsv/wallet/client.rb` — getting smaller
+
+Final:
+4. `client.rb` is under 150 lines
+5. Every concern module has a clear single responsibility matching a BRC-100 functional area
+6. `gem build bsv-wallet.gemspec` — builds
