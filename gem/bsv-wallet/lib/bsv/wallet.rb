@@ -4,6 +4,9 @@ module BSV
   module Wallet
     autoload :VERSION,          'bsv/wallet/version'
 
+    # BRC-100 abstract contract modules
+    autoload :BRC100,           'bsv/wallet/brc100'
+
     # BRC-100 Interface
     autoload :Interface,        'bsv/wallet/interface'
     autoload :KeyDeriver,       'bsv/wallet/key_deriver'
