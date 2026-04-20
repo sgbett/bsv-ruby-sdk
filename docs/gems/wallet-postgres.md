@@ -30,14 +30,14 @@ db = Sequel.connect(ENV['DATABASE_URL'])
 BSV::Wallet::PostgresStore.migrate!(db)
 
 store  = BSV::Wallet::PostgresStore.new(db)
-wallet = BSV::Wallet::WalletClient.new(
+wallet = BSV::Wallet::Client.new(
   private_key,
   storage: store,
   chain_provider: your_chain_provider
 )
 ```
 
-That's the whole integration. `WalletClient` already takes any object
+That's the whole integration. `BSV::Wallet::Client` already takes any object
 that includes `BSV::Wallet::StorageAdapter`, so switching from `FileStore`
 to `PostgresStore` is a one-line change.
 
@@ -149,7 +149,7 @@ adapter = BSV::Wallet::SolidQueueAdapter.new(
 )
 adapter.start
 
-wallet = BSV::Wallet::WalletClient.new(
+wallet = BSV::Wallet::Client.new(
   key,
   storage: store,
   broadcast_queue: adapter

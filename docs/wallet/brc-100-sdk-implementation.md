@@ -1,5 +1,14 @@
 
-# BRC-100 Wallet Interface Contract
+> **Implementation complete.** This document was the design sketch for the BRC-100 wallet restructure. The structure described here has been built. Key facts about the completed implementation:
+>
+> - `BSV::Wallet::Client` is the wallet class (not `WalletClient`)
+> - `BSV::Wallet::BRC100::Interface` is the composed contract (six sub-modules)
+> - `ProtoWallet` does not exist — `Client` implements the full contract directly
+> - Source files live under `lib/bsv/wallet/` (not `lib/bsv/wallet_interface/`)
+>
+> See [`docs/wallet/brc-100.md`](brc-100.md) for the current reference.
+
+# BRC-100 Wallet Interface Contract — Design Sketch
 
 ## Concept
 

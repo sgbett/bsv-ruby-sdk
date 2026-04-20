@@ -20,7 +20,7 @@ gem 'bsv-wallet'
 require 'bsv-wallet'
 
 key = BSV::Primitives::PrivateKey.from_wif(ENV['SERVER_WIF'])
-wallet = BSV::Wallet::WalletClient.new(key)
+wallet = BSV::Wallet::Client.new(key)
 
 # Create a simple payment
 result = wallet.create_action({
@@ -38,7 +38,7 @@ result = wallet.create_action({
 Pass a broadcaster to enable on-chain broadcast:
 
 ```ruby
-wallet = BSV::Wallet::WalletClient.new(
+wallet = BSV::Wallet::Client.new(
   key,
   broadcaster: BSV::Network::ARC.default
 )
@@ -72,14 +72,14 @@ Each action stored by the wallet carries one of the following status values:
 A broadcaster is required for `create_action` to succeed unless
 `options: { no_send: true }` is passed per call. Three ways to satisfy this:
 
-1. Pass `broadcaster:` to `WalletClient.new`:
+1. Pass `broadcaster:` to `Client.new`:
    ```ruby
-   wallet = BSV::Wallet::WalletClient.new(key, broadcaster: BSV::Network::ARC.default)
+   wallet = BSV::Wallet::Client.new(key, broadcaster: BSV::Network::ARC.default)
    ```
 2. Pass a `broadcast_queue:` whose adapter has an embedded `broadcaster:`:
    ```ruby
    adapter = BSV::Wallet::SolidQueueAdapter.new(db: db, storage: store, broadcaster: arc)
-   wallet = BSV::Wallet::WalletClient.new(key, storage: store, broadcast_queue: adapter)
+   wallet = BSV::Wallet::Client.new(key, storage: store, broadcast_queue: adapter)
    ```
 3. Pass `options: { no_send: true }` to skip broadcast for a specific call:
    ```ruby

@@ -2,7 +2,7 @@
 
 The `bsv-wallet` gem implements the
 [BRC-100](https://bsv.brc.dev/wallet/0100) standard wallet-to-application
-interface. It provides `WalletClient` — a local wallet that manages UTXOs,
+interface. It provides `BSV::Wallet::Client` — a local wallet that manages UTXOs,
 builds and signs transactions, broadcasts via ARC, and tracks certificates.
 
 ## Installation
@@ -19,7 +19,7 @@ require 'bsv-wallet'
 
 key = BSV::Primitives::PrivateKey.from_wif(ENV['SERVER_WIF'])
 
-wallet = BSV::Wallet::WalletClient.new(
+wallet = BSV::Wallet::Client.new(
   key,
   broadcaster: BSV::Network::ARC.default
 )
@@ -232,7 +232,7 @@ db = Sequel.connect(ENV['DATABASE_URL'])
 BSV::Wallet::PostgresStore.migrate!(db)
 store = BSV::Wallet::PostgresStore.new(db)
 
-wallet = BSV::Wallet::WalletClient.new(
+wallet = BSV::Wallet::Client.new(
   key,
   storage: store,
   broadcaster: BSV::Network::ARC.default
@@ -261,7 +261,7 @@ adapter = BSV::Wallet::SolidQueueAdapter.new(
 )
 adapter.start
 
-wallet = BSV::Wallet::WalletClient.new(
+wallet = BSV::Wallet::Client.new(
   key,
   storage: store,
   broadcast_queue: adapter
