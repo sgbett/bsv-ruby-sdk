@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
+require_relative 'client/authentication_ops'
 require_relative 'client/crypto'
 require_relative 'client/identity_ops'
+require_relative 'client/network_ops'
 require_relative 'client/transaction_ops'
 
 module BSV
@@ -21,8 +23,10 @@ module BSV
     #   })
     class Client
       include BRC100::Interface
+      include AuthenticationOps
       include Crypto
       include IdentityOps
+      include NetworkOps
       include TransactionOps
 
       # @return [KeyDeriver] the underlying key deriver
@@ -94,50 +98,6 @@ module BSV
         @broadcast_queue.broadcast_enabled?
       end
 
-      # --- Blockchain & Network Data ---
-
-      # Returns the current blockchain height.
-      #
-      # Requires a substrate — raises {UnsupportedActionError} locally.
-      #
-      # @return [Hash] { height: Integer }
-      def get_height(args = {}, originator: nil)
-        return @substrate.get_height(args, originator: originator) if @substrate
-
-        raise UnsupportedActionError, 'get_height requires a remote substrate'
-      end
-
-      # Returns the block header at the given height.
-      #
-      # Requires a substrate — raises {UnsupportedActionError} locally.
-      #
-      # @param args [Hash]
-      # @option args [Integer] :height block height
-      # @return [Hash] { header: String } 80-byte hex-encoded block header
-      def get_header_for_height(args, originator: nil)
-        return @substrate.get_header_for_height(args, originator: originator) if @substrate
-
-        raise UnsupportedActionError, 'get_header_for_height requires a remote substrate'
-      end
-
-      # Returns the network this wallet is configured for.
-      #
-      # @return [Hash] { network: String } 'mainnet' or 'testnet'
-      def get_network(args = {}, originator: nil)
-        return @substrate.get_network(args, originator: originator) if @substrate
-
-        { network: @network }
-      end
-
-      # Returns the wallet version string.
-      #
-      # @return [Hash] { version: String } in vendor-major.minor.patch format
-      def get_version(args = {}, originator: nil)
-        return @substrate.get_version(args, originator: originator) if @substrate
-
-        { version: "bsv-wallet-#{BSV::Wallet::VERSION}" }
-      end
-
       # Raises {UnsupportedActionError}.
       def sync_utxos
         raise UnsupportedActionError, 'sync_utxos requires a remote substrate or custom integration'
@@ -202,26 +162,6 @@ module BSV
         pool.replenisher = worker
         worker.start
         pool
-      end
-
-      # --- Authentication ---
-
-      # Checks whether the user is authenticated.
-      #
-      # @return [Hash] { authenticated: Boolean }
-      def is_authenticated(args = {}, originator: nil)
-        return @substrate.is_authenticated(args, originator: originator) if @substrate
-
-        { authenticated: true }
-      end
-
-      # Waits until the user is authenticated.
-      #
-      # @return [Hash] { authenticated: true }
-      def wait_for_authentication(args = {}, originator: nil)
-        return @substrate.wait_for_authentication(args, originator: originator) if @substrate
-
-        { authenticated: true }
       end
 
       private
