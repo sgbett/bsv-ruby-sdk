@@ -39,7 +39,7 @@ module BSV
     #    keyrings from +prove_certificate+) for field-level integrity.
     #
     # @example Lock a token
-    #   wallet   = BSV::Wallet::ProtoWallet.new(private_key)
+    #   wallet   = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
     #   template = BSV::Script::PushDropTemplate.new(wallet:)
     #   script   = template.lock(
     #     fields:       ['hello'.b, 'world'.b],

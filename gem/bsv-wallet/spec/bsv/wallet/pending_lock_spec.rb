@@ -124,7 +124,7 @@ RSpec.describe 'Pending UTXO locking and double-spend prevention' do
     # Post-HLR #455: broadcaster required; create_action raises without one.
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
 
     before do

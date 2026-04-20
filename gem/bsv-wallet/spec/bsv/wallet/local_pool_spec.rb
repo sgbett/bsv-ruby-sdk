@@ -348,15 +348,15 @@ RSpec.describe 'BSV::Wallet::LocalPool' do
   end
 
   # -----------------------------------------------------------------------
-  # WalletClient#utxo_pool factory integration
+  # Client#utxo_pool factory integration
   # -----------------------------------------------------------------------
 
-  describe 'WalletClient#utxo_pool factory' do
+  describe 'Client#utxo_pool factory' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
     let(:storage)     { BSV::Wallet::MemoryStore.new }
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
     let(:pool) { wallet.utxo_pool(name: 'test') }
 

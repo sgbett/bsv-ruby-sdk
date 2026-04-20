@@ -21,7 +21,7 @@ module BSV
     #
     # Wallet parameters are duck-typed — any object responding to
     # +create_signature+, +verify_signature+, and +get_public_key+ is accepted.
-    # No direct dependency on +BSV::Wallet::ProtoWallet+ is introduced here.
+    # No direct dependency on +BSV::Wallet::Client+ is introduced here.
     #
     # @see https://hub.bsvblockchain.org/brc/wallet/0052 BRC-52
     class Certificate
@@ -166,17 +166,17 @@ module BSV
 
       # Verify the certificate's signature.
       #
-      # Uses a fresh +'anyone'+ ProtoWallet as the verifier, which matches the
+      # Uses a fresh +'anyone'+ Client as the verifier, which matches the
       # TS SDK behaviour. If no signature is present, raises +ArgumentError+.
       #
       # @param verifier_wallet [#verify_signature, nil] wallet to verify with;
-      #   defaults to +BSV::Wallet::ProtoWallet.new('anyone')+
+      #   defaults to +BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::MemoryStore.new)+
       # @return [Boolean] +true+ if the signature is valid
       # @raise [ArgumentError] if the certificate has no signature
       def verify(verifier_wallet = nil)
         raise ArgumentError, 'certificate has no signature to verify' if @signature.nil? || @signature.empty?
 
-        verifier_wallet ||= BSV::Wallet::ProtoWallet.new('anyone')
+        verifier_wallet ||= BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::MemoryStore.new)
         preimage  = to_binary(include_signature: false)
         sig_bytes = [@signature].pack('H*').unpack('C*')
 

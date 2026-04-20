@@ -21,7 +21,7 @@ module BSV
     # - Counterparty: the certificate +subject+ public key
     #
     # Wallet parameters are duck-typed — any object responding to +:decrypt+
-    # is accepted. No direct dependency on +BSV::Wallet::ProtoWallet+ is
+    # is accepted. No direct dependency on +BSV::Wallet::Client+ is
     # introduced here.
     #
     # @see BSV::Auth::Certificate  base class

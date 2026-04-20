@@ -21,7 +21,7 @@ RSpec.describe 'BEEF ancestry round-trip (HLR #466)' do
   let(:storage) { BSV::Wallet::MemoryStore.new }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
-    BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+    BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
   end
 
   # -------------------------------------------------------------------------

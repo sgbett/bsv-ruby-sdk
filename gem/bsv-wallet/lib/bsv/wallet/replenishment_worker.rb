@@ -12,7 +12,7 @@ module BSV
     #
     # Each wake cycle computes the deficit between the pool's target count and
     # its current available count. When a deficit exists, it calls
-    # {WalletClient#create_action} to fund new pool outputs.
+    # {Client#create_action} to fund new pool outputs.
     #
     # == BRC-29 derivation
     #
@@ -37,7 +37,7 @@ module BSV
       BRC29_PROTOCOL_ID = [2, '3241645161d8'].freeze
 
       # @param pool [LocalPool] the pool to replenish
-      # @param wallet_client [WalletClient] wallet used to fund new outputs
+      # @param wallet_client [Client] wallet used to fund new outputs
       # @param interval [Integer, Float] seconds between replenishment checks (default: 60)
       def initialize(pool:, wallet_client:, interval: 60)
         @pool          = pool

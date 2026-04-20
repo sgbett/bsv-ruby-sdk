@@ -9,7 +9,7 @@ module BSV
     # Certificates carry a signature from the certifier over a canonical
     # binary serialisation of their fields (excluding the signature itself).
     # This module builds that canonical serialisation and delegates
-    # verification to a {ProtoWallet}-compatible verifier.
+    # verification to a {Client}-compatible verifier.
     #
     # Every field is included in the preimage in this order:
     #
@@ -27,7 +27,7 @@ module BSV
     # - protocol ID: +[2, 'certificate signature']+
     # - key ID: +"\#{type} \#{serial_number}"+
     # - counterparty on sign: +'anyone'+ (default of
-    #   +ProtoWallet#create_signature+ in TS — Ruby consumers should pass
+    #   +Client#create_signature+ in TS — Ruby consumers should pass
     #   it explicitly since Ruby defaults to +'self'+)
     # - counterparty on verify: the certifier's public key hex
     #
@@ -53,10 +53,10 @@ module BSV
       #   +:type+, +:serial_number+, +:subject+, +:certifier+,
       #   +:revocation_outpoint+, +:fields+, +:signature+
       # @param verifier [#verify_signature] optional verifier; defaults to
-      #   a fresh +ProtoWallet.new('anyone')+
+      #   a fresh +Client.new('anyone', storage: MemoryStore.new)+
       # @return [true] when the signature verifies
       # @raise [InvalidError] otherwise
-      def verify!(cert, verifier: ProtoWallet.new('anyone'))
+      def verify!(cert, verifier: Client.new('anyone', storage: MemoryStore.new))
         signature_hex = cert[:signature]
         raise InvalidError, 'signature is missing' if signature_hex.nil? || signature_hex.empty?
 
@@ -89,7 +89,7 @@ module BSV
       #
       # @param cert [Hash] certificate fields (see {.verify!})
       # @return [String] binary string suitable for +sha256+ (via
-      #   {ProtoWallet#verify_signature})
+      #   {Client#verify_signature})
       def serialise_preimage(cert)
         buf = String.new(encoding: Encoding::ASCII_8BIT)
         buf << decode_base64_exact(cert[:type], 32, 'type')

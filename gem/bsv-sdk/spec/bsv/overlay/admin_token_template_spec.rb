@@ -15,9 +15,9 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
   let(:dummy_pubkey_hash) { ("\x00" * 20).b }
   let(:lock_script) { BSV::Script::Script.p2pkh_lock(dummy_pubkey_hash) }
 
-  # A ProtoWallet backed by PrivateKey(1), used for deterministic lock/unlock tests.
+  # A Client backed by PrivateKey(1), used for deterministic lock/unlock tests.
   let(:private_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(1)) }
-  let(:wallet) { BSV::Wallet::ProtoWallet.new(private_key) }
+  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new) }
 
   def ship_script(domain: 'example.com', topic: 'tm_tests', identity_key: SHIP_IDENTITY_KEY_BIN)
     BSV::Script::Script.pushdrop_lock(

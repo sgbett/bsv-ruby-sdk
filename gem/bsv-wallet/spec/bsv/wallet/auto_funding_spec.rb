@@ -3,13 +3,13 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-# Comprehensive tests for auto-funding in WalletClient#create_action.
+# Comprehensive tests for auto-funding in Client#create_action.
 #
 # Auto-funding is triggered when create_action receives outputs but no inputs.
 # The wallet selects spendable UTXOs with BRC-29 derivation metadata, estimates
 # fees, generates change, builds and signs the transaction.
 
-RSpec.describe 'WalletClient auto-funding pipeline' do
+RSpec.describe 'Client auto-funding pipeline' do
   # Helper: store a spendable payment output in storage with BRC-29 derivation metadata.
   # Mimics what internalize_payment does after receiving a wallet payment.
   def seed_payment_output(wallet, satoshis:, key_deriver: nil)
@@ -69,7 +69,7 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
   # Post-HLR #455: broadcaster required; create_action raises when absent and no_send unset.
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
-    BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+    BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
   end
 
   # Stub broadcast for all tests — auto_funding_spec tests auto-fund plumbing,
@@ -428,7 +428,7 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
       bad_generator = instance_double(BSV::Wallet::ChangeGenerator)
       allow(bad_generator).to receive(:generate).and_raise(RuntimeError, 'forced failure')
 
-      bad_wallet = BSV::Wallet::WalletClient.new(
+      bad_wallet = BSV::Wallet::Client.new(
         private_key,
         storage: storage,
         broadcaster: broadcaster,
@@ -667,7 +667,7 @@ RSpec.describe 'WalletClient auto-funding pipeline' do
         identity_key: wallet.key_deriver.identity_key,
         max_outputs: 1
       )
-      custom_wallet = BSV::Wallet::WalletClient.new(
+      custom_wallet = BSV::Wallet::Client.new(
         private_key,
         storage: storage,
         broadcaster: broadcaster,

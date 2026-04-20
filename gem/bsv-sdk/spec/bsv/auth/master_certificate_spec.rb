@@ -10,9 +10,9 @@ RSpec.describe BSV::Auth::MasterCertificate do
   let(:subject_key)      { BSV::Primitives::PrivateKey.generate }
   let(:verifier_key)     { BSV::Primitives::PrivateKey.generate }
 
-  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
-  let(:subject_wallet)   { BSV::Wallet::ProtoWallet.new(subject_key) }
-  let(:verifier_wallet)  { BSV::Wallet::ProtoWallet.new(verifier_key) }
+  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::MemoryStore.new) }
+  let(:subject_wallet)   { BSV::Wallet::Client.new(subject_key, storage: BSV::Wallet::MemoryStore.new) }
+  let(:verifier_wallet)  { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::MemoryStore.new) }
 
   let(:certifier_hex) { certifier_key.public_key.to_hex }
   let(:subject_hex)   { subject_key.public_key.to_hex }

@@ -19,7 +19,7 @@ module BSV
     #   BSV::Wallet::PostgresStore.migrate!(db)
     #
     #   store  = BSV::Wallet::PostgresStore.new(db)
-    #   wallet = BSV::Wallet::WalletClient.new(key, storage: store)
+    #   wallet = BSV::Wallet::Client.new(key, storage: store)
     #
     # @example Bringing your own migration runner
     #   # Copy lib/bsv/wallet_postgres/migrations/001_create_wallet_tables.rb

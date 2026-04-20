@@ -24,7 +24,7 @@ module BSV
     #   <derived_pubkey> OP_CHECKSIG
     #
     # @example Lock a SHIP advertisement
-    #   wallet = BSV::Wallet::ProtoWallet.new(private_key)
+    #   wallet = BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::MemoryStore.new)
     #   template = BSV::Overlay::AdminTokenTemplate.new(wallet)
     #   locking_script = template.lock('SHIP', 'myhost.example.com', 'tm_payments')
     #   decoded = BSV::Overlay::AdminTokenTemplate.decode(locking_script)
@@ -144,7 +144,7 @@ module BSV
       # Construct a new AdminTokenTemplate instance.
       #
       # @param wallet [#get_public_key, #create_signature] any object implementing
-      #   the BRC-100 wallet interface (e.g. {BSV::Wallet::ProtoWallet})
+      #   the BRC-100 wallet interface (e.g. {BSV::Wallet::Client})
       # @param originator [String, nil] optional FQDN of the originating application
       def initialize(wallet, originator: nil)
         @wallet = wallet

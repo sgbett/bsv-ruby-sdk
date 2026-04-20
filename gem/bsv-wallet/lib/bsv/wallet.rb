@@ -10,7 +10,6 @@ module BSV
     # BRC-100 Interface
     autoload :Interface,        'bsv/wallet/interface'
     autoload :KeyDeriver,       'bsv/wallet/key_deriver'
-    autoload :ProtoWallet,      'bsv/wallet/proto_wallet'
     autoload :Validators,       'bsv/wallet/validators'
     autoload :StorageAdapter,    'bsv/wallet/storage_adapter'
     autoload :BroadcastQueue,    'bsv/wallet/broadcast_queue'
@@ -20,7 +19,6 @@ module BSV
     autoload :ProofStore,        'bsv/wallet/proof_store'
     autoload :LocalProofStore,   'bsv/wallet/local_proof_store'
     autoload :Client,            'bsv/wallet/client'
-    autoload :WalletClient,      'bsv/wallet/wallet_client'
     autoload :Wire,              'bsv/wallet/wire'
     autoload :Substrates,        'bsv/wallet/substrates'
     autoload :CertificateSignature, 'bsv/wallet/certificate_signature'

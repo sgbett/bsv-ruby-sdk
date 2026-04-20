@@ -80,7 +80,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   describe 'broadcast succeeds → state promoted to final' do
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
     let(:result) do
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_ok)
@@ -145,7 +145,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   describe 'broadcast fails → full rollback' do
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
     let(:seeded_outpoint) { seed_payment_output(wallet, satoshis: 10_000)[:outpoint] }
     let(:result) do
@@ -209,7 +209,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   describe 'promotion failure after successful broadcast → no rollback of on-chain outputs' do
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
 
     before { seed_payment_output(wallet, satoshis: 10_000) }
@@ -253,7 +253,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   describe 'send_with broadcast succeeds → per-tx state promoted' do
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
     let(:first_no_send) do
       wallet.create_action({
@@ -361,7 +361,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   describe 'send_with broadcast fails → per-tx rollback' do
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
     let(:first_no_send) do
       wallet.create_action({
@@ -483,7 +483,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   describe 'concurrent auto-fund exclusion of pending change outputs' do
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::WalletClient.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
     end
 
     before { seed_payment_output(wallet, satoshis: 10_000) }

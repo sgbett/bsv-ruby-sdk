@@ -2,7 +2,7 @@
 
 module BSV
   module Wallet
-    # Synchronous broadcast queue adapter — the default for +WalletClient+.
+    # Synchronous broadcast queue adapter — the default for +Client+.
     #
     # +InlineQueue+ replicates the current wallet broadcast behaviour exactly:
     #
@@ -32,7 +32,7 @@ module BSV
 
       # Returns +true+ when a broadcaster has been configured.
       #
-      # +WalletClient+ delegates its own +broadcast_enabled?+ to this method
+      # +Client+ delegates its own +broadcast_enabled?+ to this method
       # so the check works correctly when the broadcaster is embedded in the
       # queue rather than passed directly to the wallet.
       #

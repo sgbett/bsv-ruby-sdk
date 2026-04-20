@@ -10,12 +10,11 @@ require 'openssl'
 
 module BSV
   module Wallet
-    # Composition-based BRC-100 wallet that replaces the WalletClient/ProtoWallet
-    # inheritance chain.
+    # BRC-100 wallet implementation.
     #
-    # All 28 BRC-100 methods are implemented directly — the 9 crypto operations from
-    # ProtoWallet are inlined here, with substrate delegation wired at the top of each
-    # method. No +super+ calls exist; behaviour is fully self-contained.
+    # All 28 BRC-100 methods are implemented directly — the 9 crypto operations
+    # are inlined here, with substrate delegation wired at the top of each
+    # method. No inheritance; behaviour is fully self-contained.
     #
     # @example Create a simple transaction
     #   client = BSV::Wallet::Client.new(private_key)
@@ -96,7 +95,7 @@ module BSV
         @broadcast_queue.broadcast_enabled?
       end
 
-      # --- Crypto methods (from ProtoWallet, with substrate delegation) ---
+      # --- Crypto methods (with substrate delegation) ---
 
       # Returns a derived or identity public key.
       #
@@ -796,7 +795,7 @@ module BSV
 
       private
 
-      # --- Crypto helpers (from ProtoWallet) ---
+      # --- Crypto helpers ---
 
       def derive_sym_key(args)
         counterparty = args[:counterparty] || 'self'
@@ -1075,7 +1074,7 @@ module BSV
 
         raise WalletError,
               'create_action requires a broadcaster for on-chain broadcast. ' \
-              'Pass broadcaster: BSV::Network::ARC.default to WalletClient.new, ' \
+              'Pass broadcaster: BSV::Network::ARC.default to Client.new, ' \
               'or options: { no_send: true } to build a transaction without broadcasting.'
       end
 

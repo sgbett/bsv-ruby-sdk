@@ -72,11 +72,11 @@ module BSV
       # broadcast on-chain.
       #
       # Override in adapters that hold a broadcaster reference so that
-      # +WalletClient+ can determine broadcast availability from the queue
+      # +Client+ can determine broadcast availability from the queue
       # alone. This is the correct delegation point because users may pass a
       # broadcaster-equipped queue (e.g.
       # +SolidQueueAdapter.new(broadcaster: arc)+) without also passing
-      # +broadcaster:+ directly to +WalletClient+.
+      # +broadcaster:+ directly to +Client+.
       #
       # @return [Boolean]
       def broadcast_enabled?
@@ -94,7 +94,7 @@ module BSV
 
       # Maps a broadcast exception to a {ReviewActionResultStatus} string.
       #
-      # This shared helper is extracted from +WalletClient#broadcast_status_for+
+      # This shared helper is extracted from +Client#broadcast_status_for+
       # so all queue adapters can produce consistent status strings without
       # duplicating the mapping logic.
       #
