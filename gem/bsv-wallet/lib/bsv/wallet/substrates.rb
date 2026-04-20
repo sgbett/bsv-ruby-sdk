@@ -8,9 +8,9 @@ module BSV
     # instead they provide the low-level connectivity that a WalletWireTransceiver or
     # HTTPWalletJSON wraps to expose the full interface.
     module Substrates
-      autoload :HTTPWalletJSON, 'bsv/wallet_interface/substrates/http_wallet_json'
-      autoload :HTTPWalletWire, 'bsv/wallet_interface/substrates/http_wallet_wire'
-      autoload :WalletWireTransceiver, 'bsv/wallet_interface/substrates/wallet_wire_transceiver'
+      autoload :HTTPWalletJSON, 'bsv/wallet/substrates/http_wallet_json'
+      autoload :HTTPWalletWire, 'bsv/wallet/substrates/http_wallet_wire'
+      autoload :WalletWireTransceiver, 'bsv/wallet/substrates/wallet_wire_transceiver'
     end
   end
 end

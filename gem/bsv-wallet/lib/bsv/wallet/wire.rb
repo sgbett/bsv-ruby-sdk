@@ -11,9 +11,9 @@ module BSV
     #   frame = BSV::Wallet::Wire::Serializer.serialize_request(:get_height, {})
     #   method_name, args, originator = BSV::Wallet::Wire::Serializer.deserialize_request(frame)
     module Wire
-      autoload :Writer,     'bsv/wallet_interface/wire/writer'
-      autoload :Reader,     'bsv/wallet_interface/wire/reader'
-      autoload :Serializer, 'bsv/wallet_interface/wire/serializer'
+      autoload :Writer,     'bsv/wallet/wire/writer'
+      autoload :Reader,     'bsv/wallet/wire/reader'
+      autoload :Serializer, 'bsv/wallet/wire/serializer'
     end
   end
 end
