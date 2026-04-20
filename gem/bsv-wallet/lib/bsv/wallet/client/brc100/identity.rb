@@ -7,7 +7,7 @@ require 'uri'
 module BSV
   module Wallet
     class Client
-      module IdentityOps
+      module Identity
         # Acquires an identity certificate via direct storage or issuance.
         #
         # @param args [Hash]

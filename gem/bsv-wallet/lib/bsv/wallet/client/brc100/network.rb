@@ -4,7 +4,7 @@ module BSV
   module Wallet
     class Client
       # Blockchain and network data methods for {Client}.
-      module NetworkOps
+      module Network
         # Returns the current blockchain height.
         #
         # Requires a substrate — raises {UnsupportedActionError} locally.

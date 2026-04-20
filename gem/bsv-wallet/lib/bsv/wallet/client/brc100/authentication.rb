@@ -4,7 +4,7 @@ module BSV
   module Wallet
     class Client
       # Authentication methods for {Client}.
-      module AuthenticationOps
+      module Authentication
         # Checks whether the user is authenticated.
         #
         # @return [Hash] { authenticated: Boolean }

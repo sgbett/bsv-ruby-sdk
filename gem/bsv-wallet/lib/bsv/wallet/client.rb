@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative 'client/brc100/authentication_ops'
+require_relative 'client/brc100/authentication'
 require_relative 'client/brc100/crypto'
-require_relative 'client/brc100/identity_ops'
-require_relative 'client/brc100/network_ops'
-require_relative 'client/brc100/transaction_ops'
+require_relative 'client/brc100/identity'
+require_relative 'client/brc100/network'
+require_relative 'client/brc100/transaction'
 
 module BSV
   module Wallet
@@ -23,11 +23,11 @@ module BSV
     #   })
     class Client
       include Interface::BRC100
-      include AuthenticationOps
+      include Authentication
       include Crypto
-      include IdentityOps
-      include NetworkOps
-      include TransactionOps
+      include Identity
+      include Network
+      include Transaction
 
       # @return [KeyDeriver] the underlying key deriver
       attr_reader :key_deriver
