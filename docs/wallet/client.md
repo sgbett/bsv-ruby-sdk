@@ -46,7 +46,6 @@ Every collaborator has a sensible default. For a lightweight local wallet, `Clie
 ```ruby
 wallet = BSV::Wallet::Client.new(
   key,
-  storage: Store::Memory.new,
   broadcaster: BSV::Network::ARC.default
 )
 ```

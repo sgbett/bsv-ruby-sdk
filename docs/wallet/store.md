@@ -20,23 +20,28 @@ The interface covers five data domains:
 
 ### `Store::Memory`
 
-In-memory store backed by Ruby hashes. Thread-safe via Mutex for concurrent UTXO selection. Data is lost when the process exits.
+**Testing only.** In-memory store backed by Ruby hashes. All data is lost when the process exits. If a wallet holds real funds and the process restarts, those funds are irrecoverable.
+
+`Store::Memory` emits a loud stderr warning at instantiation and will refuse to operate silently as a production store. Suppress the warning with `BSV_MEMORY_STORE_OK=1` — but only in test suites.
 
 ```ruby
+# In specs
 wallet = BSV::Wallet::Client.new(key, storage: BSV::Wallet::Store::Memory.new)
 ```
 
-Emits a stderr warning in production environments unless `BSV_MEMORY_STORE_OK=1` is set. Intended for tests and development.
+Do not use `Store::Memory` with real keys or real funds.
 
 ### `Store::File`
 
-JSON file persistence. Extends `Store::Memory` — inherits all query logic, adds atomic file writes (temp + rename) for durability. Default storage when no `storage:` argument is provided.
+JSON file persistence. Extends `Store::Memory` — inherits all query logic, adds atomic file writes (temp + rename) for durability. This is the default storage when no `storage:` argument is provided.
 
 ```ruby
 wallet = BSV::Wallet::Client.new(key)  # uses Store::File by default
 ```
 
 Writes to `~/.bsv-wallet/` (or `BSV_WALLET_DIR` env var). Directory mode `0700`, file mode `0600`.
+
+**Important:** FileStore is only as durable as its underlying volume. If the wallet runs inside a Docker container with an ephemeral filesystem, data (and funds) will be lost when the container is removed. Mount a persistent volume or use `PostgresStore` for containerised deployments.
 
 ### `bsv-wallet-postgres` gem
 
