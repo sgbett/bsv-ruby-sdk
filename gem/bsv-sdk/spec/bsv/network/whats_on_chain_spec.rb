@@ -138,4 +138,109 @@ RSpec.describe BSV::Network::WhatsOnChain do
       end
     end
   end
+
+  describe '#current_height' do
+    it 'returns the current block height as an integer' do
+      chain_info = { 'blocks' => 875_123 }.to_json
+      http = mock_http.new(200, chain_info)
+      provider = described_class.new(http_client: http)
+
+      height = provider.current_height
+
+      expect(height).to eq(875_123)
+    end
+
+    it 'sends GET to the chain info endpoint' do
+      chain_info = { 'blocks' => 800_000 }.to_json
+      http = mock_http.new(200, chain_info)
+      provider = described_class.new(http_client: http)
+
+      provider.current_height
+
+      expect(http.last_uri.to_s).to eq(
+        'https://api.whatsonchain.com/v1/bsv/main/chain/info'
+      )
+    end
+
+    it 'raises ChainProviderError on HTTP error' do
+      http = mock_http.new(503, 'Service unavailable')
+      provider = described_class.new(http_client: http)
+
+      expect { provider.current_height }.to raise_error(BSV::Network::ChainProviderError)
+    end
+  end
+
+  describe '#get_block_header' do
+    let(:block_header_body) do
+      {
+        'hash' => '0000000000000000040fb5f4a3f8bc5516b5a7a4b5f4a3f8bc5516b5a7a4b00',
+        'height' => 800_000,
+        'merkleroot' => 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'
+      }.to_json
+    end
+
+    it 'returns the parsed block header hash' do
+      http = mock_http.new(200, block_header_body)
+      provider = described_class.new(http_client: http)
+
+      header = provider.get_block_header(800_000)
+
+      expect(header).to be_a(Hash)
+      expect(header['height']).to eq(800_000)
+      expect(header['merkleroot']).to eq('abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890')
+    end
+
+    it 'sends GET to the correct block header URL' do
+      http = mock_http.new(200, block_header_body)
+      provider = described_class.new(http_client: http)
+
+      provider.get_block_header(800_000)
+
+      expect(http.last_uri.to_s).to eq(
+        'https://api.whatsonchain.com/v1/bsv/main/block/800000/header'
+      )
+    end
+
+    it 'raises ChainProviderError on HTTP error' do
+      http = mock_http.new(404, 'Block not found')
+      provider = described_class.new(http_client: http)
+
+      expect { provider.get_block_header(999_999_999) }.to raise_error(BSV::Network::ChainProviderError)
+    end
+  end
+
+  describe '#valid_root_for_height?' do
+    let(:merkle_root) { 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890' }
+
+    let(:block_header_body) do
+      { 'merkleroot' => merkle_root }.to_json
+    end
+
+    it 'returns true when the merkle root matches' do
+      http = mock_http.new(200, block_header_body)
+      provider = described_class.new(http_client: http)
+
+      result = provider.valid_root_for_height?(merkle_root, 800_000)
+
+      expect(result).to be(true)
+    end
+
+    it 'returns false when the merkle root does not match' do
+      http = mock_http.new(200, block_header_body)
+      provider = described_class.new(http_client: http)
+
+      result = provider.valid_root_for_height?('000000', 800_000)
+
+      expect(result).to be(false)
+    end
+
+    it 'returns false when the block is not found' do
+      http = mock_http.new(404, 'Not found')
+      provider = described_class.new(http_client: http)
+
+      result = provider.valid_root_for_height?(merkle_root, 999_999_999)
+
+      expect(result).to be(false)
+    end
+  end
 end

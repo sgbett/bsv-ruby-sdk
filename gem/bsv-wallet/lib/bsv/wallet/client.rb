@@ -50,6 +50,10 @@ module BSV
       # @return [Interface, nil] the optional substrate for remote wallet delegation
       attr_reader :substrate
 
+      # @return [#current_height, #get_block_header, #fetch_utxos, #fetch_transaction, nil]
+      #   optional chain data source for SPV and block header lookups
+      attr_reader :chain_data_source
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [Store] persistence adapter (default: Store::File.new)
       # @param allow_memory_store [Boolean] set +true+ to suppress the MemoryStore safety guard
@@ -62,6 +66,8 @@ module BSV
       # @param broadcaster [#broadcast, nil] optional broadcaster
       # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to BroadcastQueue::Inline
       # @param substrate [Interface, nil] optional remote wallet substrate
+      # @param chain_data_source [#current_height, #get_block_header, #fetch_utxos, #fetch_transaction, nil]
+      #   optional chain data source for SPV and block header lookups
       def initialize(
         key,
         storage: Store::File.new,
@@ -74,6 +80,7 @@ module BSV
         broadcaster: nil,
         broadcast_queue: nil,
         substrate: nil,
+        chain_data_source: nil,
         allow_memory_store: false
       )
         if storage.is_a?(Store::Memory) && !storage.is_a?(Store::File) && !allow_memory_store
@@ -84,6 +91,7 @@ module BSV
 
         @key_deriver = key.is_a?(KeyDeriver) ? key : KeyDeriver.new(key)
         @substrate = substrate
+        @chain_data_source = chain_data_source
         @storage = storage
         @network = network
         @proof_store = proof_store || LocalProofStore.new(storage)

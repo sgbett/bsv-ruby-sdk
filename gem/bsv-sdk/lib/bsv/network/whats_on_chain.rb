@@ -5,8 +5,9 @@ module BSV
     # WhatsOnChain chain data provider for reading transactions and UTXOs
     # from the BSV network.
     #
-    # Any object responding to #fetch_utxos(address) and
-    # #fetch_transaction(txid) can serve as a chain data provider;
+    # Any object responding to #fetch_utxos(address),
+    # #fetch_transaction(txid), #current_height, and
+    # #get_block_header(height) can serve as a chain data source;
     # this class implements that contract by delegating to
     # Protocols::WoCREST.
     #
@@ -60,6 +61,41 @@ module BSV
         raise_on_error(result)
 
         BSV::Transaction::Transaction.from_hex(result.data)
+      end
+
+      # Return the current blockchain height.
+      # @return [Integer]
+      # @raise [BSV::Network::ChainProviderError] on network or API error
+      def current_height
+        result = @protocol.call(:current_height)
+        raise_on_error(result)
+
+        result.data
+      end
+
+      # Fetch the block header for a given height.
+      # @param height [Integer] block height
+      # @return [Hash] parsed block header JSON
+      # @raise [BSV::Network::ChainProviderError] on network or API error
+      def get_block_header(height)
+        result = @protocol.call(:get_block_header, height)
+        raise_on_error(result)
+
+        result.data
+      end
+
+      # Verify that a merkle root is valid for the given block height.
+      # @param root [String] expected merkle root as hex
+      # @param height [Integer] block height
+      # @return [Boolean]
+      # @raise [BSV::Network::ChainProviderError] on network or API error
+      def valid_root_for_height?(root, height)
+        result = @protocol.call(:valid_root, root, height)
+        return false if result.not_found?
+
+        raise_on_error(result)
+
+        result.data == true
       end
 
       private
