@@ -176,7 +176,7 @@ module BSV
       def verify(verifier_wallet = nil)
         raise ArgumentError, 'certificate has no signature to verify' if @signature.nil? || @signature.empty?
 
-        verifier_wallet ||= BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new)
+        verifier_wallet ||= BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true)
         preimage  = to_binary(include_signature: false)
         sig_bytes = [@signature].pack('H*').unpack('C*')
 
