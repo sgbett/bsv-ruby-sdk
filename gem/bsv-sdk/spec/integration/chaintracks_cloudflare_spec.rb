@@ -42,31 +42,31 @@ RSpec.describe 'Custom Provider: chaintracks-cloudflare', :chaintracks_live do
 
       # Custom lambda response handlers — the worker wraps values in
       # { "status": "success", "value": ... } so we unwrap here
-      endpoint :current_height, :get, '/currentHeight', response: ->(body) {
+      endpoint :current_height, :get, '/currentHeight', response: lambda { |body|
         JSON.parse(body)['value']
       }
 
-      endpoint :find_header, :get, '/findHeaderHexForHeight?height={height}', response: ->(body) {
+      endpoint :find_header, :get, '/findHeaderHexForHeight?height={height}', response: lambda { |body|
         JSON.parse(body)['value']
       }
 
-      endpoint :find_header_by_hash, :get, '/findHeaderHexForBlockHash?hash={hash}', response: ->(body) {
+      endpoint :find_header_by_hash, :get, '/findHeaderHexForBlockHash?hash={hash}', response: lambda { |body|
         JSON.parse(body)['value']
       }
 
-      endpoint :chain_tip_hash, :get, '/findChainTipHashHex', response: ->(body) {
+      endpoint :chain_tip_hash, :get, '/findChainTipHashHex', response: lambda { |body|
         JSON.parse(body)['value']
       }
 
-      endpoint :chain_tip_header, :get, '/findChainTipHeaderHex', response: ->(body) {
+      endpoint :chain_tip_header, :get, '/findChainTipHeaderHex', response: lambda { |body|
         JSON.parse(body)['value']
       }
 
-      endpoint :get_headers, :get, '/getHeaders?height={height}&count={count}', response: ->(body) {
+      endpoint :get_headers, :get, '/getHeaders?height={height}&count={count}', response: lambda { |body|
         JSON.parse(body)['value']
       }
 
-      endpoint :is_valid_root, :get, '/isValidRootForHeight?root={root}&height={height}', response: ->(body) {
+      endpoint :is_valid_root, :get, '/isValidRootForHeight?root={root}&height={height}', response: lambda { |body|
         JSON.parse(body)['value']
       }
     end
