@@ -3,7 +3,8 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe 'Proof round-trip: internalize_action → create_action → valid BEEF' do
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "Proof round-trip: internalize_action → create_action → valid BEEF (#{store_label})" do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   # Build a minimal source transaction (coin we're receiving).
   let(:source_tx) do
@@ -84,7 +85,7 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
     }
   end
   let(:pub_key) { private_key.public_key }
-  let(:storage) { BSV::Wallet::Store::Memory.new }
+  let(:storage) { store_factory.call }
   # Post-HLR #455: broadcaster required; create_action raises without one.
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) { BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster) }
@@ -135,3 +136,4 @@ RSpec.describe 'Proof round-trip: internalize_action → create_action → valid
     end
   end
 end
+end # STORE_FACTORIES.each

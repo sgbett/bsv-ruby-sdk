@@ -14,7 +14,8 @@ require 'securerandom'
 # All specs use a real MemoryStore and a mock broadcaster so state transitions
 # can be inspected directly without hitting the network.
 
-RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "broadcast_and_promote and promote_no_send integration (#{store_label})" do
   # --------------------------------------------------------------------------
   # Shared helpers
   # --------------------------------------------------------------------------
@@ -67,7 +68,7 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
   end
 
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:storage)     { BSV::Wallet::Store::Memory.new }
+  let(:storage)     { store_factory.call }
 
   # A successful broadcast response (no competing_txs).
   let(:broadcast_ok) do
@@ -519,3 +520,4 @@ RSpec.describe 'broadcast_and_promote and promote_no_send integration' do
     end
   end
 end
+end # STORE_FACTORIES.each

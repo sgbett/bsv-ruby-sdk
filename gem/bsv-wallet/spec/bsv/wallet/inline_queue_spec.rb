@@ -3,8 +3,9 @@
 require 'spec_helper'
 require 'bsv-wallet'
 
-RSpec.describe BSV::Wallet::BroadcastQueue::Inline do
-  let(:storage)     { BSV::Wallet::Store::Memory.new }
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe BSV::Wallet::BroadcastQueue::Inline, "(#{store_label})" do
+  let(:storage)     { store_factory.call }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
 
   # --------------------------------------------------------------------------
@@ -359,3 +360,4 @@ RSpec.describe BSV::Wallet::BroadcastQueue::Inline do
     end
   end
 end
+end # STORE_FACTORIES.each

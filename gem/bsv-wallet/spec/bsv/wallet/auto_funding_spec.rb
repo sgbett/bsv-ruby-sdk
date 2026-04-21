@@ -9,7 +9,8 @@ require 'bsv-wallet'
 # The wallet selects spendable UTXOs with BRC-29 derivation metadata, estimates
 # fees, generates change, builds and signs the transaction.
 
-RSpec.describe 'Client auto-funding pipeline' do
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "Client auto-funding pipeline (#{store_label})" do
   # Helper: store a spendable payment output in storage with BRC-29 derivation metadata.
   # Mimics what internalize_payment does after receiving a wallet payment.
   def seed_payment_output(wallet, satoshis:, key_deriver: nil)
@@ -65,7 +66,7 @@ RSpec.describe 'Client auto-funding pipeline' do
   let(:description) { 'auto-funded payment action' }
 
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:storage) { BSV::Wallet::Store::Memory.new }
+  let(:storage) { store_factory.call }
   # Post-HLR #455: broadcaster required; create_action raises when absent and no_send unset.
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
@@ -689,3 +690,4 @@ RSpec.describe 'Client auto-funding pipeline' do
     end
   end
 end
+end # STORE_FACTORIES.each

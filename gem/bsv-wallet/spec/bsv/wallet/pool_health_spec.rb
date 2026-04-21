@@ -4,8 +4,9 @@ require 'spec_helper'
 require 'bsv-wallet'
 require 'tmpdir'
 
-RSpec.describe 'Pool health and configurable change parameters' do
-  let(:store) { BSV::Wallet::Store::Memory.new }
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "Pool health and configurable change parameters (#{store_label})" do
+  let(:store) { store_factory.call }
 
   # --- balance ---
 
@@ -291,3 +292,4 @@ RSpec.describe 'Pool health and configurable change parameters' do
     end
   end
 end
+end # STORE_FACTORIES.each

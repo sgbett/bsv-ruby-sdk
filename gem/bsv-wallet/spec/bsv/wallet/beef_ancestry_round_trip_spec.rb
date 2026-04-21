@@ -15,10 +15,11 @@ require 'bsv-wallet'
 #   - Without Task 1 (to_ef fallback): to_ef_hex raises because source data is missing.
 #   - Without Task 2 (from_beef wiring): ancestry is not wired, source_transaction is nil,
 #     and to_ef_hex raises for the same reason.
-RSpec.describe 'BEEF ancestry round-trip (HLR #466)' do
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "BEEF ancestry round-trip (HLR #466) (#{store_label})" do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
   let(:pub_key) { private_key.public_key }
-  let(:storage) { BSV::Wallet::Store::Memory.new }
+  let(:storage) { store_factory.call }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
     BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
@@ -304,3 +305,4 @@ RSpec.describe 'BEEF ancestry round-trip (HLR #466)' do
     end
   end
 end
+end # STORE_FACTORIES.each

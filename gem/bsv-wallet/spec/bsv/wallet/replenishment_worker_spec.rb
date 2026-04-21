@@ -4,9 +4,10 @@ require 'spec_helper'
 require 'bsv-wallet'
 require 'securerandom'
 
-RSpec.describe 'BSV::Wallet::ReplenishmentWorker' do
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "BSV::Wallet::ReplenishmentWorker (#{store_label})" do
   let(:private_key) { BSV::Primitives::PrivateKey.generate }
-  let(:store)       { BSV::Wallet::Store::Memory.new }
+  let(:store)       { store_factory.call }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
     BSV::Wallet::Client.new(private_key, storage: store, broadcaster: broadcaster)
@@ -327,3 +328,4 @@ RSpec.describe 'BSV::Wallet::ReplenishmentWorker' do
     end
   end
 end
+end # STORE_FACTORIES.each

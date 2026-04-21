@@ -5,8 +5,9 @@ require 'bsv-wallet'
 require 'securerandom'
 require 'time'
 
-RSpec.describe 'Pending UTXO locking and double-spend prevention' do
-  let(:store) { BSV::Wallet::Store::Memory.new }
+STORE_FACTORIES.each do |store_label, store_factory|
+RSpec.describe "Pending UTXO locking and double-spend prevention (#{store_label})" do
+  let(:store) { store_factory.call }
 
   # Seeds a spendable output into the store.
   def seed_output(outpoint: 'tx0:0', satoshis: 1000, basket: 'default')
@@ -120,7 +121,7 @@ RSpec.describe 'Pending UTXO locking and double-spend prevention' do
   # -----------------------------------------------------------------------
   describe 'abort_action releases pending UTXOs' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
-    let(:storage)     { BSV::Wallet::Store::Memory.new }
+    let(:storage)     { store_factory.call }
     # Post-HLR #455: broadcaster required; create_action raises without one.
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
@@ -330,3 +331,4 @@ RSpec.describe 'Pending UTXO locking and double-spend prevention' do
     end
   end
 end
+end # STORE_FACTORIES.each

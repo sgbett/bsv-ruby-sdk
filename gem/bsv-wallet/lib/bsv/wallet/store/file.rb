@@ -3,6 +3,7 @@
 require 'json'
 require 'fileutils'
 require 'logger'
+require_relative 'memory'
 
 module BSV
   module Wallet
