@@ -60,7 +60,9 @@ nav:
       - Postgres: gems/wallet-postgres.md
   - API: reference/index.md
   - Testing:
-      Conformance Vectors:
+      - Conformance Vectors: testing/conformance-vectors.md
+      - Testnet Integration: testing/testnet.md
+      - Custom Provider Integration: testing/custom-provider.md
   - General:
     - Ruby secp256k1: general/secp256k1.md
     - Naming Conventions: general/naming-conventions.md
