@@ -175,7 +175,8 @@ module BSV
           beef_binary = args[:tx].pack('C*')
           beef = BSV::Transaction::Beef.from_binary(beef_binary)
 
-          raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(nil)
+          chain_tracker = @chain_data_source.respond_to?(:valid_root_for_height?) ? @chain_data_source : nil
+          raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(chain_tracker)
 
           tx = extract_subject_transaction(beef)
 
