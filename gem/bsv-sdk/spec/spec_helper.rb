@@ -24,6 +24,9 @@ RSpec.configure do |config|
   config.define_derived_metadata(testnet: true) do |meta|
     meta[:skip] = 'testnet tests excluded (run with: bundle exec rspec --tag testnet)' unless ENV['BSV_TESTNET_WIF']
   end
+  config.define_derived_metadata(chaintracks_live: true) do |meta|
+    meta[:skip] = 'chaintracks live tests excluded (run with: bundle exec rspec --tag chaintracks_live)'
+  end
   config.order = :random
   Kernel.srand config.seed
 end
