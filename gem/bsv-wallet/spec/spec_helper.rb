@@ -1,12 +1,9 @@
 # frozen_string_literal: true
 
 if ENV['COVERAGE']
-  require 'simplecov'
-  require 'simplecov-cobertura'
-  SimpleCov.start do
-    add_filter '/spec/'
-    formatter SimpleCov::Formatter::CoberturaFormatter
-  end
+  require_relative '../../../spec/simplecov_setup'
+  SimpleCov.command_name 'bsv-wallet'
+  SimpleCov.start
 end
 
 require 'bsv-wallet'
