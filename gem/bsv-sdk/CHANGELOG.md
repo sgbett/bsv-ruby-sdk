@@ -5,6 +5,32 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.0 — 2026-04-21
+
+### Added
+- Protocol layer: base class with declarative DSL, HTTP dispatch, and Result value types
+- WoCREST protocol with transaction detail, script query, exchange rate, fee, mempool, SPV, wallet, and address commands
+- ARC protocol with broadcast escape hatches and enriched response data
+- TAALBinary protocol with binary broadcast support
+- Chaintracks and Ordinals protocols with base_url override
+- Provider configuration container with block DSL and `.default(testnet:)` pattern
+- Provider introspection and capability matrix
+- Concrete provider defaults for GorillaPool, WhatsOnChain, and TAAL
+
+### Changed
+- Facades (ARC, WhatsOnChain, ChainTracker) hollowed out to delegate via Protocol
+- Removed `BSV::MAINNET_URL`/`TESTNET_URL` constants and ENV var reading — provider defaults are the single source of truth
+- Removed `BASE_URL` from protocols — `base_url:` is now mandatory
+- Wallet namespace reorganisation: `Store` and `BroadcastQueue` collaborators namespaced under `Client`
+- `ProtoWallet` and `WalletClient` replaced with `Client`
+
+### Fixed
+- Ruby 2.7 kwargs compatibility in `Protocol#call` and TAALBinary spec doubles
+- Nil-guard on WoCREST broadcast and ARC status metadata
+- ARC status rejection checks and TAALBinary nil-txid guard
+- `BSV::Wallet::Wallet` autoload failure in multi-gem setup
+- SimpleCov coverage gate now requires `COVERAGE=true` explicitly
+
 ## 0.12.1 — 2026-04-16
 
 ### Fixed
