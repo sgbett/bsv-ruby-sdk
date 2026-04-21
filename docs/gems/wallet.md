@@ -47,7 +47,7 @@ The wallet is built around five pluggable interfaces under `BSV::Wallet::Interfa
 | Interface | What it defines | Shipped implementations |
 |-----------|----------------|------------------------|
 | [BRC100](../wallet/client.md) | 28 wallet methods (transactions, crypto, certificates, etc.) | `Client` |
-| [Store](../wallet/store.md) | Persistence for actions, outputs, certificates, proofs | `Store::Memory` (tests), `Store::File` (default), `PostgresStore` ([separate gem](wallet-postgres.md)) |
+| [Store](../wallet/store.md) | Persistence for actions, outputs, certificates, proofs | `Store::File` (default), `PostgresStore` ([separate gem](wallet-postgres.md)) |
 | [BroadcastQueue](../wallet/broadcast-queue.md) | Transaction dispatch to the network | `BroadcastQueue::Inline` (default), `SolidQueueAdapter` ([separate gem](wallet-postgres.md)) |
 | [ProofStore](../wallet/proof-store.md) | SPV merkle proof persistence | `LocalProofStore` |
 | [UTXOPool](../wallet/utxo-pool.md) | Pre-funded output pools | `LocalPool` |
