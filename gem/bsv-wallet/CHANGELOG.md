@@ -5,6 +5,27 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0 — 2026-04-21
+
+### Added
+- BRC-100 abstract contract modules and `Client` with composition architecture
+- UTXO pool system: `UTXOPool` interface, `LocalPool` implementation, `ReplenishmentWorker`, and `utxo_pool` factory on Client
+- BRC-122 two-zone basket validation
+- `update_output_basket` on Store interface
+
+### Changed
+- `ProtoWallet` and `WalletClient` deleted, replaced with `Client` using concern modules (`Transaction`, `Crypto`, `Identity`, `Network`, `Authentication`)
+- File paths renamed from `wallet_interface` to `wallet`
+- `Store` and `BroadcastQueue` collaborators namespaced under `Client`
+- Contracts moved under `Interface` namespace
+- Legacy `ChainProvider` classes removed
+
+### Fixed
+- `internalize_payment` and `internalize_basket` now set `state: :spendable` explicitly on stored outputs
+- Derivation metadata now persisted in `store_tracked_outputs`
+- Cold start normalisation and eager validation fixes
+- SimpleCov coverage gate now requires `COVERAGE=true` explicitly
+
 ## 0.9.1 — 2026-04-16
 
 ### Changed
