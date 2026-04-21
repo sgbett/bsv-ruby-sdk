@@ -934,6 +934,7 @@ module BSV
                                   locking_script: tx_output.locking_script.to_hex,
                                   basket: 'default',
                                   spendable: true,
+                                  state: :spendable,
                                   sender_identity_key: sender_key,
                                   derivation_prefix: prefix,
                                   derivation_suffix: suffix,
@@ -957,6 +958,7 @@ module BSV
                                   tags: remittance[:tags] || [],
                                   custom_instructions: remittance[:custom_instructions],
                                   spendable: true,
+                                  state: :spendable,
                                   source_tx_hex: tx_hex
                                 })
         end
