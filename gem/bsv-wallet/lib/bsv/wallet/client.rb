@@ -113,9 +113,53 @@ module BSV
         @broadcast_queue.broadcast_enabled?
       end
 
-      # Raises {UnsupportedActionError}.
+      # Discovers UTXOs on-chain for the wallet's identity address and imports
+      # any that are not already in local storage.
+      #
+      # Requires either a substrate or a chain_data_source. When both are present,
+      # the substrate takes priority.
+      #
+      # @return [Integer] number of UTXOs imported (0 if nothing new)
+      # @raise [UnsupportedActionError] when neither substrate nor chain_data_source is set
+      # @raise [WalletError] when a fetched transaction has an out-of-bounds tx_pos
       def sync_utxos
-        raise UnsupportedActionError, 'sync_utxos requires a remote substrate or custom integration'
+        return @substrate.sync_utxos if @substrate
+
+        raise UnsupportedActionError, 'sync_utxos requires a chain_data_source or remote substrate' unless @chain_data_source
+
+        address = identity_address
+        utxos = @chain_data_source.fetch_utxos(address)
+        return 0 if utxos.empty?
+
+        imported = 0
+        utxos.each do |utxo|
+          outpoint = "#{utxo.tx_hash}.#{utxo.tx_pos}"
+          next if output_exists?(outpoint)
+
+          tx = @chain_data_source.fetch_transaction(utxo.tx_hash)
+
+          pos = utxo.tx_pos
+          unless pos.is_a?(Integer) && pos >= 0 && pos < tx.outputs.length
+            raise WalletError, "Invalid tx_pos #{pos.inspect} for #{utxo.tx_hash} (#{tx.outputs.length} outputs)"
+          end
+
+          locking_script_hex = tx.outputs[pos].locking_script.to_hex
+
+          @storage.store_output({
+                                  outpoint: outpoint,
+                                  satoshis: utxo.satoshis,
+                                  locking_script: locking_script_hex,
+                                  basket: 'default',
+                                  tags: [],
+                                  derivation_type: :identity,
+                                  state: :spendable,
+                                  source_tx_hex: tx.to_hex
+                                })
+          @storage.store_transaction(utxo.tx_hash, tx.to_hex)
+          imported += 1
+        end
+
+        imported
       end
 
       # --- UTXO Pool & Settings ---
