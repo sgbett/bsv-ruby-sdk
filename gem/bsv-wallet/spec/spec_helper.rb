@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-if ENV['COVERAGE']
+if ENV['COVERAGE'].to_s == 'true'
   require_relative '../../../spec/simplecov_setup'
   SimpleCov.command_name 'bsv-wallet'
   SimpleCov.start
