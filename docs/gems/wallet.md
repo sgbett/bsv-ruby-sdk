@@ -95,6 +95,37 @@ To find all successfully-broadcast actions, query for both `'unproven'` and `'co
 | `UnsupportedActionError` | Requested operation not supported |
 | `PoolDepletedError` | UTXO pool exhausted |
 
+## Storage adapters
+
+The wallet requires a persistent storage adapter. Two are shipped:
+
+| Adapter | Use case |
+|---------|----------|
+| `Store::File` | Default. JSON files on disk (`~/.bsv-wallet/`). Good for development and single-process services. |
+| `PostgresStore` | Production. Via the [`bsv-wallet-postgres`](wallet-postgres.md) gem. |
+
+### Why MemoryStore is blocked
+
+`Client.new` will raise `ArgumentError` if you pass a `Store::Memory` instance.
+
+MemoryStore does not persist data. When the process exits, **everything is lost** — outputs, actions, certificates, and critically, the derived key material needed to spend change outputs. Any funds sent to derived change addresses become permanently unrecoverable.
+
+This is not a theoretical risk. The wallet derives unique keys for every change output via BRC-29. Without the derivation metadata surviving the process, there is no way to reconstruct the private key needed to spend that change. The satoshis are burned.
+
+### Overriding the guard
+
+If you are writing tests that never broadcast real transactions and you accept the above risk:
+
+```ruby
+wallet = BSV::Wallet::Client.new(
+  key,
+  storage: BSV::Wallet::Store::Memory.new,
+  allow_memory_store: true
+)
+```
+
+This flag exists for unit test suites that mock the broadcaster and need fast, disposable storage. Do not use it in any code path that touches real funds.
+
 ## Further reading
 
 - [Client (BRC-100)](../wallet/client.md) — the 28 methods, auto-funding, substrate delegation

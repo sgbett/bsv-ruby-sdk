@@ -70,7 +70,7 @@ RSpec.describe "Client auto-funding pipeline (#{store_label})" do
   # Post-HLR #455: broadcaster required; create_action raises when absent and no_send unset.
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
-    BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
+    BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster, allow_memory_store: true)
   end
 
   # Stub broadcast for all tests — auto_funding_spec tests auto-fund plumbing,
@@ -433,7 +433,8 @@ RSpec.describe "Client auto-funding pipeline (#{store_label})" do
         private_key,
         storage: storage,
         broadcaster: broadcaster,
-        change_generator: bad_generator
+        change_generator: bad_generator,
+        allow_memory_store: true
       )
 
       expect do
@@ -674,7 +675,8 @@ RSpec.describe "Client auto-funding pipeline (#{store_label})" do
         broadcaster: broadcaster,
         fee_estimator: fee_estimator,
         coin_selector: coin_selector,
-        change_generator: change_generator
+        change_generator: change_generator,
+        allow_memory_store: true
       )
       seed_payment_output(custom_wallet, satoshis: 10_000)
 

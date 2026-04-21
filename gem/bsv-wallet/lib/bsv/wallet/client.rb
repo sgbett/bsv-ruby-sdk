@@ -51,8 +51,8 @@ module BSV
       attr_reader :substrate
 
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
-      # @param storage [Store] persistence adapter (default: Store::File.new).
-      #   Use +storage: Store::Memory.new+ for tests.
+      # @param storage [Store] persistence adapter (default: Store::File.new)
+      # @param allow_memory_store [Boolean] set +true+ to suppress the MemoryStore safety guard
       # @param network [String] 'mainnet' (default) or 'testnet'
       # @param proof_store [ProofStore, nil] merkle proof store (default: LocalProofStore backed by storage)
       # @param http_client [#request, nil] injectable HTTP client for certificate issuance
@@ -73,8 +73,15 @@ module BSV
         change_generator: nil,
         broadcaster: nil,
         broadcast_queue: nil,
-        substrate: nil
+        substrate: nil,
+        allow_memory_store: false
       )
+        if storage.is_a?(Store::Memory) && !storage.is_a?(Store::File) && !allow_memory_store
+          raise ArgumentError,
+                'MemoryStore is not a safe storage adapter for wallets. ' \
+                'See: https://sgbett.github.io/bsv-ruby-sdk/gems/wallet/#storage-adapters'
+        end
+
         @key_deriver = key.is_a?(KeyDeriver) ? key : KeyDeriver.new(key)
         @substrate = substrate
         @storage = storage

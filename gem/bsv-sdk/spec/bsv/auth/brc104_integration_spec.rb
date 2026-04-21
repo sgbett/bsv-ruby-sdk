@@ -29,10 +29,10 @@ RSpec.describe 'BRC-104 AuthFetch <-> AuthMiddleware integration' do # rubocop:d
   let(:client2_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(52)) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(53)) }
 
-  let(:client_wallet)    { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new) }
-  let(:server_wallet)    { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new) }
-  let(:client2_wallet)   { BSV::Wallet::Client.new(client2_key, storage: BSV::Wallet::Store::Memory.new) }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new) }
+  let(:client_wallet)    { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:server_wallet)    { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:client2_wallet)   { BSV::Wallet::Client.new(client2_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
 
   # -------------------------------------------------------------------------
   # Simple downstream Rack app

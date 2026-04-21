@@ -12,7 +12,7 @@ RSpec.describe "Pool health and configurable change parameters (#{store_label})"
 
   describe 'Client#balance' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
-    let(:client)      { BSV::Wallet::Client.new(private_key, storage: store) }
+    let(:client)      { BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true) }
 
     context 'with 3 spendable outputs in the default basket' do
       before do
@@ -75,7 +75,7 @@ RSpec.describe "Pool health and configurable change parameters (#{store_label})"
 
   describe 'Client#spendable_balance' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
-    let(:client)      { BSV::Wallet::Client.new(private_key, storage: store) }
+    let(:client)      { BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true) }
 
     # Output with full BRC-29 derivation metadata (auto-spendable).
     let(:derivation_output) do
@@ -175,7 +175,7 @@ RSpec.describe "Pool health and configurable change parameters (#{store_label})"
 
   describe 'Client#set_wallet_change_params' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
-    let(:client)      { BSV::Wallet::Client.new(private_key, storage: store) }
+    let(:client)      { BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true) }
 
     it 'persists change params to storage' do
       client.set_wallet_change_params(count: 20, satoshis: 10_000)

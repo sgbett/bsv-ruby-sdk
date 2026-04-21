@@ -10,7 +10,7 @@ RSpec.describe "BSV::Wallet::ReplenishmentWorker (#{store_label})" do
   let(:store)       { store_factory.call }
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
   let(:wallet) do
-    BSV::Wallet::Client.new(private_key, storage: store, broadcaster: broadcaster)
+    BSV::Wallet::Client.new(private_key, storage: store, broadcaster: broadcaster, allow_memory_store: true)
   end
 
   before do

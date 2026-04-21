@@ -56,7 +56,7 @@ module BSV
       #   a fresh +Client.new('anyone', storage: Store::Memory.new)+
       # @return [true] when the signature verifies
       # @raise [InvalidError] otherwise
-      def verify!(cert, verifier: Client.new('anyone', storage: Store::Memory.new))
+      def verify!(cert, verifier: Client.new('anyone', storage: Store::Memory.new, allow_memory_store: true))
         signature_hex = cert[:signature]
         raise InvalidError, 'signature is missing' if signature_hex.nil? || signature_hex.empty?
 

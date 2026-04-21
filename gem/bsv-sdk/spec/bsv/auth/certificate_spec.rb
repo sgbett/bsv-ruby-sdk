@@ -21,7 +21,7 @@ RSpec.describe BSV::Auth::Certificate do
 
   let(:certifier_key)    { BSV::Primitives::PrivateKey.generate }
   let(:subject_key)      { BSV::Primitives::PrivateKey.generate }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new) }
+  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
 
   let(:cert_type)     { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
   let(:serial)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }

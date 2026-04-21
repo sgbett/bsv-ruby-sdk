@@ -362,7 +362,7 @@ RSpec.describe "BSV::Wallet::LocalPool (#{store_label})" do
     let(:storage)     { store_factory.call }
     let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
     let(:wallet) do
-      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster)
+      BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster, allow_memory_store: true)
     end
     let(:pool) { wallet.utxo_pool(name: 'test') }
 

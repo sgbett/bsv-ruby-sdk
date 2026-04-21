@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'tmpdir'
+require 'fileutils'
 require 'bsv/wallet/store/memory'
 
 # Provides store factory methods for running specs against multiple
@@ -16,5 +17,19 @@ require 'bsv/wallet/store/memory'
 #   end
 STORE_FACTORIES = {
   'MemoryStore' => -> { BSV::Wallet::Store::Memory.new },
-  'FileStore'   => -> { BSV::Wallet::Store::File.new(dir: Dir.mktmpdir) }
+  'FileStore'   => lambda {
+    dir = Dir.mktmpdir('bsv-wallet-test')
+    Thread.current[:_bsv_wallet_tmpdir] = dir
+    BSV::Wallet::Store::File.new(dir: dir)
+  }
 }.freeze
+
+RSpec.configure do |config|
+  config.after(:each) do
+    dir = Thread.current[:_bsv_wallet_tmpdir]
+    if dir && ::File.directory?(dir)
+      FileUtils.rm_rf(dir)
+      Thread.current[:_bsv_wallet_tmpdir] = nil
+    end
+  end
+end

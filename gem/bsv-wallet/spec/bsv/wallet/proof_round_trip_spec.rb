@@ -88,7 +88,7 @@ RSpec.describe "Proof round-trip: internalize_action → create_action → valid
   let(:storage) { store_factory.call }
   # Post-HLR #455: broadcaster required; create_action raises without one.
   let(:broadcaster) { double('broadcaster') } # rubocop:disable RSpec/VerifiedDoubles
-  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster) }
+  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: storage, broadcaster: broadcaster, allow_memory_store: true) }
 
   before do
     allow(broadcaster).to receive(:broadcast).and_return(
