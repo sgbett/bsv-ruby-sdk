@@ -17,7 +17,7 @@ require 'bsv/wallet/store/memory'
 #   end
 STORE_FACTORIES = {
   'MemoryStore' => -> { BSV::Wallet::Store::Memory.new },
-  'FileStore'   => lambda {
+  'FileStore' => lambda {
     dir = Dir.mktmpdir('bsv-wallet-test')
     Thread.current[:_bsv_wallet_tmpdir] = dir
     BSV::Wallet::Store::File.new(dir: dir)
@@ -25,9 +25,9 @@ STORE_FACTORIES = {
 }.freeze
 
 RSpec.configure do |config|
-  config.after(:each) do
+  config.after do
     dir = Thread.current[:_bsv_wallet_tmpdir]
-    if dir && ::File.directory?(dir)
+    if dir && File.directory?(dir)
       FileUtils.rm_rf(dir)
       Thread.current[:_bsv_wallet_tmpdir] = nil
     end
