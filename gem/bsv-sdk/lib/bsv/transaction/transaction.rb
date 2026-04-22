@@ -553,9 +553,11 @@ module BSV
       # @param chain_tracker [ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
       # @return [true] on successful verification
-      # @raise [ArgumentError] if a source transaction or unlocking script is missing
-      # @raise [BSV::Script::ScriptError] if script execution fails
-      # @raise [VerificationError] for merkle path failures, fee validation, or output overflow
+      # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
+      # @raise [VerificationError] with code +:insufficient_fee+ if the fee is below the model's threshold
+      # @raise [VerificationError] with code +:output_overflow+ if outputs exceed inputs
+      # @raise [VerificationError] with code +:script_failure+ if script execution fails
+      # @raise [VerificationError] with code +:missing_source+ if an input is missing required source data
       def verify(chain_tracker:, fee_model: nil)
         verified = {}
         queue = [self]
@@ -581,8 +583,26 @@ module BSV
 
           # Verify each input
           tx.inputs.each_with_index do |input, index|
+            # Populate source data from source_transaction when not already set.
+            # Matches the TS SDK pattern: sourceOutput is read directly from
+            # source_transaction.outputs[sourceOutputIndex] during verify.
+            if input.source_transaction
+              source_output = input.source_transaction.outputs[input.prev_tx_out_index]
+              if source_output
+                input.source_locking_script ||= source_output.locking_script
+                input.source_satoshis ||= source_output.satoshis
+              end
+            end
+
             verify_input_requirements(tx, input, index)
-            tx.verify_input(index)
+            begin
+              tx.verify_input(index)
+            rescue BSV::Script::ScriptError => e
+              raise VerificationError.new(
+                :script_failure,
+                "script verification failed for input #{index} of transaction #{tx.txid_hex}: #{e.message}"
+              )
+            end
 
             # Enqueue source transaction for verification if not yet verified
             source_tx = input.source_transaction
@@ -742,9 +762,18 @@ module BSV
 
       def verify_input_requirements(tx, input, index)
         tx_id = tx.txid_hex
-        raise ArgumentError, "input #{index} of transaction #{tx_id} has no unlocking script" if input.unlocking_script.nil?
-        raise ArgumentError, "input #{index} of transaction #{tx_id} has no source locking script" if input.source_locking_script.nil?
-        raise ArgumentError, "input #{index} of transaction #{tx_id} has no source satoshis" if input.source_satoshis.nil?
+        if input.unlocking_script.nil?
+          raise VerificationError.new(:missing_source,
+                                      "input #{index} of transaction #{tx_id} has no unlocking script")
+        end
+        if input.source_locking_script.nil?
+          raise VerificationError.new(:missing_source,
+                                      "input #{index} of transaction #{tx_id} has no source locking script")
+        end
+        return unless input.source_satoshis.nil?
+
+        raise VerificationError.new(:missing_source,
+                                    "input #{index} of transaction #{tx_id} has no source satoshis")
       end
 
       def verify_fee(fee_model)

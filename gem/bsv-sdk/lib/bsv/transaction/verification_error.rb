@@ -14,6 +14,8 @@ module BSV
       INVALID_MERKLE_PROOF = :invalid_merkle_proof
       INSUFFICIENT_FEE = :insufficient_fee
       OUTPUT_OVERFLOW = :output_overflow
+      SCRIPT_FAILURE = :script_failure
+      MISSING_SOURCE = :missing_source
 
       # @param code [Symbol] error code
       # @param message [String] human-readable description

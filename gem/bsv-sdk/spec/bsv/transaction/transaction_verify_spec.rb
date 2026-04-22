@@ -104,7 +104,7 @@ RSpec.describe BSV::Transaction::Transaction do
         expect(tx.verify(chain_tracker: chain_tracker)).to be true
       end
 
-      it 'raises ScriptError when scripts fail' do
+      it 'raises VerificationError(:script_failure) when scripts fail' do
         source_tx = build_source_tx
         source_tx.merkle_path = make_merkle_path
 
@@ -113,7 +113,11 @@ RSpec.describe BSV::Transaction::Transaction do
         tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_0')
 
         expect { tx.verify(chain_tracker: chain_tracker) }
-          .to raise_error(BSV::Script::ScriptError)
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:script_failure)
+            expect(e.message).to include('input 0')
+            expect(e.cause).to be_a(BSV::Script::ScriptError)
+          }
       end
     end
 
@@ -286,7 +290,10 @@ RSpec.describe BSV::Transaction::Transaction do
                       ))
 
         expect { tx.verify(chain_tracker: chain_tracker) }
-          .to raise_error(ArgumentError, /no unlocking script/)
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:missing_source)
+            expect(e.message).to include('no unlocking script')
+          }
       end
 
       it 'raises when source locking script is missing' do
@@ -309,7 +316,10 @@ RSpec.describe BSV::Transaction::Transaction do
                       ))
 
         expect { tx.verify(chain_tracker: chain_tracker) }
-          .to raise_error(ArgumentError, /no source locking script/)
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:missing_source)
+            expect(e.message).to include('no source locking script')
+          }
       end
 
       it 'raises when source satoshis is missing' do
@@ -332,7 +342,10 @@ RSpec.describe BSV::Transaction::Transaction do
                       ))
 
         expect { tx.verify(chain_tracker: chain_tracker) }
-          .to raise_error(ArgumentError, /no source satoshis/)
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:missing_source)
+            expect(e.message).to include('no source satoshis')
+          }
       end
     end
 
