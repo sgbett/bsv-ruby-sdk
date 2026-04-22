@@ -5,7 +5,9 @@
 [![Gem Version](https://img.shields.io/gem/v/bsv-sdk)](https://rubygems.org/gems/bsv-sdk)
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-red)](https://rubygems.org/gems/bsv-sdk)
 
-Welcome to the BSV Blockchain Libraries Project, the comprehensive Ruby SDK designed to provide an updated and unified layer for developing scalable applications on the BSV Blockchain. This SDK addresses the limitations of previous tools by offering a fresh, peer-to-peer approach, adhering to SPV, and ensuring privacy and scalability.
+A comprehensive Ruby SDK for the BSV Blockchain, built with faithful adherence to the [BRC specifications](https://github.com/bitcoin-sv/BRCs) and cross-SDK compatibility with the official [TypeScript](https://github.com/bsv-blockchain/ts-sdk), [Go](https://github.com/bsv-blockchain/go-sdk), and [Python](https://github.com/bsv-blockchain/py-sdk) implementations. The Ruby SDK strives to be a complete, correct, and well-tested implementation that serves the Ruby community — one that developers can rely on as a reference-quality foundation for BSV application development.
+
+The project is grounded in the principles that make Ruby and Rails productive: [convention over configuration](https://rubyonrails.org/doctrine#convention-over-configuration), sensible defaults, and [the principle of least surprise](https://en.wikipedia.org/wiki/Principle_of_least_astonishment). Every component ships with a sane default that works out of the box, while exposing a pluggable composition interface for teams that need more. A `WalletClient` created with a single private key and no configuration gives you a fully functional BRC-100 wallet backed by local file storage. The same `WalletClient` interface — the same `create_action`, `list_outputs`, `internalize_action` calls — works identically when composed with PostgreSQL storage, SolidQueue background workers, UTXO pools with pre-warmed transaction caches, overlay-service chain providers, and asynchronous ARC broadcast behind a load balancer. The interface stays the same; the architecture underneath scales with you.
 
 ## Table of Contents
 
