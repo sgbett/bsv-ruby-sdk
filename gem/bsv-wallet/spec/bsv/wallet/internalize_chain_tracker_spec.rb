@@ -98,22 +98,33 @@ RSpec.describe 'internalize_action BEEF chain tracker verification' do
   end
 
   describe 'with a chain_data_source that responds to valid_root_for_height?' do
-    it 'passes the chain_data_source to beef.verify' do
-      chain_tracker = double('chain_tracker') # rubocop:disable RSpec/VerifiedDoubles
-      allow(chain_tracker).to receive(:respond_to?).with(:valid_root_for_height?).and_return(true)
-      allow(chain_tracker).to receive(:valid_root_for_height?).and_return(true)
+    # Use a real object that genuinely responds to valid_root_for_height?
+    # instead of stubbing respond_to?, which is brittle on Ruby 2.7 where
+    # the two-arg form (symbol, include_private) causes mock mismatches.
+    let(:accepting_tracker) do
+      obj = Object.new
+      def obj.valid_root_for_height?(_root, _height)
+        true
+      end
+      obj
+    end
 
-      wallet = build_wallet(chain_data_source: chain_tracker)
+    let(:rejecting_tracker) do
+      obj = Object.new
+      def obj.valid_root_for_height?(_root, _height)
+        false
+      end
+      obj
+    end
+
+    it 'passes the chain_data_source to beef.verify' do
+      wallet = build_wallet(chain_data_source: accepting_tracker)
 
       expect { wallet.internalize_action(internalize_args) }.not_to raise_error
     end
 
     it 'raises WalletError when the chain tracker rejects the merkle root' do
-      chain_tracker = double('chain_tracker') # rubocop:disable RSpec/VerifiedDoubles
-      allow(chain_tracker).to receive(:respond_to?).with(:valid_root_for_height?).and_return(true)
-      allow(chain_tracker).to receive(:valid_root_for_height?).and_return(false)
-
-      wallet = build_wallet(chain_data_source: chain_tracker)
+      wallet = build_wallet(chain_data_source: rejecting_tracker)
 
       expect { wallet.internalize_action(internalize_args) }
         .to raise_error(BSV::Wallet::WalletError, /merkle root not confirmed/)
@@ -122,8 +133,7 @@ RSpec.describe 'internalize_action BEEF chain tracker verification' do
 
   describe 'with a chain_data_source that does NOT respond to valid_root_for_height?' do
     it 'falls back to beef.verify(nil) — structural verification only' do
-      chain_source = double('chain_source') # rubocop:disable RSpec/VerifiedDoubles
-      allow(chain_source).to receive(:respond_to?).with(:valid_root_for_height?).and_return(false)
+      chain_source = Object.new
 
       wallet = build_wallet(chain_data_source: chain_source)
 
