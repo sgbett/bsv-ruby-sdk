@@ -5,6 +5,43 @@ All notable changes to the `bsv-wallet` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.0 — 2026-04-22
+
+### Added
+- `chain_data_source:` constructor param on `Client` — injectable chain
+  data provider for local blockchain queries without a remote substrate
+- `sync_utxos` restored — discovers on-chain UTXOs via the chain data
+  source and imports them into storage as `:spendable` with
+  `derivation_type: :identity`. Deduplicates transaction fetches and
+  validates UTXO API values against transaction outputs (#599)
+- `get_height` restored with local chain data fallback — returns
+  `{ height: Integer }` without requiring a substrate (#597)
+- `get_header_for_height` restored with local chain data fallback —
+  returns WoC block header JSON (#598)
+- BEEF SPV merkle root verification restored in `internalize_action`
+  when a chain data source with `valid_root_for_height?` is available;
+  error messages now distinguish SPV rejection from structural
+  invalidity (#600)
+- Store conformance shared examples extracted to
+  `lib/bsv/wallet/testing/` — downstream adapter gems can now
+  `require 'bsv/wallet/testing/store_conformance'` for interface and
+  wallet-level test coverage (#591)
+
+### Changed
+- `MemoryStore` guarded in `Client.new` — raises `ArgumentError` unless
+  `allow_memory_store: true` is passed, preventing accidental data loss
+  in production
+- Wallet-level dual-store specs refactored to use shared examples via
+  `it_behaves_like`; no test coverage lost (1281 examples preserved)
+
+### Fixed
+- `sync_utxos` deduplicates UTXO response entries before processing
+  and caches fetched transactions by txid to minimise WoC API calls
+- `internalize_action` chain tracker guard uses explicit nil check for
+  clarity
+- Consistent error message wording across `get_height` and
+  `get_header_for_height`
+
 ## 0.10.0 — 2026-04-21
 
 ### Added
