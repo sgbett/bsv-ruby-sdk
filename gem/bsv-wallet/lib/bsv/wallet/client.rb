@@ -50,6 +50,10 @@ module BSV
       # @return [Interface, nil] the optional substrate for remote wallet delegation
       attr_reader :substrate
 
+      # @return [#current_height, #get_block_header, #fetch_utxos, #fetch_transaction, nil]
+      #   optional chain data source for SPV and block header lookups
+      attr_reader :chain_data_source
+
       # @param key [BSV::Primitives::PrivateKey, String, KeyDeriver] signing key
       # @param storage [Store] persistence adapter (default: Store::File.new)
       # @param allow_memory_store [Boolean] set +true+ to suppress the MemoryStore safety guard
@@ -62,6 +66,8 @@ module BSV
       # @param broadcaster [#broadcast, nil] optional broadcaster
       # @param broadcast_queue [BroadcastQueue, nil] optional broadcast queue; defaults to BroadcastQueue::Inline
       # @param substrate [Interface, nil] optional remote wallet substrate
+      # @param chain_data_source [#current_height, #get_block_header, #fetch_utxos, #fetch_transaction, nil]
+      #   optional chain data source for SPV and block header lookups
       def initialize(
         key,
         storage: Store::File.new,
@@ -74,6 +80,7 @@ module BSV
         broadcaster: nil,
         broadcast_queue: nil,
         substrate: nil,
+        chain_data_source: nil,
         allow_memory_store: false
       )
         if storage.is_a?(Store::Memory) && !storage.is_a?(Store::File) && !allow_memory_store
@@ -84,6 +91,7 @@ module BSV
 
         @key_deriver = key.is_a?(KeyDeriver) ? key : KeyDeriver.new(key)
         @substrate = substrate
+        @chain_data_source = chain_data_source
         @storage = storage
         @network = network
         @proof_store = proof_store || LocalProofStore.new(storage)
@@ -105,9 +113,68 @@ module BSV
         @broadcast_queue.broadcast_enabled?
       end
 
-      # Raises {UnsupportedActionError}.
+      # Discovers UTXOs on-chain for the wallet's identity address and imports
+      # any that are not already in local storage.
+      #
+      # Requires either a substrate or a chain_data_source. When both are present,
+      # the substrate takes priority.
+      #
+      # @return [Integer] number of UTXOs imported (0 if nothing new)
+      # @raise [UnsupportedActionError] when neither substrate nor chain_data_source is set
+      # @raise [WalletError] when a fetched transaction has an out-of-bounds tx_pos
       def sync_utxos
-        raise UnsupportedActionError, 'sync_utxos requires a remote substrate or custom integration'
+        return @substrate.sync_utxos if @substrate
+
+        raise UnsupportedActionError, 'sync_utxos requires a chain_data_source or remote substrate' unless @chain_data_source
+
+        address = identity_address
+        utxos = @chain_data_source.fetch_utxos(address)
+        return 0 if utxos.empty?
+
+        # Group UTXOs by tx_hash to minimise WoC API calls — rate limiting
+        # is aggressive and penalties are harsh, so one fetch per transaction
+        # is far better than one fetch per UTXO.
+        tx_cache = {}
+        new_utxos = utxos.uniq { |u| "#{u.tx_hash}.#{u.tx_pos}" }
+                         .reject { |u| output_exists?("#{u.tx_hash}.#{u.tx_pos}") }
+        return 0 if new_utxos.empty?
+
+        new_utxos.each do |utxo|
+          tx = tx_cache[utxo.tx_hash] ||= @chain_data_source.fetch_transaction(utxo.tx_hash)
+
+          pos = utxo.tx_pos
+          unless pos.is_a?(Integer) && pos >= 0 && pos < tx.outputs.length
+            raise WalletError, "Invalid tx_pos #{pos.inspect} for #{utxo.tx_hash} (#{tx.outputs.length} outputs)"
+          end
+
+          output = tx.outputs[pos]
+          output_satoshis = output.satoshis
+
+          # The transaction output is the authoritative source for satoshis —
+          # a mismatch with the UTXO API would produce invalid sighashes.
+          if !utxo.satoshis.nil? && utxo.satoshis != output_satoshis
+            raise WalletError,
+                  "UTXO value mismatch for #{utxo.tx_hash}.#{pos}: " \
+                  "chain reported #{utxo.satoshis}, tx output is #{output_satoshis}"
+          end
+
+          locking_script_hex = output.locking_script.to_hex
+          outpoint = "#{utxo.tx_hash}.#{utxo.tx_pos}"
+
+          @storage.store_output({
+                                  outpoint: outpoint,
+                                  satoshis: output_satoshis,
+                                  locking_script: locking_script_hex,
+                                  basket: 'default',
+                                  tags: [],
+                                  derivation_type: :identity,
+                                  state: :spendable,
+                                  source_tx_hex: tx.to_hex
+                                })
+          @storage.store_transaction(utxo.tx_hash, tx.to_hex)
+        end
+
+        new_utxos.length
       end
 
       # --- UTXO Pool & Settings ---
