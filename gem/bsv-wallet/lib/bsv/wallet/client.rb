@@ -131,12 +131,15 @@ module BSV
         utxos = @chain_data_source.fetch_utxos(address)
         return 0 if utxos.empty?
 
-        imported = 0
-        utxos.each do |utxo|
-          outpoint = "#{utxo.tx_hash}.#{utxo.tx_pos}"
-          next if output_exists?(outpoint)
+        # Group UTXOs by tx_hash to minimise WoC API calls — rate limiting
+        # is aggressive and penalties are harsh, so one fetch per transaction
+        # is far better than one fetch per UTXO.
+        tx_cache = {}
+        new_utxos = utxos.reject { |u| output_exists?("#{u.tx_hash}.#{u.tx_pos}") }
+        return 0 if new_utxos.empty?
 
-          tx = @chain_data_source.fetch_transaction(utxo.tx_hash)
+        new_utxos.each do |utxo|
+          tx = tx_cache[utxo.tx_hash] ||= @chain_data_source.fetch_transaction(utxo.tx_hash)
 
           pos = utxo.tx_pos
           unless pos.is_a?(Integer) && pos >= 0 && pos < tx.outputs.length
@@ -144,6 +147,7 @@ module BSV
           end
 
           locking_script_hex = tx.outputs[pos].locking_script.to_hex
+          outpoint = "#{utxo.tx_hash}.#{utxo.tx_pos}"
 
           @storage.store_output({
                                   outpoint: outpoint,
@@ -156,10 +160,9 @@ module BSV
                                   source_tx_hex: tx.to_hex
                                 })
           @storage.store_transaction(utxo.tx_hash, tx.to_hex)
-          imported += 1
         end
 
-        imported
+        new_utxos.length
       end
 
       # --- UTXO Pool & Settings ---

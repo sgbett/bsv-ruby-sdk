@@ -18,7 +18,7 @@ RSpec.describe BSV::Wallet::Client do
 
       it 'includes a helpful message' do
         expect { client.get_height }
-          .to raise_error(BSV::Wallet::UnsupportedActionError, /chain data source or remote substrate/)
+          .to raise_error(BSV::Wallet::UnsupportedActionError, /chain_data_source or remote substrate/)
       end
     end
 

@@ -15,7 +15,7 @@ module BSV
         def get_height(args = {}, originator: nil)
           return @substrate.get_height(args, originator: originator) if @substrate
 
-          raise UnsupportedActionError, 'get_height requires a chain data source or remote substrate' unless @chain_data_source
+          raise UnsupportedActionError, 'get_height requires a chain_data_source or remote substrate' unless @chain_data_source
 
           { height: @chain_data_source.current_height }
         end
