@@ -8,6 +8,7 @@ require 'bsv/wallet/testing/shared_examples_for_wallet_operations'
 STORE_FACTORIES.each do |store_label, store_factory|
   RSpec.describe "BSV::Wallet::LocalPool (#{store_label})" do
     let(:store) { store_factory.call }
+    let(:store_label) { store_label }
 
     it_behaves_like 'wallet local pool'
   end

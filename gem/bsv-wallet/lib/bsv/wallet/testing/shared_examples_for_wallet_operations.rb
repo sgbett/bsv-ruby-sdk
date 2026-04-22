@@ -1377,6 +1377,9 @@ RSpec.shared_examples 'wallet certificate operations' do
     }
   end
 
+  # -------------------------------------------------------------------------
+  # acquire_certificate
+  # -------------------------------------------------------------------------
   describe '#acquire_certificate' do
     it 'stores and returns a direct certificate' do
       result = wallet.acquire_certificate(direct_args)
@@ -1392,15 +1395,44 @@ RSpec.shared_examples 'wallet certificate operations' do
       expect(result).not_to have_key(:keyring)
     end
 
-    describe 'BRC-52 certifier signature verification' do
+    # Regression for https://github.com/sgbett/bsv-ruby-sdk/issues/305 (F8.15)
+    describe 'BRC-52 certifier signature verification (issue #305)' do
       it 'rejects a certificate with an invalid signature' do
         tampered = direct_args.merge(signature: 'ff' * 70)
+
         expect { wallet.acquire_certificate(tampered) }
           .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
       end
 
       it 'rejects a certificate whose fields have been tampered with after signing' do
         tampered = direct_args.merge(fields: fields.merge('email' => 'attacker@example.com'))
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'rejects a certificate whose subject is overridden' do
+        other_wallet_signature = begin
+          other_key = BSV::Primitives::PrivateKey.generate
+          preimage = BSV::Wallet::CertificateSignature.serialise_preimage(
+            type: cert_type,
+            serial_number: serial_number,
+            subject: other_key.public_key.to_hex,
+            certifier: certifier_hex,
+            revocation_outpoint: revocation_outpoint,
+            fields: fields
+          )
+          result = certifier_wallet.create_signature({
+                                                       data: preimage.unpack('C*'),
+                                                       protocol_id: [2, 'certificate signature'],
+                                                       key_id: "#{cert_type} #{serial_number}",
+                                                       counterparty: 'anyone'
+                                                     })
+          result[:signature].pack('C*').unpack1('H*')
+        end
+
+        tampered = direct_args.merge(signature: other_wallet_signature)
+
         expect { wallet.acquire_certificate(tampered) }
           .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
       end
@@ -1424,17 +1456,217 @@ RSpec.shared_examples 'wallet certificate operations' do
                                                         })[:signature].pack('C*').unpack1('H*')
 
         tampered = direct_args.merge(signature: imposter_sig)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'rejects a certificate with a malformed (non-hex) signature' do
+        tampered = direct_args.merge(signature: 'not hex at all')
+
         expect { wallet.acquire_certificate(tampered) }
           .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
       end
 
       it 'does not persist an unverified certificate to storage' do
         tampered = direct_args.merge(signature: 'ff' * 70)
+
         expect { wallet.acquire_certificate(tampered) }
           .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
 
         certs = wallet.list_certificates({ certifiers: [certifier_hex], types: [cert_type] })
         expect(certs[:total_certificates]).to eq(0)
+      end
+    end
+
+    # Follow-up hardening from PR #306 review.
+    describe 'CertificateSignature input validation (#306 review)' do
+      # #2 — strict base64 decode
+      it 'rejects a certificate whose type has whitespace-injected base64' do
+        raw32 = "\x01".b * 32
+        valid_type = Base64.strict_encode64(raw32)
+        whitespace_injected = valid_type.chars.each_slice(8).map(&:join).join("\n")
+
+        tampered = direct_args.merge(type: whitespace_injected)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError, /base64/)
+      end
+
+      it 'rejects a certificate whose serial_number has non-base64 characters' do
+        tampered = direct_args.merge(serial_number: 'not valid base64!!@#$%^&*()_+|')
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      # #3 — EncodingError → InvalidError
+      it 'rejects a certificate with non-UTF-8 bytes in a field value as InvalidError' do
+        bad_field_value = "\x80".b
+        tampered = direct_args.merge(fields: fields.merge('email' => bad_field_value))
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      # #4 — duplicate field names
+      it 'rejects fields containing both symbol and string forms of the same name' do
+        ambiguous = { 'email' => 'one@example.com', email: 'two@example.com' }
+        tampered = direct_args.merge(fields: ambiguous)
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError, /duplicate field name/)
+      end
+
+      # #6 — hex_to_bytes even-length guard
+      it 'rejects an odd-length signature hex' do
+        tampered = direct_args.merge(signature: signature[0...-1])
+
+        expect { wallet.acquire_certificate(tampered) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError, /even/)
+      end
+    end
+
+    it 'raises InvalidParameterError for issuance without certifier_url' do
+      args = direct_args.merge(acquisition_protocol: 'issuance')
+      args.delete(:serial_number)
+      args.delete(:revocation_outpoint)
+      args.delete(:signature)
+      args.delete(:keyring_for_subject)
+      expect { wallet.acquire_certificate(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    context 'with issuance protocol' do
+      let(:issuance_response_body) do
+        JSON.generate({
+                        'type' => cert_type,
+                        'subject' => wallet.key_deriver.identity_key,
+                        'serialNumber' => serial_number,
+                        'certifier' => certifier_hex,
+                        'revocationOutpoint' => revocation_outpoint,
+                        'signature' => signature,
+                        'fields' => fields,
+                        'keyringForSubject' => keyring
+                      })
+      end
+
+      let(:mock_auth_response) do
+        BSV::Auth::AuthResponse.new(
+          status: 200,
+          headers: {},
+          body: issuance_response_body,
+          identity_key: certifier_hex
+        )
+      end
+
+      let(:mock_auth_fetch) do
+        double('auth_fetch', fetch: mock_auth_response)
+      end
+
+      let(:issuance_wallet) do
+        w = BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true)
+        allow(w).to receive(:auth_fetch_client).and_return(mock_auth_fetch)
+        w
+      end
+
+      let(:issuance_args) do
+        {
+          type: cert_type,
+          certifier: certifier_hex,
+          acquisition_protocol: 'issuance',
+          fields: fields,
+          certifier_url: 'https://certifier.example.com/api/issue'
+        }
+      end
+
+      it 'acquires a certificate via issuance protocol' do
+        result = issuance_wallet.acquire_certificate(issuance_args)
+        expect(result[:type]).to eq(cert_type)
+        expect(result[:subject]).to eq(wallet.key_deriver.identity_key)
+        expect(result[:serial_number]).to eq(serial_number)
+        expect(result[:certifier]).to eq(certifier_hex)
+      end
+
+      it 'does not return the keyring in the result' do
+        result = issuance_wallet.acquire_certificate(issuance_args)
+        expect(result).not_to have_key(:keyring)
+      end
+
+      it 'stores the certificate in storage' do
+        issuance_wallet.acquire_certificate(issuance_args)
+        certs = issuance_wallet.list_certificates({ certifiers: [certifier_hex], types: [cert_type] })
+        expect(certs[:total_certificates]).to eq(1)
+      end
+
+      it 'calls AuthFetch#fetch with correct URL, method, headers, and body' do
+        expected_body = JSON.generate({
+                                        type: cert_type,
+                                        subject: issuance_wallet.key_deriver.identity_key,
+                                        certifier: certifier_hex,
+                                        fields: fields
+                                      })
+        allow(mock_auth_fetch).to receive(:fetch).and_return(mock_auth_response)
+        issuance_wallet.acquire_certificate(issuance_args)
+        expect(mock_auth_fetch).to have_received(:fetch).with(
+          'https://certifier.example.com/api/issue',
+          method: 'POST',
+          headers: { 'content-type' => 'application/json' },
+          body: expected_body
+        )
+      end
+
+      it 'raises WalletError on HTTP failure' do
+        failing_auth_fetch = double('auth_fetch')
+        allow(failing_auth_fetch).to receive(:fetch).and_return(
+          BSV::Auth::AuthResponse.new(status: 500, headers: {}, body: 'error', identity_key: certifier_hex)
+        )
+        w = BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true)
+        allow(w).to receive(:auth_fetch_client).and_return(failing_auth_fetch)
+        expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /HTTP 500/)
+      end
+
+      it 'raises WalletError on invalid JSON response' do
+        bad_auth_fetch = double('auth_fetch')
+        allow(bad_auth_fetch).to receive(:fetch).and_return(
+          BSV::Auth::AuthResponse.new(status: 200, headers: {}, body: 'not json', identity_key: certifier_hex)
+        )
+        w = BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true)
+        allow(w).to receive(:auth_fetch_client).and_return(bad_auth_fetch)
+        expect { w.acquire_certificate(issuance_args) }.to raise_error(BSV::Wallet::WalletError, /invalid JSON/)
+      end
+
+      it 'verifies the certifier signature on the issuance response' do
+        tampered_auth_fetch = double('auth_fetch')
+        tampered_body = JSON.generate({
+                                        'type' => cert_type,
+                                        'serialNumber' => serial_number,
+                                        'revocationOutpoint' => revocation_outpoint,
+                                        'signature' => 'ff' * 70,
+                                        'fields' => fields
+                                      })
+        allow(tampered_auth_fetch).to receive(:fetch).and_return(
+          BSV::Auth::AuthResponse.new(status: 200, headers: {}, body: tampered_body, identity_key: certifier_hex)
+        )
+        w = BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true)
+        allow(w).to receive(:auth_fetch_client).and_return(tampered_auth_fetch)
+        expect { w.acquire_certificate(issuance_args) }
+          .to raise_error(BSV::Wallet::CertificateSignature::InvalidError)
+      end
+
+      it 'lazily initialises auth_fetch_client on first call and memoises it' do
+        w = BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true)
+        allow(BSV::Auth::AuthFetch).to receive(:new).and_call_original
+        client1 = w.send(:auth_fetch_client)
+        client2 = w.send(:auth_fetch_client)
+        expect(client1).to be(client2)
+        expect(BSV::Auth::AuthFetch).to have_received(:new).once
+      end
+
+      it 'passes self as the wallet to AuthFetch' do
+        w = BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true)
+        allow(BSV::Auth::AuthFetch).to receive(:new).and_call_original
+        w.send(:auth_fetch_client)
+        expect(BSV::Auth::AuthFetch).to have_received(:new).with(wallet: w)
       end
     end
 
@@ -1450,8 +1682,16 @@ RSpec.shared_examples 'wallet certificate operations' do
         expect { wallet.acquire_certificate(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
       end
     end
+
+    it 'raises InvalidParameterError for invalid certifier' do
+      args = direct_args.merge(certifier: 'bad')
+      expect { wallet.acquire_certificate(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
   end
 
+  # -------------------------------------------------------------------------
+  # list_certificates
+  # -------------------------------------------------------------------------
   describe '#list_certificates' do
     before { wallet.acquire_certificate(direct_args) }
 
@@ -1471,8 +1711,19 @@ RSpec.shared_examples 'wallet certificate operations' do
       expect(result[:total_certificates]).to eq(0)
       expect(result[:certificates]).to be_empty
     end
+
+    it 'raises InvalidParameterError for missing certifiers' do
+      expect { wallet.list_certificates({ types: [cert_type] }) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises InvalidParameterError for missing types' do
+      expect { wallet.list_certificates({ certifiers: [certifier_hex] }) }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
   end
 
+  # -------------------------------------------------------------------------
+  # prove_certificate
+  # -------------------------------------------------------------------------
   describe '#prove_certificate' do
     let(:verifier_key) { BSV::Primitives::PrivateKey.generate }
     let(:verifier_hex) { verifier_key.public_key.to_hex }
@@ -1487,6 +1738,15 @@ RSpec.shared_examples 'wallet certificate operations' do
                                         })
       expect(result[:keyring_for_verifier]).to have_key('name')
       expect(result[:keyring_for_verifier]['name']).to be_a(Array)
+    end
+
+    it 'encrypts multiple fields when requested' do
+      result = wallet.prove_certificate({
+                                          certificate: { type: cert_type, serial_number: serial_number, certifier: certifier_hex },
+                                          fields_to_reveal: %w[name email],
+                                          verifier: verifier_hex
+                                        })
+      expect(result[:keyring_for_verifier].keys).to contain_exactly('name', 'email')
     end
 
     it 'allows the verifier to decrypt the keyring entry' do
@@ -1517,8 +1777,21 @@ RSpec.shared_examples 'wallet certificate operations' do
                                  })
       end.to raise_error(BSV::Wallet::WalletError)
     end
+
+    it 'raises InvalidParameterError for invalid verifier' do
+      expect do
+        wallet.prove_certificate({
+                                   certificate: { type: cert_type, serial_number: serial_number, certifier: certifier_hex },
+                                   fields_to_reveal: ['name'],
+                                   verifier: 'bad'
+                                 })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
   end
 
+  # -------------------------------------------------------------------------
+  # relinquish_certificate
+  # -------------------------------------------------------------------------
   describe '#relinquish_certificate' do
     before { wallet.acquire_certificate(direct_args) }
 
@@ -1537,6 +1810,9 @@ RSpec.shared_examples 'wallet certificate operations' do
     end
   end
 
+  # -------------------------------------------------------------------------
+  # discover_by_identity_key
+  # -------------------------------------------------------------------------
   describe '#discover_by_identity_key' do
     before { wallet.acquire_certificate(direct_args) }
 
@@ -1551,8 +1827,22 @@ RSpec.shared_examples 'wallet certificate operations' do
       result = wallet.discover_by_identity_key({ identity_key: other_key })
       expect(result[:total_certificates]).to eq(0)
     end
+
+    it 'does not include the keyring' do
+      result = wallet.discover_by_identity_key({ identity_key: wallet.key_deriver.identity_key })
+      expect(result[:certificates].first).not_to have_key(:keyring)
+    end
+
+    it 'raises InvalidParameterError for invalid identity key' do
+      expect do
+        wallet.discover_by_identity_key({ identity_key: 'bad' })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
   end
 
+  # -------------------------------------------------------------------------
+  # discover_by_attributes
+  # -------------------------------------------------------------------------
   describe '#discover_by_attributes' do
     before { wallet.acquire_certificate(direct_args) }
 
@@ -1564,6 +1854,12 @@ RSpec.shared_examples 'wallet certificate operations' do
     it 'returns empty when no fields match' do
       result = wallet.discover_by_attributes({ attributes: { 'name' => 'Bob' } })
       expect(result[:total_certificates]).to eq(0)
+    end
+
+    it 'raises InvalidParameterError for empty attributes' do
+      expect do
+        wallet.discover_by_attributes({ attributes: {} })
+      end.to raise_error(BSV::Wallet::InvalidParameterError)
     end
   end
 end
@@ -1827,6 +2123,32 @@ RSpec.shared_examples 'wallet UTXO pending locks' do
       outputs = store.find_outputs({ outpoint: 'tx0:0', include_spent: true, limit: 1, offset: 0 })
       expect(outputs.first).not_to have_key(:no_send)
     end
+
+    it 'does not set :no_send on an ordinary pending lock' do
+      seed_output(store)
+      store.update_output_state('tx0:0', :pending, pending_reference: 'ordinary-ref')
+
+      outputs = store.find_outputs({ outpoint: 'tx0:0', include_spent: true, limit: 1, offset: 0 })
+      expect(outputs.first).not_to have_key(:no_send)
+    end
+  end
+
+  # -----------------------------------------------------------------------
+  # Clearing metadata on transition to spent
+  # -----------------------------------------------------------------------
+  describe 'clearing metadata on transition to spent' do
+    it 'removes :pending_since and :pending_reference when marking spent' do
+      seed_output(store)
+      store.update_output_state('tx0:0', :pending, pending_reference: 'to-be-spent')
+
+      store.update_output_state('tx0:0', :spent)
+
+      outputs = store.find_outputs({ outpoint: 'tx0:0', include_spent: true, limit: 1, offset: 0 })
+      output = outputs.first
+      expect(output[:state]).to eq(:spent)
+      expect(output).not_to have_key(:pending_since)
+      expect(output).not_to have_key(:pending_reference)
+    end
   end
 end
 
@@ -1834,6 +2156,8 @@ end
 # wallet pool health
 # ---------------------------------------------------------------------------
 RSpec.shared_examples 'wallet pool health' do
+  # --- balance ---
+
   describe 'Client#balance' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
     let(:client)      { BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true) }
@@ -1869,20 +2193,45 @@ RSpec.shared_examples 'wallet pool health' do
       end
     end
 
+    context 'when one output is pending' do
+      before do
+        store.store_output({ outpoint: 'aa.0', satoshis: 1000, basket: 'default', state: :spendable })
+        store.store_output({ outpoint: 'bb.0', satoshis: 2000, basket: 'default', state: :pending })
+      end
+
+      it 'excludes the pending output from the balance' do
+        expect(client.balance(basket: 'default')).to eq(1000)
+      end
+    end
+
+    context 'when an output is spent' do
+      before do
+        store.store_output({ outpoint: 'aa.0', satoshis: 5000, basket: 'default', state: :spent })
+      end
+
+      it 'returns zero' do
+        expect(client.balance(basket: 'default')).to eq(0)
+      end
+    end
+
     it 'returns 0 when there are no outputs' do
       expect(client.balance).to eq(0)
     end
   end
 
+  # --- spendable_balance ---
+
   describe 'Client#spendable_balance' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
     let(:client)      { BSV::Wallet::Client.new(private_key, storage: store, allow_memory_store: true) }
 
+    # Output with full BRC-29 derivation metadata (auto-spendable).
     let(:derivation_output) do
       { outpoint: 'aa.0', satoshis: 3000, state: :spendable,
         derivation_prefix: 'abc', derivation_suffix: 'def', sender_identity_key: '02abc' }
     end
 
+    # Basket-only output without derivation data (not auto-spendable).
     let(:basket_output) do
       { outpoint: 'bb.0', satoshis: 2000, basket: 'tokens', state: :spendable }
     end
@@ -1891,12 +2240,86 @@ RSpec.shared_examples 'wallet pool health' do
       expect(client.spendable_balance).to eq(0)
     end
 
+    it 'returns 0 when only basket-only outputs exist' do
+      store.store_output(basket_output)
+      expect(client.spendable_balance).to eq(0)
+    end
+
     it 'includes only outputs with full BRC-29 derivation metadata' do
       store.store_output(derivation_output)
       store.store_output(basket_output)
       expect(client.spendable_balance).to eq(3000)
     end
+
+    it 'is less than balance when basket-only outputs are present' do
+      store.store_output(derivation_output)
+      store.store_output(basket_output)
+      expect(client.balance).to eq(5000)
+      expect(client.spendable_balance).to eq(3000)
+    end
+
+    it 'filters to a named basket when basket: is given' do
+      store.store_output(derivation_output.merge(basket: 'payments'))
+      store.store_output(derivation_output.merge(outpoint: 'cc.0', basket: 'other', satoshis: 1000))
+      expect(client.spendable_balance(basket: 'payments')).to eq(3000)
+    end
+
+    it 'excludes pending outputs' do
+      store.store_output(derivation_output.merge(state: :pending))
+      expect(client.spendable_balance).to eq(0)
+    end
+
+    it 'excludes spent outputs' do
+      store.store_output(derivation_output.merge(state: :spent))
+      expect(client.spendable_balance).to eq(0)
+    end
   end
+
+  # --- store_setting / find_setting ---
+
+  describe 'MemoryStore settings' do
+    it 'stores and retrieves a setting by key' do
+      params = { count: 20, satoshis: 10_000 }
+      store.store_setting('change_params', params)
+      expect(store.find_setting('change_params')).to eq(params)
+    end
+
+    it 'returns nil for a key that has never been set' do
+      expect(store.find_setting('nonexistent')).to be_nil
+    end
+
+    it 'overwrites an existing setting on second store' do
+      store.store_setting('change_params', { count: 10, satoshis: 5000 })
+      store.store_setting('change_params', { count: 20, satoshis: 8000 })
+      expect(store.find_setting('change_params')).to eq({ count: 20, satoshis: 8000 })
+    end
+  end
+
+  # --- FileStore persistence ---
+
+  describe 'FileStore settings persistence' do
+    let(:tmpdir) { Dir.mktmpdir('bsv-wallet-settings-test') }
+
+    after { FileUtils.rm_rf(tmpdir) }
+
+    it 'persists settings across instances' do
+      file_store = BSV::Wallet::Store::File.new(dir: tmpdir)
+      file_store.store_setting('change_params', { 'count' => 20, 'satoshis' => 10_000 })
+
+      reloaded = BSV::Wallet::Store::File.new(dir: tmpdir)
+      result = reloaded.find_setting('change_params')
+      expect(result).to be_a(Hash)
+      expect(result['count']).to eq(20)
+      expect(result['satoshis']).to eq(10_000)
+    end
+
+    it 'returns nil for an absent setting on a fresh store' do
+      file_store = BSV::Wallet::Store::File.new(dir: tmpdir)
+      expect(file_store.find_setting('change_params')).to be_nil
+    end
+  end
+
+  # --- set_wallet_change_params ---
 
   describe 'Client#set_wallet_change_params' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
@@ -1919,6 +2342,99 @@ RSpec.shared_examples 'wallet pool health' do
       expect do
         client.set_wallet_change_params(count: 10, satoshis: -1)
       end.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+  end
+
+  # --- Pool-aware ChangeGenerator ---
+
+  describe 'BSV::Wallet::ChangeGenerator pool-awareness' do
+    let(:private_key) { BSV::Primitives::PrivateKey.generate }
+    let(:key_deriver) { BSV::Wallet::KeyDeriver.new(private_key) }
+    # Use 1 sat/kB so dust_floor = max(2, 1*2) = 2 — keeps arithmetic simple.
+    let(:fee_model) { BSV::Wallet::FeeModel.new(sats_per_kb: 1) }
+    let(:generator) do
+      BSV::Wallet::ChangeGenerator.new(key_deriver: key_deriver, fee_model: fee_model, max_outputs: 8)
+    end
+
+    context 'when pool is below the target count' do
+      let(:pool_size)     { 5 }
+      let(:change_params) { { count: 20, satoshis: 10_000 } }
+
+      it 'produces up to max_outputs change outputs' do
+        outputs = generator.generate(
+          excess_satoshis: 10_000,
+          pool_size: pool_size,
+          change_params: change_params
+        )
+        expect(outputs.length).to be > 1
+        expect(outputs.length).to be <= 8
+      end
+
+      it 'all outputs sum to the excess' do
+        outputs = generator.generate(
+          excess_satoshis: 10_000,
+          pool_size: pool_size,
+          change_params: change_params
+        )
+        expect(outputs.sum { |o| o[:satoshis] }).to eq(10_000)
+      end
+    end
+
+    context 'when pool is at the target count' do
+      let(:pool_size)     { 20 }
+      let(:change_params) { { count: 20, satoshis: 10_000 } }
+
+      it 'produces 1-2 change outputs' do
+        outputs = generator.generate(
+          excess_satoshis: 10_000,
+          pool_size: pool_size,
+          change_params: change_params
+        )
+        expect(outputs.length).to be <= 2
+        expect(outputs.length).to be >= 1
+      end
+    end
+
+    context 'when pool is above the target count' do
+      let(:pool_size)     { 25 }
+      let(:change_params) { { count: 20, satoshis: 10_000 } }
+
+      it 'produces 1-2 change outputs' do
+        outputs = generator.generate(
+          excess_satoshis: 10_000,
+          pool_size: pool_size,
+          change_params: change_params
+        )
+        expect(outputs.length).to be <= 2
+      end
+    end
+
+    context 'when pool is far below target but max_outputs cap applies' do
+      it 'never exceeds max_outputs' do
+        outputs = generator.generate(
+          excess_satoshis: 100_000,
+          pool_size: 1,
+          change_params: { count: 1000, satoshis: 10_000 }
+        )
+        expect(outputs.length).to be <= generator.max_outputs
+      end
+    end
+
+    context 'when no change_params are set' do
+      it 'falls back to default behaviour (uses max_outputs)' do
+        outputs = generator.generate(excess_satoshis: 10_000)
+        expect(outputs.length).to be >= 1
+        expect(outputs.length).to be <= generator.max_outputs
+        expect(outputs.sum { |o| o[:satoshis] }).to eq(10_000)
+      end
+    end
+
+    context 'when pool_size is provided but change_params is nil' do
+      it 'falls back to default behaviour' do
+        outputs = generator.generate(excess_satoshis: 10_000, pool_size: 5)
+        expect(outputs.length).to be >= 1
+        expect(outputs.length).to be <= generator.max_outputs
+      end
     end
   end
 end
@@ -2077,17 +2593,40 @@ RSpec.shared_examples 'wallet local pool' do
     )
   end
 
+  # -----------------------------------------------------------------------
+  # Attributes and factory basics
+  # -----------------------------------------------------------------------
+
   describe 'attributes' do
     it 'derives the basket name as pool:<name>' do
       pool = build_pool(name: 'doom')
       expect(pool.basket).to eq('pool:doom')
     end
 
+    it 'exposes the name' do
+      pool = build_pool(name: 'payments')
+      expect(pool.name).to eq('payments')
+    end
+
+    it 'exposes the storage adapter (bug #8 regression)' do
+      pool = build_pool
+      expect(pool.storage).to eq(store)
+    end
+
     it 'exposes target_count' do
       pool = build_pool(target_count: 10)
       expect(pool.target_count).to eq(10)
     end
+
+    it 'exposes target_satoshis' do
+      pool = build_pool(target_satoshis: 5_000)
+      expect(pool.target_satoshis).to eq(5_000)
+    end
   end
+
+  # -----------------------------------------------------------------------
+  # acquire
+  # -----------------------------------------------------------------------
 
   describe '#acquire' do
     let(:pool) { build_pool }
@@ -2108,20 +2647,92 @@ RSpec.shared_examples 'wallet local pool' do
       expect(spendable.map { |o| o[:outpoint] }).not_to include(outpoint)
     end
 
+    it 'multiple sequential acquires return distinct outpoints' do
+      seed_pool_output(outpoint: "#{'bb' * 32}.0")
+      first  = pool.acquire
+      second = pool.acquire
+      expect(first).not_to eq(second)
+    end
+
     it 'raises PoolDepletedError when the pool is empty' do
       store.update_output_state("#{'aa' * 32}.0", :spent)
       expect { pool.acquire }.to raise_error(BSV::Wallet::PoolDepletedError)
     end
 
+    it 'raises PoolDepletedError when all outputs are already pending' do
+      outpoint = "#{'aa' * 32}.0"
+      store.update_output_state(outpoint, :pending, pending_reference: 'held-externally')
+      expect { pool.acquire }.to raise_error(BSV::Wallet::PoolDepletedError)
+    end
+
+    # Bug #1 regression: pool-acquired locks must use no_send: true so they
+    # are exempt from release_stale_pending! sweeps.
     it 'acquires with no_send: true so the lock survives release_stale_pending! (bug #1)' do
       outpoint = pool.acquire
+
+      # Zero-timeout forces any non-exempt lock to be released immediately.
       released = store.release_stale_pending!(timeout: 0)
       expect(released).to eq(0)
 
+      # The output must still be locked (not spendable).
       spendable = store.find_spendable_outputs(basket: 'pool:test')
       expect(spendable.map { |o| o[:outpoint] }).not_to include(outpoint)
     end
+
+    it 'the acquired output carries no_send: true in storage' do
+      outpoint = pool.acquire
+      raw = store.find_outputs({ outpoint: outpoint, include_spent: true, limit: 1, offset: 0 })
+      expect(raw.first[:no_send]).to be true
+    end
   end
+
+  # -----------------------------------------------------------------------
+  # Bug #3 regression: signal at <= low_water_mark
+  # -----------------------------------------------------------------------
+
+  describe '#acquire signals replenisher at exactly the low-water mark (bug #3)' do
+    let(:replenisher) { double('replenisher', signal: nil, stop: nil) }
+
+    # Pool of 2 with low_water_mark of 2: after first acquire, 1 output remains
+    # which is <= 2, so the replenisher must be signalled.
+    it 'signals when remaining count equals low_water_mark' do
+      pool = build_pool(target_count: 3, low_water_mark: 2)
+      pool.replenisher = replenisher
+
+      seed_pool_output(outpoint: "#{'cc' * 32}.0")
+      seed_pool_output(outpoint: "#{'dd' * 32}.0")
+
+      # After the first acquire there is 1 output left, which is <= low_water_mark (2).
+      pool.acquire
+      expect(replenisher).to have_received(:signal).at_least(:once)
+    end
+
+    # Pool of 1 with low_water_mark of 1: after acquire, 0 remain which is still <= 1.
+    it 'signals when pool drops to zero at low_water_mark of 1 (pool-of-1 edge case)' do
+      pool = build_pool(target_count: 1, low_water_mark: 1)
+      pool.replenisher = replenisher
+
+      seed_pool_output(outpoint: "#{'ee' * 32}.0")
+
+      pool.acquire
+      expect(replenisher).to have_received(:signal).at_least(:once)
+    end
+
+    it 'does not signal when remaining count is above low_water_mark' do
+      pool = build_pool(target_count: 10, low_water_mark: 2)
+      pool.replenisher = replenisher
+
+      # Seed 5 outputs; after one acquire 4 remain, which is > 2.
+      5.times { |i| seed_pool_output(outpoint: "#{"f#{i}" * 32}.0") }
+
+      pool.acquire
+      expect(replenisher).not_to have_received(:signal)
+    end
+  end
+
+  # -----------------------------------------------------------------------
+  # release
+  # -----------------------------------------------------------------------
 
   describe '#release' do
     let(:pool) { build_pool }
@@ -2143,6 +2754,10 @@ RSpec.shared_examples 'wallet local pool' do
     end
   end
 
+  # -----------------------------------------------------------------------
+  # status
+  # -----------------------------------------------------------------------
+
   describe '#status' do
     it 'returns :healthy state when available count is above low_water_mark' do
       pool = build_pool(target_count: 5, low_water_mark: 2)
@@ -2153,6 +2768,7 @@ RSpec.shared_examples 'wallet local pool' do
 
     it 'returns :depleted state when pool is empty and no replenisher is running' do
       pool = build_pool(target_count: 5, low_water_mark: 2)
+      # No outputs seeded — pool is empty.
       result = pool.status
       expect(result[:state]).to eq(:depleted)
     end
@@ -2163,7 +2779,48 @@ RSpec.shared_examples 'wallet local pool' do
       seed_pool_output(outpoint: "#{'bb' * 32}.0")
       expect(pool.status[:available]).to eq(2)
     end
+
+    it 'includes target count' do
+      pool = build_pool(target_count: 7)
+      expect(pool.status[:target]).to eq(7)
+    end
+
+    it 'includes satoshis_committed as the sum of spendable satoshis' do
+      pool = build_pool
+      seed_pool_output(outpoint: "#{'aa' * 32}.0", satoshis: 10_000)
+      seed_pool_output(outpoint: "#{'bb' * 32}.0", satoshis: 20_000)
+      expect(pool.status[:satoshis_committed]).to eq(30_000)
+    end
+
+    it 'returns :replenishing after acquire triggers replenisher signal' do
+      replenisher = double('replenisher', signal: nil, stop: nil)
+      pool = build_pool(target_count: 2, low_water_mark: 2)
+      pool.replenisher = replenisher
+
+      seed_pool_output(outpoint: "#{'aa' * 32}.0")
+      seed_pool_output(outpoint: "#{'bb' * 32}.0")
+
+      # After acquire the pool drops to 1 which is <= 2, triggering replenishment.
+      pool.acquire
+      expect(pool.status[:state]).to eq(:replenishing)
+    end
   end
+
+  # -----------------------------------------------------------------------
+  # Basket isolation
+  # -----------------------------------------------------------------------
+
+  describe 'basket isolation' do
+    it 'pool outputs are not returned by find_spendable_outputs for the default basket' do
+      seed_pool_output(outpoint: "#{'aa' * 32}.0", basket: 'pool:test')
+      default_outputs = store.find_spendable_outputs(basket: 'default')
+      expect(default_outputs.map { |o| o[:outpoint] }).not_to include("#{'aa' * 32}.0")
+    end
+  end
+
+  # -----------------------------------------------------------------------
+  # shutdown
+  # -----------------------------------------------------------------------
 
   describe '#shutdown' do
     let(:pool) { build_pool }
@@ -2173,11 +2830,92 @@ RSpec.shared_examples 'wallet local pool' do
       expect(pool.status[:state]).to eq(:shutdown)
     end
 
+    it 'is idempotent (calling shutdown twice does not raise)' do
+      pool.shutdown
+      expect { pool.shutdown }.not_to raise_error
+    end
+
     it 'raises PoolDepletedError on acquire after shutdown' do
       pool.shutdown
       expect { pool.acquire }.to raise_error(BSV::Wallet::PoolDepletedError)
     end
+
+    it 'stops the replenisher if one is set' do
+      replenisher = double('replenisher', stop: nil)
+      pool.replenisher = replenisher
+      pool.shutdown
+      expect(replenisher).to have_received(:stop)
+    end
   end
+
+  # -----------------------------------------------------------------------
+  # Concurrent acquire (barrier pattern)
+  # -----------------------------------------------------------------------
+
+  describe 'concurrent acquire' do
+    # FileStore uses a per-store mutex but shares a single .tmp file path across threads,
+    # making the atomic write pattern unsafe under concurrent load. Concurrent tests are
+    # MemoryStore-only.
+    before { skip 'FileStore is not thread-safe for concurrent writes' if store_label == 'FileStore' }
+
+    it '2 threads competing for 1 output: exactly 1 succeeds, the other gets PoolDepletedError' do
+      pool = build_pool
+      seed_pool_output(outpoint: "#{'aa' * 32}.0")
+
+      results  = Array.new(2)
+      barrier  = Queue.new
+      acquired = []
+
+      threads = 2.times.map do |i|
+        Thread.new do
+          barrier.pop # wait until both threads are ready
+
+          begin
+            results[i] = pool.acquire
+            acquired << results[i]
+          rescue BSV::Wallet::PoolDepletedError
+            results[i] = :depleted
+          end
+        end
+      end
+
+      2.times { barrier.push(:go) }
+      threads.each(&:join)
+
+      depleted_count = results.count(:depleted)
+      success_count  = results.count { |r| r != :depleted }
+
+      expect(success_count).to eq(1), "Expected exactly 1 acquire to succeed; got #{results.inspect}"
+      expect(depleted_count).to eq(1)
+    end
+
+    it '5 threads competing for 5 outputs: all 5 get distinct outpoints' do
+      pool = build_pool(target_count: 5)
+      5.times { |i| seed_pool_output(outpoint: "#{SecureRandom.hex(32)}.#{i}") }
+
+      results = Array.new(5)
+      barrier = Queue.new
+
+      threads = 5.times.map do |i|
+        Thread.new do
+          barrier.pop
+          results[i] = pool.acquire
+        rescue BSV::Wallet::PoolDepletedError
+          results[i] = :depleted
+        end
+      end
+
+      5.times { barrier.push(:go) }
+      threads.each(&:join)
+
+      expect(results).not_to include(:depleted)
+      expect(results.uniq.length).to eq(5), "Expected all 5 distinct outpoints; got #{results.inspect}"
+    end
+  end
+
+  # -----------------------------------------------------------------------
+  # Client#utxo_pool factory integration
+  # -----------------------------------------------------------------------
 
   describe 'Client#utxo_pool factory' do
     let(:private_key) { BSV::Primitives::PrivateKey.generate }
@@ -2204,6 +2942,22 @@ RSpec.shared_examples 'wallet local pool' do
       named_pool = wallet.utxo_pool(name: 'payments')
       named_pool.shutdown
       expect(named_pool.basket).to eq('pool:payments')
+    end
+
+    it 'pool has a replenisher attached (not nil)' do
+      replenisher = pool.instance_variable_get(:@replenisher)
+      expect(replenisher).not_to be_nil
+    end
+
+    it 'pool.storage returns the wallet storage adapter (bug #8 regression)' do
+      expect(pool.storage).to eq(storage)
+    end
+
+    it 'shutdown marks the replenisher as stopped' do
+      replenisher = pool.instance_variable_get(:@replenisher)
+      pool.shutdown
+      running = replenisher.instance_variable_get(:@running)
+      expect(running).to be false
     end
   end
 end
@@ -2280,6 +3034,10 @@ RSpec.shared_examples 'wallet replenishment worker' do
     [pool, worker]
   end
 
+  # -----------------------------------------------------------------------
+  # Lifecycle
+  # -----------------------------------------------------------------------
+
   describe 'lifecycle' do
     let(:worker) { build_pool_and_worker.last }
 
@@ -2295,7 +3053,25 @@ RSpec.shared_examples 'wallet replenishment worker' do
       running = worker.instance_variable_get(:@running)
       expect(running).to be false
     end
+
+    it 'stop is idempotent' do
+      worker.start
+      worker.stop
+      expect { worker.stop }.not_to raise_error
+    end
+
+    it 'start is idempotent (calling start twice does not spawn extra threads)' do
+      worker.start
+      first_thread = worker.instance_variable_get(:@thread)
+      worker.start
+      second_thread = worker.instance_variable_get(:@thread)
+      expect(first_thread).to equal(second_thread)
+    end
   end
+
+  # -----------------------------------------------------------------------
+  # replenish (invoked directly to avoid thread-timing dependence)
+  # -----------------------------------------------------------------------
 
   describe '#replenish (invoked directly)' do
     it 'does nothing when pool is already at target' do
@@ -2331,19 +3107,19 @@ RSpec.shared_examples 'wallet replenishment worker' do
         expect(pool_outputs.length).to be >= 1
       end
 
-      it 'pool outputs are stored with BRC-29 derivation metadata' do
+      it 'pool outputs are stored with BRC-29 derivation metadata (bug #4 regression)' do
         worker.send(:replenish)
         pool_outputs = store.find_spendable_outputs(basket: 'pool:test')
         expect(pool_outputs).not_to be_empty
 
         pool_outputs.each do |o|
-          expect(o[:derivation_prefix]).not_to be_nil
-          expect(o[:derivation_suffix]).not_to be_nil
-          expect(o[:sender_identity_key]).not_to be_nil
+          expect(o[:derivation_prefix]).not_to be_nil, "Output #{o[:outpoint]} missing :derivation_prefix"
+          expect(o[:derivation_suffix]).not_to be_nil, "Output #{o[:outpoint]} missing :derivation_suffix"
+          expect(o[:sender_identity_key]).not_to be_nil, "Output #{o[:outpoint]} missing :sender_identity_key"
         end
       end
 
-      it 'calls create_action with auto_fund: true' do
+      it 'calls create_action with auto_fund: true (bug #7 regression)' do
         captured_args = nil
         allow(wallet).to receive(:create_action) do |args|
           captured_args = args
@@ -2354,6 +3130,152 @@ RSpec.shared_examples 'wallet replenishment worker' do
         expect(captured_args).not_to be_nil
         expect(captured_args[:auto_fund]).to be true
       end
+
+      it 'calls create_action with a valid output_description (5-50 chars) per output spec (bug #6 regression)' do
+        captured_args = nil
+        allow(wallet).to receive(:create_action) do |args|
+          captured_args = args
+          { txid: 'stub' }
+        end
+
+        worker.send(:replenish)
+        expect(captured_args).not_to be_nil
+
+        output_specs = captured_args[:outputs] || []
+        output_specs.each do |spec|
+          desc = spec[:output_description]
+          expect(desc).to be_a(String)
+          expect(desc.length).to be >= 5,  "output_description '#{desc}' is shorter than 5 chars"
+          expect(desc.length).to be <= 50, "output_description '#{desc}' is longer than 50 chars"
+        end
+      end
+
+      it 'calls create_action with a Hash argument (no ArgumentError in Ruby 3.x) (bug #5 regression)' do
+        expect { worker.send(:replenish) }.not_to raise_error
+      end
+
+      it 'basket name in each output spec passes validate_basket! (bug #2 regression)' do
+        captured_args = nil
+        allow(wallet).to receive(:create_action) do |args|
+          captured_args = args
+          { txid: 'stub' }
+        end
+
+        worker.send(:replenish)
+        expect(captured_args).not_to be_nil
+
+        output_specs = captured_args[:outputs] || []
+        output_specs.each do |spec|
+          expect do
+            BSV::Wallet::Validators.validate_basket!(spec[:basket])
+          end.not_to raise_error, "basket '#{spec[:basket]}' should be valid but raised"
+        end
+      end
+    end
+
+    context 'when the worker thread encounters an error' do
+      it 'thread survives a WalletError raised inside replenish' do
+        _, worker = build_pool_and_worker(target_count: 2, target_satoshis: 1_000, interval: 0.05)
+        allow(wallet).to receive(:create_action).and_raise(
+          BSV::Wallet::InsufficientFundsError.new('not enough')
+        )
+        worker.start
+        sleep 0.15 # allow at least two cycles to run
+        running = worker.instance_variable_get(:@running)
+        thread  = worker.instance_variable_get(:@thread)
+        worker.stop
+        expect(running).to be true
+        expect(thread).to be_a(Thread)
+      end
+
+      it 'thread survives a StandardError raised inside replenish' do
+        _, worker = build_pool_and_worker(target_count: 2, target_satoshis: 1_000, interval: 0.05)
+        allow(wallet).to receive(:create_action).and_raise(StandardError, 'unexpected')
+        worker.start
+        sleep 0.15
+        running = worker.instance_variable_get(:@running)
+        thread  = worker.instance_variable_get(:@thread)
+        worker.stop
+        expect(running).to be true
+        expect(thread).to be_a(Thread)
+      end
+    end
+  end
+
+  # -----------------------------------------------------------------------
+  # store_tracked_outputs derivation fields (bug #4 regression)
+  # -----------------------------------------------------------------------
+
+  describe 'store_tracked_outputs derivation fields (bug #4 regression)' do
+    it 'persists derivation_prefix, derivation_suffix, and sender_identity_key from output spec' do
+      prefix       = SecureRandom.hex(16)
+      suffix       = SecureRandom.hex(16)
+      identity_key = wallet.key_deriver.identity_key
+      txid         = 'a' * 64
+      fake_tx      = BSV::Transaction::Transaction.new
+
+      locking_script = BSV::Script::Script.p2pkh_lock(
+        wallet.key_deriver.derive_public_key(
+          [2, '3241645161d8'],
+          "#{prefix} #{suffix}",
+          identity_key,
+          for_self: true
+        ).hash160
+      )
+
+      fake_tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 1_000,
+          locking_script: locking_script
+        )
+      )
+
+      output_spec = {
+        satoshis: 1_000,
+        locking_script: locking_script.to_hex,
+        basket: 'pool:test',
+        output_description: 'utxo pool test',
+        derivation_prefix: prefix,
+        derivation_suffix: suffix,
+        sender_identity_key: identity_key
+      }
+
+      fake_tx.outputs.first.instance_variable_set(:@_spec, output_spec)
+      wallet.send(:store_tracked_outputs, txid, fake_tx, [output_spec])
+
+      stored_outputs = store.find_outputs({ basket: 'pool:test', include_spent: true, limit: 10, offset: 0 })
+      expect(stored_outputs).not_to be_empty
+
+      stored = stored_outputs.first
+      expect(stored[:derivation_prefix]).to eq(prefix)
+      expect(stored[:derivation_suffix]).to eq(suffix)
+      expect(stored[:sender_identity_key]).to eq(identity_key)
+    end
+
+    it 'stores nil derivation fields when the spec omits them (no error)' do
+      txid = 'b' * 64
+
+      locking_script = BSV::Script::Script.p2pkh_lock(private_key.public_key.hash160)
+      fake_tx = BSV::Transaction::Transaction.new
+      fake_tx.add_output(
+        BSV::Transaction::TransactionOutput.new(
+          satoshis: 500,
+          locking_script: locking_script
+        )
+      )
+
+      output_spec = {
+        satoshis: 500,
+        locking_script: locking_script.to_hex,
+        basket: 'my tokens',
+        output_description: 'basket output'
+      }
+
+      fake_tx.outputs.first.instance_variable_set(:@_spec, output_spec)
+
+      expect do
+        wallet.send(:store_tracked_outputs, txid, fake_tx, [output_spec])
+      end.not_to raise_error
     end
   end
 end
@@ -2377,6 +3299,10 @@ RSpec.shared_examples 'wallet local proof store' do
     BSV::Transaction::MerklePath.new(block_height: 800_000, path: [[tx_elem, sibling_elem]])
   end
   let(:txid_hex) { 'abcdef1234567890' * 4 }
+
+  it 'includes ProofStore' do
+    expect(BSV::Wallet::LocalProofStore.ancestors).to include(BSV::Wallet::Interface::ProofStore)
+  end
 
   describe '#store_proof / #resolve_proof round-trip' do
     it 'returns an equivalent MerklePath after storing' do
@@ -2408,27 +3334,51 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
   let(:storage)     { store }
   let(:broadcaster) { double('broadcaster') }
 
+  # --------------------------------------------------------------------------
+  # Shared seeding helpers
+  # --------------------------------------------------------------------------
+
+  # Seeds a spendable output and returns its outpoint string.
   def seed_output(s, outpoint:, satoshis: 1_000)
-    s.store_output(outpoint: outpoint, satoshis: satoshis, state: :spendable, basket: 'default')
+    s.store_output(
+      outpoint: outpoint,
+      satoshis: satoshis,
+      state: :spendable,
+      basket: 'default'
+    )
     outpoint
   end
 
+  # Seeds a pending output (locked as input) and returns its outpoint string.
   def seed_pending_output(s, outpoint:, satoshis: 1_000, fund_ref: 'ref-001')
-    s.store_output(outpoint: outpoint, satoshis: satoshis, state: :pending, basket: 'default',
-                   pending_reference: fund_ref)
+    s.store_output(
+      outpoint: outpoint,
+      satoshis: satoshis,
+      state: :pending,
+      basket: 'default',
+      pending_reference: fund_ref
+    )
     outpoint
   end
 
+  # Seeds a pending change output and returns its outpoint string.
   def seed_change_output(s, outpoint:, satoshis: 500)
-    s.store_output(outpoint: outpoint, satoshis: satoshis, state: :pending, basket: 'default')
+    s.store_output(
+      outpoint: outpoint,
+      satoshis: satoshis,
+      state: :pending,
+      basket: 'default'
+    )
     outpoint
   end
 
+  # Seeds an action in 'signed' state and returns the txid.
   def seed_action(s, txid:, status: 'signed')
     s.store_action(txid: txid, description: 'test action', status: status)
     txid
   end
 
+  # Builds a minimal broadcast payload.
   def build_payload(txid:, input_outpoints:, change_outpoints:, fund_ref: 'ref-001', accept_delayed_broadcast: false)
     tx = BSV::Transaction::Transaction.new
     beef_binary = tx.to_beef
@@ -2443,17 +3393,27 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
     }
   end
 
+  # --------------------------------------------------------------------------
+  # 1. With broadcaster — broadcast succeeds
+  # --------------------------------------------------------------------------
   describe 'with broadcaster, broadcast succeeds' do
     let(:queue)  { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage, broadcaster: broadcaster) }
-    let(:txid)   { 'a' * 64 }
     let(:payload) do
-      build_payload(txid: txid, input_outpoints: ['abc:0'], change_outpoints: ['xyz:0'], fund_ref: 'ref-001')
+      build_payload(
+        txid: txid,
+        input_outpoints: ['abc:0'],
+        change_outpoints: ['xyz:0'],
+        fund_ref: 'ref-001'
+      )
     end
     let(:result) { queue.enqueue(payload) }
+    let(:txid)   { 'a' * 64 }
+    let(:input1) { seed_pending_output(storage, outpoint: 'abc:0', fund_ref: 'ref-001') }
+    let(:change1) { seed_change_output(storage, outpoint: 'xyz:0') }
 
     before do
-      seed_pending_output(storage, outpoint: 'abc:0', fund_ref: 'ref-001')
-      seed_change_output(storage, outpoint: 'xyz:0')
+      input1
+      change1
       seed_action(storage, txid: txid)
       allow(broadcaster).to receive(:broadcast).and_return(
         BSV::Network::BroadcastResponse.new(txid: txid, tx_status: 'SEEN_ON_NETWORK')
@@ -2462,6 +3422,10 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
 
     it 'returns broadcast_status: "success"' do
       expect(result[:broadcast_status]).to eq('success')
+    end
+
+    it 'returns the txid' do
+      expect(result[:txid]).to eq(txid)
     end
 
     it 'promotes input outputs to :spent' do
@@ -2478,6 +3442,7 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
       expect(outpoints).to include('xyz:0')
     end
 
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
     it 'updates action status to "unproven"' do
       result
       actions = storage.find_actions({ limit: 10, offset: 0 })
@@ -2486,21 +3451,35 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
     end
   end
 
+  # --------------------------------------------------------------------------
+  # 2. With broadcaster — broadcast fails
+  # --------------------------------------------------------------------------
   describe 'with broadcaster, broadcast fails' do
     let(:queue)  { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage, broadcaster: broadcaster) }
-    let(:txid)   { 'b' * 64 }
     let(:payload) do
-      build_payload(txid: txid, input_outpoints: ['inp:0'], change_outpoints: ['chg:0'], fund_ref: 'ref-fail')
+      build_payload(
+        txid: txid,
+        input_outpoints: ['inp:0'],
+        change_outpoints: ['chg:0'],
+        fund_ref: 'ref-fail'
+      )
     end
     let(:result) { queue.enqueue(payload) }
+    let(:txid)   { 'b' * 64 }
+    let(:input1) { seed_pending_output(storage, outpoint: 'inp:0', fund_ref: 'ref-fail') }
+    let(:change1) { seed_change_output(storage, outpoint: 'chg:0') }
 
     before do
-      seed_pending_output(storage, outpoint: 'inp:0', fund_ref: 'ref-fail')
-      seed_change_output(storage, outpoint: 'chg:0')
+      input1
+      change1
       seed_action(storage, txid: txid)
       allow(broadcaster).to receive(:broadcast).and_raise(
         BSV::Network::BroadcastError.new('network error', arc_status: 'REJECTED')
       )
+    end
+
+    it 'returns a broadcast_error string' do
+      expect(result[:broadcast_error]).to be_a(String)
     end
 
     it 'returns broadcast_status: "invalidTx" for REJECTED' do
@@ -2529,12 +3508,20 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
     end
   end
 
+  # --------------------------------------------------------------------------
+  # 3. Without broadcaster — raises WalletError (HLR #455: no silent fallback)
+  # --------------------------------------------------------------------------
   describe 'without broadcaster, no accept_delayed_broadcast' do
     let(:queue) { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage) }
-    let(:txid) { 'c' * 64 }
     let(:payload) do
-      build_payload(txid: txid, input_outpoints: ['in2:0'], change_outpoints: ['ch2:0'], fund_ref: 'ref-nb')
+      build_payload(
+        txid: txid,
+        input_outpoints: ['in2:0'],
+        change_outpoints: ['ch2:0'],
+        fund_ref: 'ref-nb'
+      )
     end
+    let(:txid) { 'c' * 64 }
 
     before do
       seed_pending_output(storage, outpoint: 'in2:0', fund_ref: 'ref-nb')
@@ -2542,6 +3529,8 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
       seed_action(storage, txid: txid)
     end
 
+    # Post-HLR #455: silent fallback to 'completed' removed; raises WalletError
+    # unless accept_delayed_broadcast is explicitly set on the payload.
     it 'raises WalletError when accept_delayed_broadcast is false' do
       expect { queue.enqueue(payload) }.to raise_error(
         BSV::Wallet::WalletError,
@@ -2550,10 +3539,150 @@ RSpec.shared_examples 'wallet inline broadcast queue' do
     end
   end
 
+  # --------------------------------------------------------------------------
+  # 4. Without broadcaster + accept_delayed_broadcast
+  # --------------------------------------------------------------------------
+  describe 'without broadcaster, accept_delayed_broadcast: true' do
+    let(:queue) { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage) }
+    let(:payload) do
+      build_payload(
+        txid: txid,
+        input_outpoints: ['in3:0'],
+        change_outpoints: ['ch3:0'],
+        fund_ref: 'ref-delayed',
+        accept_delayed_broadcast: true
+      )
+    end
+    let(:result) { queue.enqueue(payload) }
+    let(:txid)   { 'd' * 64 }
+
+    before do
+      seed_pending_output(storage, outpoint: 'in3:0', fund_ref: 'ref-delayed')
+      seed_change_output(storage, outpoint: 'ch3:0')
+      seed_action(storage, txid: txid)
+    end
+
+    it 'sets action status to "unproven"' do
+      result
+      actions = storage.find_actions({ limit: 10, offset: 0 })
+      action = actions.find { |a| a[:txid] == txid }
+      expect(action[:status]).to eq('unproven')
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # 5. Finalize path (nil outpoints) — broadcast succeeds
+  # --------------------------------------------------------------------------
+  describe 'finalize path (nil outpoints), broadcast succeeds' do
+    let(:queue) { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage, broadcaster: broadcaster) }
+    let(:payload) do
+      {
+        tx: BSV::Transaction::Transaction.new,
+        txid: txid,
+        beef_binary: BSV::Transaction::Transaction.new.to_beef,
+        input_outpoints: nil,
+        change_outpoints: nil,
+        fund_ref: nil,
+        accept_delayed_broadcast: false
+      }
+    end
+    let(:result) { queue.enqueue(payload) }
+    let(:txid)   { 'e' * 64 }
+
+    before do
+      seed_action(storage, txid: txid)
+      allow(broadcaster).to receive(:broadcast).and_return(
+        BSV::Network::BroadcastResponse.new(txid: txid, tx_status: 'SEEN_ON_NETWORK')
+      )
+    end
+
+    it 'returns broadcast_status: "success"' do
+      expect(result[:broadcast_status]).to eq('success')
+    end
+
+    # Post-HLR #455: 'unproven' until a merkle proof lands via internalize_action
+    it 'updates action status to "unproven"' do
+      result
+      actions = storage.find_actions({ limit: 10, offset: 0 })
+      action = actions.find { |a| a[:txid] == txid }
+      expect(action[:status]).to eq('unproven')
+    end
+
+    it 'does not add any extra outputs' do
+      result
+      all = storage.find_outputs({ include_spent: true, limit: 100, offset: 0 })
+      expect(all).to be_empty
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # 6. Finalize path (nil outpoints) — broadcast fails
+  # --------------------------------------------------------------------------
+  describe 'finalize path (nil outpoints), broadcast fails' do
+    let(:queue) { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage, broadcaster: broadcaster) }
+    let(:payload) do
+      {
+        tx: BSV::Transaction::Transaction.new,
+        txid: txid,
+        beef_binary: BSV::Transaction::Transaction.new.to_beef,
+        input_outpoints: nil,
+        change_outpoints: nil,
+        fund_ref: nil,
+        accept_delayed_broadcast: false
+      }
+    end
+    let(:result) { queue.enqueue(payload) }
+    let(:txid)   { 'f' * 64 }
+
+    before do
+      seed_action(storage, txid: txid)
+      allow(broadcaster).to receive(:broadcast).and_raise(
+        BSV::Network::BroadcastError.new('double spend', arc_status: 'DOUBLE_SPEND_ATTEMPTED')
+      )
+    end
+
+    it 'returns broadcast_status: "doubleSpend"' do
+      expect(result[:broadcast_status]).to eq('doubleSpend')
+    end
+
+    it 'updates action status to "failed"' do
+      result
+      actions = storage.find_actions({ limit: 10, offset: 0 })
+      action = actions.find { |a| a[:txid] == txid }
+      expect(action[:status]).to eq('failed')
+    end
+
+    it 'does not add or remove any outputs' do
+      result
+      all = storage.find_outputs({ include_spent: true, limit: 100, offset: 0 })
+      expect(all).to be_empty
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # 7. #async?
+  # --------------------------------------------------------------------------
   describe '#async?' do
     it 'returns false' do
       queue = BSV::Wallet::BroadcastQueue::Inline.new(storage: storage)
       expect(queue.async?).to be(false)
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # 8. #status — delegates to storage
+  # --------------------------------------------------------------------------
+  describe '#status' do
+    let(:queue) { BSV::Wallet::BroadcastQueue::Inline.new(storage: storage) }
+    let(:txid)  { '0' * 64 }
+
+    it 'returns the action status from storage' do
+      storage.store_action(txid: txid, description: 'test', status: 'completed')
+      expect(queue.status(txid)).to eq('completed')
+    end
+
+    it 'returns nil when the action is not found' do
+      expect(queue.status('nonexistent')).to be_nil
     end
   end
 end
