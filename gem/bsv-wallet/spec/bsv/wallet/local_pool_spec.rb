@@ -5,10 +5,10 @@ require 'bsv-wallet'
 require 'securerandom'
 require 'bsv/wallet/testing/shared_examples_for_wallet_operations'
 
-STORE_FACTORIES.each do |store_label, store_factory|
-  RSpec.describe "BSV::Wallet::LocalPool (#{store_label})" do
+STORE_FACTORIES.each do |label, store_factory|
+  RSpec.describe "BSV::Wallet::LocalPool (#{label})" do
     let(:store) { store_factory.call }
-    let(:store_label) { store_label }
+    let(:store_label) { label }
 
     it_behaves_like 'wallet local pool'
   end

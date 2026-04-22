@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+require 'base64'
+require 'fileutils'
+require 'json'
+require 'securerandom'
+require 'time'
+require 'tmpdir'
+
 # Shared wallet-level operation examples for BSV::Wallet::Client.
 #
 # Each shared example group exercises a distinct area of wallet behaviour
@@ -12,6 +19,12 @@
 #       it_behaves_like 'wallet certificate operations'
 #     end
 #   end
+#
+# Some shared example groups also expect +let(:store_label)+ — a human-readable
+# name for the store backend (e.g. 'MemoryStore', 'FileStore', 'PostgresStore').
+# This is used by the +'wallet local pool'+ and +'wallet pool health'+ groups
+# to skip tests that are known to be unsafe on non-thread-safe backends.
+# If not provided, no tests are skipped.
 #
 # Helper methods that depend on BSV internals (key derivation, script building,
 # etc.) are defined inside each shared example group so they are in scope but
@@ -2856,7 +2869,7 @@ RSpec.shared_examples 'wallet local pool' do
     # FileStore uses a per-store mutex but shares a single .tmp file path across threads,
     # making the atomic write pattern unsafe under concurrent load. Concurrent tests are
     # MemoryStore-only.
-    before { skip 'FileStore is not thread-safe for concurrent writes' if store_label == 'FileStore' }
+    before { skip 'FileStore is not thread-safe for concurrent writes (see #613)' if defined?(store_label) && store_label == 'FileStore' }
 
     it '2 threads competing for 1 output: exactly 1 succeeds, the other gets PoolDepletedError' do
       pool = build_pool
