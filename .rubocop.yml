@@ -17,6 +17,7 @@ Style/NumericPredicate:
 Metrics/BlockLength:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet/wire/**/*'
+    - 'gem/bsv-wallet/lib/bsv/wallet/testing/**/*'
     - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/migrations/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/*/spec/**/*'
