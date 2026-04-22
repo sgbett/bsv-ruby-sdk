@@ -117,6 +117,8 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
     # TS/Python: verify outputs ≤ inputs
     # TS: lines 935-948 — sums outputs and inputs, returns false if violated
     # Python: lines 451-457 — returns output_total <= input_total
+    # Go: omits this check entirely
+    # Ruby divergence: raises VerificationError(:output_overflow) instead of returning false
     it 'checks output ≤ input constraint (TS/Python pattern)' do
       source_tx = build_source_tx(satoshis: 100_000)
       source_tx.merkle_path = valid_merkle_path
@@ -174,9 +176,10 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
     end
 
     # All three SDKs: script execution for each input
-    # TS: Spend.validate() for each input
-    # Go: interpreter.Execute() for each input
-    # Python: Spend.validate() for each input
+    # TS: Spend.validate() for each input — returns false on failure
+    # Go: interpreter.Execute() for each input — returns wrapped error on failure
+    # Python: Spend.validate() for each input — returns false on failure
+    # Ruby divergence: raises VerificationError(:script_failure) on failure (original ScriptError in #cause)
     it 'executes scripts for each input (all SDKs)' do
       source_tx = build_source_tx
       source_tx.merkle_path = valid_merkle_path

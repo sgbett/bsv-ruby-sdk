@@ -550,6 +550,22 @@ module BSV
       #    provided fee model.
       # 4. Checks that total outputs do not exceed total inputs.
       #
+      # == Semantic Divergences from Reference SDKs
+      #
+      # This implementation raises +VerificationError+ for all failure modes.
+      # The TypeScript and Python SDKs return +false+ for script failures and
+      # output overflow. The Go SDK propagates errors (not booleans) for script
+      # failures, aligning with the Ruby approach.
+      #
+      # Rationale: raising provides structured error information (+#code+,
+      # +#message+, +#cause+) that a boolean cannot convey. Consumers can
+      # rescue +VerificationError+ and inspect +#code+ for specifics.
+      #
+      # Divergence summary:
+      # - +:output_overflow+ — Ruby raises; TS/Python return +false+; Go omits the check
+      # - +:script_failure+ — Ruby raises; TS/Python return +false+; Go also propagates errors
+      # - +:missing_source+ — Ruby raises; consistent with TS/Go/Python (all raise/error)
+      #
       # @param chain_tracker [ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
       # @return [true] on successful verification
