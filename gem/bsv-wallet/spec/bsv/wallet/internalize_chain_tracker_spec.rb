@@ -116,7 +116,7 @@ RSpec.describe 'internalize_action BEEF chain tracker verification' do
       wallet = build_wallet(chain_data_source: chain_tracker)
 
       expect { wallet.internalize_action(internalize_args) }
-        .to raise_error(BSV::Wallet::WalletError, /structurally invalid/)
+        .to raise_error(BSV::Wallet::WalletError, /merkle root not confirmed/)
     end
   end
 

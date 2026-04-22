@@ -146,12 +146,23 @@ module BSV
             raise WalletError, "Invalid tx_pos #{pos.inspect} for #{utxo.tx_hash} (#{tx.outputs.length} outputs)"
           end
 
-          locking_script_hex = tx.outputs[pos].locking_script.to_hex
+          output = tx.outputs[pos]
+          output_satoshis = output.satoshis
+
+          # The transaction output is the authoritative source for satoshis —
+          # a mismatch with the UTXO API would produce invalid sighashes.
+          if !utxo.satoshis.nil? && utxo.satoshis != output_satoshis
+            raise WalletError,
+                  "UTXO value mismatch for #{utxo.tx_hash}.#{pos}: " \
+                  "chain reported #{utxo.satoshis}, tx output is #{output_satoshis}"
+          end
+
+          locking_script_hex = output.locking_script.to_hex
           outpoint = "#{utxo.tx_hash}.#{utxo.tx_pos}"
 
           @storage.store_output({
                                   outpoint: outpoint,
-                                  satoshis: utxo.satoshis,
+                                  satoshis: output_satoshis,
                                   locking_script: locking_script_hex,
                                   basket: 'default',
                                   tags: [],

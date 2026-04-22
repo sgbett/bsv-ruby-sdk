@@ -71,8 +71,8 @@ RSpec.describe BSV::Wallet::Client do
         )
       end
 
-      let(:tx_a) { make_tx }
-      let(:tx_b) { make_tx }
+      let(:tx_a) { make_tx(satoshis: 1000) }
+      let(:tx_b) { make_tx(satoshis: 2000) }
 
       before do
         allow(chain_data_source).to receive(:fetch_utxos).and_return([
@@ -134,8 +134,8 @@ RSpec.describe BSV::Wallet::Client do
       end
 
       before do
-        tx_a = make_tx
-        tx_b = make_tx
+        tx_a = make_tx(satoshis: 1000)
+        tx_b = make_tx(satoshis: 2000)
         allow(chain_data_source).to receive(:fetch_utxos).and_return([
                                                                        make_utxo('aaa', 0, 1000),
                                                                        make_utxo('bbb', 0, 2000)
@@ -195,6 +195,34 @@ RSpec.describe BSV::Wallet::Client do
       it 'accepts tx_pos 0 (first output)' do
         tx = make_tx(output_count: 2)
         allow(chain_data_source).to receive(:fetch_utxos).and_return([make_utxo('aaa', 0, 1000)])
+        allow(chain_data_source).to receive(:fetch_transaction).with('aaa').and_return(tx)
+
+        expect(client.sync_utxos).to eq(1)
+      end
+    end
+
+    context 'with chain_data_source and satoshis mismatch' do
+      subject(:client) do
+        described_class.new(
+          private_key,
+          storage: storage,
+          chain_data_source: chain_data_source,
+          allow_memory_store: true
+        )
+      end
+
+      it 'raises WalletError when UTXO API value differs from transaction output' do
+        tx = make_tx(output_count: 1, satoshis: 1000)
+        # UTXO API reports 9999 but the actual output has 1000
+        allow(chain_data_source).to receive(:fetch_utxos).and_return([make_utxo('aaa', 0, 9999)])
+        allow(chain_data_source).to receive(:fetch_transaction).with('aaa').and_return(tx)
+
+        expect { client.sync_utxos }.to raise_error(BSV::Wallet::WalletError, /UTXO value mismatch/)
+      end
+
+      it 'accepts when UTXO API value matches transaction output' do
+        tx = make_tx(output_count: 1, satoshis: 5000)
+        allow(chain_data_source).to receive(:fetch_utxos).and_return([make_utxo('aaa', 0, 5000)])
         allow(chain_data_source).to receive(:fetch_transaction).with('aaa').and_return(tx)
 
         expect(client.sync_utxos).to eq(1)

@@ -178,7 +178,16 @@ module BSV
           # Use the chain data source for SPV merkle root verification when available;
           # fall back to structural-only verification otherwise.
           chain_tracker = @chain_data_source if @chain_data_source.respond_to?(:valid_root_for_height?)
-          raise WalletError, 'BEEF verification failed: the bundle is structurally invalid' unless beef.verify(chain_tracker)
+          unless beef.verify(chain_tracker)
+            # Distinguish SPV failures from structural invalidity so callers
+            # can tell whether the problem is the BEEF itself or the merkle root.
+            message = if chain_tracker && beef.verify(nil)
+                        'BEEF verification failed: merkle root not confirmed by chain tracker'
+                      else
+                        'BEEF verification failed: the bundle is structurally invalid'
+                      end
+            raise WalletError, message
+          end
 
           tx = extract_subject_transaction(beef)
 

@@ -26,11 +26,14 @@ module BSV
         # chain data source otherwise.
         #
         # Note: BRC-100 specifies +{ header: String }+ (80-byte raw hex), but the
-        # Ruby SDK returns the richer WoC JSON hash (containing +hash+,
+        # local fallback returns the richer WoC JSON hash (containing +hash+,
         # +merkleroot+, +previousblockhash+, +time+, +nonce+, +bits+,
         # +version+, and +height+) under the +header+ key. This is strictly more
-        # useful and avoids error-prone byte-order reassembly; there is no
-        # cross-SDK precedent to conflict with.
+        # useful for local callers and avoids error-prone byte-order reassembly.
+        #
+        # *Warning:* the WalletWire binary serialiser expects +header+ to be a
+        # hex string. This local fallback should not be used behind a wire
+        # transport without first converting the JSON hash to raw 80-byte hex.
         #
         # @param args [Hash]
         # @option args [Integer] :height block height (must be >= 0)

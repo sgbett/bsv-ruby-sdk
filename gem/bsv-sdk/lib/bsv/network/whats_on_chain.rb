@@ -6,8 +6,10 @@ module BSV
     # from the BSV network.
     #
     # Any object responding to #fetch_utxos(address),
-    # #fetch_transaction(txid), #current_height, and
-    # #get_block_header(height) can serve as a chain data source;
+    # #fetch_transaction(txid), #current_height,
+    # #get_block_header(height), and optionally
+    # #valid_root_for_height?(root_hex, height) can serve as a chain
+    # data source;
     # this class implements that contract by delegating to
     # Protocols::WoCREST.
     #
