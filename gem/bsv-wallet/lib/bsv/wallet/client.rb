@@ -135,7 +135,8 @@ module BSV
         # is aggressive and penalties are harsh, so one fetch per transaction
         # is far better than one fetch per UTXO.
         tx_cache = {}
-        new_utxos = utxos.reject { |u| output_exists?("#{u.tx_hash}.#{u.tx_pos}") }
+        new_utxos = utxos.uniq { |u| "#{u.tx_hash}.#{u.tx_pos}" }
+                         .reject { |u| output_exists?("#{u.tx_hash}.#{u.tx_pos}") }
         return 0 if new_utxos.empty?
 
         new_utxos.each do |utxo|

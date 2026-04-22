@@ -87,10 +87,11 @@ module BSV
       end
 
       # Verify that a merkle root is valid for the given block height.
+      # Returns +false+ when the block is not found (404); raises on other errors.
       # @param root [String] expected merkle root as hex
       # @param height [Integer] block height
       # @return [Boolean]
-      # @raise [BSV::Network::ChainProviderError] on network or API error
+      # @raise [BSV::Network::ChainProviderError] on network or non-404 API error
       def valid_root_for_height?(root, height)
         result = @protocol.call(:valid_root, root, height)
         return false if result.not_found?
