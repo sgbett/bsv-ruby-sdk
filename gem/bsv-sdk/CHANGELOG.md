@@ -5,6 +5,29 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.0 — 2026-04-22
+
+### Added
+- `BSV::Network::WhatsOnChain` expanded with `current_height`,
+  `get_block_header(height)`, and `valid_root_for_height?(root, height)` —
+  a single WhatsOnChain instance now serves as a complete chain data source
+  (#596)
+- BEEF-based SPV verification conformance tests (#607)
+
+### Changed
+- `Transaction#verify` now raises `VerificationError` for all failure modes:
+  `:script_failure` (wraps `ScriptError` with cause chaining),
+  `:missing_source` (replaces `ArgumentError`), `:invalid_merkle_proof`,
+  `:insufficient_fee`, and `:output_overflow`. Code rescuing `ArgumentError`
+  or `ScriptError` from `verify` must switch to `VerificationError` (#608)
+- Removed dead code: `BSV::Wallet::Wallet` (superseded by bsv-wallet gem's
+  `Client`), `BSV::Messages` (unused re-export alias), and duplicate
+  `BSV::Wallet::InsufficientFundsError` (#594)
+
+### Fixed
+- WhatsOnChain `valid_root_for_height?` YARD doc now correctly documents
+  that 404 returns `false` rather than raising
+
 ## 0.13.0 — 2026-04-21
 
 ### Added
