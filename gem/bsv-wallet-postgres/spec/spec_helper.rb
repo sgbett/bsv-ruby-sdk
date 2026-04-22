@@ -8,7 +8,7 @@ end
 
 require 'bsv-wallet-postgres'
 
-require_relative '../../bsv-wallet/spec/support/shared_examples_for_storage_adapter'
+require 'bsv/wallet/testing/shared_examples_for_storage_adapter'
 
 Dir[File.join(__dir__, 'support', '**', '*.rb')].sort.each { |f| require f }
 
