@@ -2,19 +2,34 @@
 
 require 'spec_helper'
 require 'bsv-wallet-postgres'
+require 'bsv/wallet/testing/store_conformance'
 
 RSpec.describe BSV::Wallet::PostgresStore, :postgres do
   let(:db) { POSTGRES_TEST_DB }
   let(:store) { described_class.new(db) }
+  let(:store_label) { 'PostgresStore' }
 
   before do
     POSTGRES_WALLET_TABLES.each { |t| db[t].truncate }
   end
 
-  # The full Store contract — same suite MemoryStore and
-  # FileStore drive. Running it here guarantees PostgresStore never
-  # drifts from the interface.
+  # --- Interface-level conformance ---
+  # Same suite MemoryStore and FileStore drive.
   it_behaves_like 'a storage adapter'
+
+  # --- Wallet-level conformance ---
+  # Exercises the store through realistic wallet operations.
+  it_behaves_like 'wallet auto-funding'
+  it_behaves_like 'wallet BEEF ancestry round-trip'
+  it_behaves_like 'wallet broadcast rollback'
+  it_behaves_like 'wallet certificate operations'
+  it_behaves_like 'wallet UTXO pending locks'
+  it_behaves_like 'wallet pool health'
+  it_behaves_like 'wallet proof round-trip'
+  it_behaves_like 'wallet local pool'
+  it_behaves_like 'wallet replenishment worker'
+  it_behaves_like 'wallet local proof store'
+  it_behaves_like 'wallet inline broadcast queue'
 
   describe 'postgres-specific behaviour' do
     describe 'output upsert semantics' do
