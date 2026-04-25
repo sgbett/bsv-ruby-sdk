@@ -54,24 +54,29 @@ static const uint256_t CURVE_N = {{
 
 /* Convert a Ruby Integer to uint256_t.
  *
- * Raises ArgumentError if the value is negative or too large for 256 bits. */
-static uint256_t rb_to_uint256(VALUE rb_int) {
-    uint256_t n;
-    memset(&n, 0, sizeof(n));
+ * Raises ArgumentError if the value is negative or too large for 256 bits.
+ * Declared here; defined in field.c so only one copy exists in the binary. */
+uint256_t rb_to_uint256(VALUE rb_int);
 
-    int result = rb_integer_pack(rb_int, n.d, 4, sizeof(uint64_t), 0, U256_PACK_FLAGS);
-    if (result < 0) {
-        rb_raise(rb_eArgError, "value is negative (expected non-negative integer)");
-    }
-    if (result > 1) {
-        rb_raise(rb_eArgError, "value exceeds 256 bits");
-    }
-    return n;
-}
+/* Convert a uint256_t to a Ruby Integer.
+ * Declared here; defined in field.c so only one copy exists in the binary. */
+VALUE uint256_to_rb(const uint256_t *n);
 
-/* Convert a uint256_t to a Ruby Integer. */
-static VALUE uint256_to_rb(const uint256_t *n) {
-    return rb_integer_unpack(n->d, 4, sizeof(uint64_t), 0, U256_PACK_FLAGS);
-}
+/* -----------------------------------------------------------------------
+ * Field arithmetic — internal functions declared here so that jacobian.c
+ * can call them directly without crossing the Ruby↔C boundary.
+ * ----------------------------------------------------------------------- */
+
+void fred_internal(uint256_t *r, const uint256_t *hi, const uint256_t *lo);
+void fmul_internal(uint256_t *r, const uint256_t *a, const uint256_t *b);
+void fsqr_internal(uint256_t *r, const uint256_t *a);
+void fadd_internal(uint256_t *r, const uint256_t *a, const uint256_t *b);
+void fsub_internal(uint256_t *r, const uint256_t *a, const uint256_t *b);
+void fneg_internal(uint256_t *r, const uint256_t *a);
+void finv_internal(uint256_t *r, const uint256_t *a);
+int  fsqrt_internal(uint256_t *r, const uint256_t *a);
+
+/* Registration helper — called from Init_secp256k1_native. */
+void register_field_methods(VALUE mod);
 
 #endif /* SECP256K1_NATIVE_H */
