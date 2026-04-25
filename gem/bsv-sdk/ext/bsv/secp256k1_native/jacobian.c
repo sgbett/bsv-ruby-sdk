@@ -325,12 +325,130 @@ static VALUE rb_jp_neg(VALUE self, VALUE rb_point)
 }
 
 /* -----------------------------------------------------------------------
+ * Constant-time scalar multiplication — Montgomery ladder
+ * ----------------------------------------------------------------------- */
+
+/*
+ * cswap — branchless conditional swap of two Jacobian points.
+ *
+ * Each Jacobian point is three uint256_t values (X, Y, Z = 4 limbs each).
+ * If bit == 1, the contents of a and b are swapped.
+ * If bit == 0, nothing changes.
+ *
+ * The mask is derived from bit without any branch on it, so execution time
+ * does not depend on the value of the scalar bit being processed.
+ */
+static void cswap(uint64_t bit, uint256_t a[3], uint256_t b[3])
+{
+    uint64_t mask = -(uint64_t)bit; /* all-ones if bit==1, all-zeros if bit==0 */
+    int j, k;
+    for (j = 0; j < 3; j++) {
+        for (k = 0; k < 4; k++) {
+            uint64_t tmp = mask & (a[j].d[k] ^ b[j].d[k]);
+            a[j].d[k] ^= tmp;
+            b[j].d[k] ^= tmp;
+        }
+    }
+}
+
+/*
+ * scalar_multiply_ct_internal — constant-time scalar multiplication via the
+ * Montgomery ladder.
+ *
+ * Computes r = k × base using a branchless double-and-add loop.  The two
+ * accumulators r0 (result) and r1 (result + base) are swapped before and
+ * after each iteration according to the current scalar bit, ensuring that
+ * the sequence of point operations executed is independent of k.
+ *
+ * Invariant: r1 = r0 + base throughout the loop.
+ *
+ * In-place aliasing: jp_add_internal and jp_double_internal both copy their
+ * inputs into stack-local temporaries before writing to the output, so
+ * jp_add_internal(r0, r0, r1) is safe.
+ *
+ * @param r    output: k × base as a Jacobian point
+ * @param k    secret scalar (256 bits, caller ensures 0 < k < N)
+ * @param base base point in Jacobian coordinates
+ */
+void scalar_multiply_ct_internal(uint256_t r[3], const uint256_t *k, const uint256_t base[3])
+{
+    /* r0 = infinity [0, 1, 0];  r1 = base */
+    uint256_t r0[3], r1[3];
+    memset(r0, 0, sizeof(uint256_t) * 3);
+    r0[1].d[0] = 1; /* Y = 1 */
+    memcpy(r1, base, sizeof(uint256_t) * 3);
+
+    int i;
+    for (i = 255; i >= 0; i--) {
+        uint64_t bit = (uint64_t)uint256_bit(k, i);
+        cswap(bit, r0, r1);
+        jp_add_internal(r1, r0, r1);
+        jp_double_internal(r0, r0);
+        cswap(bit, r0, r1);
+    }
+
+    memcpy(r, r0, sizeof(uint256_t) * 3);
+}
+
+/*
+ * call-seq:
+ *   BSV::Primitives::Secp256k1Native.scalar_multiply_ct(k, px, py) -> Array
+ *
+ * Constant-time scalar multiplication using the Montgomery ladder.
+ *
+ * Computes k × (px, py) entirely in C with no per-iteration Ruby dispatch.
+ * The loop is branchless with respect to the scalar bits: execution time
+ * does not depend on the value of k.
+ *
+ * @param k  [Integer] scalar (must be in [0, N))
+ * @param px [Integer] affine x-coordinate of the base point
+ * @param py [Integer] affine y-coordinate of the base point
+ * @return   [Array(Integer, Integer, Integer)] result as a Jacobian point
+ * @raise    [ArgumentError] if k >= N (curve order)
+ */
+static VALUE rb_scalar_multiply_ct(VALUE self, VALUE rb_k, VALUE rb_px, VALUE rb_py)
+{
+    (void)self;
+    uint256_t k = rb_to_uint256(rb_k);
+
+    /* Validate k < N — belt-and-braces guard for direct callers. */
+    uint256_t tmp;
+    uint64_t borrow = uint256_sub(&tmp, &k, &CURVE_N);
+    if (!borrow) {
+        /* k >= N: borrow would be 1 if k < N, so borrow == 0 means k >= N */
+        rb_raise(rb_eArgError, "scalar k must be in [0, N) (curve order)");
+    }
+
+    /* k = 0: return the point at infinity [0, 1, 0]. */
+    if (uint256_is_zero(&k)) {
+        VALUE result = rb_ary_new_capa(3);
+        rb_ary_push(result, INT2FIX(0));
+        rb_ary_push(result, INT2FIX(1));
+        rb_ary_push(result, INT2FIX(0));
+        return result;
+    }
+
+    /* Construct Jacobian base point [px, py, 1]. */
+    uint256_t base[3];
+    base[0] = rb_to_uint256(rb_px);
+    base[1] = rb_to_uint256(rb_py);
+    memset(&base[2], 0, sizeof(uint256_t));
+    base[2].d[0] = 1;
+
+    uint256_t r[3];
+    scalar_multiply_ct_internal(r, &k, base);
+
+    return pack_point(r);
+}
+
+/* -----------------------------------------------------------------------
  * Registration — called from Init_secp256k1_native in secp256k1_native.c
  * ----------------------------------------------------------------------- */
 
 void register_jacobian_methods(VALUE mod)
 {
-    rb_define_module_function(mod, "jp_double", rb_jp_double, 1);
-    rb_define_module_function(mod, "jp_add",    rb_jp_add,    2);
-    rb_define_module_function(mod, "jp_neg",    rb_jp_neg,    1);
+    rb_define_module_function(mod, "jp_double",          rb_jp_double,          1);
+    rb_define_module_function(mod, "jp_add",             rb_jp_add,             2);
+    rb_define_module_function(mod, "jp_neg",             rb_jp_neg,             1);
+    rb_define_module_function(mod, "scalar_multiply_ct", rb_scalar_multiply_ct, 3);
 }

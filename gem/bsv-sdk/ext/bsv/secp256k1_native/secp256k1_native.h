@@ -112,6 +112,7 @@ void register_scalar_methods(VALUE mod);
 void jp_double_internal(uint256_t r[3], const uint256_t p[3]);
 void jp_add_internal(uint256_t r[3], const uint256_t p[3], const uint256_t q[3]);
 void jp_neg_internal(uint256_t r[3], const uint256_t p[3]);
+void scalar_multiply_ct_internal(uint256_t r[3], const uint256_t *k, const uint256_t base[3]);
 
 /* Registration helper — called from Init_secp256k1_native. */
 void register_jacobian_methods(VALUE mod);
