@@ -580,4 +580,41 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
       end
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Native delegation: verify Secp256k1 module delegates to C implementations
+  # ---------------------------------------------------------------------------
+
+  describe 'BSV::Primitives::Secp256k1 native delegation' do
+    # When the native extension is loaded, all delegated methods should report
+    # nil source_location — the hallmark of a C-implemented method (or a Proc
+    # wrapping one that has no Ruby source).
+    delegated_methods = %i[
+      fmul fsqr fadd fsub fneg finv fsqrt fred
+      scalar_mod scalar_mul scalar_inv scalar_add
+      jp_double jp_add jp_neg
+    ]
+
+    delegated_methods.each do |m|
+      it "#{m} is delegated to the native extension (nil source_location)" do
+        expect(BSV::Primitives::Secp256k1.method(m).source_location).to be_nil
+      end
+    end
+
+    it 'native delegation does not break scalar multiply via wNAF' do
+      g      = BSV::Primitives::Secp256k1::Point.generator
+      result = g.mul(5)
+      expect(result.on_curve?).to be true
+      expect(result.x).to eq(SECP256K1_FIVE_G_X)
+      expect(result.y).to eq(SECP256K1_FIVE_G_Y)
+    end
+
+    it 'native delegation does not break constant-time scalar multiply' do
+      g      = BSV::Primitives::Secp256k1::Point.generator
+      result = g.mul_ct(3)
+      expect(result.on_curve?).to be true
+      expect(result.x).to eq(SECP256K1_THREE_G_X)
+      expect(result.y).to eq(SECP256K1_THREE_G_Y)
+    end
+  end
 end

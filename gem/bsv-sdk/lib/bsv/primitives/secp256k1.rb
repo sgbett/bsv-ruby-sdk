@@ -598,6 +598,30 @@ module BSV
           infinity? ? 0 : [@x, @y].hash
         end
       end
+
+      # Load native C acceleration if available.
+      # When the extension is compiled, field, scalar, and point operations
+      # are replaced with C implementations. The pure-Ruby methods above
+      # remain as the readable reference and are used as fallback.
+      begin
+        require 'bsv/secp256k1_native'
+
+        # Replace field, scalar, and point operations with native C versions.
+        #
+        # `method(m).to_proc` converts the C singleton method to a Proc,
+        # stripping the receiver binding so it can be attached to this module.
+        # We define directly on the singleton class (the public module-function
+        # surface) only — `module_function` is NOT called again here, because
+        # it would re-copy the private Ruby instance method back over our new
+        # singleton definition.
+        %i[fmul fsqr fadd fsub fneg finv fsqrt fred
+           scalar_mod scalar_mul scalar_inv scalar_add
+           jp_double jp_add jp_neg].each do |m|
+          singleton_class.define_method(m, Secp256k1Native.method(m).to_proc)
+        end
+      rescue LoadError
+        # Extension not compiled — pure-Ruby fallback, no action needed.
+      end
     end
   end
 end
