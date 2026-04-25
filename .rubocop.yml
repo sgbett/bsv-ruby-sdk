@@ -9,6 +9,11 @@ AllCops:
 Style/Documentation:
   Enabled: false
 
+# extconf.rb must use MakeMakefile globals ($CFLAGS, $srcs, $srcdir).
+Style/GlobalVars:
+  Exclude:
+    - '**/extconf.rb'
+
 # `be > 0` is idiomatic RSpec for numeric comparisons; `be.positive?` is broken syntax.
 Style/NumericPredicate:
   Exclude:

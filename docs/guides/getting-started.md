@@ -20,7 +20,7 @@ Or install directly:
 gem install bsv-sdk
 ```
 
-The SDK has **no external dependencies** — it uses only Ruby's standard library. Elliptic curve operations are pure Ruby; OpenSSL is used for hashing, HMAC, PBKDF2, and symmetric encryption.
+The SDK has **no required external dependencies** — it uses only Ruby's standard library. Elliptic curve operations use a pure Ruby implementation with an optional native C extension for acceleration (see [secp256k1](../general/secp256k1.md)). OpenSSL is used for hashing, HMAC, PBKDF2, and symmetric encryption.
 
 ## Quick Start
 
