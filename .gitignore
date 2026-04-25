@@ -6,6 +6,12 @@ Gemfile.lock
 /.rspec_status
 /tmp/
 
+# C extension compiled artefacts
+*.bundle
+*.so
+*.o
+*.dSYM/
+
 # Generated documentation
 docs/reference/
 doc/
