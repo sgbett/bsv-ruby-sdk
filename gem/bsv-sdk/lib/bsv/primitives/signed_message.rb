@@ -73,17 +73,18 @@ module BSV
         else
           # Specific recipient
           verifier_pub_bytes = sig.byteslice(37, 33)
-          verifier_pub_hex = verifier_pub_bytes.unpack1('H*')
 
           if recipient.nil?
             raise ArgumentError,
-                  "this signature can only be verified with knowledge of a specific private key. The associated public key is: #{verifier_pub_hex}"
+                  'this signature can only be verified with knowledge of a specific private key. ' \
+                  "The associated public key is: #{verifier_pub_bytes.unpack1('H*')}"
           end
 
-          recipient_pub_hex = recipient.public_key.compressed.unpack1('H*')
-          if verifier_pub_hex != recipient_pub_hex
+          recipient_pub_bytes = recipient.public_key.compressed
+          if verifier_pub_bytes != recipient_pub_bytes
             raise ArgumentError,
-                  "the recipient public key is #{recipient_pub_hex} but the signature requires the recipient to have public key #{verifier_pub_hex}"
+                  "the recipient public key is #{recipient_pub_bytes.unpack1('H*')} " \
+                  "but the signature requires the recipient to have public key #{verifier_pub_bytes.unpack1('H*')}"
           end
 
           key_id_offset = 70
