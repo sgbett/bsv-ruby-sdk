@@ -165,7 +165,7 @@ module BSV
       def derive_child(public_key, invoice_number)
         shared = derive_shared_secret(public_key)
         hmac = Digest.hmac_sha256(shared.compressed, invoice_number.encode('UTF-8'))
-        hmac_bn = OpenSSL::BN.new(hmac.unpack1('H*'), 16)
+        hmac_bn = OpenSSL::BN.new(hmac, 2)
         PrivateKey.new(@bn.mod_add(hmac_bn, Curve::N))
       end
 
@@ -207,7 +207,7 @@ module BSV
           loop do
             counter_bytes = [i, attempts].pack('N*') + SecureRandom.random_bytes(32)
             h             = Digest.hmac_sha512(seed, counter_bytes)
-            candidate     = OpenSSL::BN.new(h.unpack1('H*'), 16) % PointInFiniteField::P
+            candidate     = OpenSSL::BN.new(h, 2) % PointInFiniteField::P
 
             attempts += 1
             raise ArgumentError, 'failed to generate unique x-coordinate after 5 attempts' if attempts > 5
