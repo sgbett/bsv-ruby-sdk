@@ -107,8 +107,8 @@ uint64_t uint256_sub(uint256_t *r, const uint256_t *a, const uint256_t *b)
     for (i = 0; i < 4; i++) {
         acc      = (uint128_t)a->d[i] - b->d[i] - borrow;
         r->d[i]  = (uint64_t)acc;
-        /* Borrow is set when the high 64 bits are non-zero (i.e. 0xFFFF…) */
-        borrow   = (acc >> 64) ? 1 : 0;
+        /* Branchless borrow: extract the sign bit of the 128-bit result. */
+        borrow   = (uint64_t)(acc >> 127);
     }
     return borrow;
 }
@@ -442,6 +442,9 @@ static VALUE rb_fred(VALUE self, VALUE x)
     int result = rb_integer_pack(x, limbs, 8, sizeof(uint64_t), 0, U256_PACK_FLAGS);
     if (result < 0) {
         rb_raise(rb_eArgError, "value is negative");
+    }
+    if (result > 1) {
+        rb_raise(rb_eArgError, "value exceeds 512 bits");
     }
 
     uint256_t lo, hi;
