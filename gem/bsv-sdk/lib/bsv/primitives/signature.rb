@@ -59,7 +59,9 @@ module BSV
 
         # Parse S
         s_offset = 4 + r_len
+        raise ArgumentError, 'truncated: missing S tag' if s_offset >= bytes.length
         raise ArgumentError, 'invalid integer tag for S' unless bytes[s_offset] == 0x02
+        raise ArgumentError, 'truncated: missing S length' if s_offset + 1 >= bytes.length
 
         s_len = bytes[s_offset + 1]
         raise ArgumentError, 'S length overflows' if s_offset + 2 + s_len > bytes.length
