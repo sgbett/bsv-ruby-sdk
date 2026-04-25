@@ -588,7 +588,7 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
   describe '#scalar_multiply_ct' do
     let(:curve_n) { BSV::Primitives::Secp256k1::N }
 
-    it 'k=1 returns the base point (identity)' do
+    it 'k=1 returns the base point' do
       result = n.scalar_multiply_ct(1, gx, gy)
       affine = to_affine(result)
       expect(affine[0]).to eq(gx)
@@ -652,7 +652,7 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
         c_result  = n.scalar_multiply_ct(k, gx, gy)
         c_affine  = to_affine(c_result)
         ruby_pt   = g.mul(k)
-        failures << "iter #{i}: k=#{k.to_s(16)[0, 8]}... x mismatch" \
+        failures << "iter #{i}: k=#{k.to_s(16)[0, 8]}... coordinate mismatch" \
           if c_affine[0] != ruby_pt.x || c_affine[1] != ruby_pt.y
       end
       expect(failures).to be_empty, failures.first(3).join("\n")

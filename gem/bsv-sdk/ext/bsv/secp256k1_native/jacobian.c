@@ -362,9 +362,11 @@ static void cswap(uint64_t bit, uint256_t a[3], uint256_t b[3])
  *
  * Invariant: r1 = r0 + base throughout the loop.
  *
- * In-place aliasing: jp_add_internal and jp_double_internal both copy their
- * inputs into stack-local temporaries before writing to the output, so
- * jp_add_internal(r0, r0, r1) is safe.
+ * In-place aliasing: jp_add_internal reads all inputs into stack locals
+ * (u1, u2, s1, s2, h, r_val, etc.) before writing the output, and
+ * jp_double_internal similarly reads into locals (y1sq, s, m, etc.)
+ * before writing.  This makes jp_add_internal(r1, r0, r1) and
+ * jp_double_internal(r0, r0) safe when output overlaps an input.
  *
  * @param r    output: k × base as a Jacobian point
  * @param k    secret scalar (256 bits, caller ensures 0 < k < N)
@@ -397,8 +399,11 @@ void scalar_multiply_ct_internal(uint256_t r[3], const uint256_t *k, const uint2
  * Constant-time scalar multiplication using the Montgomery ladder.
  *
  * Computes k × (px, py) entirely in C with no per-iteration Ruby dispatch.
- * The loop is branchless with respect to the scalar bits: execution time
- * does not depend on the value of k.
+ * The ladder loop is branchless with respect to the scalar bits (via cswap).
+ * Note: jp_add_internal still branches on infinity/collision edge cases,
+ * so full constant-time depends on the point operations being hardened
+ * separately.  The k==0 early return is on a non-secret value (k==0 is
+ * never a valid private key or nonce).
  *
  * @param k  [Integer] scalar (must be in [0, N))
  * @param px [Integer] affine x-coordinate of the base point
