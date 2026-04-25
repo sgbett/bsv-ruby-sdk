@@ -582,6 +582,84 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
   end
 
   # ---------------------------------------------------------------------------
+  # scalar_multiply_ct — constant-time Montgomery ladder
+  # ---------------------------------------------------------------------------
+
+  describe '#scalar_multiply_ct' do
+    let(:curve_n) { BSV::Primitives::Secp256k1::N }
+
+    it 'k=1 returns the base point' do
+      result = n.scalar_multiply_ct(1, gx, gy)
+      affine = to_affine(result)
+      expect(affine[0]).to eq(gx)
+      expect(affine[1]).to eq(gy)
+    end
+
+    it 'k=2 returns 2G (known coordinates)' do
+      result = n.scalar_multiply_ct(2, gx, gy)
+      affine = to_affine(result)
+      expect(affine[0]).to eq(SECP256K1_TWO_G_X)
+      expect(affine[1]).to eq(SECP256K1_TWO_G_Y)
+    end
+
+    it 'k=3 returns 3G (known coordinates)' do
+      result = n.scalar_multiply_ct(3, gx, gy)
+      affine = to_affine(result)
+      expect(affine[0]).to eq(SECP256K1_THREE_G_X)
+      expect(affine[1]).to eq(SECP256K1_THREE_G_Y)
+    end
+
+    it 'k=N-1 returns -G (negation of the base point)' do
+      # -G has the same x-coordinate as G but negated y (i.e. P - GY)
+      result = n.scalar_multiply_ct(curve_n - 1, gx, gy)
+      affine = to_affine(result)
+      expect(affine[0]).to eq(gx)
+      expect(affine[1]).to eq(p - gy)
+    end
+
+    it 'k=0 returns the point at infinity [0, 1, 0]' do
+      result = n.scalar_multiply_ct(0, gx, gy)
+      expect(result).to eq([0, 1, 0])
+    end
+
+    it 'k=N raises ArgumentError' do
+      expect { n.scalar_multiply_ct(curve_n, gx, gy) }.to raise_error(ArgumentError)
+    end
+
+    it 'k negative raises ArgumentError' do
+      expect { n.scalar_multiply_ct(-1, gx, gy) }.to raise_error(ArgumentError)
+    end
+
+    it 'matches the Ruby reference for k=7' do
+      ref_jac = ref.scalar_multiply_ct(7, gx, gy)
+      c_result = n.scalar_multiply_ct(7, gx, gy)
+      expect(to_affine(c_result)).to eq(to_affine(ref_jac))
+    end
+
+    it 'matches the Ruby reference for k=0xDEADBEEF' do
+      k = 0xDEADBEEF
+      ref_jac  = ref.scalar_multiply_ct(k, gx, gy)
+      c_result = n.scalar_multiply_ct(k, gx, gy)
+      expect(to_affine(c_result)).to eq(to_affine(ref_jac))
+    end
+
+    it 'matches Point.generator.mul for 50 random scalars' do
+      rng = Random.new(0xC0FFEE)
+      failures = []
+      g = BSV::Primitives::Secp256k1::Point.generator
+      50.times do |i|
+        k = 1 + rng.rand(curve_n - 1)
+        c_result  = n.scalar_multiply_ct(k, gx, gy)
+        c_affine  = to_affine(c_result)
+        ruby_pt   = g.mul(k)
+        failures << "iter #{i}: k=#{k.to_s(16)[0, 8]}... coordinate mismatch" \
+          if c_affine[0] != ruby_pt.x || c_affine[1] != ruby_pt.y
+      end
+      expect(failures).to be_empty, failures.first(3).join("\n")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Native delegation: verify Secp256k1 module delegates to C implementations
   # ---------------------------------------------------------------------------
 
@@ -592,7 +670,7 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
     delegated_methods = %i[
       fmul fsqr fadd fsub fneg finv fsqrt fred
       scalar_mod scalar_mul scalar_inv scalar_add
-      jp_double jp_add jp_neg
+      jp_double jp_add jp_neg scalar_multiply_ct
     ]
 
     delegated_methods.each do |m|

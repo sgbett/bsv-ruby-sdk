@@ -616,7 +616,7 @@ module BSV
         # singleton definition.
         %i[fmul fsqr fadd fsub fneg finv fsqrt fred
            scalar_mod scalar_mul scalar_inv scalar_add
-           jp_double jp_add jp_neg].each do |m|
+           jp_double jp_add jp_neg scalar_multiply_ct].each do |m|
           singleton_class.define_method(m, Secp256k1Native.method(m).to_proc)
         end
       rescue LoadError
