@@ -45,6 +45,10 @@ static const uint256_t SMALL_8 = {{ 8ULL, 0ULL, 0ULL, 0ULL }};
  * Indices: 0 = X, 1 = Y, 2 = Z. */
 static void unpack_point(uint256_t out[3], VALUE rb_point)
 {
+    Check_Type(rb_point, T_ARRAY);
+    if (RARRAY_LEN(rb_point) != 3) {
+        rb_raise(rb_eArgError, "Jacobian point must be an Array of 3 integers [X, Y, Z]");
+    }
     out[0] = rb_to_uint256(rb_ary_entry(rb_point, 0));
     out[1] = rb_to_uint256(rb_ary_entry(rb_point, 1));
     out[2] = rb_to_uint256(rb_ary_entry(rb_point, 2));

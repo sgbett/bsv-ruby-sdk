@@ -384,10 +384,10 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
   describe 'cross-validation: 100 random pairs vs Ruby reference' do
     it 'produces identical results for all field operations' do
       failures = []
-      srand(0x5EED) # deterministic seed for reproducibility
+      rng = Random.new(0x5EED) # local RNG — does not contaminate global seed
       100.times do |i|
-        a = rand(p)
-        b = rand(p)
+        a = rng.rand(p)
+        b = rng.rand(p)
 
         { fmul: [a, b], fadd: [a, b], fsub: [a, b] }.each do |op, args|
           got      = n.send(op, *args)
@@ -414,10 +414,10 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
     it 'produces identical results for all scalar operations' do
       curve_n = BSV::Primitives::Secp256k1::N
       failures = []
-      srand(0xABCDEF) # different seed to field cross-validation
+      rng = Random.new(0xABCDEF) # local RNG — does not contaminate global seed
       100.times do |i|
-        a = rand(curve_n)
-        b = rand(curve_n)
+        a = rng.rand(curve_n)
+        b = rng.rand(curve_n)
 
         { scalar_mul: [a, b], scalar_add: [a, b] }.each do |op, args|
           got      = n.send(op, *args)

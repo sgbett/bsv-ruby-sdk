@@ -177,7 +177,9 @@ static void scalar_reduce_limbs(uint256_t *r, uint64_t product[8])
         t[i + 2]  = (uint64_t)acc;
         acc       = (acc >> 64);
 
-        t[i + 3] += (uint64_t)acc;
+        acc       = (uint128_t)(uint64_t)acc + t[i + 3];
+        t[i + 3]  = (uint64_t)acc;
+        if (i < 3) t[i + 4] += (uint64_t)(acc >> 64);
         /* After two folds, any carry here is negligible (< 2). */
     }
 
