@@ -251,7 +251,9 @@ void fmul_internal(uint256_t *r, const uint256_t *a, const uint256_t *b)
             product[i + j] = (uint64_t)acc;
             carry          = (uint64_t)(acc >> 64);
         }
-        product[i + 4] += carry;
+        acc = (uint128_t)product[i + 4] + carry;
+        product[i + 4] = (uint64_t)acc;
+        if (i < 3) product[i + 5] += (uint64_t)(acc >> 64);
     }
 
     uint256_t lo, hi;
