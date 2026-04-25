@@ -43,6 +43,17 @@ static const uint256_t CURVE_N = {{
 }};
 
 /* -----------------------------------------------------------------------
+ * Low-level 256-bit helpers — defined in field.c, declared here so that
+ * scalar.c and jacobian.c can call them without crossing the Ruby↔C boundary.
+ * ----------------------------------------------------------------------- */
+
+uint64_t uint256_add(uint256_t *r, const uint256_t *a, const uint256_t *b);
+uint64_t uint256_sub(uint256_t *r, const uint256_t *a, const uint256_t *b);
+void     uint256_copy(uint256_t *dst, const uint256_t *src);
+int      uint256_bit(const uint256_t *x, int i);
+uint64_t uint256_is_zero(const uint256_t *x);
+
+/* -----------------------------------------------------------------------
  * Ruby Integer <-> uint256_t marshalling helpers
  * ----------------------------------------------------------------------- */
 
@@ -78,5 +89,31 @@ int  fsqrt_internal(uint256_t *r, const uint256_t *a);
 
 /* Registration helper — called from Init_secp256k1_native. */
 void register_field_methods(VALUE mod);
+
+/* -----------------------------------------------------------------------
+ * Scalar arithmetic — internal functions declared here so that jacobian.c
+ * can call them directly without crossing the Ruby↔C boundary.
+ * ----------------------------------------------------------------------- */
+
+void scalar_reduce(uint256_t *r, const uint256_t *hi, const uint256_t *lo);
+void scalar_mul_internal(uint256_t *r, const uint256_t *a, const uint256_t *b);
+void scalar_add_internal(uint256_t *r, const uint256_t *a, const uint256_t *b);
+void scalar_inv_internal(uint256_t *r, const uint256_t *a);
+
+/* Registration helper — called from Init_secp256k1_native. */
+void register_scalar_methods(VALUE mod);
+
+/* -----------------------------------------------------------------------
+ * Jacobian point operations — internal functions declared here so that
+ * future modules (e.g. a scalar multiply module) can call them directly
+ * in C without crossing the Ruby↔C boundary.
+ * ----------------------------------------------------------------------- */
+
+void jp_double_internal(uint256_t r[3], const uint256_t p[3]);
+void jp_add_internal(uint256_t r[3], const uint256_t p[3], const uint256_t q[3]);
+void jp_neg_internal(uint256_t r[3], const uint256_t p[3]);
+
+/* Registration helper — called from Init_secp256k1_native. */
+void register_jacobian_methods(VALUE mod);
 
 #endif /* SECP256K1_NATIVE_H */

@@ -29,4 +29,6 @@ void Init_secp256k1_native(void) {
     rb_mSecp256k1Native = rb_define_module_under(rb_mBSVPrimitives, "Secp256k1Native");
 
     register_field_methods(rb_mSecp256k1Native);
+    register_scalar_methods(rb_mSecp256k1Native);
+    register_jacobian_methods(rb_mSecp256k1Native);
 }

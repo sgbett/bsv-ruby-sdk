@@ -77,11 +77,12 @@ static const uint256_t P_PLUS1_DIV4 = {{
 static const uint256_t FIELD_ONE = {{ 1ULL, 0ULL, 0ULL, 0ULL }};
 
 /* -----------------------------------------------------------------------
- * Low-level 256-bit helpers (static, not exposed)
+ * Low-level 256-bit helpers — declared in secp256k1_native.h so scalar.c
+ * and jacobian.c can call them without crossing the Ruby↔C boundary.
  * ----------------------------------------------------------------------- */
 
 /* Add two 256-bit integers; return carry (0 or 1). */
-static uint64_t uint256_add(uint256_t *r, const uint256_t *a, const uint256_t *b)
+uint64_t uint256_add(uint256_t *r, const uint256_t *a, const uint256_t *b)
 {
     uint128_t acc;
     uint64_t carry = 0;
@@ -98,7 +99,7 @@ static uint64_t uint256_add(uint256_t *r, const uint256_t *a, const uint256_t *b
  *
  * Uses __uint128_t so the borrow logic is unambiguous — no risk of
  * overflow in the borrow expression. */
-static uint64_t uint256_sub(uint256_t *r, const uint256_t *a, const uint256_t *b)
+uint64_t uint256_sub(uint256_t *r, const uint256_t *a, const uint256_t *b)
 {
     uint128_t acc;
     uint64_t borrow = 0;
@@ -113,7 +114,7 @@ static uint64_t uint256_sub(uint256_t *r, const uint256_t *a, const uint256_t *b
 }
 
 /* Copy src into dst. */
-static void uint256_copy(uint256_t *dst, const uint256_t *src)
+void uint256_copy(uint256_t *dst, const uint256_t *src)
 {
     dst->d[0] = src->d[0];
     dst->d[1] = src->d[1];
@@ -122,13 +123,14 @@ static void uint256_copy(uint256_t *dst, const uint256_t *src)
 }
 
 /* Return 1 if bit i of x is set, 0 otherwise. */
-static int uint256_bit(const uint256_t *x, int i)
+int uint256_bit(const uint256_t *x, int i)
 {
     return (int)((x->d[i >> 6] >> (i & 63)) & 1);
 }
 
-/* Return 1 if x is zero, 0 otherwise — branchless. */
-static uint64_t uint256_is_zero(const uint256_t *x)
+/* Return 1 if x is zero, 0 otherwise — branchless.
+ * Declared in secp256k1_native.h so jacobian.c and scalar.c can call it. */
+uint64_t uint256_is_zero(const uint256_t *x)
 {
     uint64_t v = x->d[0] | x->d[1] | x->d[2] | x->d[3];
     /* If v == 0, ~v + 1 = 0 (overflow wraps); this is non-zero iff v != 0.
