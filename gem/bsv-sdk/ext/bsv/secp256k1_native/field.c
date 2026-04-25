@@ -212,7 +212,24 @@ void fred_internal(uint256_t *r, const uint256_t *hi, const uint256_t *lo)
         r->d[i]   = (uint64_t)acc;
         carry     = (uint64_t)(acc >> 64);
     }
-    /* After two complete folds the result fits in 256 bits (carry is 0). */
+
+    /* The second fold loop can produce carry == 1, meaning r = 2^256 + r_low.
+     * Since 2^256 ≡ FRED_C (mod P), add carry × FRED_C to fold the overflow.
+     * carry is at most 1, so carry × FRED_C ≤ FRED_C < 2^34 — fits easily.
+     * This third micro-fold always terminates: r_low < 2^256 and FRED_C < 2^34,
+     * so r_low + FRED_C < 2^256 + 2^34 which yields a carry of at most 1 into
+     * the 64-bit boundary; that carry ripples at most through the 256-bit word
+     * and produces no further overflow. */
+    uint128_t adjust = (uint128_t)carry * FRED_C;
+    acc     = (uint128_t)r->d[0] + (uint64_t)adjust;
+    r->d[0] = (uint64_t)acc;
+    carry   = (uint64_t)(acc >> 64) + (uint64_t)(adjust >> 64);
+    for (i = 1; i < 4; i++) {
+        acc     = (uint128_t)r->d[i] + carry;
+        r->d[i] = (uint64_t)acc;
+        carry   = (uint64_t)(acc >> 64);
+    }
+    /* Now carry is guaranteed 0 and r < 2P. */
 
     /* Branchless final conditional subtraction.
      *
