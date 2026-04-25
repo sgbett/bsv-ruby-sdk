@@ -42,6 +42,7 @@ module BSV
         bytes.each_byte { |b| b.zero? ? leading_zeros += 1 : break }
 
         # Convert to big integer and repeatedly divide by 58
+        # C-backed hex conversion — 10x faster than pure-Ruby byte shifting; not a porting artefact.
         n = bytes.unpack1('H*').to_i(16)
         result = +''
         while n.positive?
@@ -78,7 +79,7 @@ module BSV
           n = (n * BASE) + digit
         end
 
-        # Convert integer to bytes
+        # Convert integer to bytes — C-backed hex round-trip is the fastest pure-Ruby integer→bytes path.
         hex = n.zero? ? '' : n.to_s(16)
         hex = "0#{hex}" if hex.length.odd?
         result = [hex].pack('H*')
