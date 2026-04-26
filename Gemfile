@@ -11,7 +11,6 @@ gemspec path: 'gem/bsv-wallet-postgres'
 
 group :development, :test do
   gem 'rake'
-  gem 'rake-compiler'
   gem 'rspec'
   gem 'rubocop', '~> 1.85'
   gem 'rubocop-rspec', '~> 3.9'
