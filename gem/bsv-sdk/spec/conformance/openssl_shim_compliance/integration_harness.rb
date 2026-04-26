@@ -27,6 +27,11 @@ case mode
 when 'openssl'
   require 'openssl'
 when 'shim'
+  # Load Bundler so that path-dependent gems (e.g. secp256k1-native) are
+  # resolvable in this subprocess. The Gemfile root is four levels up from
+  # the harness (gem/bsv-sdk/spec/conformance/openssl_shim_compliance/).
+  ENV['BUNDLE_GEMFILE'] ||= File.expand_path('../../../../../Gemfile', __dir__)
+  require 'bundler/setup'
   $LOAD_PATH.unshift("#{File.expand_path('../../../..', __dir__)}/lib")
   require 'bsv/primitives/openssl_ec_shim'
 end

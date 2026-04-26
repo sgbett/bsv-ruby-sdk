@@ -2,6 +2,8 @@
 
 source 'https://rubygems.org'
 
+gem 'secp256k1-native', path: '/opt/ruby/secp256k1-native'
+
 gemspec path: 'gem/bsv-sdk'
 gemspec path: 'gem/bsv-attest'
 gemspec path: 'gem/bsv-wallet'
