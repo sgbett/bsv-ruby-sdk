@@ -1,6 +1,8 @@
 # secp256k1 in the BSV Ruby SDK
 
-The BSV Ruby SDK implements the secp256k1 elliptic curve — the curve used by Bitcoin for all digital signature and key derivation operations — in pure Ruby, with an optional native C extension for performance-critical paths.
+> **Note:** The secp256k1 implementation has been extracted to the standalone [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem. The `bsv-sdk` gem declares a runtime dependency on `secp256k1-native` and re-exports its classes and modules under `BSV::Primitives`. The documentation below describes the implementation as it applies to `bsv-sdk` consumers. For architecture details specific to the standalone gem, see the [secp256k1-native docs](https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md).
+
+The BSV Ruby SDK implements the secp256k1 elliptic curve — the curve used by Bitcoin for all digital signature and key derivation operations — in pure Ruby via the `secp256k1-native` gem, with an optional native C extension for performance-critical paths.
 
 ## Pure Ruby implementation
 
@@ -70,13 +72,17 @@ The gem installs and operates correctly without the native extension. Compilatio
 
 ### Build instructions
 
+The C extension is now part of the `secp256k1-native` gem. To build it for development against `bsv-sdk`:
+
 ```bash
-# From the repository root
+# From the secp256k1-native gem root
 bundle exec rake compile   # build the C extension
+
+# From the bsv-sdk repository root
 bundle exec rake spec:sdk  # run the test suite with native acceleration active
 ```
 
-The compiled bundle is placed at `gem/bsv-sdk/lib/bsv/secp256k1_native.bundle` (or `.so` on Linux), matching the `require 'bsv/secp256k1_native'` path used by the extension loader.
+The compiled bundle is placed at `lib/secp256k1_native.bundle` (or `.so` on Linux) within the `secp256k1-native` gem, matching the `require 'secp256k1_native'` path used by the extension loader.
 
 ## Why pure Ruby as the base
 
