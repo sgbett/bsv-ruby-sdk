@@ -2,7 +2,7 @@
 
 source 'https://rubygems.org'
 
-gem 'secp256k1-native', path: '/opt/ruby/secp256k1-native'
+gem 'secp256k1-native', git: 'https://github.com/sgbett/secp256k1-native.git', branch: 'master'
 
 gemspec path: 'gem/bsv-sdk'
 gemspec path: 'gem/bsv-attest'
