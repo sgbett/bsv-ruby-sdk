@@ -38,14 +38,36 @@ RSpec.describe 'Wycheproof ECDSA secp256k1 Bitcoin vectors' do
               pub = BSV::Primitives::PublicKey.from_hex(pub_key_hex)
               verified = BSV::Primitives::ECDSA.verify(hash, sig, pub.point)
 
-              # High-S cases (flagged SignatureMalleabilityBitcoin, or s = HALF_N + 1) are
-              # mathematically valid ECDSA. Raw ECDSA.verify correctly accepts them; low-S
-              # enforcement is a protocol policy that belongs in the script interpreter.
-              # Task 3 adds explicit assertions for these cases — see #657 and
-              # docs/testing/wycheproof-malleability-analysis.md
-              expect(verified).to be(false).or(satisfy { !sig.low_s? })
+              if verified && !sig.low_s?
+                # High-S signature malleability case. The !sig.low_s? check (not hardcoded
+                # tcIds) is used so this categorisation generalises to future vector updates.
+                #
+                # These vectors are marked `invalid` by Wycheproof because Bitcoin's
+                # non-malleability policy rejects high-S signatures (BIP-62 rule 5). However,
+                # a high-S signature is mathematically valid ECDSA — the verification equation
+                # holds for any s in (0, N). Raw ECDSA.verify correctly returns true.
+                #
+                # Low-S enforcement is a protocol policy decision that belongs in the script
+                # interpreter (BSV::Script::Interpreter), gated on the appropriate script
+                # flags — matching the Go SDK's architecture. It must NOT be embedded in the
+                # cryptographic primitive.
+                #
+                # Known cases in this vector set:
+                #   tcId 1   — flagged SignatureMalleabilityBitcoin; s is the high-S form of
+                #              a valid signature (s > N/2)
+                #   tcId 388 — flagged ArithmeticError; s = HALF_N + 1 (boundary edge case)
+                #
+                # See: docs/testing/wycheproof-malleability-analysis.md
+                expect(verified).to be true
+                expect(sig.low_s?).to be false
+              else
+                # Genuinely invalid: malformed values, out-of-range components, or arithmetic
+                # error unrelated to high-S malleability. ECDSA.verify correctly returns false.
+                expect(verified).to be false
+              end
             rescue ArgumentError
-              # Expected — malformed DER or invalid public key encoding
+              # Expected — malformed DER or invalid public key encoding makes the vector
+              # genuinely unverifiable at the parsing level, not merely a policy rejection.
             end
           end
         end
