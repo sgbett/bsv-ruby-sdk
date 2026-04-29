@@ -34,7 +34,9 @@ These are maintained under the BSV Blockchain organisation and backed by the Bit
 
 The BSV Blockchain Libraries Project aims to structure and maintain a middleware layer of the BSV Blockchain technology stack. By facilitating the development and maintenance of core libraries, it serves as an essential toolkit for developers looking to build on the BSV Blockchain.
 
-This Ruby SDK brings maximum compatibility with the official SDK family to the Ruby ecosystem. It was born from a practical need: building an attestation gem ([bsv-attest](https://rubygems.org/gems/bsv-attest)) required a complete, idiomatic Ruby implementation of BSV primitives, script handling, and transaction construction. Rather than wrapping FFI bindings or shelling out to other languages, the SDK implements everything in pure Ruby. Elliptic curve operations (secp256k1) are provided by the [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem — a pure Ruby implementation ported from the TypeScript reference SDK with an optional native C extension; OpenSSL is used only for hashing, HMAC, and symmetric encryption.
+This Ruby SDK brings maximum compatibility with the official SDK family to the Ruby ecosystem. It was born from a practical need: building an attestation gem ([bsv-attest](https://rubygems.org/gems/bsv-attest)) required a complete, idiomatic Ruby implementation of BSV primitives, script handling, and transaction construction.
+
+Elliptic curve operations (secp256k1) are provided by the [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem, which was originally part of this library and has been extracted as a standalone dependency. This is a custom implementation ported from the TypeScript reference SDK — it does not wrap `libsecp256k1`. It includes a pure Ruby implementation with an optional native C extension for constant-time field arithmetic and performance. OpenSSL is used only for hashing, HMAC, and symmetric encryption.
 
 <!-- TODO: Update bsv-attest link once gem documentation is published (see #48) -->
 
@@ -58,6 +60,16 @@ Or install directly:
 ```bash
 gem install bsv-sdk
 ```
+
+### Native C Extension (Recommended)
+
+The SDK depends on [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) for elliptic curve operations. It works out of the box in pure Ruby, but compiling the optional C extension is strongly recommended — it provides constant-time field arithmetic, which protects against timing side-channel attacks on private key operations:
+
+```bash
+cd $(bundle show secp256k1-native) && bundle exec rake compile
+```
+
+This requires a C99 compiler with `__uint128_t` support (GCC or Clang on macOS/Linux). If compilation is not possible, the SDK falls back to pure Ruby automatically — but the pure Ruby path does not guarantee constant-time execution.
 
 ### Basic Usage
 
