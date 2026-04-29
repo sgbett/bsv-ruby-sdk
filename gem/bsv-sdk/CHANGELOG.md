@@ -5,6 +5,36 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.0 — 2026-04-29
+
+### Added
+- Extracted secp256k1 elliptic curve operations to the standalone
+  `secp256k1-native` gem, with an optional native C extension providing
+  ~22x speedup for field, scalar, and Jacobian point operations (#648)
+- Native C extension scaffold with field arithmetic, scalar arithmetic,
+  and Jacobian point operations (#627, #628, #629, #630, #631)
+- Constant-time Montgomery ladder with branchless conditional swap for
+  scalar multiplication; `mul` is now constant-time by default, with
+  `mul_vt` available for variable-time use cases (#641, #653)
+- Wycheproof Bitcoin ECDSA test vectors (463 cases) with explicit
+  categorisation of high-S malleability cases as mathematically valid
+  but policy-rejected — documenting the layer separation between
+  ECDSA verification and Bitcoin's low-S enforcement (#652)
+- Wycheproof standard ECDSA test vectors (474 cases), RFC 6979
+  compliance suite, and secp256k1 field/scalar/point compliance
+  examples (#636, #637, #638)
+
+### Fixed
+- Carry overflow in schoolbook multiplication (L2) and branchless
+  borrow extraction in field reduction (#631)
+- Gemspec version floor, docstring, and variable name corrections
+  from PR review (#653)
+
+### Changed
+- Replaced `BN` hex intermediaries with direct binary construction
+  for improved performance (#622)
+- Binary byte comparison in `SignedMessage` verification (#624)
+
 ## 0.14.0 — 2026-04-22
 
 ### Added
