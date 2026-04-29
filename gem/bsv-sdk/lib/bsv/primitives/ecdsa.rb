@@ -82,8 +82,8 @@ module BSV
         u1 = ((n - e) * r_inv) % n
         u2 = (s * r_inv) % n
 
-        p1 = Curve.multiply_generator(u1)
-        p2 = Curve.multiply_point(r_point, u2)
+        p1 = Curve.multiply_generator_vt(u1)
+        p2 = Curve.multiply_point_vt(r_point, u2)
         q = Curve.add_points(p1, p2)
 
         raise ArgumentError, 'recovered point is at infinity' if q.infinity?
@@ -112,8 +112,8 @@ module BSV
         u2 = (r * s_inv) % n
 
         # R' = u1*G + u2*Q
-        point1 = Curve.multiply_generator(u1)
-        point2 = Curve.multiply_point(public_key_point, u2)
+        point1 = Curve.multiply_generator_vt(u1)
+        point2 = Curve.multiply_point_vt(public_key_point, u2)
         result_point = Curve.add_points(point1, point2)
 
         return false if result_point.infinity?

@@ -243,7 +243,7 @@ RSpec.describe BSV::Primitives::Secp256k1 do
       end
     end
 
-    describe '#mul' do
+    describe '#mul (constant-time, Montgomery ladder)' do
       let(:g) { described_class.generator }
 
       it '1 * G = G' do
@@ -271,7 +271,6 @@ RSpec.describe BSV::Primitives::Secp256k1 do
       end
 
       it 'produces known 2*G coordinates' do
-        # Known 2*G for secp256k1
         two_g = g.mul(2)
         expect(two_g.x).to eq(0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5)
         expect(two_g.y).to eq(0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A)
@@ -293,7 +292,7 @@ RSpec.describe BSV::Primitives::Secp256k1 do
       end
     end
 
-    describe '#mul_ct (Montgomery ladder, constant-time)' do
+    describe '#mul_ct (alias for #mul)' do
       let(:g) { described_class.generator }
 
       it 'produces the same result as mul for scalar 1' do
@@ -334,12 +333,66 @@ RSpec.describe BSV::Primitives::Secp256k1 do
         expect(result.on_curve?).to be true
       end
 
-      it 'matches wNAF for the secp256k1 generator with scalar N-1' do
-        # This tests the edge case of the largest valid scalar
+      it 'matches mul for the secp256k1 generator with scalar N-1' do
         k = s::N - 1
         ct = g.mul_ct(k)
         vt = g.mul(k)
         expect(ct).to eq(vt)
+      end
+    end
+
+    describe '#mul_vt (variable-time, wNAF)' do
+      let(:g) { described_class.generator }
+
+      it '1 * G = G' do
+        expect(g.mul_vt(1)).to eq(g)
+      end
+
+      it '2 * G matches G + G' do
+        two_g = g.mul_vt(2)
+        g_plus_g = g.add(g)
+        expect(two_g).to eq(g_plus_g)
+      end
+
+      it '0 * G = infinity' do
+        expect(g.mul_vt(0).infinity?).to be true
+      end
+
+      it 'N * G = infinity' do
+        expect(g.mul_vt(s::N).infinity?).to be true
+      end
+
+      it '(N - 1) * G = -G' do
+        result = g.mul_vt(s::N - 1)
+        expect(result.x).to eq(g.x)
+        expect(result.y).to eq(s.fneg(g.y))
+      end
+
+      it 'produces known 2*G coordinates' do
+        two_g = g.mul_vt(2)
+        expect(two_g.x).to eq(0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5)
+        expect(two_g.y).to eq(0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A)
+      end
+
+      it 'produces known 3*G coordinates' do
+        three_g = g.mul_vt(3)
+        expect(three_g.x).to eq(0xF9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9)
+        expect(three_g.y).to eq(0x388F7B0F632DE8140FE337E62A37F3566500A99934C2231B6CB9FD7584B8E672)
+      end
+
+      it 'produces result on the curve' do
+        result = g.mul_vt(0xDEADBEEF)
+        expect(result.on_curve?).to be true
+      end
+
+      it 'infinity * scalar = infinity' do
+        expect(described_class.infinity.mul_vt(42).infinity?).to be true
+      end
+
+      it 'matches mul (CT) for several scalars' do
+        [1, 2, 3, 7, 0xDEADBEEFCAFEBABE, s::N - 1].each do |k|
+          expect(g.mul_vt(k)).to eq(g.mul(k)), "mismatch for k=#{k}"
+        end
       end
     end
 
