@@ -153,21 +153,37 @@ When vendoring `ecdsa_secp256k1_sha256_bitcoin_test.json`:
    DER strictness, edge cases, and arithmetic correctness beyond what the
    standard vectors test.
 
-2. **Categorise `SignatureMalleabilityBitcoin` failures explicitly** ---
-   these are not bugs in `ECDSA.verify`. They are cases where a
-   mathematically valid signature is rejected by Bitcoin's non-malleability
-   policy. The spec should document this distinction:
+2. **Categorise malleability cases by behaviour, not by flag** ---
+   not all high-S vectors are malleability cases. Many `invalid` vectors
+   with extreme S values (e.g. `s = n-1`, `s = p`) correctly fail ECDSA
+   verification for arithmetic reasons --- high-S alone does not mean
+   "mathematically valid". Additionally, not all malleability cases carry
+   the `SignatureMalleabilityBitcoin` flag (e.g. tcId 388 has
+   `s = HALF_N + 1` but is flagged `ArithmeticError`).
+
+   The correct detection is behavioural: attempt verification, then check
+   whether the result is a case where `ECDSA.verify` returns `true` but
+   `sig.low_s?` returns `false`. This generalises to future vector updates
+   without hardcoding test case IDs or relying on specific flags:
 
    ```ruby
    when 'invalid'
-     if tc['flags'].include?('SignatureMalleabilityBitcoin')
-       # High-S signature: mathematically valid ECDSA, but rejected by
-       # Bitcoin's low-S policy (BIP-62 rule 5). Raw ECDSA.verify
-       # correctly accepts this; low-S enforcement belongs in the script
-       # interpreter, not the primitive. See:
-       # docs/testing/wycheproof-malleability-analysis.md
-     else
-       # Genuinely invalid: malformed DER, bad encoding, wrong values
+     begin
+       sig = Signature.from_der(sig_bytes)
+       pub = PublicKey.from_hex(pub_key_hex)
+       verified = ECDSA.verify(hash, sig, pub.point)
+
+       if verified && !sig.low_s?
+         # Mathematically valid ECDSA, but violates Bitcoin's low-S
+         # policy (BIP-62 rule 5). ECDSA.verify correctly returns true;
+         # low-S enforcement belongs in the script interpreter, not the
+         # primitive. See:
+         # docs/testing/wycheproof-malleability-analysis.md
+       else
+         expect(verified).to be false
+       end
+     rescue ArgumentError
+       # Expected — malformed DER or invalid encoding
      end
    ```
 
