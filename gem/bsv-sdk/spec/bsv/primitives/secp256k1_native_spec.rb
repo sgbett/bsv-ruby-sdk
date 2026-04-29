@@ -565,15 +565,24 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
   end
 
   describe 'Jacobian cross-validation: scalar multiply results via C point ops' do
-    # For each scalar k, verify that the Ruby scalar multiply (which delegates
-    # to jp_double/jp_add — C versions after native loading) produces the
-    # same affine point as the known pure-Ruby wNAF result.
+    # For each scalar k, verify that both mul (CT) and mul_vt (wNAF) produce
+    # the same affine point as the known pure-Ruby wNAF reference.
     [1, 2, 3, 7, 0xDEADBEEF].each do |k|
-      it "k=#{k}: scalar multiply produces correct affine point" do
+      it "k=#{k}: mul (CT) produces correct affine point" do
         ruby_jac = BSV::Primitives::Secp256k1.scalar_multiply_wnaf(k, gx, gy)
         affine   = BSV::Primitives::Secp256k1.jp_to_affine(ruby_jac)
         g        = BSV::Primitives::Secp256k1::Point.generator
         result   = g.mul(k)
+        expect(result.on_curve?).to be true
+        expect(result.x).to eq(affine[0])
+        expect(result.y).to eq(affine[1])
+      end
+
+      it "k=#{k}: mul_vt (wNAF) produces correct affine point" do
+        ruby_jac = BSV::Primitives::Secp256k1.scalar_multiply_wnaf(k, gx, gy)
+        affine   = BSV::Primitives::Secp256k1.jp_to_affine(ruby_jac)
+        g        = BSV::Primitives::Secp256k1::Point.generator
+        result   = g.mul_vt(k)
         expect(result.on_curve?).to be true
         expect(result.x).to eq(affine[0])
         expect(result.y).to eq(affine[1])
@@ -679,7 +688,7 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
       end
     end
 
-    it 'native delegation does not break scalar multiply via wNAF' do
+    it 'native delegation does not break mul (constant-time default)' do
       g      = BSV::Primitives::Secp256k1::Point.generator
       result = g.mul(5)
       expect(result.on_curve?).to be true
@@ -687,7 +696,15 @@ RSpec.describe 'BSV::Primitives::Secp256k1Native' do
       expect(result.y).to eq(SECP256K1_FIVE_G_Y)
     end
 
-    it 'native delegation does not break constant-time scalar multiply' do
+    it 'native delegation does not break mul_vt (variable-time wNAF)' do
+      g      = BSV::Primitives::Secp256k1::Point.generator
+      result = g.mul_vt(5)
+      expect(result.on_curve?).to be true
+      expect(result.x).to eq(SECP256K1_FIVE_G_X)
+      expect(result.y).to eq(SECP256K1_FIVE_G_Y)
+    end
+
+    it 'native delegation does not break mul_ct (alias for mul)' do
       g      = BSV::Primitives::Secp256k1::Point.generator
       result = g.mul_ct(3)
       expect(result.on_curve?).to be true

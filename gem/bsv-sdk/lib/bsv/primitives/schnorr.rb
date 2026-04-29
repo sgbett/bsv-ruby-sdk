@@ -97,15 +97,15 @@ module BSV
         e = compute_challenge(public_key_a, public_key_b, shared_secret, proof.s_prime, proof.r)
 
         # Equation 1: z·G == R + e·A
-        z_g = Curve.multiply_generator(proof.z)
-        e_a = Curve.multiply_point(public_key_a.point, e)
+        z_g = Curve.multiply_generator_vt(proof.z)
+        e_a = Curve.multiply_point_vt(public_key_a.point, e)
         r_plus_ea = Curve.add_points(proof.r.point, e_a)
 
         return false unless points_equal?(z_g, r_plus_ea)
 
         # Equation 2: z·B == S' + e·S
-        z_b = Curve.multiply_point(public_key_b.point, proof.z)
-        e_s = Curve.multiply_point(shared_secret.point, e)
+        z_b = Curve.multiply_point_vt(public_key_b.point, proof.z)
+        e_s = Curve.multiply_point_vt(shared_secret.point, e)
         sp_plus_es = Curve.add_points(proof.s_prime.point, e_s)
 
         points_equal?(z_b, sp_plus_es)

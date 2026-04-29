@@ -25,10 +25,11 @@ module BSV
 
       module_function
 
-      # Multiply the generator point by a scalar (variable-time, wNAF).
+      # Multiply the generator point by a scalar (constant-time).
       #
-      # Suitable for public scalars only (e.g. verify paths). For secret
-      # scalars use {multiply_generator_ct}.
+      # Uses the Montgomery ladder by default, matching OpenSSL convention.
+      # Safe for both secret and public scalars. For explicit variable-time
+      # multiplication of public scalars, use {multiply_generator_vt}.
       #
       # @param scalar_bn [OpenSSL::BN] the scalar multiplier
       # @return [OpenSSL::PKey::EC::Point] the resulting curve point
@@ -38,19 +39,31 @@ module BSV
 
       # Multiply the generator point by a secret scalar (constant-time).
       #
-      # Uses the Montgomery ladder to avoid timing side-channels on the
-      # scalar. Use for key generation and signing.
+      # Alias for {multiply_generator} — retained for backward compatibility
+      # and expressiveness.
       #
       # @param scalar_bn [OpenSSL::BN] the secret scalar multiplier
       # @return [OpenSSL::PKey::EC::Point] the resulting curve point
       def multiply_generator_ct(scalar_bn)
-        G.mul_ct(scalar_bn)
+        G.mul(scalar_bn)
       end
 
-      # Multiply an arbitrary curve point by a scalar (variable-time, wNAF).
+      # Multiply the generator point by a public scalar (variable-time, wNAF).
       #
-      # Suitable for public scalars only. For secret scalars use
-      # {multiply_point_ct}.
+      # Faster than {multiply_generator} but leaks timing information about
+      # the scalar. Use only for public scalars (e.g. signature verification).
+      #
+      # @param scalar_bn [OpenSSL::BN] the public scalar multiplier
+      # @return [OpenSSL::PKey::EC::Point] the resulting curve point
+      def multiply_generator_vt(scalar_bn)
+        G.mul_vt(scalar_bn)
+      end
+
+      # Multiply an arbitrary curve point by a scalar (constant-time).
+      #
+      # Uses the Montgomery ladder by default, matching OpenSSL convention.
+      # Safe for both secret and public scalars. For explicit variable-time
+      # multiplication of public scalars, use {multiply_point_vt}.
       #
       # @param point [OpenSSL::PKey::EC::Point] the point to multiply
       # @param scalar_bn [OpenSSL::BN] the scalar multiplier
@@ -61,14 +74,26 @@ module BSV
 
       # Multiply an arbitrary curve point by a secret scalar (constant-time).
       #
-      # Uses the Montgomery ladder to avoid timing side-channels on the
-      # scalar. Use for ECDH shared-secret derivation.
+      # Alias for {multiply_point} — retained for backward compatibility
+      # and expressiveness.
       #
       # @param point [OpenSSL::PKey::EC::Point] the base point
       # @param scalar_bn [OpenSSL::BN] the secret scalar multiplier
       # @return [OpenSSL::PKey::EC::Point] the resulting curve point
       def multiply_point_ct(point, scalar_bn)
-        point.mul_ct(scalar_bn)
+        point.mul(scalar_bn)
+      end
+
+      # Multiply an arbitrary curve point by a public scalar (variable-time, wNAF).
+      #
+      # Faster than {multiply_point} but leaks timing information about
+      # the scalar. Use only for public scalars (e.g. signature verification).
+      #
+      # @param point [OpenSSL::PKey::EC::Point] the point to multiply
+      # @param scalar_bn [OpenSSL::BN] the public scalar multiplier
+      # @return [OpenSSL::PKey::EC::Point] the resulting curve point
+      def multiply_point_vt(point, scalar_bn)
+        point.mul_vt(scalar_bn)
       end
 
       # Add two curve points together.

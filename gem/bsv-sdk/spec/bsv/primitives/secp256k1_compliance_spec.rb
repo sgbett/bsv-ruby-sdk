@@ -247,7 +247,7 @@ RSpec.describe 'secp256k1 compliance' do
       end
     end
 
-    context 'mul_ct matches mul for known multiples' do
+    context 'mul_ct (alias) matches mul for known multiples' do
       [1, 2, 3, 5, 7].each do |k|
         it "mul_ct(#{k}) == mul(#{k})" do
           expect(g.mul_ct(k)).to eq(g.mul(k))
@@ -257,6 +257,19 @@ RSpec.describe 'secp256k1 compliance' do
       it 'mul_ct(N-1) == mul(N-1)' do
         curve_n = BSV::Primitives::Secp256k1::N
         expect(g.mul_ct(curve_n - 1)).to eq(g.mul(curve_n - 1))
+      end
+    end
+
+    context 'mul_vt matches mul for known multiples' do
+      [1, 2, 3, 5, 7].each do |k|
+        it "mul_vt(#{k}) == mul(#{k})" do
+          expect(g.mul_vt(k)).to eq(g.mul(k))
+        end
+      end
+
+      it 'mul_vt(N-1) == mul(N-1)' do
+        curve_n = BSV::Primitives::Secp256k1::N
+        expect(g.mul_vt(curve_n - 1)).to eq(g.mul(curve_n - 1))
       end
     end
 

@@ -89,16 +89,14 @@ RSpec.describe BSV::Primitives::Curve do
   end
 
   describe '.multiply_generator_ct' do
-    it 'produces the same result as multiply_generator (constant-time path)' do
-      # 2G via constant-time must equal 2G via variable-time
+    it 'produces the same result as multiply_generator (both are CT)' do
       scalar = OpenSSL::BN.new('2', 10)
-      vt = described_class.multiply_generator(scalar)
+      default = described_class.multiply_generator(scalar)
       ct = described_class.multiply_generator_ct(scalar)
-      expect(ct.to_bn(:compressed).to_s(16)).to eq(vt.to_bn(:compressed).to_s(16))
+      expect(ct.to_bn(:compressed).to_s(16)).to eq(default.to_bn(:compressed).to_s(16))
     end
 
-    it 'matches a well-known point for a random scalar' do
-      # k = 7, expected = 7G
+    it 'matches a well-known point' do
       scalar = OpenSSL::BN.new('7', 10)
       expected = described_class.multiply_generator(scalar)
       result = described_class.multiply_generator_ct(scalar)
@@ -106,13 +104,39 @@ RSpec.describe BSV::Primitives::Curve do
     end
   end
 
+  describe '.multiply_generator_vt' do
+    it 'produces the same result as multiply_generator' do
+      scalar = OpenSSL::BN.new('2', 10)
+      default = described_class.multiply_generator(scalar)
+      vt = described_class.multiply_generator_vt(scalar)
+      expect(vt.to_bn(:compressed).to_s(16)).to eq(default.to_bn(:compressed).to_s(16))
+    end
+
+    it 'matches a well-known point' do
+      scalar = OpenSSL::BN.new('7', 10)
+      expected = described_class.multiply_generator(scalar)
+      result = described_class.multiply_generator_vt(scalar)
+      expect(result.to_bn(:compressed).to_s(16)).to eq(expected.to_bn(:compressed).to_s(16))
+    end
+  end
+
   describe '.multiply_point_ct' do
-    it 'produces the same result as multiply_point (constant-time path)' do
+    it 'produces the same result as multiply_point (both are CT)' do
       p2 = described_class.multiply_generator(OpenSSL::BN.new('2', 10))
       scalar = OpenSSL::BN.new('5', 10)
-      vt = described_class.multiply_point(p2, scalar)
+      default = described_class.multiply_point(p2, scalar)
       ct = described_class.multiply_point_ct(p2, scalar)
-      expect(ct.to_bn(:compressed).to_s(16)).to eq(vt.to_bn(:compressed).to_s(16))
+      expect(ct.to_bn(:compressed).to_s(16)).to eq(default.to_bn(:compressed).to_s(16))
+    end
+  end
+
+  describe '.multiply_point_vt' do
+    it 'produces the same result as multiply_point' do
+      p2 = described_class.multiply_generator(OpenSSL::BN.new('2', 10))
+      scalar = OpenSSL::BN.new('5', 10)
+      default = described_class.multiply_point(p2, scalar)
+      vt = described_class.multiply_point_vt(p2, scalar)
+      expect(vt.to_bn(:compressed).to_s(16)).to eq(default.to_bn(:compressed).to_s(16))
     end
   end
 end

@@ -66,6 +66,22 @@ class BSVShimECPoint
     pt
   end
 
+  # Scalar multiplication: self * scalar (constant-time, Montgomery ladder).
+  #
+  # Matches OpenSSL convention where +EC_POINT_mul+ is always constant-time.
+  # Safe for both secret and public scalars.
+  #
+  # Also supports the multi-scalar form: +mul(bns, points)+ computes
+  # <tt>bns[0]*self + bns[1]*points[0] + ...</tt>
+  # where +bns.length == points.length + 1+.
+  #
+  # @overload mul(scalar_bn)
+  #   @param scalar_bn [OpenSSL::BN, Integer] the scalar multiplier
+  # @overload mul(bns, points)
+  #   @param bns [Array<OpenSSL::BN>] scalars; must have +points.length + 1+ elements
+  #   @param points [Array<BSVShimECPoint>] additional points
+  #   @raise [NoMethodError] if +bns+ and +points+ lengths are mismatched
+  # @return [BSVShimECPoint]
   def mul(*args)
     if args.length == 1
       scalar = bn_to_int(args[0])
@@ -85,16 +101,27 @@ class BSVShimECPoint
     end
   end
 
-  # Constant-time scalar multiplication via the Montgomery ladder.
+  # Constant-time scalar multiplication (alias for {#mul}).
   #
-  # Delegates to {BSV::Primitives::Secp256k1::Point#mul_ct} to ensure
-  # secret-scalar paths execute in constant time.
+  # Retained for backward compatibility and expressiveness. Delegates
+  # to {#mul}, which is constant-time by default.
   #
-  # @param scalar_bn [OpenSSL::BN, Integer] the secret scalar
+  # @param scalar_bn [OpenSSL::BN, Integer] the scalar multiplier
   # @return [BSVShimECPoint]
   def mul_ct(scalar_bn)
+    mul(scalar_bn)
+  end
+
+  # Variable-time scalar multiplication (wNAF).
+  #
+  # Faster than {#mul} but leaks timing information about the scalar.
+  # Use only for public scalars (e.g. signature verification).
+  #
+  # @param scalar_bn [OpenSSL::BN, Integer] the public scalar multiplier
+  # @return [BSVShimECPoint]
+  def mul_vt(scalar_bn)
     scalar = bn_to_int(scalar_bn)
-    result = @secp_point.mul_ct(scalar)
+    result = @secp_point.mul_vt(scalar)
     self.class.from_secp_point(@group, result)
   end
 
