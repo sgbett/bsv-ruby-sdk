@@ -79,7 +79,7 @@ A script being parseable but failing execution is not a bug — it's the distinc
 
 ## Cryptography
 
-Elliptic curve operations (secp256k1) use a pure Ruby implementation (`BSV::Primitives::Secp256k1`) ported from the TypeScript reference SDK, with an optional native C extension (`Secp256k1Native`) that accelerates field, scalar, and Jacobian point operations (~22× speedup). An OpenSSL compatibility shim (`openssl_ec_shim.rb`) replaces `OpenSSL::PKey::EC` classes so consumer code continues to use the same API. See `docs/general/secp256k1.md` for details.
+Elliptic curve operations (secp256k1) are provided by the [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem — a pure Ruby implementation ported from the TypeScript reference SDK, with an optional native C extension that accelerates field, scalar, and Jacobian point operations (~22× speedup). The `bsv-sdk` exposes these as `BSV::Primitives::Secp256k1` and `BSV::Primitives::Secp256k1Native`. An OpenSSL compatibility shim (`openssl_ec_shim.rb`) replaces `OpenSSL::PKey::EC` classes so consumer code continues to use the same API. See the [secp256k1-native documentation](https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md) for implementation details.
 
 OpenSSL is used for hashing (SHA-256, RIPEMD-160, SHA-512), HMAC, PBKDF2, AES encryption, and constant-time comparison — no external gems.
 

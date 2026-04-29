@@ -4,17 +4,6 @@
 # See CLAUDE.md for the release workflow and tag conventions.
 
 require 'rspec/core/rake_task'
-require 'rake/extensiontask'
-
-# Build the native secp256k1 C extension.
-# lib_dir points to gem/bsv-sdk/lib/bsv so the compiled bundle lands at
-# gem/bsv-sdk/lib/bsv/secp256k1_native.bundle, matching the require path
-# 'bsv/secp256k1_native' used in the extension loader.
-Rake::ExtensionTask.new('secp256k1_native') do |ext|
-  ext.name    = 'secp256k1_native'
-  ext.ext_dir = 'gem/bsv-sdk/ext/bsv/secp256k1_native'
-  ext.lib_dir = 'gem/bsv-sdk/lib/bsv'
-end
 
 namespace :spec do
   {

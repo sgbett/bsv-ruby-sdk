@@ -103,7 +103,7 @@ puts tx.to_hex
 
 ## Features & Deliverables
 
-- **Cryptographic Primitives** — ECDSA signing with RFC 6979 deterministic nonces, Schnorr signatures, ECIES encryption/decryption, Bitcoin Signed Messages. Elliptic curve operations use a [pure Ruby secp256k1 implementation](docs/about/secp256k1.md) ported from the TypeScript reference SDK.
+- **Cryptographic Primitives** — ECDSA signing with RFC 6979 deterministic nonces, Schnorr signatures, ECIES encryption/decryption, Bitcoin Signed Messages. Elliptic curve operations are provided by the [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem — a pure Ruby secp256k1 implementation with an optional C extension (~22× speedup).
 - **Key Management** — BIP-32 HD key derivation, BIP-39 mnemonic generation (12/24-word phrases), WIF import/export, Base58Check encoding/decoding.
 - **Script Layer** — Complete opcode set, script parsing and serialisation, type detection and predicates (`p2pkh?`, `p2pk?`, `p2sh?`, `multisig?`, `op_return?`), data extraction (pubkey hashes, script hashes, addresses), and a fluent builder API.
 - **Script Templates** — Ready-made locking and unlocking script generators for P2PKH, P2PK, P2MS (multisig), and OP_RETURN.

@@ -25,16 +25,14 @@ Gem::Specification.new do |spec|
   spec.bindir      = 'bin'
   spec.executables = ['bsv-mcp']
 
-  spec.extensions = ['ext/bsv/secp256k1_native/extconf.rb']
-
   # Dir.chdir(__dir__) makes the glob resolve relative to this gemspec,
   # not the working directory — so `gem build` works from any CWD.
   spec.files = Dir.chdir(__dir__) do
     Dir.glob('lib/**/*') +
-      Dir.glob('bin/*') +
-      Dir.glob('ext/**/*.{c,h,rb}')
+      Dir.glob('bin/*')
   end + %w[LICENSE README.md CHANGELOG.md]
   spec.require_paths = ['lib']
 
   spec.add_dependency 'mcp', '~> 0.12'
+  spec.add_dependency 'secp256k1-native'
 end

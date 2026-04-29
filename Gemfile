@@ -2,6 +2,8 @@
 
 source 'https://rubygems.org'
 
+gem 'secp256k1-native', git: 'https://github.com/sgbett/secp256k1-native.git', branch: 'master'
+
 gemspec path: 'gem/bsv-sdk'
 gemspec path: 'gem/bsv-attest'
 gemspec path: 'gem/bsv-wallet'
@@ -9,7 +11,6 @@ gemspec path: 'gem/bsv-wallet-postgres'
 
 group :development, :test do
   gem 'rake'
-  gem 'rake-compiler'
   gem 'rspec'
   gem 'rubocop', '~> 1.85'
   gem 'rubocop-rspec', '~> 3.9'
