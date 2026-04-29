@@ -34,5 +34,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_dependency 'mcp', '~> 0.12'
-  spec.add_dependency 'secp256k1-native'
+  spec.add_dependency 'secp256k1-native', '>= 0.16'
 end

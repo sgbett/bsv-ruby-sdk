@@ -73,12 +73,14 @@ class BSVShimECPoint
   #
   # Also supports the multi-scalar form: +mul(bns, points)+ computes
   # <tt>bns[0]*self + bns[1]*points[0] + ...</tt>
+  # where +bns.length == points.length + 1+.
   #
   # @overload mul(scalar_bn)
   #   @param scalar_bn [OpenSSL::BN, Integer] the scalar multiplier
   # @overload mul(bns, points)
-  #   @param bns [Array<OpenSSL::BN>] array of scalar multipliers
-  #   @param points [Array<BSVShimECPoint>] array of additional points
+  #   @param bns [Array<OpenSSL::BN>] scalars; must have +points.length + 1+ elements
+  #   @param points [Array<BSVShimECPoint>] additional points
+  #   @raise [NoMethodError] if +bns+ and +points+ lengths are mismatched
   # @return [BSVShimECPoint]
   def mul(*args)
     if args.length == 1

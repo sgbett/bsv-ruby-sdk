@@ -336,8 +336,8 @@ RSpec.describe BSV::Primitives::Secp256k1 do
       it 'matches mul for the secp256k1 generator with scalar N-1' do
         k = s::N - 1
         ct = g.mul_ct(k)
-        vt = g.mul(k)
-        expect(ct).to eq(vt)
+        default = g.mul(k)
+        expect(ct).to eq(default)
       end
     end
 
