@@ -218,6 +218,27 @@ RSpec.describe BSV::Primitives::ECDSA do
       expect(described_class.verify(hash, BSV::Primitives::Signature.new(n, OpenSSL::BN.new('1')), pubkey_point))
         .to be false
     end
+
+    it 'accepts high-S signatures (mathematical validity, not policy)' do
+      # ECDSA.verify is a mathematical operation — it must accept any s in (0, N),
+      # including s > N/2 (high-S). Low-S enforcement is a Bitcoin protocol policy
+      # (BIP-62 rule 5) that belongs in the script interpreter, not the primitive.
+      #
+      # This test guards against a regression where someone adds low-S rejection
+      # to ECDSA.verify, which would conflate mathematical validity with protocol
+      # policy — the same conceptual error that led to SegWit on BTC.
+      #
+      # See: docs/testing/wycheproof-malleability-analysis.md
+      hash = BSV::Primitives::Digest.sha256('high-S regression guard')
+      sig = described_class.sign(hash, privkey_bn)
+
+      # sign always produces low-S; flip to high-S (s' = N - s)
+      high_s = BSV::Primitives::Curve::N - sig.s
+      high_s_sig = BSV::Primitives::Signature.new(sig.r, high_s)
+
+      expect(high_s_sig.low_s?).to be false
+      expect(described_class.verify(hash, high_s_sig, pubkey_point)).to be true
+    end
   end
 
   describe 'sign then verify round-trip' do
