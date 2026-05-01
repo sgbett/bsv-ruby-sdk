@@ -89,8 +89,48 @@ RSpec.describe 'WhatsOnChain as chain_data_source integration' do
   # Helpers
   # -----------------------------------------------------------------------
 
+  # Thin adapter bridging the Provider/Protocol Result API to the
+  # duck-typed chain_data_source interface the wallet expects
+  # (fetch_utxos, fetch_transaction, current_height, get_block_header).
   def make_woc(http)
-    BSV::Network::WhatsOnChain.new(http_client: http)
+    provider = BSV::Network::Providers::WhatsOnChain.default(http_client: http)
+
+    adapter = Object.new
+
+    adapter.define_singleton_method(:fetch_utxos) do |address|
+      result = provider.call(:get_utxos_all, address)
+      raise BSV::Network::ChainProviderError.new(result.message, status_code: result.metadata[:status_code]) unless result.success?
+
+      result.data.map do |entry|
+        BSV::Network::UTXO.new(
+          tx_hash: entry[:tx_hash], tx_pos: entry[:tx_pos],
+          satoshis: entry[:satoshis], height: entry[:height]
+        )
+      end
+    end
+
+    adapter.define_singleton_method(:fetch_transaction) do |txid|
+      result = provider.call(:get_tx, txid)
+      raise BSV::Network::ChainProviderError.new(result.message, status_code: result.metadata[:status_code]) unless result.success?
+
+      BSV::Transaction::Transaction.from_hex(result.data)
+    end
+
+    adapter.define_singleton_method(:current_height) do
+      result = provider.call(:current_height)
+      raise BSV::Network::ChainProviderError.new(result.message, status_code: result.metadata[:status_code]) unless result.success?
+
+      result.data
+    end
+
+    adapter.define_singleton_method(:get_block_header) do |height|
+      result = provider.call(:get_block_header, height)
+      raise BSV::Network::ChainProviderError.new(result.message, status_code: result.metadata[:status_code]) unless result.success?
+
+      result.data
+    end
+
+    adapter
   end
 
   def make_client(woc, storage = nil)
