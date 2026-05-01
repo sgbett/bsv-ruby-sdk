@@ -194,7 +194,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.new
       beef.transactions << described_class::BeefTx.new(
         format: described_class::FORMAT_TXID_ONLY,
-        known_txid: "\x01".b * 32
+        known_wtxid: "\x01".b * 32
       )
       beef
     end
@@ -216,7 +216,7 @@ RSpec.describe BSV::Transaction::Beef do
       parsed = described_class.from_binary(bytes)
       expect(parsed.transactions.length).to eq(1)
       expect(parsed.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
-      expect(parsed.transactions.first.known_txid).to eq("\x01".b * 32)
+      expect(parsed.transactions.first.known_wtxid).to eq("\x01".b * 32)
     end
 
     it 'V2 round-trip preserves the TXID-only entry' do
@@ -268,14 +268,14 @@ RSpec.describe BSV::Transaction::Beef do
   end
 
   describe '#find_transaction' do
-    it 'finds a transaction by txid' do
+    it 'finds a transaction by wtxid' do
       beef = described_class.from_hex(beef_set_hex)
       first_tx = beef.transactions.first.transaction
-      found = beef.find_transaction(first_tx.txid)
+      found = beef.find_transaction(first_tx.wtxid)
       expect(found).to eq(first_tx)
     end
 
-    it 'returns nil for unknown txid' do
+    it 'returns nil for unknown wtxid' do
       beef = described_class.from_hex(beef_set_hex)
       expect(beef.find_transaction("\x00".b * 32)).to be_nil
     end
@@ -285,22 +285,22 @@ RSpec.describe BSV::Transaction::Beef do
     it 'round-trips via to_atomic_binary and from_binary' do
       beef = described_class.from_hex(beef_set_hex)
       last_tx = beef.transactions.last.transaction
-      subject_txid = last_tx.txid
+      subject_wtxid = last_tx.wtxid
 
-      atomic_bytes = beef.to_atomic_binary(subject_txid)
+      atomic_bytes = beef.to_atomic_binary(subject_wtxid)
 
-      # Verify prefix and internal byte order (reversed from display order)
+      # Verify prefix and internal byte order (wire-order written directly)
       expect(atomic_bytes.byteslice(0, 4).unpack1('V')).to eq(described_class::ATOMIC_BEEF)
-      expect(atomic_bytes.byteslice(4, 32)).to eq(subject_txid.b.reverse)
+      expect(atomic_bytes.byteslice(4, 32)).to eq(subject_wtxid)
 
       # Parse back
       parsed = described_class.from_binary(atomic_bytes)
-      expect(parsed.subject_txid).to eq(subject_txid)
+      expect(parsed.subject_txid).to eq(last_tx.txid)
       expect(parsed.transactions.length).to eq(beef.transactions.length)
 
-      found = parsed.find_transaction(subject_txid)
+      found = parsed.find_transaction(subject_wtxid)
       expect(found).not_to be_nil
-      expect(found.txid).to eq(subject_txid)
+      expect(found.txid).to eq(last_tx.txid)
     end
   end
 
@@ -340,7 +340,7 @@ RSpec.describe BSV::Transaction::Beef do
       expect(rebuilt.transactions).not_to be_empty
 
       # The subject tx should be present
-      found = rebuilt.find_transaction(tx.txid)
+      found = rebuilt.find_transaction(tx.wtxid)
       expect(found).not_to be_nil
       expect(found.txid).to eq(tx.txid)
     end
@@ -445,7 +445,7 @@ RSpec.describe BSV::Transaction::Beef do
     let(:sibling0_hash) { BSV::Primitives::Digest.sha256('sibling_0') }
     let(:sibling3_hash) { BSV::Primitives::Digest.sha256('sibling_3') }
 
-    let(:leaf_hashes) { [sibling0_hash, tx_a.txid(wire: true), tx_b.txid(wire: true), sibling3_hash] }
+    let(:leaf_hashes) { [sibling0_hash, tx_a.wtxid, tx_b.wtxid, sibling3_hash] }
     let(:level1_hashes) do
       [
         mp_class.merkle_tree_parent(leaf_hashes[0], leaf_hashes[1]),
@@ -605,7 +605,7 @@ RSpec.describe BSV::Transaction::Beef do
       let(:phantom_sibling) { BSV::Primitives::Digest.sha256('sibling_leaf_3') }
 
       let(:leaf_hashes) do
-        [tx_real.txid(wire: true), tx_real_sibling, phantom_leaf, phantom_sibling]
+        [tx_real.wtxid, tx_real_sibling, phantom_leaf, phantom_sibling]
       end
       let(:level1_hashes) do
         [
@@ -657,7 +657,7 @@ RSpec.describe BSV::Transaction::Beef do
         bump = parsed.bumps[0]
         txid_leaves = bump.path[0].select(&:txid)
         expect(txid_leaves.length).to eq(1)
-        expect(txid_leaves[0].hash).to eq(tx_real.txid(wire: true))
+        expect(txid_leaves[0].hash).to eq(tx_real.wtxid)
       end
 
       it 'strips the phantom leaf hash from the emitted BUMP' do
@@ -669,7 +669,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       it 'preserves the original merkle root through the rebuild' do
         parsed = described_class.from_binary(child.to_beef)
-        expect(parsed.bumps[0].compute_root(tx_real.txid(wire: true))).to eq(expected_root)
+        expect(parsed.bumps[0].compute_root(tx_real.wtxid)).to eq(expected_root)
       end
 
       it 'does not mutate the caller tx_real.merkle_path' do
@@ -695,7 +695,7 @@ RSpec.describe BSV::Transaction::Beef do
       let(:source_beef) { described_class.from_binary(Base64.decode64(File.read(fixture_path))) }
 
       def bundled_txid_hashes(beef)
-        beef.transactions.map { |bt| bt.txid(wire: true) }
+        beef.transactions.map(&:wtxid)
       end
 
       def count_phantoms(bump, bundled_hashes)
@@ -772,11 +772,11 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns the merkle path for a mined transaction' do
       beef = described_class.from_hex(beef_set_hex)
       mined = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
-      mp = beef.find_bump(mined.txid)
+      mp = beef.find_bump(mined.wtxid)
       expect(mp).to be_a(BSV::Transaction::MerklePath)
     end
 
-    it 'returns nil for unknown txid' do
+    it 'returns nil for unknown wtxid' do
       beef = described_class.from_hex(beef_set_hex)
       expect(beef.find_bump("\x00".b * 32)).to be_nil
     end
@@ -785,7 +785,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.from_hex(beef_set_hex)
       raw_only = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX }
       if raw_only
-        expect(beef.find_bump(raw_only.txid)).to be_nil
+        expect(beef.find_bump(raw_only.wtxid)).to be_nil
       else
         # All txs in this vector have BUMPs - skip
         skip 'no unproven transactions in this vector'
@@ -797,12 +797,12 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns a transaction with wired inputs' do
       beef = described_class.from_hex(beef_set_hex)
       last_tx = beef.transactions.last.transaction
-      found = beef.find_transaction_for_signing(last_tx.txid)
+      found = beef.find_transaction_for_signing(last_tx.wtxid)
       expect(found).to be_a(BSV::Transaction::Transaction)
       expect(found.txid).to eq(last_tx.txid)
     end
 
-    it 'returns nil for unknown txid' do
+    it 'returns nil for unknown wtxid' do
       beef = described_class.from_hex(beef_set_hex)
       expect(beef.find_transaction_for_signing("\x00".b * 32)).to be_nil
     end
@@ -812,7 +812,7 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns a transaction with recursive proof tree' do
       beef = described_class.from_hex(beef_set_hex)
       last_tx = beef.transactions.last.transaction
-      found = beef.find_atomic_transaction(last_tx.txid)
+      found = beef.find_atomic_transaction(last_tx.wtxid)
       expect(found).to be_a(BSV::Transaction::Transaction)
       expect(found.txid).to eq(last_tx.txid)
     end
@@ -821,11 +821,11 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#to_atomic_hex' do
     it 'returns a hex-encoded Atomic BEEF' do
       beef = described_class.from_hex(beef_set_hex)
-      txid = beef.transactions.last.txid
-      hex = beef.to_atomic_hex(txid)
+      last_bt = beef.transactions.last
+      hex = beef.to_atomic_hex(last_bt.wtxid)
       expect(hex).to match(/\A[0-9a-f]+\z/)
       parsed = described_class.from_binary([hex].pack('H*'))
-      expect(parsed.subject_txid).to eq(txid)
+      expect(parsed.subject_txid).to eq(last_bt.txid)
     end
   end
 
@@ -1017,16 +1017,16 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#make_txid_only' do
     it 'converts a transaction to TXID-only format' do
       beef = described_class.from_hex(beef_set_hex)
-      tx = beef.transactions.first.transaction
-      txid = tx.txid
+      first_bt = beef.transactions.first
+      display_txid = first_bt.txid
 
-      beef.make_txid_only(txid)
-      entry = beef.transactions.find { |bt| bt.txid == txid }
+      beef.make_txid_only(first_bt.wtxid)
+      entry = beef.transactions.find { |bt| bt.txid == display_txid }
       expect(entry.format).to eq(described_class::FORMAT_TXID_ONLY)
-      expect(entry.known_txid).to eq(txid)
+      expect(entry.known_wtxid).to eq(first_bt.wtxid)
     end
 
-    it 'returns nil for unknown txid' do
+    it 'returns nil for unknown wtxid' do
       beef = described_class.from_hex(beef_set_hex)
       expect(beef.make_txid_only("\x00".b * 32)).to be_nil
     end
@@ -1064,7 +1064,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.new
       beef.transactions << described_class::BeefTx.new(
         format: described_class::FORMAT_TXID_ONLY,
-        known_txid: "\x01".b * 32
+        known_wtxid: "\x01".b * 32
       )
       expect(beef.valid?).to be false
     end
@@ -1073,7 +1073,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.new
       beef.transactions << described_class::BeefTx.new(
         format: described_class::FORMAT_TXID_ONLY,
-        known_txid: "\x01".b * 32
+        known_wtxid: "\x01".b * 32
       )
       expect(beef.valid?(allow_txid_only: true)).to be true
     end
@@ -1217,7 +1217,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef_with_txid_only = described_class.new
       beef_with_txid_only.transactions << described_class::BeefTx.new(
         format: described_class::FORMAT_TXID_ONLY,
-        known_txid: "\x01".b * 32
+        known_wtxid: "\x01".b * 32
       )
       expect(beef_with_txid_only.verify(nil, allow_txid_only: true)).to be true
       expect(beef_with_txid_only.verify(nil, allow_txid_only: false)).to be false
@@ -1229,26 +1229,23 @@ RSpec.describe BSV::Transaction::Beef do
     it 'moves cyclic transactions to @txs_not_valid' do
       # A real txid cycle is impossible (txid is a hash of the tx, which includes
       # the input prev_tx_id). We test cycle detection by using mocked transaction
-      # objects with stable fake txids that reference each other.
+      # objects with stable fake wtxids that reference each other.
       #
       # sort_transactions! logic:
-      #   txid_index[bt.txid] = i  (bt.txid is display order for RAW_TX entries)
-      #   dep_idx = txid_index[input.prev_tx_id.reverse]
-      #   (prev_tx_id is wire/internal; .reverse gives display order for lookup)
+      #   txid_index[bt.wtxid] = i  (wire-order wtxid from BeefTx#wtxid)
+      #   dep_idx = txid_index[input.prev_tx_id]
+      #   (prev_tx_id is also wire-order — direct lookup, no reversal needed)
       #
-      # For a cycle: input_a.prev_tx_id.reverse must == txid_b (display).
-      # So: input_a.prev_tx_id (wire) = txid_b.b (same bytes, since we define txid
-      # as a 32-byte string and prev_tx_id is just the reversed form of display txid).
-      txid_a = BSV::Primitives::Digest.sha256('fake_tx_a') # display order
-      txid_b = BSV::Primitives::Digest.sha256('fake_tx_b')
+      # For a cycle: input_a.prev_tx_id must == wtxid_b (wire-order).
+      wtxid_a = BSV::Primitives::Digest.sha256('fake_tx_a') # wire order
+      wtxid_b = BSV::Primitives::Digest.sha256('fake_tx_b')
 
-      # prev_tx_id (wire) must satisfy: prev_tx_id.reverse == txid of the other tx
-      # => prev_tx_id = txid.reverse (internal byte order)
-      input_a = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: txid_b.reverse)
-      input_b = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: txid_a.reverse)
+      # prev_tx_id (wire) of A's input must equal wtxid_b so the sort sees a dep B→A
+      input_a = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: wtxid_b)
+      input_b = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: wtxid_a)
 
-      tx_a = instance_double(BSV::Transaction::Transaction, txid: txid_a, inputs: [input_a])
-      tx_b = instance_double(BSV::Transaction::Transaction, txid: txid_b, inputs: [input_b])
+      tx_a = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_a, inputs: [input_a])
+      tx_b = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_b, inputs: [input_b])
 
       beef = described_class.new
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx_a)
@@ -1303,12 +1300,11 @@ RSpec.describe BSV::Transaction::Beef do
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
       expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
 
-      # Now add a BUMP that covers this txid
-      txid_internal = tx.txid(wire: true)
+      # Now add a BUMP that covers this wtxid
       sibling = BSV::Primitives::Digest.sha256('sibling')
       bump = mp_class.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 0, hash: txid_internal, txid: true),
+        path: [[pe.new(offset: 0, hash: tx.wtxid, txid: true),
                 pe.new(offset: 1, hash: sibling)]]
       )
       beef.merge_bump(bump)
@@ -1345,11 +1341,10 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     def make_bump(tx)
-      txid_internal = tx.txid(wire: true)
       sibling = BSV::Primitives::Digest.sha256('sibling')
       mp_class.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 0, hash: txid_internal, txid: true),
+        path: [[pe.new(offset: 0, hash: tx.wtxid, txid: true),
                 pe.new(offset: 1, hash: sibling)]]
       )
     end
@@ -1359,7 +1354,7 @@ RSpec.describe BSV::Transaction::Beef do
       tx = make_tx
       txid = tx.txid
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_txid: txid)
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
       expect(beef.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
 
       beef.merge_transaction(tx)
@@ -1374,7 +1369,7 @@ RSpec.describe BSV::Transaction::Beef do
       txid = tx.txid
       tx.merkle_path = make_bump(tx)
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_txid: txid)
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
       beef.merge_transaction(tx)
 
       entry = beef.transactions.find { |bt| bt.txid == txid }
@@ -1404,7 +1399,7 @@ RSpec.describe BSV::Transaction::Beef do
       tx = make_tx
       txid = tx.txid
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_txid: txid)
+      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
       beef.merge_raw_tx(tx.to_binary)
 
       entry = beef.transactions.find { |bt| bt.txid == txid }
@@ -1437,25 +1432,24 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.new
       tx = BSV::Transaction::Transaction.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
-      txid_internal = tx.txid(wire: true)
 
       sibling = BSV::Primitives::Digest.sha256('sibling')
       bump = mp_class.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 0, hash: txid_internal, txid: true),
+        path: [[pe.new(offset: 0, hash: tx.wtxid, txid: true),
                 pe.new(offset: 1, hash: sibling)]]
       )
       beef.bumps << bump
 
       # No transaction entry — should still find the BUMP via @bumps scan
-      found = beef.find_bump(tx.txid)
+      found = beef.find_bump(tx.wtxid)
       expect(found).to be(bump)
     end
 
     it 'prefers the transaction-table entry when both exist' do
       source = described_class.from_hex(brc62_hex)
       mined = source.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
-      bump_via_table = source.find_bump(mined.txid)
+      bump_via_table = source.find_bump(mined.wtxid)
       expect(bump_via_table).to be_a(BSV::Transaction::MerklePath)
     end
   end

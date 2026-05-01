@@ -60,8 +60,9 @@ RSpec.describe BSV::Transaction::Beef do
     # Go SDK: tx := beef.FindTransaction("b1fc0f44ba629dbdffab9e34fcc4faf9dbde3560a7365c55c26fe4daab052aac")
     it 'contains the expected transaction by txid (Go SDK reference)' do
       expected_hex = 'b1fc0f44ba629dbdffab9e34fcc4faf9dbde3560a7365c55c26fe4daab052aac'
-      expected_txid = [expected_hex].pack('H*')
-      tx = beef.find_transaction(expected_txid)
+      # find_transaction takes wire-order (internal) bytes — reverse the display-order hex
+      expected_wtxid = [expected_hex].pack('H*').reverse
+      tx = beef.find_transaction(expected_wtxid)
       expect(tx).not_to be_nil
       expect(tx.txid_hex).to eq(expected_hex)
     end
@@ -107,33 +108,34 @@ RSpec.describe BSV::Transaction::Beef do
   describe 'TXID_ONLY byte-order consistency (F5.1)' do
     it 'make_txid_only preserves display-order txid' do
       beef = described_class.from_hex(go_brc62_hex)
-      tx = beef.transactions.first
-      display_txid = tx.txid
+      bt = beef.transactions.first
+      display_txid = bt.txid
 
-      beef.make_txid_only(display_txid)
-      txid_only_entry = beef.transactions.find { |bt| bt.format == described_class::FORMAT_TXID_ONLY }
+      beef.make_txid_only(bt.wtxid)
+      txid_only_entry = beef.transactions.find { |entry| entry.format == described_class::FORMAT_TXID_ONLY }
       expect(txid_only_entry).not_to be_nil
       expect(txid_only_entry.txid).to eq(display_txid)
     end
 
     it 'TXID_ONLY round-trips through V2 serialise/parse' do
       beef = described_class.from_hex(go_brc62_hex)
-      original_txid = beef.transactions.first.txid
+      first_bt = beef.transactions.first
+      original_txid = first_bt.txid
 
-      beef.make_txid_only(original_txid)
+      beef.make_txid_only(first_bt.wtxid)
       v2_bytes = beef.to_binary(version: described_class::BEEF_V2)
       parsed = described_class.from_binary(v2_bytes)
 
-      txid_entry = parsed.transactions.find { |bt| bt.format == described_class::FORMAT_TXID_ONLY }
+      txid_entry = parsed.transactions.find { |entry| entry.format == described_class::FORMAT_TXID_ONLY }
       expect(txid_entry).not_to be_nil
       expect(txid_entry.txid).to eq(original_txid)
     end
 
     it 'TXID_ONLY entries are included in known txids set' do
       beef = described_class.from_hex(go_beef_set_hex)
-      display_txid = beef.transactions.first.txid
+      first_bt = beef.transactions.first
 
-      beef.make_txid_only(display_txid)
+      beef.make_txid_only(first_bt.wtxid)
       # With allow_txid_only, the converted entry must be findable
       # by its display-order txid in the known set
       expect(beef.valid?(allow_txid_only: true)).to be true
@@ -145,15 +147,15 @@ RSpec.describe BSV::Transaction::Beef do
   describe 'Atomic BEEF (BRC-95) conformance' do
     it 'wraps V2 with magic prefix and subject txid' do
       beef = described_class.from_hex(go_beef_set_hex)
-      subject_tx = beef.transactions.last.transaction
-      subject_txid = subject_tx.txid
+      last_bt = beef.transactions.last
+      subject_wtxid = last_bt.wtxid
 
-      atomic = beef.to_atomic_binary(subject_txid)
+      atomic = beef.to_atomic_binary(subject_wtxid)
 
       # BRC-95: first 4 bytes = 0x01010101
       expect(atomic.byteslice(0, 4).unpack1('V')).to eq(0x01010101)
-      # BRC-95: next 32 bytes = subject txid in internal byte order (reversed)
-      expect(atomic.byteslice(4, 32)).to eq(subject_txid.b.reverse)
+      # BRC-95: next 32 bytes = subject txid in wire (internal) byte order
+      expect(atomic.byteslice(4, 32)).to eq(subject_wtxid)
       # BRC-95: remainder is V2 BEEF
       inner_version = atomic.byteslice(36, 4).unpack1('V')
       expect(inner_version).to eq(described_class::BEEF_V2)
@@ -161,12 +163,12 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'round-trips through atomic serialise/parse' do
       beef = described_class.from_hex(go_beef_set_hex)
-      subject_txid = beef.transactions.last.txid
+      last_bt = beef.transactions.last
 
-      atomic = beef.to_atomic_binary(subject_txid)
+      atomic = beef.to_atomic_binary(last_bt.wtxid)
       parsed = described_class.from_binary(atomic)
 
-      expect(parsed.subject_txid).to eq(subject_txid)
+      expect(parsed.subject_txid).to eq(last_bt.txid)
       expect(parsed.transactions.length).to eq(beef.transactions.length)
     end
   end

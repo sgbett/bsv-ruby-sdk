@@ -370,11 +370,11 @@ module BSV
       #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef(data)
         beef = Beef.from_binary(data)
-        subject_txid = beef.subject_txid ||
-                       beef.transactions.reverse.find(&:transaction)&.transaction&.txid
-        return nil unless subject_txid
+        subject_wtxid = beef.subject_wtxid ||
+                        beef.transactions.reverse.find(&:transaction)&.transaction&.wtxid
+        return nil unless subject_wtxid
 
-        beef.find_atomic_transaction(subject_txid)
+        beef.find_atomic_transaction(subject_wtxid)
       end
 
       # Parse a BEEF hex string and return the subject transaction.

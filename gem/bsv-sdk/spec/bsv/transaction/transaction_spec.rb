@@ -711,11 +711,10 @@ RSpec.describe BSV::Transaction::Transaction do
     def proven_tx(satoshis: 1000, block_height: 800_000, offset: 0)
       tx = BSV::Transaction::Transaction.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: lock))
-      txid_internal = tx.txid(wire: true)
-      sibling_hash  = BSV::Primitives::Digest.sha256("sibling_#{offset}") # 32 raw bytes
+      sibling_hash = BSV::Primitives::Digest.sha256("sibling_#{offset}") # 32 raw bytes
       tx.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: block_height,
-        path: [[pe.new(offset: offset, hash: txid_internal, txid: true),
+        path: [[pe.new(offset: offset, hash: tx.wtxid, txid: true),
                 pe.new(offset: offset ^ 1, hash: sibling_hash)]]
       )
       tx
@@ -725,7 +724,7 @@ RSpec.describe BSV::Transaction::Transaction do
     # prev_tx_id must be in wire byte order.
     def add_input(child_tx, parent_tx)
       inp = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: parent_tx.txid(wire: true), prev_tx_out_index: 0
+        prev_tx_id: parent_tx.wtxid, prev_tx_out_index: 0
       )
       inp.source_transaction = parent_tx
       inp.source_satoshis = parent_tx.outputs[0].satoshis
@@ -809,11 +808,10 @@ RSpec.describe BSV::Transaction::Transaction do
       add_input(subject, ancestor)
 
       # PathElement hashes use wire byte order.
-      ancestor_txid_internal = ancestor.txid(wire: true)
-      sibling_hash           = BSV::Primitives::Digest.sha256('late_sibling')
+      sibling_hash = BSV::Primitives::Digest.sha256('late_sibling')
       bump = BSV::Transaction::MerklePath.new(
         block_height: 850_000,
-        path: [[pe.new(offset: 0, hash: ancestor_txid_internal, txid: true),
+        path: [[pe.new(offset: 0, hash: ancestor.wtxid, txid: true),
                 pe.new(offset: 1, hash: sibling_hash)]]
       )
 
@@ -850,7 +848,7 @@ RSpec.describe BSV::Transaction::Transaction do
       beef = BSV::Transaction::Beef.new
       beef.merge_transaction(subject)
       # Serialise as Atomic BEEF so subject_txid is embedded
-      binary = beef.to_atomic_binary(subject.txid)
+      binary = beef.to_atomic_binary(subject.wtxid)
 
       result = described_class.from_beef(binary)
       expect(result).not_to be_nil
