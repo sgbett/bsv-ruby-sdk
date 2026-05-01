@@ -28,12 +28,12 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'verifies the ts-sdk BRC-3 compliance signature' do
       result = wallet.verify_signature(
-                                         data: 'BRC-3 Compliance Validated!'.bytes,
-                                         signature: known_signature_bytes,
-                                         protocol_id: [2, 'brc3 test'],
-                                         key_id: '42',
-                                         counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
-                                       )
+        data: 'BRC-3 Compliance Validated!'.bytes,
+        signature: known_signature_bytes,
+        protocol_id: [2, 'brc3 test'],
+        key_id: '42',
+        counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
+      )
       expect(result[:valid]).to be true
     end
   end
@@ -57,22 +57,22 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'verifies the ts-sdk BRC-2 HMAC compliance value' do
       result = wallet.verify_hmac(
-                                    data: 'BRC-2 HMAC Compliance Validated!'.bytes,
-                                    hmac: known_hmac_bytes,
-                                    protocol_id: [2, 'brc2 test'],
-                                    key_id: '42',
-                                    counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
-                                  )
+        data: 'BRC-2 HMAC Compliance Validated!'.bytes,
+        hmac: known_hmac_bytes,
+        protocol_id: [2, 'brc2 test'],
+        key_id: '42',
+        counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
+      )
       expect(result[:valid]).to be true
     end
 
     it 'produces the exact same HMAC bytes as the ts-sdk' do
       result = wallet.create_hmac(
-                                    data: 'BRC-2 HMAC Compliance Validated!'.bytes,
-                                    protocol_id: [2, 'brc2 test'],
-                                    key_id: '42',
-                                    counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
-                                  )
+        data: 'BRC-2 HMAC Compliance Validated!'.bytes,
+        protocol_id: [2, 'brc2 test'],
+        key_id: '42',
+        counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
+      )
       expect(result[:hmac]).to eq(known_hmac_bytes)
     end
   end
@@ -99,11 +99,11 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'decrypts the ts-sdk BRC-2 compliance ciphertext' do
       result = wallet.decrypt(
-                                ciphertext: known_ciphertext_bytes,
-                                protocol_id: [2, 'brc2 test'],
-                                key_id: '42',
-                                counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
-                              )
+        ciphertext: known_ciphertext_bytes,
+        protocol_id: [2, 'brc2 test'],
+        key_id: '42',
+        counterparty: '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
+      )
       plaintext_string = result[:plaintext].pack('C*')
       expect(plaintext_string).to eq('BRC-2 Encryption Compliance Validated!')
     end
@@ -120,17 +120,17 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'derives the same public key from both sides (BRC-42 symmetry)' do
       derived_for_counterparty = user.get_public_key(
-                                                       protocol_id: [2, 'tests'],
-                                                       key_id: '4',
-                                                       counterparty: counterparty_key.public_key.to_hex
-                                                     )
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       derived_by_counterparty = counterparty_wallet.get_public_key(
-                                                                     protocol_id: [2, 'tests'],
-                                                                     key_id: '4',
-                                                                     counterparty: user_key.public_key.to_hex,
-                                                                     for_self: true
-                                                                   )
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: user_key.public_key.to_hex,
+        for_self: true
+      )
 
       expect(derived_for_counterparty[:public_key]).to eq(derived_by_counterparty[:public_key])
     end
@@ -148,55 +148,55 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'encrypts messages decryptable by the counterparty' do
       encrypted = user.encrypt(
-                                 plaintext: sample_data,
-                                 protocol_id: [2, 'tests'],
-                                 key_id: '4',
-                                 counterparty: counterparty_key.public_key.to_hex
-                               )
+        plaintext: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       decrypted = counterparty_wallet.decrypt(
-                                                ciphertext: encrypted[:ciphertext],
-                                                protocol_id: [2, 'tests'],
-                                                key_id: '4',
-                                                counterparty: user_key.public_key.to_hex
-                                              )
+        ciphertext: encrypted[:ciphertext],
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: user_key.public_key.to_hex
+      )
 
       expect(decrypted[:plaintext]).to eq(sample_data)
     end
 
     it 'fails to decrypt with wrong protocol' do
       encrypted = user.encrypt(
-                                 plaintext: sample_data,
-                                 protocol_id: [2, 'tests'],
-                                 key_id: '4',
-                                 counterparty: counterparty_key.public_key.to_hex
-                               )
+        plaintext: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       expect do
         counterparty_wallet.decrypt(
-                                      ciphertext: encrypted[:ciphertext],
-                                      protocol_id: [1, 'tests'],
-                                      key_id: '4',
-                                      counterparty: user_key.public_key.to_hex
-                                    )
+          ciphertext: encrypted[:ciphertext],
+          protocol_id: [1, 'tests'],
+          key_id: '4',
+          counterparty: user_key.public_key.to_hex
+        )
       end.to raise_error(StandardError)
     end
 
     it 'fails to decrypt with wrong key_id' do
       encrypted = user.encrypt(
-                                 plaintext: sample_data,
-                                 protocol_id: [2, 'tests'],
-                                 key_id: '4',
-                                 counterparty: counterparty_key.public_key.to_hex
-                               )
+        plaintext: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       expect do
         counterparty_wallet.decrypt(
-                                      ciphertext: encrypted[:ciphertext],
-                                      protocol_id: [2, 'tests'],
-                                      key_id: '5',
-                                      counterparty: user_key.public_key.to_hex
-                                    )
+          ciphertext: encrypted[:ciphertext],
+          protocol_id: [2, 'tests'],
+          key_id: '5',
+          counterparty: user_key.public_key.to_hex
+        )
       end.to raise_error(StandardError)
     end
   end
@@ -213,39 +213,39 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'signs messages verifiable by the counterparty' do
       signed = user.create_signature(
-                                       data: sample_data,
-                                       protocol_id: [2, 'tests'],
-                                       key_id: '4',
-                                       counterparty: counterparty_key.public_key.to_hex
-                                     )
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       verified = counterparty_wallet.verify_signature(
-                                                        signature: signed[:signature],
-                                                        data: sample_data,
-                                                        protocol_id: [2, 'tests'],
-                                                        key_id: '4',
-                                                        counterparty: user_key.public_key.to_hex
-                                                      )
+        signature: signed[:signature],
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: user_key.public_key.to_hex
+      )
 
       expect(verified[:valid]).to be true
     end
 
     it 'fails to verify with wrong data' do
       signed = user.create_signature(
-                                       data: sample_data,
-                                       protocol_id: [2, 'tests'],
-                                       key_id: '4',
-                                       counterparty: counterparty_key.public_key.to_hex
-                                     )
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       expect do
         counterparty_wallet.verify_signature(
-                                               signature: signed[:signature],
-                                               data: [0] + sample_data,
-                                               protocol_id: [2, 'tests'],
-                                               key_id: '4',
-                                               counterparty: user_key.public_key.to_hex
-                                             )
+          signature: signed[:signature],
+          data: [0] + sample_data,
+          protocol_id: [2, 'tests'],
+          key_id: '4',
+          counterparty: user_key.public_key.to_hex
+        )
       end.to raise_error(BSV::Wallet::InvalidSignatureError)
     end
   end
@@ -262,19 +262,19 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'computes HMACs verifiable by the counterparty' do
       hmac_result = user.create_hmac(
-                                       data: sample_data,
-                                       protocol_id: [2, 'tests'],
-                                       key_id: '4',
-                                       counterparty: counterparty_key.public_key.to_hex
-                                     )
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: counterparty_key.public_key.to_hex
+      )
 
       verified = counterparty_wallet.verify_hmac(
-                                                   hmac: hmac_result[:hmac],
-                                                   data: sample_data,
-                                                   protocol_id: [2, 'tests'],
-                                                   key_id: '4',
-                                                   counterparty: user_key.public_key.to_hex
-                                                 )
+        hmac: hmac_result[:hmac],
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: user_key.public_key.to_hex
+      )
 
       expect(verified[:valid]).to be true
       expect(hmac_result[:hmac].length).to eq(32)
@@ -291,50 +291,50 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'defaults to "self" for HMAC when no counterparty specified' do
       hmac_result = user.create_hmac(
-                                       data: sample_data,
-                                       protocol_id: [2, 'tests'],
-                                       key_id: '4'
-                                     )
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4'
+      )
 
       verified = user.verify_hmac(
-                                    hmac: hmac_result[:hmac],
-                                    data: sample_data,
-                                    protocol_id: [2, 'tests'],
-                                    key_id: '4',
-                                    counterparty: 'self'
-                                  )
+        hmac: hmac_result[:hmac],
+        data: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: 'self'
+      )
 
       expect(verified[:valid]).to be true
     end
 
     it 'defaults to "self" for getPublicKey when no counterparty specified' do
       without_cp = user.get_public_key(
-                                         protocol_id: [2, 'tests'],
-                                         key_id: '4'
-                                       )
+        protocol_id: [2, 'tests'],
+        key_id: '4'
+      )
 
       with_self = user.get_public_key(
-                                        protocol_id: [2, 'tests'],
-                                        key_id: '4',
-                                        counterparty: 'self'
-                                      )
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: 'self'
+      )
 
       expect(without_cp[:public_key]).to eq(with_self[:public_key])
     end
 
     it 'defaults to "self" for encrypt/decrypt when no counterparty specified' do
       encrypted = user.encrypt(
-                                 plaintext: sample_data,
-                                 protocol_id: [2, 'tests'],
-                                 key_id: '4'
-                               )
+        plaintext: sample_data,
+        protocol_id: [2, 'tests'],
+        key_id: '4'
+      )
 
       decrypted = user.decrypt(
-                                 ciphertext: encrypted[:ciphertext],
-                                 protocol_id: [2, 'tests'],
-                                 key_id: '4',
-                                 counterparty: 'self'
-                               )
+        ciphertext: encrypted[:ciphertext],
+        protocol_id: [2, 'tests'],
+        key_id: '4',
+        counterparty: 'self'
+      )
 
       expect(decrypted[:plaintext]).to eq(sample_data)
     end
@@ -352,16 +352,16 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'reveals counterparty linkage decryptable by the verifier' do
       revelation = prover.reveal_counterparty_key_linkage(
-                                                            counterparty: counterparty_key.public_key.to_hex,
-                                                            verifier: verifier_key.public_key.to_hex
-                                                          )
+        counterparty: counterparty_key.public_key.to_hex,
+        verifier: verifier_key.public_key.to_hex
+      )
 
       decrypted = verifier.decrypt(
-                                     ciphertext: revelation[:encrypted_linkage],
-                                     protocol_id: [2, 'counterparty linkage revelation'],
-                                     key_id: revelation[:revelation_time],
-                                     counterparty: prover_key.public_key.to_hex
-                                   )
+        ciphertext: revelation[:encrypted_linkage],
+        protocol_id: [2, 'counterparty linkage revelation'],
+        key_id: revelation[:revelation_time],
+        counterparty: prover_key.public_key.to_hex
+      )
 
       # The decrypted linkage should equal the ECDH shared secret
       expected_linkage = prover_key.derive_shared_secret(counterparty_key.public_key).compressed
@@ -383,18 +383,18 @@ RSpec.describe 'BRC-100 Client cross-SDK conformance', :conformance do
 
     it 'reveals specific linkage decryptable and verifiable by the verifier' do
       revelation = prover.reveal_specific_key_linkage(
-                                                        counterparty: counterparty_key.public_key.to_hex,
-                                                        verifier: verifier_key.public_key.to_hex,
-                                                        protocol_id: protocol_id,
-                                                        key_id: key_id
-                                                      )
+        counterparty: counterparty_key.public_key.to_hex,
+        verifier: verifier_key.public_key.to_hex,
+        protocol_id: protocol_id,
+        key_id: key_id
+      )
 
       decrypted = verifier.decrypt(
-                                     ciphertext: revelation[:encrypted_linkage],
-                                     protocol_id: [2, "specific linkage revelation #{protocol_id[0]} #{protocol_id[1]}"],
-                                     key_id: key_id,
-                                     counterparty: prover_key.public_key.to_hex
-                                   )
+        ciphertext: revelation[:encrypted_linkage],
+        protocol_id: [2, "specific linkage revelation #{protocol_id[0]} #{protocol_id[1]}"],
+        key_id: key_id,
+        counterparty: prover_key.public_key.to_hex
+      )
 
       # Compute expected linkage: HMAC(shared_secret, invoice_number)
       shared_secret = prover_key.derive_shared_secret(counterparty_key.public_key).compressed

@@ -277,11 +277,11 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
       key_id = "#{client_nonce} #{client_session.peer_nonce}"
 
       sig_result = client_wallet.create_signature(
-                                                    data: payload_bin.bytes,
-                                                    protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
-                                                    key_id: key_id,
-                                                    counterparty: server_key.public_key.to_hex
-                                                  )
+        data: payload_bin.bytes,
+        protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
+        key_id: key_id,
+        counterparty: server_key.public_key.to_hex
+      )
 
       sig_hex = sig_result[:signature].pack('C*').unpack1('H*')
 
@@ -366,11 +366,11 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
         )
 
         sig_result = client_wallet.create_signature(
-                                                      data: payload_bin.bytes,
-                                                      protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
-                                                      key_id: key_id,
-                                                      counterparty: server_key.public_key.to_hex
-                                                    )
+          data: payload_bin.bytes,
+          protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: server_key.public_key.to_hex
+        )
 
         sig_hex = sig_result[:signature].pack('C*').unpack1('H*')
 
@@ -465,11 +465,11 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
         )
 
         sig_result = client_wallet.create_signature(
-                                                      data: payload_bin.bytes,
-                                                      protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
-                                                      key_id: "#{client_nonce} #{unknown_nonce}",
-                                                      counterparty: server_key.public_key.to_hex
-                                                    )
+          data: payload_bin.bytes,
+          protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
+          key_id: "#{client_nonce} #{unknown_nonce}",
+          counterparty: server_key.public_key.to_hex
+        )
         sig_hex = sig_result[:signature].pack('C*').unpack1('H*')
 
         env = rack_env(method: 'GET', path: '/api/data', headers: {
@@ -532,11 +532,11 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
       )
       key_id = "#{client_nonce} #{client_session.peer_nonce}"
       sig_result = client_wallet.create_signature(
-                                                    data: payload_bin.bytes,
-                                                    protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
-                                                    key_id: key_id,
-                                                    counterparty: server_key.public_key.to_hex
-                                                  )
+        data: payload_bin.bytes,
+        protocol_id: BSV::Auth::Peer::AUTH_PROTOCOL,
+        key_id: key_id,
+        counterparty: server_key.public_key.to_hex
+      )
       sig_hex = sig_result[:signature].pack('C*').unpack1('H*')
 
       env = rack_env(method: 'POST', path: '/echo', body: post_body, headers: {

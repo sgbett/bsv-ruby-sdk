@@ -20,8 +20,6 @@ module BSV
     #   end
     module Interface
       module BRC100
-        # rubocop:disable Lint/UnusedMethodArgument
-
         # --- Transaction Operations (codes 1-7) ---
 
         # Creates a new Bitcoin transaction.
@@ -123,15 +121,15 @@ module BSV
 
         # Reveals key linkage with a counterparty to a verifier, across all interactions.
         def reveal_counterparty_key_linkage(counterparty:, verifier:,
-                                           privileged: false, privileged_reason: nil,
-                                           originator: nil)
+                                            privileged: false, privileged_reason: nil,
+                                            originator: nil)
           raise NotImplementedError
         end
 
         # Reveals key linkage for a specific protocol and key interaction.
         def reveal_specific_key_linkage(counterparty:, verifier:, protocol_id:, key_id:,
-                                       privileged: false, privileged_reason: nil,
-                                       originator: nil)
+                                        privileged: false, privileged_reason: nil,
+                                        originator: nil)
           raise NotImplementedError
         end
 
@@ -263,8 +261,6 @@ module BSV
         def get_version(originator: nil)
           raise NotImplementedError
         end
-
-        # rubocop:enable Lint/UnusedMethodArgument
       end
     end
   end

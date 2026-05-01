@@ -182,8 +182,8 @@ module BSV
       # @return [Hash] { prover:, verifier:, counterparty:, revelation_time:,
       #   encrypted_linkage:, encrypted_linkage_proof: }
       def reveal_counterparty_key_linkage(counterparty:, verifier:,
-                                         privileged: false, privileged_reason: nil,
-                                         originator: nil)
+                                          privileged: false, privileged_reason: nil,
+                                          originator: nil)
         raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')
@@ -237,8 +237,8 @@ module BSV
       # @return [Hash] { prover:, verifier:, counterparty:, protocol_id:, key_id:,
       #   encrypted_linkage:, encrypted_linkage_proof:, proof_type: }
       def reveal_specific_key_linkage(counterparty:, verifier:, protocol_id:, key_id:,
-                                     privileged: false, privileged_reason: nil,
-                                     originator: nil)
+                                      privileged: false, privileged_reason: nil,
+                                      originator: nil)
         raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')

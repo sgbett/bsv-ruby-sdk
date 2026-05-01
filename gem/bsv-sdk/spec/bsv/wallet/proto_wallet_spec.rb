@@ -41,10 +41,10 @@ RSpec.describe BSV::Wallet::ProtoWallet do
 
     it 'returns a derived public key when identity_key is absent' do
       result = wallet.get_public_key(
-                                       protocol_id: protocol_id,
-                                       key_id: key_id,
-                                       counterparty: counterparty
-                                     )
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: counterparty
+      )
       expect(result[:public_key]).to be_a(String)
       expect(result[:public_key].length).to eq(66)
     end
@@ -64,43 +64,43 @@ RSpec.describe BSV::Wallet::ProtoWallet do
 
     it 'roundtrips: create then verify returns { valid: true }' do
       sig_result = wallet.create_signature(
-                                             data: data,
-                                             protocol_id: protocol_id,
-                                             key_id: key_id,
-                                             counterparty: 'anyone'
-                                           )
+        data: data,
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: 'anyone'
+      )
 
       expect(sig_result[:signature]).to be_an(Array)
 
       verify_result = wallet.verify_signature(
-                                                data: data,
-                                                signature: sig_result[:signature],
-                                                protocol_id: protocol_id,
-                                                key_id: key_id,
-                                                counterparty: 'anyone',
-                                                for_self: true
-                                              )
+        data: data,
+        signature: sig_result[:signature],
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: 'anyone',
+        for_self: true
+      )
 
       expect(verify_result[:valid]).to be true
     end
 
     it 'raises InvalidSignatureError for a bad signature' do
       bad_sig = wallet.create_signature(
-                                          data: 'other data'.bytes,
-                                          protocol_id: protocol_id,
-                                          key_id: key_id,
-                                          counterparty: 'anyone'
-                                        )
+        data: 'other data'.bytes,
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: 'anyone'
+      )
 
       expect do
         wallet.verify_signature(
-                                  data: data,
-                                  signature: bad_sig[:signature],
-                                  protocol_id: protocol_id,
-                                  key_id: key_id,
-                                  counterparty: 'anyone',
-                                  for_self: true
-                                )
+          data: data,
+          signature: bad_sig[:signature],
+          protocol_id: protocol_id,
+          key_id: key_id,
+          counterparty: 'anyone',
+          for_self: true
+        )
       end.to raise_error(BSV::Wallet::InvalidSignatureError)
     end
   end
@@ -114,21 +114,21 @@ RSpec.describe BSV::Wallet::ProtoWallet do
 
     it 'roundtrips: encrypt then decrypt returns the original plaintext' do
       enc = wallet.encrypt(
-                             plaintext: plaintext,
-                             protocol_id: protocol_id,
-                             key_id: key_id,
-                             counterparty: counterparty
-                           )
+        plaintext: plaintext,
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: counterparty
+      )
 
       expect(enc[:ciphertext]).to be_an(Array)
       expect(enc[:ciphertext]).not_to eq(plaintext)
 
       dec = wallet.decrypt(
-                             ciphertext: enc[:ciphertext],
-                             protocol_id: protocol_id,
-                             key_id: key_id,
-                             counterparty: counterparty
-                           )
+        ciphertext: enc[:ciphertext],
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: counterparty
+      )
 
       expect(dec[:plaintext]).to eq(plaintext)
     end
@@ -143,44 +143,44 @@ RSpec.describe BSV::Wallet::ProtoWallet do
 
     it 'roundtrips: create then verify returns { valid: true }' do
       hmac_result = wallet.create_hmac(
-                                         data: data,
-                                         protocol_id: protocol_id,
-                                         key_id: key_id,
-                                         counterparty: counterparty
-                                       )
+        data: data,
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: counterparty
+      )
 
       expect(hmac_result[:hmac]).to be_an(Array)
       expect(hmac_result[:hmac].length).to eq(32)
 
       verify_result = wallet.verify_hmac(
-                                           data: data,
-                                           hmac: hmac_result[:hmac],
-                                           protocol_id: protocol_id,
-                                           key_id: key_id,
-                                           counterparty: counterparty
-                                         )
+        data: data,
+        hmac: hmac_result[:hmac],
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: counterparty
+      )
 
       expect(verify_result[:valid]).to be true
     end
 
     it 'raises InvalidHmacError for a tampered HMAC' do
       hmac_result = wallet.create_hmac(
-                                         data: data,
-                                         protocol_id: protocol_id,
-                                         key_id: key_id,
-                                         counterparty: counterparty
-                                       )
+        data: data,
+        protocol_id: protocol_id,
+        key_id: key_id,
+        counterparty: counterparty
+      )
 
       bad_hmac = hmac_result[:hmac].map { |b| b ^ 0xff }
 
       expect do
         wallet.verify_hmac(
-                             data: data,
-                             hmac: bad_hmac,
-                             protocol_id: protocol_id,
-                             key_id: key_id,
-                             counterparty: counterparty
-                           )
+          data: data,
+          hmac: bad_hmac,
+          protocol_id: protocol_id,
+          key_id: key_id,
+          counterparty: counterparty
+        )
       end.to raise_error(BSV::Wallet::InvalidHmacError)
     end
   end
@@ -224,18 +224,18 @@ RSpec.describe BSV::Wallet::ProtoWallet do
       plaintext = 'shared secret'.bytes
 
       enc = alice.encrypt(
-                            plaintext: plaintext,
-                            protocol_id: [2, 'cross wallet test'],
-                            key_id: 'shared-1',
-                            counterparty: bob_hex
-                          )
+        plaintext: plaintext,
+        protocol_id: [2, 'cross wallet test'],
+        key_id: 'shared-1',
+        counterparty: bob_hex
+      )
 
       dec = bob.decrypt(
-                          ciphertext: enc[:ciphertext],
-                          protocol_id: [2, 'cross wallet test'],
-                          key_id: 'shared-1',
-                          counterparty: alice_hex
-                        )
+        ciphertext: enc[:ciphertext],
+        protocol_id: [2, 'cross wallet test'],
+        key_id: 'shared-1',
+        counterparty: alice_hex
+      )
 
       expect(dec[:plaintext]).to eq(plaintext)
     end
@@ -244,19 +244,19 @@ RSpec.describe BSV::Wallet::ProtoWallet do
       data = 'cross-wallet authenticated'.bytes
 
       hmac_result = alice.create_hmac(
-                                        data: data,
-                                        protocol_id: [2, 'cross wallet test'],
-                                        key_id: 'hmac-1',
-                                        counterparty: bob_hex
-                                      )
+        data: data,
+        protocol_id: [2, 'cross wallet test'],
+        key_id: 'hmac-1',
+        counterparty: bob_hex
+      )
 
       verify_result = bob.verify_hmac(
-                                        data: data,
-                                        hmac: hmac_result[:hmac],
-                                        protocol_id: [2, 'cross wallet test'],
-                                        key_id: 'hmac-1',
-                                        counterparty: alice_hex
-                                      )
+        data: data,
+        hmac: hmac_result[:hmac],
+        protocol_id: [2, 'cross wallet test'],
+        key_id: 'hmac-1',
+        counterparty: alice_hex
+      )
 
       expect(verify_result[:valid]).to be true
     end
