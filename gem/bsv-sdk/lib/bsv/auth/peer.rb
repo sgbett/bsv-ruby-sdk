@@ -180,7 +180,7 @@ module BSV
       #
       # @return [String] compressed public key hex
       def identity_key
-        @identity_key ||= @wallet.get_public_key({ identity_key: true })[:public_key]
+        @identity_key ||= @wallet.get_public_key(identity_key: true)[:public_key]
       end
 
       # Checks whether we have an authenticated session with a peer.
@@ -318,12 +318,12 @@ module BSV
         key_id        = key_id_for(request_nonce, session.peer_nonce)
         data          = JSON.generate(certificates_to_request).encode('UTF-8').bytes
 
-        sig_result = @wallet.create_signature({
-                                                data: data,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: session.peer_identity_key
-                                              })
+        sig_result = @wallet.create_signature(
+          data: data,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: session.peer_identity_key
+        )
 
         session.last_update = current_time_ms
         @session_manager.update_session(session)
@@ -355,12 +355,12 @@ module BSV
         cert_data     = certificates.map { |c| c.respond_to?(:to_h) ? c.to_h : c }
         data          = JSON.generate(cert_data).encode('UTF-8').bytes
 
-        sig_result = @wallet.create_signature({
-                                                data: data,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: session.peer_identity_key
-                                              })
+        sig_result = @wallet.create_signature(
+          data: data,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: session.peer_identity_key
+        )
 
         session.last_update = current_time_ms
         @session_manager.update_session(session)
@@ -394,12 +394,12 @@ module BSV
         request_nonce = ::Base64.strict_encode64(SecureRandom.random_bytes(32))
         key_id        = key_id_for(request_nonce, session.peer_nonce)
 
-        sig_result = @wallet.create_signature({
-                                                data: payload,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: session.peer_identity_key
-                                              })
+        sig_result = @wallet.create_signature(
+          data: payload,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: session.peer_identity_key
+        )
 
         session.last_update = current_time_ms
         @session_manager.update_session(session)
@@ -455,12 +455,12 @@ module BSV
         sig_data = b64_decode(their_nonce) + b64_decode(our_nonce)
         key_id   = key_id_for(their_nonce, our_nonce)
 
-        sig_result = @wallet.create_signature({
-                                                data: sig_data,
-                                                protocol_id: AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: peer_key
-                                              })
+        sig_result = @wallet.create_signature(
+          data: sig_data,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: peer_key
+        )
 
         @last_interacted_peer ||= peer_key if @auto_persist_last_session
 
@@ -498,13 +498,13 @@ module BSV
         sig_data = b64_decode(our_nonce) + b64_decode(their_nonce)
         key_id   = key_id_for(our_nonce, their_nonce)
 
-        @wallet.verify_signature({
-                                   data: sig_data,
-                                   signature: signature,
-                                   protocol_id: AUTH_PROTOCOL,
-                                   key_id: key_id,
-                                   counterparty: peer_key
-                                 })
+        @wallet.verify_signature(
+          data: sig_data,
+          signature: signature,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: peer_key
+        )
 
         # Authentication complete
         session.peer_nonce        = their_nonce
@@ -574,13 +574,13 @@ module BSV
         # Verify signature: signed over payload with key_id "msg_nonce session_nonce"
         key_id = key_id_for(msg_nonce, session.session_nonce)
 
-        @wallet.verify_signature({
-                                   data: payload,
-                                   signature: signature,
-                                   protocol_id: AUTH_PROTOCOL,
-                                   key_id: key_id,
-                                   counterparty: session.peer_identity_key
-                                 })
+        @wallet.verify_signature(
+          data: payload,
+          signature: signature,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: session.peer_identity_key
+        )
 
         session.last_update = current_time_ms
         @session_manager.update_session(session)
@@ -610,13 +610,13 @@ module BSV
         data   = JSON.generate(requested).encode('UTF-8').bytes
         key_id = key_id_for(msg_nonce, session.session_nonce)
 
-        @wallet.verify_signature({
-                                   data: data,
-                                   signature: signature,
-                                   protocol_id: AUTH_PROTOCOL,
-                                   key_id: key_id,
-                                   counterparty: session.peer_identity_key
-                                 })
+        @wallet.verify_signature(
+          data: data,
+          signature: signature,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: session.peer_identity_key
+        )
 
         session.last_update = current_time_ms
         @session_manager.update_session(session)
@@ -655,13 +655,13 @@ module BSV
         data   = JSON.generate(certs).encode('UTF-8').bytes
         key_id = key_id_for(msg_nonce, session.session_nonce)
 
-        @wallet.verify_signature({
-                                   data: data,
-                                   signature: signature,
-                                   protocol_id: AUTH_PROTOCOL,
-                                   key_id: key_id,
-                                   counterparty: session.peer_identity_key
-                                 })
+        @wallet.verify_signature(
+          data: data,
+          signature: signature,
+          protocol_id: AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: session.peer_identity_key
+        )
 
         if certs.is_a?(Array) && !certs.empty?
           validation_msg = { identity_key: session.peer_identity_key, certificates: certs }

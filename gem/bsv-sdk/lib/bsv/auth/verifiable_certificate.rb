@@ -130,7 +130,7 @@ module BSV
               privileged_reason: privileged_reason
             }.merge(Certificate.certificate_field_encryption_details(field_name, @serial_number))
 
-            field_revelation_key = verifier_wallet.decrypt(dec_args)[:plaintext]
+            field_revelation_key = verifier_wallet.decrypt(**dec_args)[:plaintext]
 
             sym_key = BSV::Primitives::SymmetricKey.new(field_revelation_key.pack('C*'))
             decrypted_bytes = sym_key.decrypt(Base64.strict_decode64(@fields[field_name]))

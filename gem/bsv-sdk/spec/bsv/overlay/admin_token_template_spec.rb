@@ -200,7 +200,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
 
       it 'encodes the wallet identity key' do
         decoded = described_class.decode(locking_script)
-        identity_hex = wallet.get_public_key({ identity_key: true })[:public_key]
+        identity_hex = wallet.get_public_key(identity_key: true)[:public_key]
         expect(decoded.identity_key).to eq(identity_hex)
       end
     end
@@ -256,7 +256,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
 
     context 'when verifying the identity key round-trip' do
       it 'embeds the wallet identity key in the locking script' do
-        identity_hex = wallet.get_public_key({ identity_key: true })[:public_key]
+        identity_hex = wallet.get_public_key(identity_key: true)[:public_key]
         locking_script = template.lock('SHIP', 'myhost.bsvb.tech', 'tm_payments')
         decoded = described_class.decode(locking_script)
         expect(decoded.identity_key).to eq(identity_hex)

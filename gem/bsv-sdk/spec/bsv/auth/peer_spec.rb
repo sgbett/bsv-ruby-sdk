@@ -381,7 +381,7 @@ RSpec.describe BSV::Auth::Peer do
   def build_verifiable_certificate(subject_wallet:, certifier_wallet:, verifier_hex:, cert_type:, fields:)
     master_cert = BSV::Auth::MasterCertificate.issue_certificate_for_subject(
       certifier_wallet,
-      subject_wallet.get_public_key({ identity_key: true })[:public_key],
+      subject_wallet.get_public_key(identity_key: true)[:public_key],
       fields,
       cert_type
     )
@@ -474,7 +474,7 @@ RSpec.describe BSV::Auth::Peer do
     # Handshake first, then Alice creates a cert request to Bob
     let(:cert_request_msg) do
       perform_handshake(alice, transport_a)
-      to_request = { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]], types: { cert_type => ['name'] } }
+      to_request = { certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]], types: { cert_type => ['name'] } }
       alice.send(:create_certificate_request, alice.last_interacted_peer, to_request)
     end
 
@@ -531,7 +531,7 @@ RSpec.describe BSV::Auth::Peer do
   describe 'certificateResponse dispatch and processing' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
-    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:certifier_hex)    { certifier_wallet.get_public_key(identity_key: true)[:public_key] }
     let(:bob) do
       described_class.new(
         wallet: bob_wallet,
@@ -612,7 +612,7 @@ RSpec.describe BSV::Auth::Peer do
   describe 'certificateRequest round-trip via transport' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
-    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:certifier_hex)    { certifier_wallet.get_public_key(identity_key: true)[:public_key] }
 
     let(:bob_cert) do
       build_verifiable_certificate(
@@ -650,7 +650,7 @@ RSpec.describe BSV::Auth::Peer do
   describe 'certificates in initial handshake' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
-    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:certifier_hex)    { certifier_wallet.get_public_key(identity_key: true)[:public_key] }
 
     context 'when responder includes certificates in initialResponse' do
       it 'initiator validates certificates and marks session validated' do
@@ -779,7 +779,7 @@ RSpec.describe BSV::Auth::Peer do
         fake_cert = build_verifiable_certificate(
           subject_wallet: bob_wallet,
           certifier_wallet: certifier_wallet,
-          verifier_hex: alice_wallet.get_public_key({ identity_key: true })[:public_key],
+          verifier_hex: alice_wallet.get_public_key(identity_key: true)[:public_key],
           cert_type: cert_type,
           fields: { 'name' => 'Bob' }
         )
@@ -906,7 +906,7 @@ RSpec.describe BSV::Auth::Peer do
   describe '#request_certificates' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
-    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:certifier_hex)    { certifier_wallet.get_public_key(identity_key: true)[:public_key] }
 
     it 'sends a certificateRequest via transport, triggering on_certificate_request on the peer' do
       alice.get_authenticated_session(bob.identity_key)
@@ -936,7 +936,7 @@ RSpec.describe BSV::Auth::Peer do
   describe '#send_certificate_response' do
     let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
-    let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
+    let(:certifier_hex)    { certifier_wallet.get_public_key(identity_key: true)[:public_key] }
     let(:bob) do
       described_class.new(
         wallet: bob_wallet,

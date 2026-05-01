@@ -40,7 +40,7 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with one matching certificate' do
       before do
         allow(wallet).to receive(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY }, originator: nil)
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, originator: nil)
           .and_return({ total_certificates: 1, certificates: [raw_cert] })
       end
 
@@ -66,7 +66,7 @@ RSpec.describe 'BSV::Identity::Client' do
 
       before do
         allow(wallet).to receive(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY }, originator: nil)
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, originator: nil)
           .and_return({ total_certificates: 2, certificates: [email_cert, x_cert_entry] })
       end
 
@@ -79,7 +79,7 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with no results' do
       before do
         allow(wallet).to receive(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY }, originator: nil)
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, originator: nil)
           .and_return({ total_certificates: 0, certificates: [] })
       end
 
@@ -91,7 +91,7 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with nil result' do
       before do
         allow(wallet).to receive(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY }, originator: nil)
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, originator: nil)
           .and_return(nil)
       end
 
@@ -103,14 +103,14 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with limit and offset' do
       before do
         allow(wallet).to receive(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, limit: 5, offset: 10 }, originator: nil)
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, limit: 5, offset: 10, originator: nil)
           .and_return({ total_certificates: 0, certificates: [] })
       end
 
       it 'passes limit and offset to the wallet' do
         client.resolve_by_identity_key(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, limit: 5, offset: 10)
         expect(wallet).to have_received(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, limit: 5, offset: 10 }, originator: nil)
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, limit: 5, offset: 10, originator: nil)
       end
     end
 
@@ -119,14 +119,14 @@ RSpec.describe 'BSV::Identity::Client' do
 
       before do
         allow(wallet).to receive(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY }, originator: 'myapp.example.com')
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, originator: 'myapp.example.com')
           .and_return({ total_certificates: 0, certificates: [] })
       end
 
       it 'passes the originator through to the wallet' do
         client.resolve_by_identity_key(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY)
         expect(wallet).to have_received(:discover_by_identity_key)
-          .with({ identity_key: IDENTITY_CLIENT_SPEC_PUBKEY }, originator: 'myapp.example.com')
+          .with(identity_key: IDENTITY_CLIENT_SPEC_PUBKEY, originator: 'myapp.example.com')
       end
     end
   end
@@ -137,7 +137,7 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with one matching certificate' do
       before do
         allow(wallet).to receive(:discover_by_attributes)
-          .with({ attributes: attributes }, originator: nil)
+          .with(attributes: attributes, originator: nil)
           .and_return({ total_certificates: 1, certificates: [raw_cert] })
       end
 
@@ -155,7 +155,7 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with no results' do
       before do
         allow(wallet).to receive(:discover_by_attributes)
-          .with({ attributes: attributes }, originator: nil)
+          .with(attributes: attributes, originator: nil)
           .and_return({ total_certificates: 0, certificates: [] })
       end
 
@@ -167,7 +167,7 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with nil result' do
       before do
         allow(wallet).to receive(:discover_by_attributes)
-          .with({ attributes: attributes }, originator: nil)
+          .with(attributes: attributes, originator: nil)
           .and_return(nil)
       end
 
@@ -179,14 +179,14 @@ RSpec.describe 'BSV::Identity::Client' do
     context 'with limit and offset' do
       before do
         allow(wallet).to receive(:discover_by_attributes)
-          .with({ attributes: attributes, limit: 3, offset: 6 }, originator: nil)
+          .with(attributes: attributes, limit: 3, offset: 6, originator: nil)
           .and_return({ total_certificates: 0, certificates: [] })
       end
 
       it 'passes limit and offset to the wallet' do
         client.resolve_by_attributes(attributes: attributes, limit: 3, offset: 6)
         expect(wallet).to have_received(:discover_by_attributes)
-          .with({ attributes: attributes, limit: 3, offset: 6 }, originator: nil)
+          .with(attributes: attributes, limit: 3, offset: 6, originator: nil)
       end
     end
   end
@@ -241,8 +241,8 @@ RSpec.describe 'BSV::Identity::Client' do
     it 'calls prove_certificate with the anyone verifier key' do
       client.publicly_reveal_attributes(certificate, fields_to_reveal: ['email'])
       expect(wallet).to have_received(:prove_certificate).with(
-        { certificate: certificate, fields_to_reveal: ['email'],
-          verifier: BSV::Script::PushDropTemplate::GENERATOR_PUBKEY_HEX },
+        certificate: certificate, fields_to_reveal: ['email'],
+        verifier: BSV::Script::PushDropTemplate::GENERATOR_PUBKEY_HEX,
         originator: nil
       )
     end
@@ -343,8 +343,8 @@ RSpec.describe 'BSV::Identity::Client' do
       allow(BSV::Transaction::Beef).to receive(:from_binary).and_return(beef_obj)
       allow(BSV::Script::PushDropTemplate).to receive(:new).and_return(mock_template)
 
-      allow(wallet).to receive(:create_action) do |args, **_opts|
-        if args[:inputs]
+      allow(wallet).to receive(:create_action) do |**kwargs|
+        if kwargs[:inputs]
           { signable_transaction: { tx: beef_bytes, reference: 'REF123' } }
         else
           { tx: beef_bytes, txid: 'deadbeef01' }

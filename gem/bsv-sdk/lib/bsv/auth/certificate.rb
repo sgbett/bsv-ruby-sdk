@@ -180,13 +180,13 @@ module BSV
         preimage  = to_binary(include_signature: false)
         sig_bytes = [@signature].pack('H*').unpack('C*')
 
-        result = verifier_wallet.verify_signature({
-                                                    data: preimage.unpack('C*'),
-                                                    signature: sig_bytes,
-                                                    protocol_id: CERT_SIG_PROTOCOL,
-                                                    key_id: "#{@type} #{@serial_number}",
-                                                    counterparty: @certifier
-                                                  })
+        result = verifier_wallet.verify_signature(
+          data: preimage.unpack('C*'),
+          signature: sig_bytes,
+          protocol_id: CERT_SIG_PROTOCOL,
+          key_id: "#{@type} #{@serial_number}",
+          counterparty: @certifier
+        )
 
         result.is_a?(Hash) && result[:valid] == true
       rescue BSV::Wallet::InvalidSignatureError
@@ -203,14 +203,14 @@ module BSV
       def sign(certifier_wallet)
         raise ArgumentError, "certificate has already been signed: #{@signature}" if @signature && !@signature.empty?
 
-        @certifier = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+        @certifier = certifier_wallet.get_public_key(identity_key: true)[:public_key]
 
         preimage = to_binary(include_signature: false)
-        result   = certifier_wallet.create_signature({
-                                                       data: preimage.unpack('C*'),
-                                                       protocol_id: CERT_SIG_PROTOCOL,
-                                                       key_id: "#{@type} #{@serial_number}"
-                                                     })
+        result   = certifier_wallet.create_signature(
+          data: preimage.unpack('C*'),
+          protocol_id: CERT_SIG_PROTOCOL,
+          key_id: "#{@type} #{@serial_number}"
+        )
         @signature = result[:signature].pack('C*').unpack1('H*')
       end
 

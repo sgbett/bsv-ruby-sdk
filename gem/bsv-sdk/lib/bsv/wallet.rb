@@ -2,11 +2,15 @@
 
 module BSV
   module Wallet
-    # All files are loaded eagerly to avoid load-path collisions when bsv-wallet
-    # is also present in the bundle (both gems share the bsv/wallet/* namespace).
+    # Shared contract: BRC-100 error classes and interface definition.
+    # These are the canonical definitions consumed by both bsv-sdk (ProtoWallet)
+    # and bsv-wallet (Engine).
     require_relative 'wallet/errors'
-    require_relative 'wallet/validators'
-    require_relative 'wallet/key_deriver'
+    require_relative 'wallet/interface'
+
+    # ProtoWallet — minimal crypto-only BRC-100 implementation.
+    # Its internals (KeyDeriver, Validators) are scoped under ProtoWallet::
+    # to avoid collision with bsv-wallet's own KeyDeriver.
     require_relative 'wallet/proto_wallet'
   end
 end

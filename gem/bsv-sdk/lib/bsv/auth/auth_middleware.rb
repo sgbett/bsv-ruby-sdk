@@ -180,12 +180,12 @@ module BSV
         response_nonce = ::Base64.strict_encode64(::SecureRandom.random_bytes(32))
         key_id         = "#{response_nonce} #{session.peer_nonce}"
 
-        sig_result = @wallet.create_signature({
-                                                data: response_payload_bin.bytes,
-                                                protocol_id: Peer::AUTH_PROTOCOL,
-                                                key_id: key_id,
-                                                counterparty: identity_key
-                                              })
+        sig_result = @wallet.create_signature(
+          data: response_payload_bin.bytes,
+          protocol_id: Peer::AUTH_PROTOCOL,
+          key_id: key_id,
+          counterparty: identity_key
+        )
 
         our_identity_key = @peer.identity_key
         sig_hex_out      = sig_result[:signature].pack('C*').unpack1('H*')

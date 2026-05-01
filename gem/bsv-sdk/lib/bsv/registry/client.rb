@@ -66,18 +66,16 @@ module BSV
 
         basket_name = basket_name_for(definition_type)
         create_result = @wallet.create_action(
-          {
-            description: "Register a new #{definition_type} definition",
-            outputs: [
-              {
-                satoshis: Constants::TOKEN_AMOUNT,
-                locking_script: locking_script.to_hex,
-                output_description: "New #{definition_type} registration token",
-                basket: basket_name
-              }
-            ],
-            options: { randomize_outputs: false }
-          },
+          description: "Register a new #{definition_type} definition",
+          outputs: [
+            {
+              satoshis: Constants::TOKEN_AMOUNT,
+              locking_script: locking_script.to_hex,
+              output_description: "New #{definition_type} registration token",
+              basket: basket_name
+            }
+          ],
+          options: { randomize_outputs: false },
           originator: @originator
         )
 
@@ -122,7 +120,7 @@ module BSV
       def list_own_registry_entries(definition_type)
         basket_name = basket_name_for(definition_type)
         list_result = @wallet.list_outputs(
-          { basket: basket_name, include: 'entire transactions' },
+          basket: basket_name, include: 'entire transactions',
           originator: @originator
         )
 
@@ -160,18 +158,16 @@ module BSV
         outpoint = "#{registered_definition.txid}.#{registered_definition.output_index}"
 
         create_result = @wallet.create_action(
-          {
-            description: "Revoke #{definition_type} definition: #{item_identifier(registered_definition)}",
-            input_beef: registered_definition.beef,
-            inputs: [
-              {
-                outpoint: outpoint,
-                unlocking_script_length: BSV::Script::PushDropTemplate::Unlocker::ESTIMATED_LENGTH,
-                input_description: "Revoking #{definition_type} token"
-              }
-            ],
-            options: { randomize_outputs: false, no_send: true }
-          },
+          description: "Revoke #{definition_type} definition: #{item_identifier(registered_definition)}",
+          input_beef: registered_definition.beef,
+          inputs: [
+            {
+              outpoint: outpoint,
+              unlocking_script_length: BSV::Script::PushDropTemplate::Unlocker::ESTIMATED_LENGTH,
+              input_description: "Revoking #{definition_type} token"
+            }
+          ],
+          options: { randomize_outputs: false, no_send: true },
           originator: @originator
         )
 
@@ -210,7 +206,7 @@ module BSV
       def identity_key
         return @identity_key if defined?(@identity_key)
 
-        result = @wallet.get_public_key({ identity_key: true }, originator: @originator)
+        result = @wallet.get_public_key(identity_key: true, originator: @originator)
         @identity_key = result[:public_key] || result['public_key'] || result['publicKey'] || result[:publicKey]
       end
 
@@ -561,7 +557,7 @@ module BSV
       #
       # @return [Symbol] :mainnet or :testnet
       def wallet_network
-        result  = @wallet.get_network({}, originator: @originator)
+        result  = @wallet.get_network(originator: @originator)
         net_str = result[:network] || result['network'] || 'mainnet'
         net_str.to_sym
       end

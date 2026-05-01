@@ -258,7 +258,7 @@ RSpec.describe 'BRC-104 AuthFetch <-> AuthMiddleware integration' do # rubocop:d
     def issue_verifiable_certificate(subject_wallet:, certifier_wallet:, verifier_hex:, cert_type:, fields:)
       master_cert = BSV::Auth::MasterCertificate.issue_certificate_for_subject(
         certifier_wallet,
-        subject_wallet.get_public_key({ identity_key: true })[:public_key],
+        subject_wallet.get_public_key(identity_key: true)[:public_key],
         fields,
         cert_type
       )
@@ -277,7 +277,7 @@ RSpec.describe 'BRC-104 AuthFetch <-> AuthMiddleware integration' do # rubocop:d
     end
 
     it 'client wallet provides certificates when server requests them via requestedCertificates header' do
-      certifier_hex = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      certifier_hex = certifier_wallet.get_public_key(identity_key: true)[:public_key]
 
       # Server requests certificates from the client in its initialResponse.
       server_sm = BSV::Auth::SessionManager.new
