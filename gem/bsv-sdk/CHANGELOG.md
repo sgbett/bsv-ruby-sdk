@@ -5,6 +5,19 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.0 — 2026-05-01
+
+### Breaking Changes
+- Removed `bsv-wallet` and `bsv-wallet-postgres` gems from the monorepo (#662)
+- Unified `BSV::Wallet` namespace with canonical BRC-100 interface, error reconciliation, and idiomatic ProtoWallet (#664)
+- Hard-deprecated `Network::ARC` and `Network::WhatsOnChain` facades (#659)
+
+### Added
+- `BSV::Wallet::ProtoWallet` for SDK-native cryptographic operations (signing, encryption, HMAC, key derivation) (#662)
+
+### Fixed
+- Guard nil `status_code` in MCP error messages (#659)
+
 ## 0.15.0 — 2026-04-29
 
 ### Added
