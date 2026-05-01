@@ -123,6 +123,7 @@ Metrics/ClassLength:
     - 'gem/bsv-sdk/lib/bsv/transaction/merkle_path.rb'
     - 'gem/bsv-sdk/lib/bsv/transaction/beef.rb'
     - 'gem/bsv-sdk/lib/bsv/network/**/*'
+    - 'gem/bsv-sdk/lib/bsv/wallet/**/*'
     - 'gem/bsv-wallet/lib/bsv/wallet/**/*'
     - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
@@ -150,6 +151,7 @@ Metrics/ParameterLists:
 Lint/UnusedMethodArgument:
   Exclude:
     - 'gem/bsv-wallet/lib/bsv/wallet/proto_wallet.rb'
+    - 'gem/bsv-sdk/lib/bsv/wallet/proto_wallet.rb'
 
 Lint/BooleanSymbol:
   Exclude:
@@ -197,6 +199,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/**/*'
+    - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
     - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'

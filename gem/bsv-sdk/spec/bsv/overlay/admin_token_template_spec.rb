@@ -3,7 +3,6 @@
 require 'spec_helper'
 
 require 'bsv-sdk'
-require 'bsv-wallet'
 
 # A well-known compressed public key (33 bytes) used as a test identity key.
 # Corresponds to PrivateKey(1) on secp256k1.
@@ -17,7 +16,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
 
   # A Client backed by PrivateKey(1), used for deterministic lock/unlock tests.
   let(:private_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(1)) }
-  let(:wallet) { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:wallet) { BSV::Wallet::ProtoWallet.new(private_key) }
 
   def ship_script(domain: 'example.com', topic: 'tm_tests', identity_key: SHIP_IDENTITY_KEY_BIN)
     BSV::Script::Script.pushdrop_lock(

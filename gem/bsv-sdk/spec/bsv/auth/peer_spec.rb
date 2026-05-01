@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 
 RSpec.describe BSV::Auth::Peer do
   let(:alice_key)    { BSV::Primitives::PrivateKey.generate }
   let(:bob_key)      { BSV::Primitives::PrivateKey.generate }
-  let(:alice_wallet) { BSV::Wallet::Client.new(alice_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:bob_wallet)   { BSV::Wallet::Client.new(bob_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:alice_wallet) { BSV::Wallet::ProtoWallet.new(alice_key) }
+  let(:bob_wallet)   { BSV::Wallet::ProtoWallet.new(bob_key) }
 
   # Create two peers connected via PairedTransport.
   let(:transport_a)  { PairedTransport.new }
@@ -300,7 +299,7 @@ RSpec.describe BSV::Auth::Peer do
     end
 
     it 'is not overwritten on initial request if already set (responder side)' do
-      carol_wallet = BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true)
+      carol_wallet = BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate)
 
       # Carol↔bob2 full handshake: establishes bob2.last_interacted_peer = carol
       tc1, tc2 = PairedTransport.create_pair
@@ -435,7 +434,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe '#create_certificate_response (private, low-level builder)' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:verifiable_cert) do
       build_verifiable_certificate(
         subject_wallet: alice_wallet,
@@ -469,7 +468,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe 'certificateRequest dispatch and processing' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
 
     # Handshake first, then Alice creates a cert request to Bob
@@ -530,7 +529,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe 'certificateResponse dispatch and processing' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
     let(:bob) do
@@ -611,7 +610,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe 'certificateRequest round-trip via transport' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
 
@@ -649,7 +648,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe 'certificates in initial handshake' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
 
@@ -905,7 +904,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe '#request_certificates' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
 
@@ -935,7 +934,7 @@ RSpec.describe BSV::Auth::Peer do
   end
 
   describe '#send_certificate_response' do
-    let(:certifier_wallet) { BSV::Wallet::Client.new(BSV::Primitives::PrivateKey.generate, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate) }
     let(:cert_type)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
     let(:certifier_hex)    { certifier_wallet.get_public_key({ identity_key: true })[:public_key] }
     let(:bob) do

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 require 'rack'
 require 'rack/mock_request'
 require 'base64'
@@ -17,8 +16,8 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
   let(:server_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(20)) }
   let(:client_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(21)) }
 
-  let(:server_wallet) { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:client_wallet) { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:server_wallet) { BSV::Wallet::ProtoWallet.new(server_key) }
+  let(:client_wallet) { BSV::Wallet::ProtoWallet.new(client_key) }
 
   # Simple downstream app that echoes its request body.
   let(:downstream_app) do

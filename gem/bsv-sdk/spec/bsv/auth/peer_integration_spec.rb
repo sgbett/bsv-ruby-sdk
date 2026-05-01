@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 require_relative '../../support/paired_transport'
 
 # End-to-end integration tests for the BSV Auth peer protocol.
@@ -20,10 +19,10 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
   let(:carol_key)     { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(12)) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(22)) }
 
-  let(:alice_wallet)     { BSV::Wallet::Client.new(alice_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:bob_wallet)       { BSV::Wallet::Client.new(bob_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:carol_wallet)     { BSV::Wallet::Client.new(carol_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:alice_wallet)     { BSV::Wallet::ProtoWallet.new(alice_key) }
+  let(:bob_wallet)       { BSV::Wallet::ProtoWallet.new(bob_key) }
+  let(:carol_wallet)     { BSV::Wallet::ProtoWallet.new(carol_key) }
+  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
 
   let(:cert_type)   { Base64.strict_encode64("\x01" * 32) }
   let(:serial)      { Base64.strict_encode64("\x02" * 32) }
@@ -181,7 +180,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
   describe 'Scenario 3: bidirectional certificate exchange' do
     let(:certifier_key2) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(33)) }
-    let(:certifier_wallet2) { BSV::Wallet::Client.new(certifier_key2, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:certifier_wallet2) { BSV::Wallet::ProtoWallet.new(certifier_key2) }
 
     let(:cert_type2) { Base64.strict_encode64("\x03" * 32) }
 
@@ -267,7 +266,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
   describe 'Scenario 4: certificate validation failure — wrong subject' do
     let(:eve_key)    { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(99)) }
-    let(:eve_wallet) { BSV::Wallet::Client.new(eve_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:eve_wallet) { BSV::Wallet::ProtoWallet.new(eve_key) }
 
     it 'raises AuthError when the certificate subject does not match the sender' do
       # Issue a certificate for Eve, then present it as if Alice sent it
@@ -575,7 +574,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
   describe 'Scenario 12: wrong certifier rejected' do
     let(:rogue_certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(77)) }
-    let(:rogue_certifier_wallet) { BSV::Wallet::Client.new(rogue_certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+    let(:rogue_certifier_wallet) { BSV::Wallet::ProtoWallet.new(rogue_certifier_key) }
 
     it 'raises AuthError when the certifier is not in the requested list' do
       # Certificate issued by a rogue certifier not in Bob's trusted set

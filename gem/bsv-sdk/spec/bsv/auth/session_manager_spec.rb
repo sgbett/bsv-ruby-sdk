@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 
 RSpec.describe BSV::Auth::SessionManager do
   subject(:manager) { described_class.new }
