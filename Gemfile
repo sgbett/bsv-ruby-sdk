@@ -6,8 +6,6 @@ gem 'secp256k1-native', '~> 0.16'
 
 gemspec path: 'gem/bsv-sdk'
 gemspec path: 'gem/bsv-attest'
-gemspec path: 'gem/bsv-wallet'
-gemspec path: 'gem/bsv-wallet-postgres'
 
 group :development, :test do
   gem 'rake'

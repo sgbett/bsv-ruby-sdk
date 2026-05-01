@@ -17,7 +17,7 @@ Licence: Open BSV License Version 5.
 ```bash
 bundle exec rake              # run all specs (default task)
 bundle exec rake spec:sdk     # run only bsv-sdk specs
-bundle exec rake spec:wallet  # run only bsv-wallet specs
+bundle exec rake spec:attest  # run only bsv-attest specs
 cd gem/bsv-sdk && bundle exec rspec spec/bsv_spec.rb      # run a single spec file
 cd gem/bsv-sdk && bundle exec rspec spec/bsv_spec.rb:4    # run a single example by line
 bundle exec rubocop                          # lint
@@ -49,11 +49,9 @@ The SDK (`bsv-sdk`) is **declarative** — it defines what things *are*: data st
 
 The declarative/imperative split applies **only to the SDK itself**. The SDK should not contain workflows, use-cases, or orchestration logic — those belong in companion gems.
 
-Companion gems (`bsv-wallet`, `bsv-attest`, `bsv-wallet-postgres`) are free to mix declarative and imperative code as their scope of responsibility demands. `bsv-wallet` manages UTXO pools, background replenishment workers, broadcast queues, and storage adapters — all imperative — alongside declarative concerns like BRC-29 key derivation and output state models. This is normal; each gem owns its domain and organises code by responsibility, not by declarative/imperative taxonomy.
+Companion gems (e.g. `bsv-attest`) are free to mix declarative and imperative code as their scope of responsibility demands. Each gem owns its domain and organises code by responsibility, not by declarative/imperative taxonomy.
 
-The SDK should be substantially complete before building new companion gems. Early gem development tends to collide with missing SDK primitives. When the SDK covers the declarative layer thoroughly, gems become thin orchestration layers that pick and choose the SDK capabilities they need. Every companion gem pulls in `bsv-sdk` as its core dependency.
-
-There will be grey areas — the existing `BSV::Wallet` and `BSV::Network` modules live in the SDK but lean imperative. The principle is directional, not absolute.
+The SDK includes `BSV::Wallet::ProtoWallet` — a minimal cryptographic wallet providing BRC-100 crypto operations (signing, encryption, HMAC, key derivation) without transactions, storage, or blockchain interaction. Full wallet functionality lives in the standalone `bsv-wallet` gem.
 
 ## Protocol Philosophy
 
@@ -92,17 +90,14 @@ Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base
 - No `ruby` directive in Gemfile (hard Bundler constraint inappropriate for libraries)
 - All files use `# frozen_string_literal: true`
 - RuboCop targets Ruby 2.7; single-quoted strings preferred
-- **Never compare JSONB-round-tripped values with `== :symbol`.** Ruby symbols become JSON strings after storage in PostgresStore/FileStore. Use `.to_s ==` for any value that may be a symbol or string depending on the storage adapter (e.g. `o[:derivation_type]&.to_s == 'identity'`, not `o[:derivation_type] == :identity`). MemoryStore preserves symbols; all other adapters do not. See #367.
-
 ## Releasing Gems
 
 Use `/release <key>` as the canonical release mechanism. The skill guides you through pre-flight checks, version bumping, changelog generation, tagging, pushing, gem build, RubyGems push, and GitHub release creation — one gem at a time.
 
-The repo ships multiple gems with upstream/downstream dependencies:
+The repo ships two gems:
 
 ```
-bsv-sdk → bsv-wallet → bsv-wallet-postgres
-         → bsv-attest
+bsv-sdk → bsv-attest
 ```
 
 ### Tag Prefix Conventions
@@ -110,23 +105,11 @@ bsv-sdk → bsv-wallet → bsv-wallet-postgres
 | Gem | Key | Tag prefix | Example |
 |-----|-----|-----------|---------|
 | `bsv-sdk` | `sdk` | `v` | `v0.10.0` |
-| `bsv-wallet` | `wallet` | `wallet-v` | `wallet-v0.5.1` |
-| `bsv-wallet-postgres` | `wallet-postgres` | `wallet-postgres-v` | `wallet-postgres-v0.2.0` |
 | `bsv-attest` | `attest` | `attest-v` | `attest-v0.1.0` |
 
 ### RubyGems
 
 The `/release` skill builds the gem and instructs you to push manually — RubyGems credentials are yours to control. The skill cannot push to RubyGems on your behalf.
-
-### Downstream Compatibility
-
-When releasing `bsv-wallet` (or any gem that defines abstract interface methods):
-
-1. **Check downstream gems** — if new methods were added to `StorageAdapter` (or any abstract base), every concrete adapter (`PostgresStore`, etc.) must implement them before release.
-2. **Raise dependency floors** — downstream gemspecs must pin `>= new_version` so Bundler cannot resolve a combination that breaks at runtime.
-3. **Release together** — downstream adapter gems should be updated and released in the same cycle as the interface gem, not left for a follow-up.
-
-Failure to do this causes silent Bundler resolution success followed by `NoMethodError` at runtime (see #351).
 
 ## AI Software Architect Framework
 

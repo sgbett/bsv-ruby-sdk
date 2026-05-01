@@ -1,8 +1,6 @@
 # Security policy
 
-The `bsv-sdk` and `bsv-wallet` gems are published from this repository
-and treated as a single security domain — a fix in one usually means a
-paired release of both.
+The `bsv-sdk` gem is published from this repository.
 
 ## Reporting a vulnerability
 
@@ -26,12 +24,9 @@ version of each gem** receives security fixes. If you are pinned to an
 older version, please upgrade before reporting — the fix for most
 issues is "use the current release".
 
-When a security fix lands, both gems are typically released together:
-
 | Gem          | Latest                                                                    | Receives security fixes |
 | ------------ | ------------------------------------------------------------------------- | ----------------------- |
 | `bsv-sdk`    | see [rubygems.org/gems/bsv-sdk](https://rubygems.org/gems/bsv-sdk)       | yes                     |
-| `bsv-wallet` | see [rubygems.org/gems/bsv-wallet](https://rubygems.org/gems/bsv-wallet) | yes                     |
 
 ## What to expect
 
@@ -53,10 +48,10 @@ In scope:
   encryption, HMAC)
 - Protocol conformance where a divergence has security consequences
   (BRC-52, BEEF, BRC-100, script interpreter, sighash)
-- Wire-format parsers (VarInt, scripts, transactions, BEEF, wallet wire)
+- Wire-format parsers (VarInt, scripts, transactions, BEEF)
 - Network clients where the response can influence a security-relevant
   decision (ARC broadcaster, chain provider, lookup resolvers)
-- Credential and certificate handling in the wallet interface
+- Credential and certificate handling in the Auth module
 
 Out of scope:
 

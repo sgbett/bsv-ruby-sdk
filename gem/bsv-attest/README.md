@@ -13,7 +13,7 @@ monorepo.
 gem 'bsv-attest'
 ```
 
-Requires `bsv-sdk` and `bsv-wallet`.
+Requires `bsv-sdk` and a BRC-100 wallet (any object responding to `create_action`).
 
 ## Quick start
 
@@ -21,7 +21,7 @@ Requires `bsv-sdk` and `bsv-wallet`.
 require 'bsv-attest'
 
 BSV::Attest.configure do |c|
-  c.wallet = my_wallet  # BSV::Wallet::WalletClient with broadcaster
+  c.wallet = my_wallet  # any object responding to #create_action
 end
 
 # Publish a document hash to the blockchain

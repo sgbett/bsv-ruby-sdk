@@ -8,8 +8,6 @@ require 'rspec/core/rake_task'
 namespace :spec do
   {
     'sdk' => 'bsv-sdk',
-    'wallet' => 'bsv-wallet',
-    'wallet-postgres' => 'bsv-wallet-postgres',
     'attest' => 'bsv-attest'
   }.each do |gem_key, gem_dir|
     RSpec::Core::RakeTask.new(gem_key) do |t|
@@ -20,7 +18,7 @@ namespace :spec do
 end
 
 desc 'Run all specs across all gems'
-task spec: %i[spec:sdk spec:wallet spec:wallet-postgres spec:attest]
+task spec: %i[spec:sdk spec:attest]
 task default: :spec
 
 def generate_reference_index(output_dir) # rubocop:disable Metrics/AbcSize,Metrics/CyclomaticComplexity,Metrics/MethodLength
