@@ -54,7 +54,9 @@ module BSV
 
           unless fetch_result.success?
             code = fetch_result.metadata[:status_code]
-            return Helpers.error_response("#{fetch_result.message} (HTTP #{code})")
+            msg = fetch_result.message
+            msg = "#{msg} (HTTP #{code})" if code
+            return Helpers.error_response(msg)
           end
 
           tx = BSV::Transaction::Transaction.from_hex(fetch_result.data)

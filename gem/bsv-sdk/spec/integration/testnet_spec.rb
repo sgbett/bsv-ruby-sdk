@@ -40,7 +40,23 @@ RSpec.describe 'Testnet integration', :testnet do
     skip "No UTXOs for #{@address} — fund via #{TestnetWallet::FAUCET_URL}" if @utxos.empty?
   end
 
-  let(:arc) { BSV::Network::ARC.new(arc_url) }
+  let(:arc_protocol) do
+    BSV::Network::Protocols::ARC.new(base_url: arc_url)
+  end
+
+  def arc_broadcast!(tx)
+    result = arc_protocol.call(:broadcast, tx)
+    raise "Broadcast failed: #{result.message}" unless result.success?
+
+    result
+  end
+
+  def arc_status!(txid)
+    result = arc_protocol.call(:get_tx_status, txid)
+    raise "Status query failed: #{result.message}" unless result.success?
+
+    result
+  end
 
   def build_and_sign(inputs, outputs)
     tx = BSV::Transaction::Transaction.new
@@ -83,15 +99,14 @@ RSpec.describe 'Testnet integration', :testnet do
 
       expect(tx.txid_hex).to match(/\A[0-9a-f]{64}\z/)
 
-      response = arc.broadcast(tx)
+      result = arc_broadcast!(tx)
 
-      expect(response).to be_a(BSV::Network::BroadcastResponse)
-      expect(response.success?).to be true
-      expect(response.txid).to eq(tx.txid_hex)
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data[:txid]).to eq(tx.txid_hex)
 
-      status = arc.status(tx.txid_hex)
-      expect(status).to be_a(BSV::Network::BroadcastResponse)
-      expect(status.txid).to eq(tx.txid_hex)
+      status = arc_status!(tx.txid_hex)
+      expect(status).to be_a(BSV::Network::Result::Success)
+      expect(status.data[:txid]).to eq(tx.txid_hex)
     end
   end
 
@@ -108,11 +123,10 @@ RSpec.describe 'Testnet integration', :testnet do
       change = make_change_output(selected.first['value'], 0, 1)
       tx = build_and_sign([input], [data_output, change])
 
-      response = arc.broadcast(tx)
+      result = arc_broadcast!(tx)
 
-      expect(response).to be_a(BSV::Network::BroadcastResponse)
-      expect(response.success?).to be true
-      expect(response.txid).to eq(tx.txid_hex)
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data[:txid]).to eq(tx.txid_hex)
     end
   end
 
@@ -131,7 +145,7 @@ RSpec.describe 'Testnet integration', :testnet do
       original_hex = tx.to_hex
       original_txid = tx.txid_hex
 
-      arc.broadcast(tx)
+      arc_broadcast!(tx)
 
       # Poll WoC until the transaction is indexed (up to 15 seconds)
       fetched_hex = nil

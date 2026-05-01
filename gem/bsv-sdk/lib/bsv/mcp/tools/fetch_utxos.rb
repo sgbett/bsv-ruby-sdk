@@ -55,7 +55,9 @@ module BSV
 
           unless utxo_result.success?
             code = utxo_result.metadata[:status_code]
-            return Helpers.error_response("#{utxo_result.message} (HTTP #{code})")
+            msg = utxo_result.message
+            msg = "#{msg} (HTTP #{code})" if code
+            return Helpers.error_response(msg)
           end
 
           utxos = utxo_result.data.map do |entry|
