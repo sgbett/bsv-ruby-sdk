@@ -11,8 +11,8 @@ module BSV
       class DeprecationError < StandardError; end
 
       MESSAGE = 'BSV::Network::WhatsOnChain is deprecated. ' \
-        'Use BSV::Network::Protocols::WoCREST directly — it returns Result objects ' \
-        'instead of raising exceptions. See BSV::Network::Protocols::WoCREST for usage.'
+                'Use BSV::Network::Protocols::WoCREST directly — it returns Result objects ' \
+                'instead of raising exceptions. See BSV::Network::Protocols::WoCREST for usage.'
 
       def self.default(**)
         raise DeprecationError, MESSAGE

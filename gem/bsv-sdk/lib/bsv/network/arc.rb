@@ -11,8 +11,8 @@ module BSV
       class DeprecationError < StandardError; end
 
       MESSAGE = 'BSV::Network::ARC is deprecated. ' \
-        'Use BSV::Network::Protocols::ARC directly — it returns Result objects ' \
-        'instead of raising exceptions. See BSV::Network::Protocols::ARC for usage.'
+                'Use BSV::Network::Protocols::ARC directly — it returns Result objects ' \
+                'instead of raising exceptions. See BSV::Network::Protocols::ARC for usage.'
 
       def self.default(**)
         raise DeprecationError, MESSAGE
