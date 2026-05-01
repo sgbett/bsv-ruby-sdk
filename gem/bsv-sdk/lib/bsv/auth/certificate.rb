@@ -166,17 +166,17 @@ module BSV
 
       # Verify the certificate's signature.
       #
-      # Uses a fresh +'anyone'+ Client as the verifier, which matches the
+      # Uses a fresh +'anyone'+ ProtoWallet as the verifier, which matches the
       # TS SDK behaviour. If no signature is present, raises +ArgumentError+.
       #
       # @param verifier_wallet [#verify_signature, nil] wallet to verify with;
-      #   defaults to +BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new)+
+      #   defaults to +BSV::Wallet::ProtoWallet.new('anyone')+
       # @return [Boolean] +true+ if the signature is valid
       # @raise [ArgumentError] if the certificate has no signature
       def verify(verifier_wallet = nil)
         raise ArgumentError, 'certificate has no signature to verify' if @signature.nil? || @signature.empty?
 
-        verifier_wallet ||= BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true)
+        verifier_wallet ||= BSV::Wallet::ProtoWallet.new('anyone')
         preimage  = to_binary(include_signature: false)
         sig_bytes = [@signature].pack('H*').unpack('C*')
 

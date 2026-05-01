@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 
 RSpec.describe BSV::Auth::VerifiableCertificate do
   # --- Shared fixtures using deterministic keys matching TS SDK test vectors ---
@@ -11,10 +10,10 @@ RSpec.describe BSV::Auth::VerifiableCertificate do
   let(:verifier_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(23)) }
   let(:wrong_key)     { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(31)) }
 
-  let(:subject_wallet)   { BSV::Wallet::Client.new(subject_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:verifier_wallet)  { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:wrong_wallet)     { BSV::Wallet::Client.new(wrong_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:subject_wallet)   { BSV::Wallet::ProtoWallet.new(subject_key) }
+  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
+  let(:verifier_wallet)  { BSV::Wallet::ProtoWallet.new(verifier_key) }
+  let(:wrong_wallet)     { BSV::Wallet::ProtoWallet.new(wrong_key) }
 
   let(:subject_hex)   { subject_key.public_key.to_hex }
   let(:certifier_hex) { certifier_key.public_key.to_hex }
@@ -186,7 +185,7 @@ RSpec.describe BSV::Auth::VerifiableCertificate do
         keyring: anyone_keyring
       )
 
-      anyone_wallet = BSV::Wallet::Client.new('anyone', storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true)
+      anyone_wallet = BSV::Wallet::ProtoWallet.new('anyone')
       decrypted = cert.decrypt_fields(anyone_wallet)
       expect(decrypted).to eq(plaintext_fields)
     end

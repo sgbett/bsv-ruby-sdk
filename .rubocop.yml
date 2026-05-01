@@ -21,9 +21,6 @@ Style/NumericPredicate:
 
 Metrics/BlockLength:
   Exclude:
-    - 'gem/bsv-wallet/lib/bsv/wallet/wire/**/*'
-    - 'gem/bsv-wallet/lib/bsv/wallet/testing/**/*'
-    - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/migrations/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/*/spec/**/*'
 
@@ -31,8 +28,6 @@ Naming/FileName:
   Exclude:
     - 'gem/bsv-sdk/lib/bsv-sdk.rb'
     - 'gem/bsv-attest/lib/bsv-attest.rb'
-    - 'gem/bsv-wallet/lib/bsv-wallet.rb'
-    - 'gem/bsv-wallet-postgres/lib/bsv-wallet-postgres.rb'
 
 # Cryptographic code uses standard short names (r, s, x, y, n, m, bn, etc.)
 # a/b are used in secure_compare for constant-time comparison.
@@ -56,11 +51,6 @@ Naming/MethodParameterName:
     - p2
 
 # BRC-100 method names use get_ prefix (get_height, get_header, etc.) — protocol names.
-Naming/AccessorMethodName:
-  Exclude:
-    - 'gem/bsv-wallet/lib/bsv/wallet/**/*'
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
-
 # verify(), verify_proof(), and cast_bool() are standard cryptographic/protocol API names.
 # is_authenticated is the BRC-100 wire-protocol method name and cannot be renamed.
 # delete_output/delete_certificate return bool success indicators, not predicates.
@@ -108,7 +98,6 @@ Metrics/ModuleLength:
     - 'gem/bsv-sdk/lib/bsv/primitives/ecies.rb'
     - 'gem/bsv-sdk/lib/bsv/script/opcodes.rb'
     - 'gem/bsv-sdk/lib/bsv/script/interpreter/operations/**/*'
-    - 'gem/bsv-wallet/lib/bsv/wallet/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
@@ -123,8 +112,7 @@ Metrics/ClassLength:
     - 'gem/bsv-sdk/lib/bsv/transaction/merkle_path.rb'
     - 'gem/bsv-sdk/lib/bsv/transaction/beef.rb'
     - 'gem/bsv-sdk/lib/bsv/network/**/*'
-    - 'gem/bsv-wallet/lib/bsv/wallet/**/*'
-    - 'gem/bsv-wallet-postgres/lib/bsv/wallet_postgres/**/*'
+    - 'gem/bsv-sdk/lib/bsv/wallet/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/bsv-sdk/lib/bsv/overlay/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
@@ -141,7 +129,6 @@ Metrics/ParameterLists:
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
-    - 'gem/bsv-wallet/lib/bsv/wallet/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -149,7 +136,7 @@ Metrics/ParameterLists:
 # originator: keyword on all methods (local-only wallet, no originator policy).
 Lint/UnusedMethodArgument:
   Exclude:
-    - 'gem/bsv-wallet/lib/bsv/wallet/proto_wallet.rb'
+    - 'gem/bsv-sdk/lib/bsv/wallet/proto_wallet.rb'
 
 Lint/BooleanSymbol:
   Exclude:
@@ -173,7 +160,6 @@ RSpec/MultipleExpectations:
     - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
-    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
     - 'gem/bsv-attest/spec/bsv/attest_spec.rb'
     - 'gem/bsv-attest/spec/bsv/attest/**/*'
     - 'gem/bsv-sdk/spec/bsv/auth/**/*'
@@ -181,7 +167,6 @@ RSpec/MultipleExpectations:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
@@ -197,9 +182,8 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/**/*'
+    - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
-    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
     - 'gem/*/spec/support/**/*'
 
 RSpec/ExampleLength:
@@ -209,7 +193,6 @@ RSpec/ExampleLength:
     - 'gem/bsv-sdk/spec/bsv/transaction/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
-    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
     - 'gem/bsv-attest/spec/bsv/attest_spec.rb'
     - 'gem/bsv-attest/spec/bsv/attest/**/*'
     - 'gem/bsv-sdk/spec/bsv/auth/**/*'
@@ -217,7 +200,6 @@ RSpec/ExampleLength:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
@@ -227,7 +209,6 @@ RSpec/ExampleLength:
 # Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
 Naming/VariableNumber:
   Exclude:
-    - 'gem/bsv-wallet/lib/bsv/wallet/wire/**/*'
     - 'gem/*/spec/**/*'
 
 # Interpreter sub-specs and conformance specs legitimately describe parent
@@ -241,8 +222,6 @@ RSpec/SpecFilePathFormat:
     - 'gem/bsv-sdk/spec/bsv/script/op_cat_spec.rb'
     - 'gem/bsv-sdk/spec/bsv/transaction/live_policy_spec.rb'
     - 'gem/bsv-sdk/spec/conformance/**/*'
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
-    - 'gem/bsv-wallet-postgres/spec/bsv/wallet_postgres/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/providers/**/*'
 
@@ -256,7 +235,6 @@ RSpec/DescribeClass:
     - 'gem/bsv-sdk/spec/bsv/script/interpreter/hardening_spec.rb'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
@@ -272,16 +250,6 @@ RSpec/LeakyConstantDeclaration:
 RSpec/EmptyExampleGroup:
   Exclude:
     - 'gem/bsv-sdk/spec/bsv/script/interpreter/script_vectors_spec.rb'
-
-# wallet spec file covers multiple top-level modules in one file.
-RSpec/MultipleDescribes:
-  Exclude:
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
-
-# Dynamic each loops with the same template string produce unique descriptions at runtime.
-RSpec/RepeatedDescription:
-  Exclude:
-    - 'gem/bsv-wallet/spec/bsv/wallet/**/*'
 
 # Integration tests use before(:context) which requires instance variables.
 RSpec/BeforeAfterAll:

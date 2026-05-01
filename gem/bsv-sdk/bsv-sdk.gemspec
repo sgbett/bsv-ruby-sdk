@@ -33,6 +33,7 @@ Gem::Specification.new do |spec|
   end + %w[LICENSE README.md CHANGELOG.md]
   spec.require_paths = ['lib']
 
+  spec.add_dependency 'base64'
   spec.add_dependency 'mcp', '~> 0.12'
   spec.add_dependency 'secp256k1-native', '>= 0.16'
 end

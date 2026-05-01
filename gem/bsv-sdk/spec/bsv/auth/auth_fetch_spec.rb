@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 require 'base64'
 require 'json'
 require_relative '../../support/paired_transport'
@@ -10,8 +9,8 @@ RSpec.describe 'BSV::Auth::AuthFetch' do
   # Deterministic keys for reproducibility
   let(:client_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
   let(:server_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(43)) }
-  let(:client_wallet) { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:server_wallet) { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:client_wallet) { BSV::Wallet::ProtoWallet.new(client_key) }
+  let(:server_wallet) { BSV::Wallet::ProtoWallet.new(server_key) }
 
   let(:base_url) { 'https://api.example.com' }
 

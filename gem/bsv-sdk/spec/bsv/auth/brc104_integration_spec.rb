@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 require 'json'
 require 'base64'
 require 'stringio'
@@ -29,10 +28,10 @@ RSpec.describe 'BRC-104 AuthFetch <-> AuthMiddleware integration' do # rubocop:d
   let(:client2_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(52)) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(53)) }
 
-  let(:client_wallet)    { BSV::Wallet::Client.new(client_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:server_wallet)    { BSV::Wallet::Client.new(server_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:client2_wallet)   { BSV::Wallet::Client.new(client2_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:client_wallet)    { BSV::Wallet::ProtoWallet.new(client_key) }
+  let(:server_wallet)    { BSV::Wallet::ProtoWallet.new(server_key) }
+  let(:client2_wallet)   { BSV::Wallet::ProtoWallet.new(client2_key) }
+  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
 
   # -------------------------------------------------------------------------
   # Simple downstream Rack app

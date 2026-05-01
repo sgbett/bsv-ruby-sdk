@@ -1,14 +1,12 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 
 # Cross-SDK integration tests for BSV::Auth certificate infrastructure.
 #
 # Verifies:
 # - End-to-end lifecycle (issue → reveal → decrypt → verify)
 # - Binary format compatibility with the TS SDK reference implementation
-# - Cross-verification between Certificate#to_binary and CertificateSignature.serialise_preimage
 # - TS fromObject test vector attribute parsing
 # - Multi-field selective revelation
 # - Self-signed certificates
@@ -65,9 +63,9 @@ RSpec.describe 'BSV::Auth certificate integration' do # rubocop:disable RSpec/De
   let(:certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(22)) }
   let(:verifier_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(23)) }
 
-  let(:subject_wallet)   { BSV::Wallet::Client.new(subject_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
-  let(:verifier_wallet)  { BSV::Wallet::Client.new(verifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:subject_wallet)   { BSV::Wallet::ProtoWallet.new(subject_key) }
+  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
+  let(:verifier_wallet)  { BSV::Wallet::ProtoWallet.new(verifier_key) }
 
   let(:subject_hex)   { subject_key.public_key.to_hex }
   let(:certifier_hex) { certifier_key.public_key.to_hex }
@@ -188,55 +186,6 @@ RSpec.describe 'BSV::Auth certificate integration' do # rubocop:disable RSpec/De
       # Field count = 0
       field_count, = BSV::Transaction::VarInt.decode(bin, pos)
       expect(field_count).to eq(0)
-    end
-  end
-
-  # ===========================================================================
-  # 3. Cross-verification with CertificateSignature.serialise_preimage
-  # ===========================================================================
-
-  describe 'Cross-verification with BSV::Wallet::CertificateSignature' do
-    let(:cert_hash) do
-      {
-        type: cert_type,
-        serial_number: serial,
-        subject: subject_hex,
-        certifier: certifier_hex,
-        revocation_outpoint: outpoint,
-        fields: plain_fields
-      }
-    end
-
-    it 'Certificate#to_binary(include_signature: false) is byte-identical to CertificateSignature.serialise_preimage' do
-      cert = BSV::Auth::Certificate.new(
-        type: cert_type,
-        serial_number: serial,
-        subject: subject_hex,
-        certifier: certifier_hex,
-        revocation_outpoint: outpoint,
-        fields: plain_fields
-      )
-
-      preimage = BSV::Wallet::CertificateSignature.serialise_preimage(cert_hash)
-      expect(cert.to_binary(include_signature: false)).to eq(preimage)
-    end
-
-    it 'fields are sorted lexicographically in both implementations' do
-      # Use fields that would differ if not sorted correctly
-      fields_unsorted = { 'zebra' => 'z_value', 'apple' => 'a_value', 'mango' => 'm_value' }
-      cert = BSV::Auth::Certificate.new(
-        type: cert_type,
-        serial_number: serial,
-        subject: subject_hex,
-        certifier: certifier_hex,
-        revocation_outpoint: outpoint,
-        fields: fields_unsorted
-      )
-
-      cert_hash_unsorted = cert_hash.merge(fields: fields_unsorted)
-      preimage = BSV::Wallet::CertificateSignature.serialise_preimage(cert_hash_unsorted)
-
-      expect(cert.to_binary(include_signature: false)).to eq(preimage)
     end
   end
 

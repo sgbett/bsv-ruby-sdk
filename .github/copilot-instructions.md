@@ -8,7 +8,7 @@ Key architecture:
 - `BSV::Primitives` — secp256k1 curve, ECDSA (RFC 6979), AES-256-GCM, ECDH, BRC-42 key derivation, Schnorr ZKP, Shamir's SSS
 - `BSV::Script` — script parsing, templates (P2PKH, PushDrop, RPuzzle, OpCat), full interpreter
 - `BSV::Transaction` — transaction building, BIP-143 sighash, BEEF (BRC-62/95/96), MerklePath (BRC-74), SPV verification
-- `BSV::Wallet` — BRC-100 wallet interface (28 methods), ProtoWallet (crypto), WalletClient (transactions + storage)
+- `BSV::Wallet` — ProtoWallet (BRC-100 crypto: signing, encryption, HMAC, key derivation)
 - `BSV::Auth` — BRC-31 mutual authentication with nonce-based challenges
 - All cryptography uses Ruby stdlib OpenSSL — no external crypto gems
 
@@ -20,8 +20,8 @@ Primary threats:
 - **Incorrect transaction construction**: wrong sighash, malformed scripts, invalid BEEF — produces transactions that miners reject (funds stuck in unspendable UTXOs)
 - **Key derivation errors**: wrong child key derived for a payment — funds sent to an address nobody controls
 - **Signing bugs**: wrong hash signed, signature over wrong data — invalid transactions or signatures that reveal private key material (nonce reuse)
-- **BEEF/SPV verification bypass**: accepting invalid merkle proofs — wallet accepts counterfeit transactions as valid
-- **Wire protocol deserialisation**: malformed binary input from untrusted peers could crash the wallet or corrupt state
+- **BEEF/SPV verification bypass**: accepting invalid merkle proofs — accepting counterfeit transactions as valid
+- **Wire protocol deserialisation**: malformed binary input from untrusted peers could crash or corrupt state
 
 Secondary threats:
 - **Private key leakage**: keys, shared secrets, or keyrings exposed in return values, error messages, or storage
@@ -36,15 +36,13 @@ Secondary threats:
 - **Sighash computation**: `Transaction#sighash` implements BIP-143 with BSV FORKID. Any error in the preimage (wrong field order, wrong endianness, missing FORKID byte) produces an invalid signature. The transaction broadcasts but the UTXO becomes permanently unspendable.
 - **Input/output wiring**: `source_satoshis` and `source_locking_script` on `TransactionInput` must match the actual UTXO being spent. Mismatches cause sighash to compute over wrong data → invalid signature → unspendable.
 - **Fee calculation**: `estimated_size` and `compute_fee` determine how much the miner gets. Underestimation → transaction rejected. Overestimation → overpaid fees (funds lost to miner). Check rounding direction (should always `ceil`, never `floor`).
-- **Change output handling**: `Transaction#fee` distributes change. Verify that change is never negative, never below dust threshold (1 sat), and that the change address is derived from the wallet's own key (not an attacker-controlled address).
-- **Output randomisation**: `WalletClient#shuffle_outputs` reorders outputs after construction. Verify that `store_tracked_outputs` uses the post-shuffle index for outpoints, not the pre-shuffle array position (bug previously found and fixed).
+- **Change output handling**: `Transaction#fee` distributes change. Verify that change is never negative, never below dust threshold (1 sat), and that the change address is derived from the correct key (not an attacker-controlled address).
 
 ### Key Derivation (Critical — funds at risk)
 
 - **BRC-42 child keys**: `PrivateKey#derive_child` and `PublicKey#derive_child` use ECDH + HMAC-SHA256. The derived key must match across sender and receiver — if not, funds are sent to an unrecoverable address.
 - **Invoice number format**: `KeyDeriver#compute_invoice_number` produces `"#{level}-#{name}-#{key_id}"`. Any deviation from the reference SDKs (ts-sdk, go-sdk) breaks cross-SDK compatibility — payments between SDKs fail silently.
 - **Counterparty resolution**: `KeyDeriver#resolve_counterparty` dispatches 'self' → own pubkey, 'anyone' → PrivateKey(1).pubkey, hex string → PublicKey.from_hex. Confusion here means deriving the wrong key → funds lost.
-- **BRC-29 payment derivation**: `internalize_payment` uses `protocol_id: [2, '3241645161d8']` and `key_id: "#{prefix} #{suffix}"`. These must match the ts-sdk's `BasicBRC29` module exactly, or wallet payment internalization silently rejects valid payments.
 
 ### ECDSA Signing (Critical — private key at risk)
 
@@ -71,11 +69,6 @@ Secondary threats:
 - **Counterparty dispatch**: `read_counterparty` dispatches on the first byte (0=nil, 11='self', 12='anyone', 0x02/0x03=pubkey). Any other byte value must not silently produce garbage.
 - **String encoding**: `force_encoding('UTF-8')` does not validate UTF-8 validity. Invalid byte sequences create strings that may cause downstream encoding exceptions.
 
-### Wallet Storage (Medium — state corruption)
-
-- **Outpoint format**: Outpoints are stored as `"#{txid}.#{index}"`. Verify that `txid` is always 64-char lowercase hex and `index` is a non-negative integer. Malformed outpoints break output lookup and spending.
-- **Certificate subject pinning**: `acquire_via_issuance` must pin `subject` to the wallet's own identity key, never accepting it from a remote certifier response.
-- **Basket/label/tag validation**: All user-facing names must be validated per BRC-100 rules (length, character set, reserved prefixes) before storage.
 
 ### Encryption / HMAC (Medium — data confidentiality)
 
@@ -86,9 +79,7 @@ Secondary threats:
 ## What NOT to Flag
 
 - **Ruby 2.7 compatibility warnings**: The gem targets Ruby >= 2.7. Pattern matching, `Hash#except`, endless methods, and `Data.define` are intentionally avoided.
-- **`instance_variable_set` in WalletClient**: Used to tag TransactionOutputs with their spec for post-shuffle outpoint tracking. This is intentional.
 - **`is_authenticated` naming**: The `is_` prefix is the BRC-100 wire protocol method name and cannot be renamed.
-- **`MemoryStore` thread safety**: MemoryStore is documented as test-only. Production adapters are the caller's responsibility.
 - **`'anyone'` counterparty in signatures**: BRC-43 explicitly supports `'anyone'` for publicly verifiable signatures. The derived key still requires the signer's private key.
 - **Auth/Peer TOFU model**: BRC-31 is Trust-on-First-Use by design. The responder marking `is_authenticated = true` before initiator proves key possession matches all reference SDKs.
 - **No replay protection on general auth messages**: BRC-31 delegates replay protection to the application layer, same as TLS. All reference SDKs have the same design.

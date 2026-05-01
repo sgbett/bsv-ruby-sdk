@@ -3,11 +3,10 @@
 require 'spec_helper'
 
 require 'bsv-sdk'
-require 'bsv-wallet'
 
 RSpec.describe 'BSV::Script::PushDropTemplate' do
   let(:private_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
-  let(:wallet)      { BSV::Wallet::Client.new(private_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:wallet)      { BSV::Wallet::ProtoWallet.new(private_key) }
   let(:template)    { BSV::Script::PushDropTemplate.new(wallet: wallet) }
 
   let(:protocol_id)  { [1, 'push drop test'] }

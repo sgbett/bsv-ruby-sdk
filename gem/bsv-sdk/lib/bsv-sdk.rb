@@ -13,5 +13,8 @@ module BSV
   autoload :Registry,    'bsv/registry'
   autoload :MCP,         'bsv/mcp'
 
-  autoload :WireFormat,  'bsv/wire_format'
+  # Wallet is loaded eagerly to avoid load-path shadowing when bsv-wallet is
+  # also in the bundle (bsv-wallet/lib/bsv/wallet.rb would otherwise win).
+  require_relative 'bsv/wallet'
+  autoload :WireFormat, 'bsv/wire_format'
 end

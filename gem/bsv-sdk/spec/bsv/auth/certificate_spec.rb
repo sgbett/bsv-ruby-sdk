@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'bsv-wallet'
 
 # TS SDK test vector (from Certificate.test.ts, lines 338-362).
 # Note: the type field decodes to 21 bytes (not 32) — this vector is designed
@@ -21,7 +20,7 @@ RSpec.describe BSV::Auth::Certificate do
 
   let(:certifier_key)    { BSV::Primitives::PrivateKey.generate }
   let(:subject_key)      { BSV::Primitives::PrivateKey.generate }
-  let(:certifier_wallet) { BSV::Wallet::Client.new(certifier_key, storage: BSV::Wallet::Store::Memory.new, allow_memory_store: true) }
+  let(:certifier_wallet) { BSV::Wallet::ProtoWallet.new(certifier_key) }
 
   let(:cert_type)     { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
   let(:serial)        { Base64.strict_encode64(SecureRandom.random_bytes(32)) }
