@@ -33,14 +33,15 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
 
   let(:txid) { 'abc1234500000000000000000000000000000000000000000000000000000000' }
 
+  def stub_woc(code, body, network: :mainnet)
+    http = mock_http_class.new(code, body)
+    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
+  end
+
   describe '.call' do
     context 'with a successful response' do
-      before do
-        http = mock_http_class.new(200, raw_tx_hex)
-        allow(BSV::Network::WhatsOnChain).to receive(:new).and_return(
-          BSV::Network::WhatsOnChain.new(http_client: http)
-        )
-      end
+      before { stub_woc(200, raw_tx_hex) }
 
       it 'returns an MCP::Tool::Response' do
         response = tool.call(txid: txid)
@@ -93,12 +94,7 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
     end
 
     context 'when the API returns an error' do
-      before do
-        http = mock_http_class.new(404, 'Transaction not found')
-        allow(BSV::Network::WhatsOnChain).to receive(:new).and_return(
-          BSV::Network::WhatsOnChain.new(http_client: http)
-        )
-      end
+      before { stub_woc(404, 'Transaction not found') }
 
       it 'returns an error response' do
         response = tool.call(txid: 'unknowntxid')
@@ -118,10 +114,8 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
     end
 
     context 'when querying testnet' do
-      it 'passes testnet to WhatsOnChain' do
-        http = mock_http_class.new(200, raw_tx_hex)
-        woc = BSV::Network::WhatsOnChain.new(network: :testnet, http_client: http)
-        allow(BSV::Network::WhatsOnChain).to receive(:new).with(network: :testnet).and_return(woc)
+      it 'passes testnet to the provider' do
+        stub_woc(200, raw_tx_hex, network: :testnet)
 
         result = JSON.parse(tool.call(txid: txid, network: 'testnet').content.first.text, symbolize_names: true)
         expect(result[:network]).to eq('testnet')

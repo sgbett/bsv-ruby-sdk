@@ -59,8 +59,20 @@ module BSV
           net_sym = Helpers.resolve_network_sym(network, server_context)
           address = resolve_address(address_or_wif, net_sym)
 
-          woc = BSV::Network::WhatsOnChain.new(network: net_sym)
-          utxos = woc.fetch_utxos(address)
+          provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
+          utxo_result = provider.call(:get_utxos_all, address)
+
+          unless utxo_result.success?
+            code = utxo_result.metadata[:status_code]
+            return Helpers.error_response("#{utxo_result.message} (HTTP #{code})")
+          end
+
+          utxos = utxo_result.data.map do |entry|
+            BSV::Network::UTXO.new(
+              tx_hash: entry[:tx_hash], tx_pos: entry[:tx_pos],
+              satoshis: entry[:satoshis], height: entry[:height]
+            )
+          end
 
           balance = utxos.sum(&:satoshis)
           result = {
@@ -77,8 +89,6 @@ module BSV
           )
         rescue ArgumentError => e
           Helpers.error_response(e.message)
-        rescue BSV::Network::ChainProviderError => e
-          Helpers.error_response("#{e.message} (HTTP #{e.status_code})")
         end
 
         # Resolve a WIF key or address string to a P2PKH address.

@@ -50,8 +50,20 @@ module BSV
 
         def self.call(address:, network: nil, server_context: nil)
           net_sym = Helpers.resolve_network_sym(network, server_context)
-          woc = BSV::Network::WhatsOnChain.new(network: net_sym)
-          utxos = woc.fetch_utxos(address)
+          provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
+          utxo_result = provider.call(:get_utxos_all, address)
+
+          unless utxo_result.success?
+            code = utxo_result.metadata[:status_code]
+            return Helpers.error_response("#{utxo_result.message} (HTTP #{code})")
+          end
+
+          utxos = utxo_result.data.map do |entry|
+            BSV::Network::UTXO.new(
+              tx_hash: entry[:tx_hash], tx_pos: entry[:tx_pos],
+              satoshis: entry[:satoshis], height: entry[:height]
+            )
+          end
 
           result = {
             address: address,
@@ -63,8 +75,6 @@ module BSV
             [::MCP::Content::Text.new(result.to_json)],
             structured_content: result
           )
-        rescue BSV::Network::ChainProviderError => e
-          Helpers.error_response("#{e.message} (HTTP #{e.status_code})")
         end
       end
     end

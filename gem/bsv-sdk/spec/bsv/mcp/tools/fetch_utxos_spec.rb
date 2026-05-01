@@ -7,15 +7,12 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
 
   let(:mock_http_class) do
     Class.new do
-      attr_reader :last_uri
-
       def initialize(code, body)
         @code = code
         @body = body
       end
 
-      def request(uri, _req)
-        @last_uri = uri
+      def request(_uri, _req)
         Struct.new(:code, :body).new(@code.to_s, @body)
       end
     end
@@ -30,14 +27,15 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
 
   let(:address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
 
+  def stub_woc(code, body, network: :mainnet)
+    http = mock_http_class.new(code, body)
+    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
+  end
+
   describe '.call' do
     context 'with a successful response' do
-      before do
-        http = mock_http_class.new(200, utxo_response_body)
-        allow(BSV::Network::WhatsOnChain).to receive(:new).and_return(
-          BSV::Network::WhatsOnChain.new(http_client: http)
-        )
-      end
+      before { stub_woc(200, utxo_response_body) }
 
       it 'returns an MCP::Tool::Response' do
         response = tool.call(address: address)
@@ -81,10 +79,8 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
     end
 
     context 'when querying testnet' do
-      it 'passes testnet to WhatsOnChain' do
-        http = mock_http_class.new(200, '[]')
-        woc = BSV::Network::WhatsOnChain.new(network: :testnet, http_client: http)
-        allow(BSV::Network::WhatsOnChain).to receive(:new).with(network: :testnet).and_return(woc)
+      it 'passes testnet to the provider' do
+        stub_woc(200, '[]', network: :testnet)
 
         result = JSON.parse(tool.call(address: address, network: 'testnet').content.first.text, symbolize_names: true)
         expect(result[:network]).to eq('testnet')
@@ -92,12 +88,7 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
     end
 
     context 'when the API returns an error' do
-      before do
-        http = mock_http_class.new(404, 'Address not found')
-        allow(BSV::Network::WhatsOnChain).to receive(:new).and_return(
-          BSV::Network::WhatsOnChain.new(http_client: http)
-        )
-      end
+      before { stub_woc(404, 'Address not found') }
 
       it 'returns an error response' do
         response = tool.call(address: 'invalid')

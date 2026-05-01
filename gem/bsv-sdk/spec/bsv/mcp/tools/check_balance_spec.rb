@@ -29,9 +29,8 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
 
   def stub_woc(code, body, network: :mainnet)
     http = mock_http_class.new(code, body)
-    allow(BSV::Network::WhatsOnChain).to receive(:new).with(network: network).and_return(
-      BSV::Network::WhatsOnChain.new(network: network, http_client: http)
-    )
+    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
   end
 
   describe '.call with an address' do
