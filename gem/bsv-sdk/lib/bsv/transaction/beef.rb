@@ -44,38 +44,41 @@ module BSV
         # @return [Transaction, nil] the transaction (nil for TXID-only entries)
         attr_reader :transaction
 
-        # @return [String, nil] 32-byte txid for TXID-only entries
-        attr_reader :known_txid
+        # @return [String, nil] 32-byte wire-order wtxid for TXID-only entries
+        attr_reader :known_wtxid
 
         # @return [Integer, nil] index into the BEEF bumps array
         attr_reader :bump_index
 
         # @param format [Integer] format flag
         # @param transaction [Transaction, nil] the transaction
-        # @param known_txid [String, nil] 32-byte txid for TXID-only entries
+        # @param known_wtxid [String, nil] 32-byte wire-order wtxid for TXID-only entries
         # @param bump_index [Integer, nil] index into the bumps array
         # @raise [ArgumentError] if format is FORMAT_RAW_TX_AND_BUMP without a bump_index
-        def initialize(format:, transaction: nil, known_txid: nil, bump_index: nil)
+        def initialize(format:, transaction: nil, known_wtxid: nil, bump_index: nil)
           raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if format == FORMAT_RAW_TX_AND_BUMP && bump_index.nil?
 
           @format = format
           @transaction = transaction
-          @known_txid = known_txid
+          @known_wtxid = known_wtxid
           @bump_index = bump_index
         end
 
-        # The transaction ID for this entry.
-        #
-        # @param wire [Boolean] when +true+, returns wire byte order; default +false+ (display order).
-        #   Ignored for FORMAT_TXID_ONLY entries — the stored txid is returned as-is.
-        # @return [String, nil] 32-byte txid
-        def txid(wire: false)
+        # Wire-order transaction ID.
+        # @return [String, nil] 32-byte wtxid
+        def wtxid
           case @format
           when FORMAT_TXID_ONLY
-            @known_txid
+            @known_wtxid
           else
-            @transaction&.txid(wire: wire)
+            @transaction&.wtxid
           end
+        end
+
+        # Display-order transaction ID.
+        # @return [String, nil] 32-byte txid
+        def txid
+          wtxid&.reverse
         end
       end
 
@@ -341,7 +344,7 @@ module BSV
         level0_internal = level0_leaves.map(&:hash).compact.to_set
         @transactions.each_with_index do |bt, i|
           next unless bt.format == FORMAT_RAW_TX && bt.transaction
-          next unless level0_internal.include?(bt.transaction.txid(wire: true))
+          next unless level0_internal.include?(bt.transaction.wtxid)
 
           bt.transaction.merkle_path ||= bump
           @transactions[i] = BeefTx.new(
@@ -450,9 +453,9 @@ module BSV
         other.transactions.each do |beef_tx|
           case beef_tx.format
           when FORMAT_TXID_ONLY
-            next if @transactions.any? { |bt| bt.txid == beef_tx.known_txid }
+            next if @transactions.any? { |bt| bt.wtxid == beef_tx.known_wtxid }
 
-            @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: beef_tx.known_txid)
+            @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: beef_tx.known_wtxid)
           else
             next if @transactions.any? { |bt| bt.txid == beef_tx.txid }
 
@@ -490,7 +493,7 @@ module BSV
         idx = @transactions.index { |bt| bt.txid == txid }
         return unless idx
 
-        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: txid)
+        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: txid.reverse)
       end
 
       # --- Validation ---
@@ -522,7 +525,7 @@ module BSV
 
           # The txid must appear as a leaf in the BUMP and compute a valid root
           begin
-            bump.compute_root(bt.transaction.txid(wire: true))
+            bump.compute_root(bt.transaction.wtxid)
           rescue ArgumentError
             return false
           end
@@ -663,14 +666,13 @@ module BSV
 
             case format
             when FORMAT_TXID_ONLY
-              # Wire stores txid in internal (little-endian) byte order;
-              # reverse to display order so BeefTx#txid is consistent with
-              # Transaction#txid across all format types.
+              # Wire stores txid in internal (little-endian / wire) byte order;
+              # store as-is in known_wtxid so it matches Transaction#wtxid.
               raise ArgumentError, 'truncated BEEF: not enough bytes for TXID_ONLY entry' if offset + 32 > data.bytesize
 
-              known_txid = data.byteslice(offset, 32).reverse
+              known_wtxid = data.byteslice(offset, 32)
               offset += 32
-              beef.transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_txid: known_txid)
+              beef.transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: known_wtxid)
             when FORMAT_RAW_TX_AND_BUMP
               bump_index, vi_size = VarInt.decode(data, offset)
               offset += vi_size
@@ -822,8 +824,8 @@ module BSV
         case beef_tx.format
         when FORMAT_TXID_ONLY
           buf << [FORMAT_TXID_ONLY].pack('C')
-          # Reverse display-order txid back to wire (internal) byte order.
-          buf << beef_tx.known_txid.reverse
+          # known_wtxid is already wire (internal) byte order.
+          buf << beef_tx.known_wtxid
         when FORMAT_RAW_TX_AND_BUMP
           buf << [FORMAT_RAW_TX_AND_BUMP].pack('C')
           buf << VarInt.encode(beef_tx.bump_index)
