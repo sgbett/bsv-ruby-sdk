@@ -90,7 +90,7 @@ module BSV
 
           sig_args = { hash_to_directly_sign: hash_bytes, protocol_id: @protocol_id, key_id: '1', counterparty: 'self' }
           sig_args[:originator] = @originator if @originator
-          result = @wallet.create_signature(sig_args)
+          result = @wallet.create_signature(**sig_args)
 
           sig_bytes = result[:signature].pack('C*')
           sig_with_hashtype = sig_bytes + [sighash_type].pack('C')
@@ -171,14 +171,14 @@ module BSV
         # Fetch the wallet's identity key (compressed public key hex)
         id_args = { identity_key: true }
         id_args[:originator] = @originator if @originator
-        identity_result = @wallet.get_public_key(id_args)
+        identity_result = @wallet.get_public_key(**id_args)
         identity_key_hex = identity_result[:public_key]
         identity_key_bytes = [identity_key_hex].pack('H*')
 
         # Derive the locking public key for this protocol
         lock_args = { protocol_id: protocol_id, key_id: '1', counterparty: 'self' }
         lock_args[:originator] = @originator if @originator
-        locking_result = @wallet.get_public_key(lock_args)
+        locking_result = @wallet.get_public_key(**lock_args)
         locking_pubkey_hex = locking_result[:public_key]
         locking_pubkey_bytes = [locking_pubkey_hex].pack('H*')
 
@@ -192,7 +192,7 @@ module BSV
         data_to_sign = (field_protocol + field_identity + field_domain + field_topic).unpack('C*')
         sig_args = { data: data_to_sign, protocol_id: protocol_id, key_id: '1', counterparty: 'self' }
         sig_args[:originator] = @originator if @originator
-        sig_result = @wallet.create_signature(sig_args)
+        sig_result = @wallet.create_signature(**sig_args)
         field_sig = sig_result[:signature].pack('C*')
 
         fields = [field_protocol, field_identity, field_domain, field_topic, field_sig]

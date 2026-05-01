@@ -34,12 +34,12 @@ module BSV
         first_half = SecureRandom.random_bytes(RANDOM_BYTES)
         key_id     = decode_as_utf8(first_half)
 
-        result = wallet.create_hmac({
-                                      data: first_half.bytes,
-                                      protocol_id: PROTOCOL_ID,
-                                      key_id: key_id,
-                                      counterparty: counterparty
-                                    })
+        result = wallet.create_hmac(
+          data: first_half.bytes,
+          protocol_id: PROTOCOL_ID,
+          key_id: key_id,
+          counterparty: counterparty
+        )
 
         nonce_bytes = first_half + result[:hmac].pack('C*')
         ::Base64.strict_encode64(nonce_bytes)
@@ -60,13 +60,13 @@ module BSV
         hmac_bytes = nonce_bytes.byteslice(RANDOM_BYTES, nonce_bytes.bytesize - RANDOM_BYTES)
         key_id     = decode_as_utf8(first_half)
 
-        wallet.verify_hmac({
-                             data: first_half.bytes,
-                             hmac: hmac_bytes.bytes,
-                             protocol_id: PROTOCOL_ID,
-                             key_id: key_id,
-                             counterparty: counterparty
-                           })
+        wallet.verify_hmac(
+          data: first_half.bytes,
+          hmac: hmac_bytes.bytes,
+          protocol_id: PROTOCOL_ID,
+          key_id: key_id,
+          counterparty: counterparty
+        )
 
         true
       rescue BSV::Wallet::InvalidHmacError

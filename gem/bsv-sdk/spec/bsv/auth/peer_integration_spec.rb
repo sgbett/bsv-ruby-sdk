@@ -32,7 +32,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
   def issue_verifiable_certificate(subject_wallet:, certifier_wallet:, verifier_hex:, cert_type:, fields:)
     master_cert = BSV::Auth::MasterCertificate.issue_certificate_for_subject(
       certifier_wallet,
-      subject_wallet.get_public_key({ identity_key: true })[:public_key],
+      subject_wallet.get_public_key(identity_key: true)[:public_key],
       fields,
       cert_type
     )
@@ -55,7 +55,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
   describe 'Scenario 1: full certificate exchange lifecycle' do
     # Bob requires Alice to present a certificate from certifier_wallet.
     let(:requested_certs) do
-      { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+      { certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => ['name'] } }
     end
 
@@ -157,7 +157,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
         alice.send_certificate_response(requester_key, [vc])
       end
 
-      certifier_hex = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      certifier_hex = certifier_wallet.get_public_key(identity_key: true)[:public_key]
       bob.request_certificates(
         { certifiers: [certifier_hex], types: { cert_type => ['name'] } },
         alice.identity_key
@@ -186,7 +186,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
     # Bob requires Alice's certs
     let(:requested_by_bob) do
-      { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+      { certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => ['name'] } }
     end
 
@@ -245,7 +245,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
       expect(bob_certs_received).not_to be_nil
 
       # Alice now requests certs from Bob post-handshake
-      certifier2_hex = certifier_wallet2.get_public_key({ identity_key: true })[:public_key]
+      certifier2_hex = certifier_wallet2.get_public_key(identity_key: true)[:public_key]
       alice.request_certificates(
         { certifiers: [certifier2_hex], types: { cert_type2 => ['role'] } },
         bob.identity_key
@@ -273,19 +273,19 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
       vc = issue_verifiable_certificate(
         subject_wallet: eve_wallet, # certificate subject is Eve
         certifier_wallet: certifier_wallet,
-        verifier_hex: bob_wallet.get_public_key({ identity_key: true })[:public_key],
+        verifier_hex: bob_wallet.get_public_key(identity_key: true)[:public_key],
         cert_type: cert_type,
         fields: { 'name' => 'Eve' }
       )
 
       # Build a fake message claiming to be from Alice but carrying Eve's certificate
       message = {
-        identity_key: alice_wallet.get_public_key({ identity_key: true })[:public_key],
+        identity_key: alice_wallet.get_public_key(identity_key: true)[:public_key],
         certificates: [vc.to_h]
       }
 
       requested = {
-        certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+        certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => ['name'] }
       }
 
@@ -299,7 +299,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
   describe 'Scenario 5: to_peer rejects when certificates not validated' do
     let(:requested_certs) do
-      { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+      { certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => ['name'] } }
     end
 
@@ -454,7 +454,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
                                  handshake_timeout: 0.05)
 
       expect do
-        peer.to_peer('hello'.bytes, bob_wallet.get_public_key({ identity_key: true })[:public_key])
+        peer.to_peer('hello'.bytes, bob_wallet.get_public_key(identity_key: true)[:public_key])
       end.to raise_error(BSV::Auth::AuthError, /Handshake timed out/)
     end
   end
@@ -478,7 +478,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
       peer = BSV::Auth::Peer.new(wallet: alice_wallet, transport: failing_transport)
 
       expect do
-        peer.to_peer('hello'.bytes, bob_wallet.get_public_key({ identity_key: true })[:public_key])
+        peer.to_peer('hello'.bytes, bob_wallet.get_public_key(identity_key: true)[:public_key])
       end.to raise_error(RuntimeError, /transport unavailable/)
 
       # Queue should be cleaned up — no orphaned entries
@@ -491,7 +491,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
   describe 'Scenario 10: certificates included in initialResponse during handshake' do
     let(:requested_certs) do
-      { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+      { certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => ['name'] } }
     end
 
@@ -546,7 +546,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
       vc = issue_verifiable_certificate(
         subject_wallet: alice_wallet,
         certifier_wallet: certifier_wallet,
-        verifier_hex: bob_wallet.get_public_key({ identity_key: true })[:public_key],
+        verifier_hex: bob_wallet.get_public_key(identity_key: true)[:public_key],
         cert_type: cert_type,
         fields: { 'name' => 'Alice' }
       )
@@ -556,11 +556,11 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
       # Flip a byte in the signature
       tampered['signature'][-2..-1] = (tampered['signature'][-2..].to_i(16) ^ 0xFF).to_s(16).rjust(2, '0')
 
-      alice_key_hex = alice_wallet.get_public_key({ identity_key: true })[:public_key]
+      alice_key_hex = alice_wallet.get_public_key(identity_key: true)[:public_key]
       message = { identity_key: alice_key_hex, certificates: [tampered] }
 
       requested = {
-        certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+        certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => ['name'] }
       }
 
@@ -581,15 +581,15 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
       vc = issue_verifiable_certificate(
         subject_wallet: alice_wallet,
         certifier_wallet: rogue_certifier_wallet,
-        verifier_hex: bob_wallet.get_public_key({ identity_key: true })[:public_key],
+        verifier_hex: bob_wallet.get_public_key(identity_key: true)[:public_key],
         cert_type: cert_type,
         fields: { 'name' => 'Alice' }
       )
 
-      alice_key_hex = alice_wallet.get_public_key({ identity_key: true })[:public_key]
+      alice_key_hex = alice_wallet.get_public_key(identity_key: true)[:public_key]
       message = { identity_key: alice_key_hex, certificates: [vc.to_h] }
 
-      trusted_certifier_hex = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      trusted_certifier_hex = certifier_wallet.get_public_key(identity_key: true)[:public_key]
       requested = {
         certifiers: [trusted_certifier_hex], # only trusts certifier_wallet, not rogue
         types: { cert_type => ['name'] }
@@ -605,7 +605,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
 
   describe 'Scenario 13: verify actual decrypted field values after full exchange' do
     let(:requested_certs) do
-      { certifiers: [certifier_wallet.get_public_key({ identity_key: true })[:public_key]],
+      { certifiers: [certifier_wallet.get_public_key(identity_key: true)[:public_key]],
         types: { cert_type => %w[name email] } }
     end
 

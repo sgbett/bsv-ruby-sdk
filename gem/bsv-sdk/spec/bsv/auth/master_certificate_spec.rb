@@ -213,7 +213,7 @@ RSpec.describe BSV::Auth::MasterCertificate do
         counterparty: subject_hex
       }.merge(BSV::Auth::Certificate.certificate_field_encryption_details('name', cert.serial_number))
 
-      key_bytes = verifier_wallet.decrypt(dec_args)[:plaintext]
+      key_bytes = verifier_wallet.decrypt(**dec_args)[:plaintext]
       sym_key = BSV::Primitives::SymmetricKey.new(key_bytes.pack('C*'))
       plaintext = sym_key.decrypt(Base64.strict_decode64(cert.fields['name']))
 
@@ -348,7 +348,7 @@ RSpec.describe BSV::Auth::MasterCertificate do
         cert_type
       )
 
-      certifier_identity = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      certifier_identity = certifier_wallet.get_public_key(identity_key: true)[:public_key]
       expect(cert.subject).to eq(certifier_identity)
     end
   end

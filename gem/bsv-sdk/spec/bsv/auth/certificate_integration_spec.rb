@@ -402,7 +402,7 @@ RSpec.describe 'BSV::Auth certificate integration' do # rubocop:disable RSpec/De
         cert_type
       )
 
-      certifier_identity = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      certifier_identity = certifier_wallet.get_public_key(identity_key: true)[:public_key]
       expect(self_cert.subject).to eq(certifier_identity)
     end
 

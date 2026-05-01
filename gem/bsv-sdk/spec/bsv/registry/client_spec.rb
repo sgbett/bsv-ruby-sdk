@@ -55,7 +55,7 @@ RSpec.describe 'BSV::Registry::Client' do
 
   before do
     allow(wallet).to receive(:get_public_key)
-      .with({ identity_key: true }, originator: nil)
+      .with(identity_key: true, originator: nil)
       .and_return({ public_key: REGISTRY_SPEC_IDENTITY_KEY })
   end
 
@@ -95,8 +95,8 @@ RSpec.describe 'BSV::Registry::Client' do
 
       it 'calls create_action with the basket basket name' do
         client.register_definition(BSV::Registry::DefinitionType::BASKET, basket_data)
-        expect(wallet).to have_received(:create_action) do |args, **_kw|
-          expect(args[:outputs].first[:basket]).to eq('basketmap')
+        expect(wallet).to have_received(:create_action) do |**kwargs|
+          expect(kwargs[:outputs].first[:basket]).to eq('basketmap')
         end
       end
 
@@ -119,8 +119,8 @@ RSpec.describe 'BSV::Registry::Client' do
 
       it 'calls create_action with the protomap basket name' do
         client.register_definition(BSV::Registry::DefinitionType::PROTOCOL, protocol_data)
-        expect(wallet).to have_received(:create_action) do |args, **_kw|
-          expect(args[:outputs].first[:basket]).to eq('protomap')
+        expect(wallet).to have_received(:create_action) do |**kwargs|
+          expect(kwargs[:outputs].first[:basket]).to eq('protomap')
         end
       end
     end
@@ -156,14 +156,14 @@ RSpec.describe 'BSV::Registry::Client' do
 
       before do
         allow(wallet).to receive(:get_public_key)
-          .with({ identity_key: true }, originator: 'myapp.example.com')
+          .with(identity_key: true, originator: 'myapp.example.com')
           .and_return({ public_key: REGISTRY_SPEC_IDENTITY_KEY })
       end
 
       it 'passes the originator to create_action' do
         client_with_originator.register_definition(BSV::Registry::DefinitionType::BASKET, basket_data)
-        expect(wallet).to have_received(:create_action) do |_args, originator:|
-          expect(originator).to eq('myapp.example.com')
+        expect(wallet).to have_received(:create_action) do |**kwargs|
+          expect(kwargs[:originator]).to eq('myapp.example.com')
         end
       end
     end
@@ -437,7 +437,7 @@ RSpec.describe 'BSV::Registry::Client' do
 
     before do
       allow(wallet).to receive(:list_outputs)
-        .with({ basket: 'basketmap', include: 'entire transactions' }, originator: nil)
+        .with(basket: 'basketmap', include: 'entire transactions', originator: nil)
         .and_return({ outputs: [wallet_output], beef: REGISTRY_SPEC_BEEF_BYTES })
       allow(BSV::Transaction::Beef).to receive(:from_binary).and_return(mock_beef)
     end
@@ -449,8 +449,8 @@ RSpec.describe 'BSV::Registry::Client' do
 
     it 'queries wallet for the correct basket' do
       client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET)
-      expect(wallet).to have_received(:list_outputs) do |args, **_kw|
-        expect(args[:basket]).to eq('basketmap')
+      expect(wallet).to have_received(:list_outputs) do |**kwargs|
+        expect(kwargs[:basket]).to eq('basketmap')
       end
     end
 
@@ -554,8 +554,8 @@ RSpec.describe 'BSV::Registry::Client' do
 
     it 'creates a spending input for the correct outpoint' do
       client.revoke_definition(registered)
-      expect(wallet).to have_received(:create_action) do |args, **_kw|
-        expect(args[:inputs].first[:outpoint]).to eq("#{REGISTRY_SPEC_TXID}.0")
+      expect(wallet).to have_received(:create_action) do |**kwargs|
+        expect(kwargs[:inputs].first[:outpoint]).to eq("#{REGISTRY_SPEC_TXID}.0")
       end
     end
 
@@ -645,8 +645,8 @@ RSpec.describe 'BSV::Registry::Client' do
     before do
       allow(BSV::Script::PushDropTemplate).to receive(:new).and_return(mock_template_update)
 
-      allow(wallet).to receive(:create_action) do |args, **_opts|
-        if args.key?(:inputs)
+      allow(wallet).to receive(:create_action) do |**kwargs|
+        if kwargs.key?(:inputs)
           { signable_transaction: { tx: REGISTRY_SPEC_BEEF_BYTES, reference: 'REF789' } }
         else
           { tx: REGISTRY_SPEC_BEEF_BYTES }

@@ -71,7 +71,7 @@ module BSV
         args[:limit]  = limit  unless limit.nil?
         args[:offset] = offset unless offset.nil?
 
-        result = @wallet.discover_by_identity_key(args, originator: @originator)
+        result = @wallet.discover_by_identity_key(**args, originator: @originator)
         parse_certificates(result)
       end
 
@@ -89,7 +89,7 @@ module BSV
         args[:limit]  = limit  unless limit.nil?
         args[:offset] = offset unless offset.nil?
 
-        result = @wallet.discover_by_attributes(args, originator: @originator)
+        result = @wallet.discover_by_attributes(**args, originator: @originator)
         parse_certificates(result)
       end
 
@@ -117,7 +117,7 @@ module BSV
         # Prove the certificate to the "anyone" verifier (PrivateKey(1) public key)
         anyone_pubkey = BSV::Script::PushDropTemplate::GENERATOR_PUBKEY_HEX
         prove_result  = @wallet.prove_certificate(
-          { certificate: certificate, fields_to_reveal: fields_to_reveal, verifier: anyone_pubkey },
+          certificate: certificate, fields_to_reveal: fields_to_reveal, verifier: anyone_pubkey,
           originator: @originator
         )
         keyring = prove_result[:keyring_for_verifier]
@@ -155,17 +155,15 @@ module BSV
 
         # Create the transaction
         create_result = @wallet.create_action(
-          {
-            description: 'Create a new Identity Token',
-            outputs: [
-              {
-                satoshis: @options.token_amount,
-                locking_script: locking_script.to_hex,
-                output_description: 'Identity Token'
-              }
-            ],
-            options: { randomize_outputs: false }
-          },
+          description: 'Create a new Identity Token',
+          outputs: [
+            {
+              satoshis: @options.token_amount,
+              locking_script: locking_script.to_hex,
+              output_description: 'Identity Token'
+            }
+          ],
+          options: { randomize_outputs: false },
           originator: @originator
         )
 
@@ -215,18 +213,16 @@ module BSV
         # Create a spending transaction; use unlocking_script_length so the wallet
         # produces a signable transaction that can then be signed and broadcast.
         create_result = @wallet.create_action(
-          {
-            description: 'Spend certificate revelation token',
-            input_beef: beef_bytes,
-            inputs: [
-              {
-                input_description: 'Revelation token',
-                outpoint: outpoint,
-                unlocking_script_length: BSV::Script::PushDropTemplate::Unlocker::ESTIMATED_LENGTH
-              }
-            ],
-            options: { randomize_outputs: false, no_send: true }
-          },
+          description: 'Spend certificate revelation token',
+          input_beef: beef_bytes,
+          inputs: [
+            {
+              input_description: 'Revelation token',
+              outpoint: outpoint,
+              unlocking_script_length: BSV::Script::PushDropTemplate::Unlocker::ESTIMATED_LENGTH
+            }
+          ],
+          options: { randomize_outputs: false, no_send: true },
           originator: @originator
         )
 
@@ -248,11 +244,9 @@ module BSV
         unlocking_script = unlocker.sign(partial_tx, spending_input_idx)
 
         sign_result = @wallet.sign_action(
-          {
-            reference: signable[:reference],
-            spends: { spending_input_idx => { unlocking_script: unlocking_script.to_hex } },
-            options: { no_send: true }
-          },
+          reference: signable[:reference],
+          spends: { spending_input_idx => { unlocking_script: unlocking_script.to_hex } },
+          options: { no_send: true },
           originator: @originator
         )
 
@@ -343,7 +337,7 @@ module BSV
       #
       # @return [Symbol] :mainnet or :testnet
       def wallet_network
-        result = @wallet.get_network({}, originator: @originator)
+        result = @wallet.get_network(originator: @originator)
         net_str = result[:network] || result['network'] || 'mainnet'
         net_str.to_sym
       end

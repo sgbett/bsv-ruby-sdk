@@ -101,6 +101,7 @@ Metrics/ModuleLength:
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
+    - 'gem/bsv-sdk/lib/bsv/wallet/**/*'
     - 'gem/bsv-sdk/lib/bsv/wire_format.rb'
     - 'gem/*/spec/**/*'
 
@@ -125,6 +126,7 @@ Metrics/ParameterLists:
     - 'gem/bsv-sdk/lib/bsv/script/**/*'
     - 'gem/bsv-sdk/lib/bsv/transaction/**/*'
     - 'gem/bsv-sdk/lib/bsv/network/**/*'
+    - 'gem/bsv-sdk/lib/bsv/wallet/**/*'
     - 'gem/bsv-sdk/lib/bsv/overlay/**/*'
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'

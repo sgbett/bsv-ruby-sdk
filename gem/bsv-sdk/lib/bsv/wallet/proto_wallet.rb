@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'openssl'
+require_relative 'proto_wallet/validators'
+require_relative 'proto_wallet/key_deriver'
 
 module BSV
   module Wallet
@@ -12,11 +14,13 @@ module BSV
     # client. This makes it suitable for use in the SDK's Auth module without
     # depending on the bsv-wallet gem.
     #
-    # All public methods accept a single Hash positional argument plus an
-    # optional +originator:+ keyword argument (accepted but ignored — ProtoWallet
-    # has no permission system).
+    # Includes +BSV::Wallet::Interface::BRC100+ — methods it supports are
+    # overridden; unsupported methods (transactions, blockchain, authentication)
+    # fall through to +NotImplementedError+.
     #
     class ProtoWallet
+      include Interface::BRC100
+
       # @param root_key [BSV::Primitives::PrivateKey, String] a private key or 'anyone'
       def initialize(root_key)
         @key_deriver = KeyDeriver.new(root_key)
@@ -24,23 +28,22 @@ module BSV
 
       # Returns a derived or identity public key.
       #
-      # @param args [Hash]
-      # @option args [Boolean] :identity_key return the root identity key
-      # @option args [Array]   :protocol_id  [security_level, protocol_name]
-      # @option args [String]  :key_id       key identifier
-      # @option args [String]  :counterparty pubkey hex, 'self', or 'anyone'
-      # @option args [Boolean] :for_self     derive from own identity
+      # @param identity_key [Boolean] return the root identity key
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
+      # @param for_self [Boolean] derive from own identity
       # @return [Hash] { public_key: String } hex-encoded compressed public key
-      def get_public_key(args, originator: nil)
-        if args[:identity_key]
+      def get_public_key(identity_key: false, protocol_id: nil, key_id: nil,
+                         counterparty: nil, for_self: false,
+                         privileged: false, privileged_reason: nil,
+                         seek_permission: true, originator: nil)
+        if identity_key
           { public_key: @key_deriver.identity_key }
         else
-          counterparty = args[:counterparty] || 'self'
+          counterparty ||= 'self'
           pub = @key_deriver.derive_public_key(
-            args[:protocol_id],
-            args[:key_id],
-            counterparty,
-            for_self: args[:for_self] || false
+            protocol_id, key_id, counterparty, for_self: for_self
           )
           { public_key: pub.to_hex }
         end
@@ -48,60 +51,64 @@ module BSV
 
       # Encrypts plaintext using AES-256-GCM with a derived symmetric key.
       #
-      # @param args [Hash]
-      # @option args [Array<Integer>] :plaintext    byte array to encrypt
-      # @option args [Array]          :protocol_id  [security_level, protocol_name]
-      # @option args [String]         :key_id       key identifier
-      # @option args [String]         :counterparty pubkey hex, 'self', or 'anyone'
+      # @param plaintext [Array<Integer>] byte array to encrypt
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
       # @return [Hash] { ciphertext: Array<Integer> }
-      def encrypt(args, originator: nil)
-        sym_key    = derive_sym_key(args)
-        ciphertext = sym_key.encrypt(bytes_to_string(args[:plaintext]))
+      def encrypt(plaintext:, protocol_id:, key_id:,
+                  counterparty: nil, privileged: false, privileged_reason: nil,
+                  seek_permission: true, originator: nil)
+        sym_key    = derive_sym_key(protocol_id, key_id, counterparty)
+        ciphertext = sym_key.encrypt(bytes_to_string(plaintext))
         { ciphertext: string_to_bytes(ciphertext) }
       end
 
       # Decrypts ciphertext using AES-256-GCM with a derived symmetric key.
       #
-      # @param args [Hash]
-      # @option args [Array<Integer>] :ciphertext   byte array to decrypt
-      # @option args [Array]          :protocol_id  [security_level, protocol_name]
-      # @option args [String]         :key_id       key identifier
-      # @option args [String]         :counterparty pubkey hex, 'self', or 'anyone'
+      # @param ciphertext [Array<Integer>] byte array to decrypt
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
       # @return [Hash] { plaintext: Array<Integer> }
-      def decrypt(args, originator: nil)
-        sym_key   = derive_sym_key(args)
-        plaintext = sym_key.decrypt(bytes_to_string(args[:ciphertext]))
+      def decrypt(ciphertext:, protocol_id:, key_id:,
+                  counterparty: nil, privileged: false, privileged_reason: nil,
+                  seek_permission: true, originator: nil)
+        sym_key   = derive_sym_key(protocol_id, key_id, counterparty)
+        plaintext = sym_key.decrypt(bytes_to_string(ciphertext))
         { plaintext: string_to_bytes(plaintext) }
       end
 
       # Creates an HMAC-SHA256 using a derived symmetric key.
       #
-      # @param args [Hash]
-      # @option args [Array<Integer>] :data         byte array to authenticate
-      # @option args [Array]          :protocol_id  [security_level, protocol_name]
-      # @option args [String]         :key_id       key identifier
-      # @option args [String]         :counterparty pubkey hex, 'self', or 'anyone'
+      # @param data [Array<Integer>] byte array to authenticate
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
       # @return [Hash] { hmac: Array<Integer> }
-      def create_hmac(args, originator: nil)
-        sym_key = derive_sym_key(args)
-        hmac    = BSV::Primitives::Digest.hmac_sha256(sym_key.to_bytes, bytes_to_string(args[:data]))
+      def create_hmac(data:, protocol_id:, key_id:,
+                      counterparty: nil, privileged: false, privileged_reason: nil,
+                      seek_permission: true, originator: nil)
+        sym_key = derive_sym_key(protocol_id, key_id, counterparty)
+        hmac    = BSV::Primitives::Digest.hmac_sha256(sym_key.to_bytes, bytes_to_string(data))
         { hmac: string_to_bytes(hmac) }
       end
 
       # Verifies an HMAC-SHA256 using a derived symmetric key.
       #
-      # @param args [Hash]
-      # @option args [Array<Integer>] :data         byte array that was authenticated
-      # @option args [Array<Integer>] :hmac         HMAC to verify
-      # @option args [Array]          :protocol_id  [security_level, protocol_name]
-      # @option args [String]         :key_id       key identifier
-      # @option args [String]         :counterparty pubkey hex, 'self', or 'anyone'
+      # @param data [Array<Integer>] byte array that was authenticated
+      # @param hmac [Array<Integer>] HMAC to verify
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
       # @return [Hash] { valid: true }
       # @raise [InvalidHmacError] if the HMAC does not match
-      def verify_hmac(args, originator: nil)
-        sym_key  = derive_sym_key(args)
-        expected = BSV::Primitives::Digest.hmac_sha256(sym_key.to_bytes, bytes_to_string(args[:data]))
-        provided = bytes_to_string(args[:hmac])
+      def verify_hmac(data:, hmac:, protocol_id:, key_id:,
+                      counterparty: nil, privileged: false, privileged_reason: nil,
+                      seek_permission: true, originator: nil)
+        sym_key  = derive_sym_key(protocol_id, key_id, counterparty)
+        expected = BSV::Primitives::Digest.hmac_sha256(sym_key.to_bytes, bytes_to_string(data))
+        provided = bytes_to_string(hmac)
 
         raise InvalidHmacError unless secure_compare(expected, provided)
 
@@ -110,21 +117,22 @@ module BSV
 
       # Creates an ECDSA signature using a derived private key.
       #
-      # @param args [Hash]
-      # @option args [Array<Integer>] :data                  data to hash and sign
-      # @option args [Array<Integer>] :hash_to_directly_sign pre-computed 32-byte hash
-      # @option args [Array]          :protocol_id           [security_level, protocol_name]
-      # @option args [String]         :key_id                key identifier
-      # @option args [String]         :counterparty          pubkey hex, 'self', or 'anyone'
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param data [Array<Integer>] data to hash and sign
+      # @param hash_to_directly_sign [Array<Integer>] pre-computed 32-byte hash
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
       # @return [Hash] { signature: Array<Integer> } DER-encoded signature as byte array
-      def create_signature(args, originator: nil)
-        counterparty = args[:counterparty] || 'anyone'
-        priv_key     = @key_deriver.derive_private_key(args[:protocol_id], args[:key_id], counterparty)
+      def create_signature(protocol_id:, key_id:, data: nil, hash_to_directly_sign: nil,
+                           counterparty: nil, privileged: false, privileged_reason: nil,
+                           seek_permission: true, originator: nil)
+        counterparty ||= 'anyone'
+        priv_key = @key_deriver.derive_private_key(protocol_id, key_id, counterparty)
 
-        hash = if args[:hash_to_directly_sign]
-                 bytes_to_string(args[:hash_to_directly_sign])
+        hash = if hash_to_directly_sign
+                 bytes_to_string(hash_to_directly_sign)
                else
-                 BSV::Primitives::Digest.sha256(bytes_to_string(args[:data]))
+                 BSV::Primitives::Digest.sha256(bytes_to_string(data))
                end
 
         sig = priv_key.sign(hash)
@@ -133,34 +141,33 @@ module BSV
 
       # Verifies an ECDSA signature using a derived public key.
       #
-      # @param args [Hash]
-      # @option args [Array<Integer>] :data                    original data that was signed
-      # @option args [Array<Integer>] :hash_to_directly_verify pre-computed 32-byte hash
-      # @option args [Array<Integer>] :signature               DER-encoded signature as byte array
-      # @option args [Array]          :protocol_id             [security_level, protocol_name]
-      # @option args [String]         :key_id                  key identifier
-      # @option args [String]         :counterparty            pubkey hex, 'self', or 'anyone'
-      # @option args [Boolean]        :for_self                verify own derived key (default false)
+      # @param signature [Array<Integer>] DER-encoded signature as byte array
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
+      # @param data [Array<Integer>] original data that was signed
+      # @param hash_to_directly_verify [Array<Integer>] pre-computed 32-byte hash
+      # @param counterparty [String] pubkey hex, 'self', or 'anyone'
+      # @param for_self [Boolean] verify own derived key (default false)
       # @return [Hash] { valid: true }
       # @raise [InvalidSignatureError] if the signature does not verify
-      def verify_signature(args, originator: nil)
-        counterparty = args[:counterparty] || 'self'
-        for_self     = args[:for_self] || false
+      def verify_signature(signature:, protocol_id:, key_id:, data: nil,
+                           hash_to_directly_verify: nil,
+                           counterparty: nil, for_self: false,
+                           privileged: false, privileged_reason: nil,
+                           seek_permission: true, originator: nil)
+        counterparty ||= 'self'
 
         pub_key = @key_deriver.derive_public_key(
-          args[:protocol_id],
-          args[:key_id],
-          counterparty,
-          for_self: for_self
+          protocol_id, key_id, counterparty, for_self: for_self
         )
 
-        hash = if args[:hash_to_directly_verify]
-                 bytes_to_string(args[:hash_to_directly_verify])
+        hash = if hash_to_directly_verify
+                 bytes_to_string(hash_to_directly_verify)
                else
-                 BSV::Primitives::Digest.sha256(bytes_to_string(args[:data]))
+                 BSV::Primitives::Digest.sha256(bytes_to_string(data))
                end
 
-        sig   = BSV::Primitives::Signature.from_der(bytes_to_string(args[:signature]))
+        sig   = BSV::Primitives::Signature.from_der(bytes_to_string(signature))
         valid = pub_key.verify(hash, sig)
 
         raise InvalidSignatureError unless valid
@@ -170,15 +177,13 @@ module BSV
 
       # Reveals counterparty key linkage to a verifier (BRC-69 Method 1).
       #
-      # @param args [Hash]
-      # @option args [String] :counterparty counterparty public key hex (not 'self' or 'anyone')
-      # @option args [String] :verifier     verifier public key hex
+      # @param counterparty [String] counterparty public key hex (not 'self' or 'anyone')
+      # @param verifier [String] verifier public key hex
       # @return [Hash] { prover:, verifier:, counterparty:, revelation_time:,
       #   encrypted_linkage:, encrypted_linkage_proof: }
-      def reveal_counterparty_key_linkage(args, originator: nil)
-        counterparty = args[:counterparty]
-        verifier     = args[:verifier]
-
+      def reveal_counterparty_key_linkage(counterparty:, verifier:,
+                                          privileged: false, privileged_reason: nil,
+                                          originator: nil)
         raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')
@@ -186,12 +191,12 @@ module BSV
         linkage         = @key_deriver.reveal_counterparty_secret(counterparty)
         revelation_time = Time.now.utc.iso8601
 
-        encrypted_linkage_result = encrypt({
-                                             plaintext: string_to_bytes(linkage),
-                                             protocol_id: [2, 'counterparty linkage revelation'],
-                                             key_id: revelation_time,
-                                             counterparty: verifier
-                                           })
+        encrypted_linkage_result = encrypt(
+          plaintext: string_to_bytes(linkage),
+          protocol_id: [2, 'counterparty linkage revelation'],
+          key_id: revelation_time,
+          counterparty: verifier
+        )
 
         counterparty_pub = BSV::Primitives::PublicKey.from_hex(counterparty)
         linkage_point    = BSV::Primitives::PublicKey.from_bytes(linkage)
@@ -206,12 +211,12 @@ module BSV
         z_bytes = ("\x00".b * (32 - z_bytes.length)) + z_bytes if z_bytes.length < 32
         proof_bin = schnorr_proof.r.compressed + schnorr_proof.s_prime.compressed + z_bytes
 
-        encrypted_proof_result = encrypt({
-                                           plaintext: string_to_bytes(proof_bin),
-                                           protocol_id: [2, 'counterparty linkage revelation'],
-                                           key_id: revelation_time,
-                                           counterparty: verifier
-                                         })
+        encrypted_proof_result = encrypt(
+          plaintext: string_to_bytes(proof_bin),
+          protocol_id: [2, 'counterparty linkage revelation'],
+          key_id: revelation_time,
+          counterparty: verifier
+        )
 
         {
           prover: @key_deriver.identity_key,
@@ -225,19 +230,15 @@ module BSV
 
       # Reveals specific key linkage for a particular interaction (BRC-69 Method 2).
       #
-      # @param args [Hash]
-      # @option args [String] :counterparty counterparty public key hex
-      # @option args [String] :verifier     verifier public key hex
-      # @option args [Array]  :protocol_id  [security_level, protocol_name]
-      # @option args [String] :key_id       key identifier
+      # @param counterparty [String] counterparty public key hex
+      # @param verifier [String] verifier public key hex
+      # @param protocol_id [Array] [security_level, protocol_name]
+      # @param key_id [String] key identifier
       # @return [Hash] { prover:, verifier:, counterparty:, protocol_id:, key_id:,
       #   encrypted_linkage:, encrypted_linkage_proof:, proof_type: }
-      def reveal_specific_key_linkage(args, originator: nil)
-        counterparty = args[:counterparty]
-        verifier     = args[:verifier]
-        protocol_id  = args[:protocol_id]
-        key_id       = args[:key_id]
-
+      def reveal_specific_key_linkage(counterparty:, verifier:, protocol_id:, key_id:,
+                                      privileged: false, privileged_reason: nil,
+                                      originator: nil)
         raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')
@@ -245,19 +246,19 @@ module BSV
         linkage          = @key_deriver.reveal_specific_secret(counterparty, protocol_id, key_id)
         derived_protocol = "specific linkage revelation #{protocol_id[0]} #{protocol_id[1]}"
 
-        encrypted_linkage_result = encrypt({
-                                             plaintext: string_to_bytes(linkage),
-                                             protocol_id: [2, derived_protocol],
-                                             key_id: key_id,
-                                             counterparty: verifier
-                                           })
+        encrypted_linkage_result = encrypt(
+          plaintext: string_to_bytes(linkage),
+          protocol_id: [2, derived_protocol],
+          key_id: key_id,
+          counterparty: verifier
+        )
 
-        encrypted_proof_result = encrypt({
-                                           plaintext: [0],
-                                           protocol_id: [2, derived_protocol],
-                                           key_id: key_id,
-                                           counterparty: verifier
-                                         })
+        encrypted_proof_result = encrypt(
+          plaintext: [0],
+          protocol_id: [2, derived_protocol],
+          key_id: key_id,
+          counterparty: verifier
+        )
 
         {
           prover: @key_deriver.identity_key,
@@ -276,22 +277,24 @@ module BSV
       # ProtoWallet has no storage, so there are never any certificates.
       #
       # @return [Hash] { certificates: [] }
-      def list_certificates(_args = {}, originator: nil)
+      def list_certificates(certifiers: nil, types: nil, limit: 10, offset: 0,
+                            privileged: false, privileged_reason: nil, originator: nil)
         { certificates: [] }
       end
 
       # Not supported — ProtoWallet has no certificate storage.
       #
       # @raise [UnsupportedActionError] always
-      def prove_certificate(_args = {}, originator: nil)
-        raise UnsupportedActionError
+      def prove_certificate(certificate: nil, fields_to_reveal: nil, verifier: nil,
+                            privileged: false, privileged_reason: nil, originator: nil)
+        raise UnsupportedActionError, 'prove_certificate'
       end
 
       private
 
-      def derive_sym_key(args)
-        counterparty = args[:counterparty] || 'self'
-        @key_deriver.derive_symmetric_key(args[:protocol_id], args[:key_id], counterparty)
+      def derive_sym_key(protocol_id, key_id, counterparty)
+        counterparty ||= 'self'
+        @key_deriver.derive_symmetric_key(protocol_id, key_id, counterparty)
       end
 
       def bytes_to_string(bytes)

@@ -128,7 +128,7 @@ module BSV
             privileged_reason: privileged_reason
           }.merge(Certificate.certificate_field_encryption_details(field_name))
 
-          result = creator_wallet.encrypt(enc_args)
+          result = creator_wallet.encrypt(**enc_args)
           master_keyring[field_name] = Base64.strict_encode64(result[:ciphertext].pack('C*'))
         end
 
@@ -187,7 +187,7 @@ module BSV
             privileged_reason: privileged_reason
           }.merge(Certificate.certificate_field_encryption_details(field_name, serial_number))
 
-          result = subject_wallet.encrypt(enc_args)
+          result = subject_wallet.encrypt(**enc_args)
           keyring[field_name] = Base64.strict_encode64(result[:ciphertext].pack('C*'))
         end
 
@@ -218,7 +218,7 @@ module BSV
         keyring = result[:master_keyring]
 
         subject_key = if subject == 'self'
-                        certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+                        certifier_wallet.get_public_key(identity_key: true)[:public_key]
                       else
                         subject
                       end
@@ -229,7 +229,7 @@ module BSV
                                 "#{'00' * 32}.0"
                               end
 
-        certifier_key = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+        certifier_key = certifier_wallet.get_public_key(identity_key: true)[:public_key]
 
         cert = new(
           type: certificate_type,
@@ -309,7 +309,7 @@ module BSV
             privileged_reason: privileged_reason
           }.merge(Certificate.certificate_field_encryption_details(field_name))
 
-          field_revelation_key = wallet.decrypt(dec_args)[:plaintext]
+          field_revelation_key = wallet.decrypt(**dec_args)[:plaintext]
 
           sym_key = BSV::Primitives::SymmetricKey.new(field_revelation_key.pack('C*'))
           decrypted_bytes = sym_key.decrypt(Base64.strict_decode64(field_value))

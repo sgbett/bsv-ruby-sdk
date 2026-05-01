@@ -101,7 +101,7 @@ RSpec.describe BSV::Auth::Certificate do
 
     it 'sets the certifier to the signing wallet identity key' do
       cert.sign(certifier_wallet)
-      expected = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      expected = certifier_wallet.get_public_key(identity_key: true)[:public_key]
       expect(cert.certifier).to eq(expected)
     end
   end
@@ -249,7 +249,7 @@ RSpec.describe BSV::Auth::Certificate do
         fields: fields
       )
       cert_with_wrong_certifier.sign(certifier_wallet)
-      expected = certifier_wallet.get_public_key({ identity_key: true })[:public_key]
+      expected = certifier_wallet.get_public_key(identity_key: true)[:public_key]
       expect(cert_with_wrong_certifier.certifier).to eq(expected)
     end
   end
