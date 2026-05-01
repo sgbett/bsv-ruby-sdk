@@ -888,7 +888,7 @@ module BSV
           merged = txs.first.merkle_path.dup
           txs.drop(1).each { |t| merged.combine(t.merkle_path) }
 
-          txid_hashes = txs.map { |t| t.txid.reverse }
+          txid_hashes = txs.map { |t| t.txid(wire: true) }
           clean = merged.extract(txid_hashes)
 
           bump_index_by_height[height] = beef.bumps.length

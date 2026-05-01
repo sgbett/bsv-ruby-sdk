@@ -341,7 +341,7 @@ module BSV
         level0_internal = level0_leaves.map(&:hash).compact.to_set
         @transactions.each_with_index do |bt, i|
           next unless bt.format == FORMAT_RAW_TX && bt.transaction
-          next unless level0_internal.include?(bt.transaction.txid.reverse)
+          next unless level0_internal.include?(bt.transaction.txid(wire: true))
 
           bt.transaction.merkle_path ||= bump
           @transactions[i] = BeefTx.new(
@@ -522,7 +522,7 @@ module BSV
 
           # The txid must appear as a leaf in the BUMP and compute a valid root
           begin
-            bump.compute_root(bt.transaction.txid.reverse)
+            bump.compute_root(bt.transaction.txid(wire: true))
           rescue ArgumentError
             return false
           end
