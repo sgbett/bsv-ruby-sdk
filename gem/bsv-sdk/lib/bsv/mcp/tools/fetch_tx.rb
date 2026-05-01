@@ -49,8 +49,15 @@ module BSV
 
         def self.call(txid:, network: nil, server_context: nil)
           net_sym = Helpers.resolve_network_sym(network, server_context)
-          woc = BSV::Network::WhatsOnChain.new(network: net_sym)
-          tx = woc.fetch_transaction(txid)
+          provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
+          fetch_result = provider.call(:get_tx, txid)
+
+          unless fetch_result.success?
+            code = fetch_result.metadata[:status_code]
+            return Helpers.error_response("#{fetch_result.message} (HTTP #{code})")
+          end
+
+          tx = BSV::Transaction::Transaction.from_hex(fetch_result.data)
 
           result = {
             hex: tx.to_hex,
@@ -61,8 +68,6 @@ module BSV
             [::MCP::Content::Text.new(result.to_json)],
             structured_content: result
           )
-        rescue BSV::Network::ChainProviderError => e
-          Helpers.error_response("#{e.message} (HTTP #{e.status_code})")
         rescue ArgumentError => e
           Helpers.error_response(e.message)
         end

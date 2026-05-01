@@ -91,8 +91,16 @@ module BSV
           private_key = BSV::Primitives::PrivateKey.from_wif(wif)
           sender_address = private_key.public_key.address(network: net_sym)
 
-          woc = BSV::Network::WhatsOnChain.new(network: net_sym)
-          all_utxos = woc.fetch_utxos(sender_address)
+          woc = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
+          utxo_result = woc.call(:get_utxos_all, sender_address)
+          return Helpers.error_response("UTXO fetch failed: #{utxo_result.message}") unless utxo_result.success?
+
+          all_utxos = utxo_result.data.map do |entry|
+            BSV::Network::UTXO.new(
+              tx_hash: entry[:tx_hash], tx_pos: entry[:tx_pos],
+              satoshis: entry[:satoshis], height: entry[:height]
+            )
+          end
 
           return Helpers.error_response('No UTXOs found for sender address — the address may have no funds') if all_utxos.empty?
 
@@ -104,11 +112,12 @@ module BSV
           tx = build_transaction(selected, satoshis, to_address, sender_address, private_key)
 
           arc = build_arc(net_sym, server_context)
-          broadcast_result = arc.broadcast(tx)
+          arc_result = arc.call(:broadcast, tx)
+          return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.success?
 
           result = {
-            txid: broadcast_result.txid,
-            tx_status: broadcast_result.tx_status,
+            txid: arc_result.data[:txid],
+            tx_status: arc_result.data[:tx_status],
             hex: tx.to_hex
           }
 
@@ -118,10 +127,6 @@ module BSV
           )
         rescue ArgumentError => e
           Helpers.error_response(e.message)
-        rescue BSV::Network::ChainProviderError => e
-          Helpers.error_response("UTXO fetch failed: #{e.message}")
-        rescue BSV::Network::BroadcastError => e
-          Helpers.error_response("Broadcast failed: #{e.message}")
         end
 
         # Select UTXOs greedily until the total meets or exceeds the target.
@@ -196,13 +201,14 @@ module BSV
         end
         private_class_method :p2pkh_lock_for
 
-        # Build an ARC broadcaster using server config when available.
+        # Build an ARC protocol instance using server config when available.
         # @api private
         def self.build_arc(net_sym, server_context)
           testnet = net_sym == :testnet
           opts = {}
           opts[:api_key] = server_context[:arc_api_key] if server_context.is_a?(Hash) && server_context[:arc_api_key]
-          BSV::Network::ARC.default(testnet: testnet, **opts)
+          provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **opts)
+          provider.protocol_for(:broadcast)
         end
         private_class_method :build_arc
       end

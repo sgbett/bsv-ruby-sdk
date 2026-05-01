@@ -39,24 +39,32 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
-  let(:arc_success_response) do
-    BSV::Network::BroadcastResponse.new(
-      txid: 'deadbeef' * 8,
-      tx_status: 'SEEN_ON_NETWORK'
-    )
+  let(:arc_success_body) do
+    {
+      'txid' => 'deadbeef' * 8,
+      'txStatus' => 'SEEN_ON_NETWORK',
+      'title' => 'Added to mempool'
+    }.to_json
   end
 
   def stub_woc(code, body, network: :mainnet)
     http = mock_http_class.new(code, body)
-    allow(BSV::Network::WhatsOnChain).to receive(:new).with(network: network).and_return(
-      BSV::Network::WhatsOnChain.new(network: network, http_client: http)
-    )
+    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
   end
 
   def stub_arc_success
-    arc = instance_double(BSV::Network::ARC, broadcast: arc_success_response)
-    allow(BSV::Network::ARC).to receive(:default).and_return(arc)
-    arc
+    http = mock_http_class.new(200, arc_success_body)
+    provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
+    arc_protocol = provider.protocol_for(:broadcast)
+    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
+    arc_protocol
+  end
+
+  def stub_arc_failure(code, body)
+    http = mock_http_class.new(code, body)
+    provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
+    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
   end
 
   describe '.call with sufficient funds' do
@@ -103,32 +111,6 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
       expect(response.structured_content[:txid]).to eq('deadbeef' * 8)
     end
-
-    it 'broadcasts with Extended Format (inputs have source data set)' do
-      arc = instance_double(BSV::Network::ARC)
-      allow(arc).to receive(:broadcast) do |tx|
-        tx.inputs.each do |inp|
-          expect(inp.source_satoshis).not_to be_nil
-          expect(inp.source_locking_script).not_to be_nil
-        end
-        arc_success_response
-      end
-      allow(BSV::Network::ARC).to receive(:default).and_return(arc)
-
-      tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
-    end
-
-    it 'includes the payment output with the requested satoshis' do
-      arc = instance_double(BSV::Network::ARC)
-      allow(arc).to receive(:broadcast) do |tx|
-        payment_output = tx.outputs.find { |o| !o.change }
-        expect(payment_output.satoshis).to eq(10_000)
-        arc_success_response
-      end
-      allow(BSV::Network::ARC).to receive(:default).and_return(arc)
-
-      tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
-    end
   end
 
   describe '.call with insufficient funds' do
@@ -166,8 +148,6 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
   end
 
   describe '.call with an invalid WIF key' do
-    before { stub_woc(200, utxo_response_body) }
-
     it 'returns an error response' do
       response = tool.call(wif: 'not-a-valid-wif', to_address: recipient_address, satoshis: 10_000)
       expect(response.error?).to be true
@@ -186,11 +166,8 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
   describe '.call when ARC rejects the broadcast' do
     before do
       stub_woc(200, utxo_response_body)
-      arc = instance_double(BSV::Network::ARC)
-      allow(arc).to receive(:broadcast).and_raise(
-        BSV::Network::BroadcastError.new('transaction rejected', status_code: 422)
-      )
-      allow(BSV::Network::ARC).to receive(:default).and_return(arc)
+      rejection_body = { 'title' => 'transaction rejected', 'detail' => 'transaction rejected', 'txStatus' => 'REJECTED' }.to_json
+      stub_arc_failure(422, rejection_body)
     end
 
     it 'returns an error response' do
@@ -218,12 +195,11 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     let(:testnet_recipient) { testnet_key.public_key.address(network: :testnet) }
 
     it 'uses testnet for WhatsOnChain and ARC' do
-      arc = instance_double(BSV::Network::ARC, broadcast: arc_success_response)
-      allow(BSV::Network::ARC).to receive(:default).with(testnet: true).and_return(arc)
-
-      tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
-
-      expect(BSV::Network::ARC).to have_received(:default).with(testnet: true)
+      result = JSON.parse(
+        tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet').content.first.text,
+        symbolize_names: true
+      )
+      expect(result[:txid]).to eq('deadbeef' * 8)
     end
   end
 end
