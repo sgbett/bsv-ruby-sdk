@@ -66,13 +66,15 @@ module BSV
 
         # The transaction ID for this entry.
         #
-        # @return [String, nil] 32-byte txid in display byte order
-        def txid
+        # @param wire [Boolean] when +true+, returns wire byte order; default +false+ (display order).
+        #   Ignored for FORMAT_TXID_ONLY entries — the stored txid is returned as-is.
+        # @return [String, nil] 32-byte txid
+        def txid(wire: false)
           case @format
           when FORMAT_TXID_ONLY
             @known_txid
           else
-            @transaction&.txid
+            @transaction&.txid(wire: wire)
           end
         end
       end
