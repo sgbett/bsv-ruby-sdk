@@ -91,8 +91,14 @@ module BSV
       # @return [Array<BeefTx>] the transactions in dependency order
       attr_reader :transactions
 
-      # @return [String, nil] 32-byte subject txid (Atomic BEEF only)
-      attr_reader :subject_txid
+      # @return [String, nil] 32-byte wire-order subject txid (Atomic BEEF only)
+      attr_reader :subject_wtxid
+
+      # Display-order subject txid (Atomic BEEF only).
+      # @return [String, nil] 32-byte display-order txid, or nil
+      def subject_txid
+        @subject_wtxid&.reverse
+      end
 
       # @param version [Integer] BEEF version constant (default: BEEF_V1, matching to_binary's
       #   default for ARC compatibility; from_binary overwrites this with the parsed version)
@@ -102,7 +108,7 @@ module BSV
         @version = version
         @bumps = bumps
         @transactions = transactions
-        @subject_txid = nil
+        @subject_wtxid = nil
       end
 
       # --- Deserialisation ---
@@ -138,9 +144,9 @@ module BSV
             raise ArgumentError, "truncated Atomic BEEF: need 36 bytes at offset #{offset}, got #{remaining}"
           end
 
-          # Atomic BEEF stores the subject txid in internal byte order (little-endian
-          # hash order), matching JS and Go SDKs. Reverse to display order for internal use.
-          beef.instance_variable_set(:@subject_txid, data.byteslice(offset, 32).reverse)
+          # Atomic BEEF stores the subject txid in wire (internal / little-endian) byte order,
+          # matching JS and Go SDKs. Store as-is in @subject_wtxid (wire-order).
+          beef.instance_variable_set(:@subject_wtxid, data.byteslice(offset, 32))
           offset += 32
           inner_version = data.byteslice(offset, 4).unpack1('V')
           offset += 4
@@ -228,13 +234,12 @@ module BSV
 
       # Serialise as Atomic BEEF (BRC-95), wrapping V2 data with a subject txid.
       #
-      # @param subject_txid [String] 32-byte subject transaction ID
+      # @param subject_wtxid [String] 32-byte wire-order subject transaction ID
       # @return [String] raw Atomic BEEF binary
-      def to_atomic_binary(subject_txid)
+      def to_atomic_binary(subject_wtxid)
         buf = [ATOMIC_BEEF].pack('V')
-        # Write subject txid in internal byte order (reverse of display order),
-        # matching JS and Go SDK conventions for Bitcoin binary formats.
-        buf << subject_txid.b.reverse
+        # subject_wtxid is already in wire (internal) byte order — write as-is.
+        buf << subject_wtxid.b
         # BRC-95: inner envelope is always V2
         buf << to_binary(version: BEEF_V2)
         buf
@@ -242,42 +247,41 @@ module BSV
 
       # --- Lookup ---
 
-      # Find a transaction in the bundle by its transaction ID.
+      # Find a transaction in the bundle by its wire-order transaction ID.
       #
-      # @param txid [String] 32-byte txid in display byte order
+      # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the matching transaction, or nil
-      def find_transaction(txid)
+      def find_transaction(wtxid)
         @transactions.each do |beef_tx|
-          return beef_tx.transaction if beef_tx.transaction&.txid == txid
+          return beef_tx.transaction if beef_tx.wtxid == wtxid
         end
         nil
       end
 
-      # Find the merkle path (BUMP) for a transaction by its txid.
+      # Find the merkle path (BUMP) for a transaction by its wire-order txid.
       #
       # First checks the transaction-table entries, then scans @bumps directly
-      # for a BUMP whose level-0 leaves contain the txid.
+      # for a BUMP whose level-0 leaves contain the wtxid.
       #
-      # @param txid [String] 32-byte txid in display byte order
+      # @param wtxid [String] 32-byte wire-order wtxid
       # @return [MerklePath, nil] the merkle path, or nil if not found
-      def find_bump(txid)
+      def find_bump(wtxid)
         # Check transaction-table entries first (fast path)
-        bt = @transactions.find { |entry| entry.txid == txid && entry.format == FORMAT_RAW_TX_AND_BUMP }
+        bt = @transactions.find { |entry| entry.wtxid == wtxid && entry.format == FORMAT_RAW_TX_AND_BUMP }
         return bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index]) if bt
 
-        # F5.8: also scan @bumps directly for a path containing the txid leaf
-        txid_internal = txid.reverse
+        # F5.8: also scan @bumps directly for a path containing the wtxid leaf
         @bumps.find do |bump|
-          bump.path[0]&.any? { |leaf| leaf.hash == txid_internal }
+          bump.path[0]&.any? { |leaf| leaf.hash == wtxid }
         end
       end
 
       # Find a transaction with all source_transactions wired for signing.
       #
-      # @param txid [String] 32-byte txid in display byte order
+      # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the transaction with wired inputs, or nil
-      def find_transaction_for_signing(txid)
-        tx = find_transaction(txid)
+      def find_transaction_for_signing(wtxid)
+        tx = find_transaction(wtxid)
         return unless tx
 
         wire_inputs(tx)
@@ -287,10 +291,10 @@ module BSV
       # Find a transaction and recursively wire its ancestry (source transactions
       # and merkle paths) for atomic proof validation.
       #
-      # @param txid [String] 32-byte txid in display byte order
+      # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the transaction with full proof tree, or nil
-      def find_atomic_transaction(txid)
-        tx = find_transaction(txid)
+      def find_atomic_transaction(wtxid)
+        tx = find_transaction(wtxid)
         return unless tx
 
         wire_ancestry(tx)
@@ -299,10 +303,10 @@ module BSV
 
       # Serialise as Atomic BEEF (BRC-95) hex string.
       #
-      # @param subject_txid [String] 32-byte subject transaction ID
+      # @param subject_wtxid [String] 32-byte wire-order subject transaction ID
       # @return [String] hex-encoded Atomic BEEF
-      def to_atomic_hex(subject_txid)
-        to_atomic_binary(subject_txid).unpack1('H*')
+      def to_atomic_hex(subject_wtxid)
+        to_atomic_binary(subject_wtxid).unpack1('H*')
       end
 
       # --- Merge operations ---
@@ -367,10 +371,10 @@ module BSV
       # @param tx [Transaction] the transaction to merge
       # @return [BeefTx] the (possibly existing or upgraded) BeefTx entry
       def merge_transaction(tx)
-        txid = tx.txid
+        wtxid = tx.wtxid
 
         # Check for existing entry and upgrade if a stronger format is available
-        existing_idx = @transactions.index { |bt| bt.txid == txid }
+        existing_idx = @transactions.index { |bt| bt.wtxid == wtxid }
         if existing_idx
           existing = @transactions[existing_idx]
           upgraded = upgrade_beef_tx(existing, tx)
@@ -414,7 +418,7 @@ module BSV
           tx.merkle_path = @bumps[bump_index]
         end
 
-        existing_idx = @transactions.index { |bt| bt.txid == tx.txid }
+        existing_idx = @transactions.index { |bt| bt.wtxid == tx.wtxid }
         if existing_idx
           existing = @transactions[existing_idx]
           upgraded = upgrade_beef_tx(existing, tx, bump_index: bump_index)
@@ -457,7 +461,7 @@ module BSV
 
             @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: beef_tx.known_wtxid)
           else
-            next if @transactions.any? { |bt| bt.txid == beef_tx.txid }
+            next if @transactions.any? { |bt| bt.wtxid == beef_tx.wtxid }
 
             if beef_tx.format == FORMAT_RAW_TX_AND_BUMP && beef_tx.bump_index
               new_idx = bump_remap[beef_tx.bump_index]
@@ -487,13 +491,13 @@ module BSV
 
       # Convert a transaction entry to TXID-only format.
       #
-      # @param txid [String] 32-byte txid in display byte order
+      # @param wtxid [String] 32-byte wire-order wtxid
       # @return [BeefTx, nil] the converted entry, or nil if not found
-      def make_txid_only(txid)
-        idx = @transactions.index { |bt| bt.txid == txid }
+      def make_txid_only(wtxid)
+        idx = @transactions.index { |bt| bt.wtxid == wtxid }
         return unless idx
 
-        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: txid.reverse)
+        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: wtxid)
       end
 
       # --- Validation ---
@@ -531,9 +535,9 @@ module BSV
           end
         end
 
-        known_txids = build_known_txids(allow_txid_only)
+        known_wtxids = build_known_wtxids(allow_txid_only)
 
-        pending = @transactions.select { |bt| bt.transaction && !known_txids.include?(bt.txid) }
+        pending = @transactions.select { |bt| bt.transaction && !known_wtxids.include?(bt.wtxid) }
 
         # Iteratively resolve: if all inputs of a tx are known, it becomes known
         changed = true
@@ -541,10 +545,10 @@ module BSV
           changed = false
           pending.reject! do |bt|
             all_inputs_known = bt.transaction.inputs.all? do |input|
-              known_txids.include?(input.prev_tx_id.reverse)
+              known_wtxids.include?(input.prev_tx_id)
             end
             if all_inputs_known
-              known_txids.add(bt.txid)
+              known_wtxids.add(bt.wtxid)
               changed = true
             end
             all_inputs_known
@@ -590,7 +594,7 @@ module BSV
         return self if @transactions.length <= 1
 
         txid_index = {}
-        @transactions.each_with_index { |bt, i| txid_index[bt.txid] = i }
+        @transactions.each_with_index { |bt, i| txid_index[bt.wtxid] = i }
 
         # Build adjacency: for each tx, which other txs must come before it?
         in_degree = Array.new(@transactions.length, 0)
@@ -600,7 +604,7 @@ module BSV
           next unless bt.transaction
 
           bt.transaction.inputs.each do |input|
-            dep_idx = txid_index[input.prev_tx_id.reverse]
+            dep_idx = txid_index[input.prev_tx_id]
             next unless dep_idx
 
             dependents[dep_idx] << i
@@ -623,8 +627,8 @@ module BSV
 
         # F5.5: preserve unsortable (cyclic) transactions rather than silently dropping them
         if sorted.length < @transactions.length
-          sorted_set = sorted.to_set(&:txid)
-          @txs_not_valid = @transactions.reject { |bt| sorted_set.include?(bt.txid) }
+          sorted_set = sorted.to_set(&:wtxid)
+          @txs_not_valid = @transactions.reject { |bt| sorted_set.include?(bt.wtxid) }
         end
 
         @transactions = sorted
@@ -723,14 +727,14 @@ module BSV
           beef.transactions.each do |beef_tx|
             next unless beef_tx.transaction
 
-            # Wire inputs to ancestors already in the map (BEEF is dependency-ordered)
+            # Wire inputs to ancestors already in the map (BEEF is dependency-ordered).
+            # Both prev_tx_id and wtxid are wire-order — no conversion needed.
             beef_tx.transaction.inputs.each do |input|
-              # prev_tx_id is wire byte order; txid keys are display byte order (reversed)
-              source = tx_map[input.prev_tx_id.reverse]
+              source = tx_map[input.prev_tx_id]
               input.source_transaction = source if source
             end
 
-            tx_map[beef_tx.transaction.txid] = beef_tx.transaction
+            tx_map[beef_tx.transaction.wtxid] = beef_tx.transaction
           end
         end
       end
@@ -772,15 +776,15 @@ module BSV
         # FORMAT_RAW_TX_AND_BUMP is already the strongest — no upgrade needed
       end
 
-      # Build a set of txids that are "known" (proven or txid-only).
-      def build_known_txids(allow_txid_only)
+      # Build a set of wire-order wtxids that are "known" (proven or txid-only).
+      def build_known_wtxids(allow_txid_only)
         known = Set.new
         @transactions.each do |bt|
           case bt.format
           when FORMAT_RAW_TX_AND_BUMP
-            known.add(bt.txid)
+            known.add(bt.wtxid)
           when FORMAT_TXID_ONLY
-            known.add(bt.txid) if allow_txid_only
+            known.add(bt.wtxid) if allow_txid_only
           end
         end
         known
@@ -791,7 +795,7 @@ module BSV
         tx.inputs.each do |input|
           next if input.source_transaction
 
-          source = find_transaction(input.prev_tx_id.reverse)
+          source = find_transaction(input.prev_tx_id)
           input.source_transaction = source if source
         end
       end
@@ -803,7 +807,7 @@ module BSV
           next unless input.source_transaction
 
           source = input.source_transaction
-          source.merkle_path ||= find_bump(source.txid)
+          source.merkle_path ||= find_bump(source.wtxid)
           wire_ancestry(source)
         end
       end
