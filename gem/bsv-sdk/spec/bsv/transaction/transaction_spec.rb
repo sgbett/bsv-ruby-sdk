@@ -707,12 +707,11 @@ RSpec.describe BSV::Transaction::Transaction do
 
     # Build a minimal proven ancestor with a synthetic merkle path.
     #
-    # PathElement hashes must be raw binary in internal byte order
-    # (i.e. txid.reverse — the wire order used by MerklePath serialisation).
+    # PathElement hashes must be in wire byte order (MerklePath serialisation).
     def proven_tx(satoshis: 1000, block_height: 800_000, offset: 0)
       tx = BSV::Transaction::Transaction.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: lock))
-      txid_internal = tx.txid.reverse # internal (wire) byte order
+      txid_internal = tx.txid(wire: true)
       sibling_hash  = BSV::Primitives::Digest.sha256("sibling_#{offset}") # 32 raw bytes
       tx.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: block_height,
@@ -723,10 +722,10 @@ RSpec.describe BSV::Transaction::Transaction do
     end
 
     # Wire an input from parent_tx output 0 into child_tx.
-    # prev_tx_id must be in internal byte order (wire order = txid.reverse).
+    # prev_tx_id must be in wire byte order.
     def add_input(child_tx, parent_tx)
       inp = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: parent_tx.txid.reverse, prev_tx_out_index: 0
+        prev_tx_id: parent_tx.txid(wire: true), prev_tx_out_index: 0
       )
       inp.source_transaction = parent_tx
       inp.source_satoshis = parent_tx.outputs[0].satoshis
@@ -809,8 +808,8 @@ RSpec.describe BSV::Transaction::Transaction do
       subject.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: lock))
       add_input(subject, ancestor)
 
-      # PathElement hashes use internal (wire) byte order: txid.reverse.
-      ancestor_txid_internal = ancestor.txid.reverse
+      # PathElement hashes use wire byte order.
+      ancestor_txid_internal = ancestor.txid(wire: true)
       sibling_hash           = BSV::Primitives::Digest.sha256('late_sibling')
       bump = BSV::Transaction::MerklePath.new(
         block_height: 850_000,

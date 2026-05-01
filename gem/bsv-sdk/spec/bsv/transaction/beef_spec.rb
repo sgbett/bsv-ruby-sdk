@@ -445,7 +445,7 @@ RSpec.describe BSV::Transaction::Beef do
     let(:sibling0_hash) { BSV::Primitives::Digest.sha256('sibling_0') }
     let(:sibling3_hash) { BSV::Primitives::Digest.sha256('sibling_3') }
 
-    let(:leaf_hashes) { [sibling0_hash, tx_a.txid.reverse, tx_b.txid.reverse, sibling3_hash] }
+    let(:leaf_hashes) { [sibling0_hash, tx_a.txid(wire: true), tx_b.txid(wire: true), sibling3_hash] }
     let(:level1_hashes) do
       [
         mp_class.merkle_tree_parent(leaf_hashes[0], leaf_hashes[1]),
@@ -605,7 +605,7 @@ RSpec.describe BSV::Transaction::Beef do
       let(:phantom_sibling) { BSV::Primitives::Digest.sha256('sibling_leaf_3') }
 
       let(:leaf_hashes) do
-        [tx_real.txid.reverse, tx_real_sibling, phantom_leaf, phantom_sibling]
+        [tx_real.txid(wire: true), tx_real_sibling, phantom_leaf, phantom_sibling]
       end
       let(:level1_hashes) do
         [
@@ -657,7 +657,7 @@ RSpec.describe BSV::Transaction::Beef do
         bump = parsed.bumps[0]
         txid_leaves = bump.path[0].select(&:txid)
         expect(txid_leaves.length).to eq(1)
-        expect(txid_leaves[0].hash).to eq(tx_real.txid.reverse)
+        expect(txid_leaves[0].hash).to eq(tx_real.txid(wire: true))
       end
 
       it 'strips the phantom leaf hash from the emitted BUMP' do
@@ -669,7 +669,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       it 'preserves the original merkle root through the rebuild' do
         parsed = described_class.from_binary(child.to_beef)
-        expect(parsed.bumps[0].compute_root(tx_real.txid.reverse)).to eq(expected_root)
+        expect(parsed.bumps[0].compute_root(tx_real.txid(wire: true))).to eq(expected_root)
       end
 
       it 'does not mutate the caller tx_real.merkle_path' do
@@ -695,7 +695,7 @@ RSpec.describe BSV::Transaction::Beef do
       let(:source_beef) { described_class.from_binary(Base64.decode64(File.read(fixture_path))) }
 
       def bundled_txid_hashes(beef)
-        beef.transactions.map { |bt| bt.txid.reverse }
+        beef.transactions.map { |bt| bt.txid(wire: true) }
       end
 
       def count_phantoms(bump, bundled_hashes)
@@ -1304,7 +1304,7 @@ RSpec.describe BSV::Transaction::Beef do
       expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
 
       # Now add a BUMP that covers this txid
-      txid_internal = tx.txid.reverse
+      txid_internal = tx.txid(wire: true)
       sibling = BSV::Primitives::Digest.sha256('sibling')
       bump = mp_class.new(
         block_height: 800_000,
@@ -1345,7 +1345,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     def make_bump(tx)
-      txid_internal = tx.txid.reverse
+      txid_internal = tx.txid(wire: true)
       sibling = BSV::Primitives::Digest.sha256('sibling')
       mp_class.new(
         block_height: 800_000,
@@ -1437,7 +1437,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.new
       tx = BSV::Transaction::Transaction.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
-      txid_internal = tx.txid.reverse
+      txid_internal = tx.txid(wire: true)
 
       sibling = BSV::Primitives::Digest.sha256('sibling')
       bump = mp_class.new(
