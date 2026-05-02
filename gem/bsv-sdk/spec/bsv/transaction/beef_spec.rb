@@ -285,7 +285,7 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns display-order hex on a raw entry' do
       beef = described_class.from_hex(beef_set_hex)
       bt = beef.transactions.find(&:transaction)
-      expect(bt.dtxid).to eq(bt.txid.unpack1('H*'))
+      expect(bt.dtxid).to eq(bt.wtxid.reverse.unpack1('H*'))
     end
 
     it 'returns display-order hex on a txid-only entry' do
@@ -293,7 +293,7 @@ RSpec.describe BSV::Transaction::Beef do
         format: described_class::FORMAT_TXID_ONLY,
         known_wtxid: "\x01".b * 32
       )
-      expect(bt.dtxid).to eq(bt.txid.unpack1('H*'))
+      expect(bt.dtxid).to eq(bt.wtxid.reverse.unpack1('H*'))
     end
   end
 
@@ -303,7 +303,7 @@ RSpec.describe BSV::Transaction::Beef do
       last_tx = beef.transactions.last.transaction
       atomic_bytes = beef.to_atomic_binary(last_tx.wtxid)
       parsed = described_class.from_binary(atomic_bytes)
-      expect(parsed.subject_dtxid).to eq(parsed.subject_txid.unpack1('H*'))
+      expect(parsed.subject_dtxid).to eq(parsed.subject_wtxid.reverse.unpack1('H*'))
     end
 
     it 'returns nil on a non-Atomic BEEF' do
@@ -326,12 +326,12 @@ RSpec.describe BSV::Transaction::Beef do
 
       # Parse back
       parsed = described_class.from_binary(atomic_bytes)
-      expect(parsed.subject_txid).to eq(last_tx.txid)
+      expect(parsed.subject_wtxid).to eq(last_tx.wtxid)
       expect(parsed.transactions.length).to eq(beef.transactions.length)
 
       found = parsed.find_transaction(subject_wtxid)
       expect(found).not_to be_nil
-      expect(found.txid).to eq(last_tx.txid)
+      expect(found.wtxid).to eq(last_tx.wtxid)
     end
   end
 
@@ -343,8 +343,8 @@ RSpec.describe BSV::Transaction::Beef do
       expect(tx).to be_a(BSV::Transaction::Transaction)
       # Subject tx is the last one in the bundle
       beef = described_class.from_hex(beef_set_hex)
-      expected_txid = beef.transactions.last.transaction.txid
-      expect(tx.txid).to eq(expected_txid)
+      expected_wtxid = beef.transactions.last.transaction.wtxid
+      expect(tx.wtxid).to eq(expected_wtxid)
     end
 
     it 'round-trips via from_beef_hex' do
@@ -373,7 +373,7 @@ RSpec.describe BSV::Transaction::Beef do
       # The subject tx should be present
       found = rebuilt.find_transaction(tx.wtxid)
       expect(found).not_to be_nil
-      expect(found.txid).to eq(tx.txid)
+      expect(found.wtxid).to eq(tx.wtxid)
     end
 
     it 'to_beef_hex returns a hex string' do
@@ -828,7 +828,7 @@ RSpec.describe BSV::Transaction::Beef do
       last_tx = beef.transactions.last.transaction
       found = beef.find_transaction_for_signing(last_tx.wtxid)
       expect(found).to be_a(BSV::Transaction::Transaction)
-      expect(found.txid).to eq(last_tx.txid)
+      expect(found.wtxid).to eq(last_tx.wtxid)
     end
 
     it 'returns nil for unknown wtxid' do
@@ -843,7 +843,7 @@ RSpec.describe BSV::Transaction::Beef do
       last_tx = beef.transactions.last.transaction
       found = beef.find_atomic_transaction(last_tx.wtxid)
       expect(found).to be_a(BSV::Transaction::Transaction)
-      expect(found.txid).to eq(last_tx.txid)
+      expect(found.wtxid).to eq(last_tx.wtxid)
     end
   end
 
@@ -854,7 +854,7 @@ RSpec.describe BSV::Transaction::Beef do
       hex = beef.to_atomic_hex(last_bt.wtxid)
       expect(hex).to match(/\A[0-9a-f]+\z/)
       parsed = described_class.from_binary([hex].pack('H*'))
-      expect(parsed.subject_txid).to eq(last_bt.txid)
+      expect(parsed.subject_wtxid).to eq(last_bt.wtxid)
     end
   end
 
@@ -959,8 +959,8 @@ RSpec.describe BSV::Transaction::Beef do
       beef.merge_transaction(subject_tx)
 
       expect(beef.transactions).not_to be_empty
-      txids = beef.transactions.map(&:txid)
-      expect(txids).to include(subject_tx.txid)
+      wtxids = beef.transactions.map(&:wtxid)
+      expect(wtxids).to include(subject_tx.wtxid)
     end
 
     it 'does not duplicate transactions' do
@@ -1047,10 +1047,10 @@ RSpec.describe BSV::Transaction::Beef do
     it 'converts a transaction to TXID-only format' do
       beef = described_class.from_hex(beef_set_hex)
       first_bt = beef.transactions.first
-      display_txid = first_bt.txid
+      original_wtxid = first_bt.wtxid
 
       beef.make_txid_only(first_bt.wtxid)
-      entry = beef.transactions.find { |bt| bt.txid == display_txid }
+      entry = beef.transactions.find { |bt| bt.wtxid == original_wtxid }
       expect(entry.format).to eq(described_class::FORMAT_TXID_ONLY)
       expect(entry.known_wtxid).to eq(first_bt.wtxid)
     end
@@ -1111,9 +1111,9 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#sort_transactions!' do
     it 'preserves dependency order for already-sorted BEEF' do
       beef = described_class.from_hex(beef_set_hex)
-      original_txids = beef.transactions.map(&:txid)
+      original_wtxids = beef.transactions.map(&:wtxid)
       beef.sort_transactions!
-      expect(beef.transactions.map(&:txid)).to eq(original_txids)
+      expect(beef.transactions.map(&:wtxid)).to eq(original_wtxids)
     end
 
     it 'sorts reversed transactions into correct order' do
@@ -1295,10 +1295,10 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'is idempotent on sorted data' do
       beef = described_class.from_hex(beef_set_hex)
-      sorted_txids = beef.transactions.map(&:txid)
+      sorted_wtxids = beef.transactions.map(&:wtxid)
       beef.sort_transactions!
       beef.sort_transactions!
-      expect(beef.transactions.map(&:txid)).to eq(sorted_txids)
+      expect(beef.transactions.map(&:wtxid)).to eq(sorted_wtxids)
     end
   end
 
@@ -1381,34 +1381,34 @@ RSpec.describe BSV::Transaction::Beef do
     it 'upgrades TXID_ONLY to RAW_TX when raw tx is merged' do
       beef = described_class.new
       tx = make_tx
-      txid = tx.txid
+      tx_wtxid = tx.wtxid
 
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
       expect(beef.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
 
       beef.merge_transaction(tx)
 
-      entry = beef.transactions.find { |bt| bt.txid == txid }
+      entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
       expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
     end
 
     it 'upgrades TXID_ONLY to RAW_TX_AND_BUMP when raw tx + bump merged' do
       beef = described_class.new
       tx = make_tx
-      txid = tx.txid
+      tx_wtxid = tx.wtxid
       tx.merkle_path = make_bump(tx)
 
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
       beef.merge_transaction(tx)
 
-      entry = beef.transactions.find { |bt| bt.txid == txid }
+      entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
       expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
     end
 
     it 'upgrades RAW_TX to RAW_TX_AND_BUMP when a BUMP becomes available via merge_transaction' do
       beef = described_class.new
       tx = make_tx
-      txid = tx.txid
+      tx_wtxid = tx.wtxid
 
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
       expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
@@ -1419,26 +1419,26 @@ RSpec.describe BSV::Transaction::Beef do
 
       beef.merge_transaction(tx_with_bump)
 
-      entry = beef.transactions.find { |bt| bt.txid == txid }
+      entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
       expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
     end
 
     it 'upgrades TXID_ONLY to RAW_TX via merge_raw_tx' do
       beef = described_class.new
       tx = make_tx
-      txid = tx.txid
+      tx_wtxid = tx.wtxid
 
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
       beef.merge_raw_tx(tx.to_binary)
 
-      entry = beef.transactions.find { |bt| bt.txid == txid }
+      entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
       expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
     end
 
     it 'upgrades RAW_TX to RAW_TX_AND_BUMP via merge_raw_tx with bump_index' do
       beef = described_class.new
       tx = make_tx
-      txid = tx.txid
+      tx_wtxid = tx.wtxid
 
       bump = make_bump(tx)
       beef.bumps << bump
@@ -1446,7 +1446,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
       beef.merge_raw_tx(tx.to_binary, bump_index: 0)
 
-      entry = beef.transactions.find { |bt| bt.txid == txid }
+      entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
       expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
       expect(entry.bump_index).to eq(0)
     end
@@ -1535,7 +1535,7 @@ RSpec.describe BSV::Transaction::Beef do
       tx2, _consumed = BSV::Transaction::Transaction.from_binary_with_offset(binary)
 
       expect(tx2.to_hex).to eq(tx1.to_hex)
-      expect(tx2.txid).to eq(tx1.txid)
+      expect(tx2.wtxid).to eq(tx1.wtxid)
     end
   end
 end

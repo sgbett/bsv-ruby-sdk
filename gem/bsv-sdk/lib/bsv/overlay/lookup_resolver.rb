@@ -334,17 +334,17 @@ module BSV
         beef_data    = output['beef'] || output[:beef]
         output_index = (output['outputIndex'] || output[:output_index] || 0).to_i
 
-        # Overlay API boundary: outpoint key uses display-order txid bytes (via Transaction#txid)
-        txid =
+        # Overlay API boundary: outpoint key uses display-order hex txid
+        dtxid_hex =
           begin
             beef = parse_beef(beef_data)
             last = beef&.transactions&.last
-            last&.transaction&.txid
+            last&.transaction&.dtxid
           rescue StandardError
             nil
           end
 
-        txid ? "#{txid}.#{output_index}" : output.object_id.to_s
+        dtxid_hex ? "#{dtxid_hex}.#{output_index}" : output.object_id.to_s
       end
 
       # ---- Validation ----

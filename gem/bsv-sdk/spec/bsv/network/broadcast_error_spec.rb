@@ -8,11 +8,11 @@ RSpec.describe BSV::Network::BroadcastError do
   end
 
   it 'stores message, status_code, and txid' do
-    error = described_class.new('rejected', status_code: 465, txid: 'abc123')
+    error = described_class.new('rejected', status_code: 465, txid: 'aa' * 32)
 
     expect(error.message).to eq('rejected')
     expect(error.status_code).to eq(465)
-    expect(error.txid).to eq('abc123')
+    expect(error.txid).to eq('aa' * 32)
   end
 
   it 'defaults status_code and txid to nil' do

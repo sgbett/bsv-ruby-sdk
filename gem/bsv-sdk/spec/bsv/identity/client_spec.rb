@@ -219,17 +219,17 @@ RSpec.describe 'BSV::Identity::Client' do
     let(:beef_bytes) { 'fake_beef_bytes' }
     let(:broadcaster) { instance_double(BSV::Overlay::TopicBroadcaster) }
     let(:broadcast_result) do
-      BSV::Overlay::OverlayBroadcastResult.new(status: 'success', txid: 'abc123', message: 'ok')
+      BSV::Overlay::OverlayBroadcastResult.new(status: 'success', txid: 'ab' * 32, message: 'ok')
     end
 
     before do
       allow(BSV::Script::PushDropTemplate).to receive(:new).and_return(mock_template)
       allow(wallet).to receive_messages(
         prove_certificate: { keyring_for_verifier: keyring },
-        create_action: { tx: beef_bytes, txid: 'abc123' }
+        create_action: { tx: beef_bytes, txid: 'ab' * 32 }
       )
       allow(BSV::Transaction::Transaction).to receive(:from_beef)
-        .and_return(instance_double(BSV::Transaction::Transaction, txid_hex: 'abc123'))
+        .and_return(instance_double(BSV::Transaction::Transaction, txid_hex: 'ab' * 32))
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 
@@ -335,7 +335,7 @@ RSpec.describe 'BSV::Identity::Client' do
     let(:mock_unlocker) { instance_double(BSV::Script::PushDropTemplate::Unlocker, sign: mock_script) }
     let(:mock_template) { instance_double(BSV::Script::PushDropTemplate, unlock: mock_unlocker) }
     let(:broadcast_result) do
-      BSV::Overlay::OverlayBroadcastResult.new(status: 'success', txid: 'deadbeef01', message: 'ok')
+      BSV::Overlay::OverlayBroadcastResult.new(status: 'success', txid: 'de' * 32, message: 'ok')
     end
 
     before do
@@ -347,12 +347,12 @@ RSpec.describe 'BSV::Identity::Client' do
         if kwargs[:inputs]
           { signable_transaction: { tx: beef_bytes, reference: 'REF123' } }
         else
-          { tx: beef_bytes, txid: 'deadbeef01' }
+          { tx: beef_bytes, txid: 'de' * 32 }
         end
       end
 
       allow(BSV::Transaction::Transaction).to receive(:from_beef).with(beef_bytes).and_return(partial_tx)
-      allow(wallet).to receive(:sign_action).and_return({ tx: 'signed_beef', txid: 'deadbeef01' })
+      allow(wallet).to receive(:sign_action).and_return({ tx: 'signed_beef', txid: 'de' * 32 })
       allow(BSV::Transaction::Transaction).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end

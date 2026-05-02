@@ -106,21 +106,21 @@ RSpec.describe BSV::Transaction::Beef do
   # find_transaction fail and producing a silent cross-SDK divergence.
 
   describe 'TXID_ONLY byte-order consistency (F5.1)' do
-    it 'make_txid_only preserves display-order txid' do
+    it 'make_txid_only preserves wtxid' do
       beef = described_class.from_hex(go_brc62_hex)
       bt = beef.transactions.first
-      display_txid = bt.txid
+      original_wtxid = bt.wtxid
 
       beef.make_txid_only(bt.wtxid)
       txid_only_entry = beef.transactions.find { |entry| entry.format == described_class::FORMAT_TXID_ONLY }
       expect(txid_only_entry).not_to be_nil
-      expect(txid_only_entry.txid).to eq(display_txid)
+      expect(txid_only_entry.wtxid).to eq(original_wtxid)
     end
 
     it 'TXID_ONLY round-trips through V2 serialise/parse' do
       beef = described_class.from_hex(go_brc62_hex)
       first_bt = beef.transactions.first
-      original_txid = first_bt.txid
+      original_wtxid = first_bt.wtxid
 
       beef.make_txid_only(first_bt.wtxid)
       v2_bytes = beef.to_binary(version: described_class::BEEF_V2)
@@ -128,7 +128,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       txid_entry = parsed.transactions.find { |entry| entry.format == described_class::FORMAT_TXID_ONLY }
       expect(txid_entry).not_to be_nil
-      expect(txid_entry.txid).to eq(original_txid)
+      expect(txid_entry.wtxid).to eq(original_wtxid)
     end
 
     it 'TXID_ONLY entries are included in known txids set' do
@@ -168,7 +168,7 @@ RSpec.describe BSV::Transaction::Beef do
       atomic = beef.to_atomic_binary(last_bt.wtxid)
       parsed = described_class.from_binary(atomic)
 
-      expect(parsed.subject_txid).to eq(last_bt.txid)
+      expect(parsed.subject_wtxid).to eq(last_bt.wtxid)
       expect(parsed.transactions.length).to eq(beef.transactions.length)
     end
   end
@@ -220,7 +220,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       # Transaction IDs preserved
       v1.transactions.each_with_index do |bt, i|
-        expect(v2.transactions[i].txid).to eq(bt.txid)
+        expect(v2.transactions[i].wtxid).to eq(bt.wtxid)
       end
     end
   end
@@ -260,7 +260,7 @@ RSpec.describe BSV::Transaction::Beef do
     it 'from_beef returns the subject (last) transaction' do
       tx = BSV::Transaction::Transaction.from_beef_hex(go_beef_set_hex)
       beef = described_class.from_hex(go_beef_set_hex)
-      expect(tx.txid).to eq(beef.transactions.last.txid)
+      expect(tx.wtxid).to eq(beef.transactions.last.wtxid)
     end
 
     it 'to_beef produces valid BEEF that round-trips' do
@@ -268,7 +268,7 @@ RSpec.describe BSV::Transaction::Beef do
       rebuilt_hex = original.to_beef_hex
 
       tx2 = BSV::Transaction::Transaction.from_beef_hex(rebuilt_hex)
-      expect(tx2.txid).to eq(original.txid)
+      expect(tx2.wtxid).to eq(original.wtxid)
     end
   end
 

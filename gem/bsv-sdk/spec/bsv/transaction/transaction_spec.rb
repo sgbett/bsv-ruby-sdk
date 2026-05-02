@@ -56,7 +56,7 @@ RSpec.describe BSV::Transaction::Transaction do
       # SHA256d of serialised tx, reversed to display order
       txid = tx.txid_hex
       expect(txid.length).to eq(64)
-      expect(tx.txid.bytesize).to eq(32)
+      expect(tx.wtxid.bytesize).to eq(32)
     end
   end
 
@@ -763,7 +763,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       result = described_class.from_beef(binary)
       expect(result).not_to be_nil
-      expect(result.txid).to eq(subject.txid)
+      expect(result.wtxid).to eq(subject.wtxid)
     end
 
     it 'wires source_transaction on every input when ancestry is present' do
@@ -799,7 +799,7 @@ RSpec.describe BSV::Transaction::Transaction do
       expect(result.inputs[0].source_transaction).not_to be_nil
       parent_recovered = result.inputs[0].source_transaction
       expect(parent_recovered.inputs[0].source_transaction).not_to be_nil
-      expect(parent_recovered.inputs[0].source_transaction.txid).to eq(grandparent.txid)
+      expect(parent_recovered.inputs[0].source_transaction.wtxid).to eq(grandparent.wtxid)
     end
 
     it 'attaches late-bound BUMPs on FORMAT_RAW_TX ancestors' do
@@ -837,7 +837,7 @@ RSpec.describe BSV::Transaction::Transaction do
       # Sanity: the serialised ancestor must be FORMAT_RAW_TX (has_bump=0).
       # If this fails the spec is no longer exercising the late-bind path.
       reparsed = BSV::Transaction::Beef.from_binary(binary)
-      ancestor_entry = reparsed.transactions.find { |bt| bt.transaction&.txid == ancestor.txid }
+      ancestor_entry = reparsed.transactions.find { |bt| bt.transaction&.wtxid == ancestor.wtxid }
       expect(ancestor_entry.format).to eq(BSV::Transaction::Beef::FORMAT_RAW_TX)
 
       result = described_class.from_beef(binary)
@@ -864,7 +864,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       result = described_class.from_beef(binary)
       expect(result).not_to be_nil
-      expect(result.txid).to eq(subject.txid)
+      expect(result.wtxid).to eq(subject.wtxid)
       expect(result.inputs.all?(&:source_transaction)).to be true
     end
   end

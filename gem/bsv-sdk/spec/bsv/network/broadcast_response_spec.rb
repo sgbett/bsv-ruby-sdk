@@ -6,7 +6,7 @@ RSpec.describe BSV::Network::BroadcastResponse do
   describe '#initialize' do
     it 'accepts all ARC response fields' do
       response = described_class.new(
-        txid: 'abc123',
+        txid: 'aa' * 32,
         tx_status: 'SEEN_ON_NETWORK',
         message: 'success',
         extra_info: 'info',
@@ -16,7 +16,7 @@ RSpec.describe BSV::Network::BroadcastResponse do
         competing_txs: ['def456']
       )
 
-      expect(response.txid).to eq('abc123')
+      expect(response.txid).to eq('aa' * 32)
       expect(response.tx_status).to eq('SEEN_ON_NETWORK')
       expect(response.message).to eq('success')
       expect(response.extra_info).to eq('info')

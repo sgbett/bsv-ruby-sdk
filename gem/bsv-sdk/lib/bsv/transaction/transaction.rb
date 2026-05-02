@@ -405,21 +405,11 @@ module BSV
         id
       end
 
-      # Display-order transaction ID (reversed from the natural SHA-256d hash).
-      #
-      # This is the conventional human-readable representation used in block
-      # explorers, wallets, and all user-facing contexts.
-      #
-      # @return [String] 32-byte transaction ID in display byte order
-      def txid
-        wtxid.reverse
-      end
-
       # The transaction ID as a hex string (display byte order).
       #
-      # @return [String] hex-encoded transaction ID
+      # @return [String] 64-char hex-encoded transaction ID (display order)
       def txid_hex
-        txid.unpack1('H*')
+        wtxid.reverse.unpack1('H*')
       end
 
       # Display-order transaction ID as a hex string.

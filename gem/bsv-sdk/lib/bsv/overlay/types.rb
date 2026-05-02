@@ -102,6 +102,7 @@ module BSV
       # @param description [String, nil]
       def initialize(status:, txid: nil, message: nil, code: nil, description: nil)
         @status = status
+        BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'overlay broadcast txid') if txid
         @txid = txid
         @message = message
         @code = code

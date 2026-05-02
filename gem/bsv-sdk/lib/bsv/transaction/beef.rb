@@ -76,12 +76,6 @@ module BSV
           end
         end
 
-        # Display-order transaction ID as binary bytes.
-        # @return [String, nil] 32-byte display-order txid
-        def txid
-          wtxid&.reverse
-        end
-
         # Display-order transaction ID as a hex string.
         #
         # +dtxid+ always returns a 64-char hex string suitable for JSON
@@ -104,12 +98,6 @@ module BSV
 
       # @return [String, nil] 32-byte wire-order subject txid (Atomic BEEF only)
       attr_reader :subject_wtxid
-
-      # Display-order subject txid as binary bytes (Atomic BEEF only).
-      # @return [String, nil] 32-byte display-order txid, or nil
-      def subject_txid
-        @subject_wtxid&.reverse
-      end
 
       # Display-order subject txid as a hex string (Atomic BEEF only).
       #

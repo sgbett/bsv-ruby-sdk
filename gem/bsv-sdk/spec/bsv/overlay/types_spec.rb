@@ -74,7 +74,7 @@ RSpec.describe 'BSV::Overlay types' do
       subject(:result) do
         described_class.new(
           status: 'success',
-          txid: 'abc123',
+          txid: 'aa' * 32,
           message: 'Sent to 1 host.'
         )
       end
@@ -84,7 +84,7 @@ RSpec.describe 'BSV::Overlay types' do
       end
 
       it 'exposes txid' do
-        expect(result.txid).to eq('abc123')
+        expect(result.txid).to eq('aa' * 32)
       end
 
       it 'exposes message' do
