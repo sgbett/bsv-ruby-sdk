@@ -126,7 +126,13 @@ module BSV
 
             pubkey = BSV::Primitives::PublicKey.from_bytes(pubkey_bytes)
             hash = @tx.sighash(@input_index, sighash_type, subscript: sub_script)
-            pubkey.verify(hash, sig)
+            result = pubkey.verify(hash, sig)
+            BSV.logger&.debug do
+              pk_hex = pubkey_bytes.unpack1('H*')
+              "[Interpreter] CHECKSIG: sighash_type=0x#{format('%02x', sighash_type)} " \
+                "pubkey=#{pk_hex[0, 8]}...#{pk_hex[-4..]} result=#{result}"
+            end
+            result
           rescue ArgumentError
             false
           end

@@ -10,7 +10,8 @@ module BSV
     # No logger is configured by default — zero overhead when unused.
     # Consumers opt in via:
     #
-    #   BSV.logger = Logger.new($stdout, level: :debug)
+    #   require 'logger'
+    #   BSV.logger = Logger.new($stdout).tap { |l| l.level = Logger::DEBUG }
     #
     # @return [Logger, nil]
     attr_accessor :logger

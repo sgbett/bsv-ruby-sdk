@@ -329,6 +329,11 @@ module BSV
         ancestors = collect_ancestors
 
         bump_index_by_height = build_beef_bumps(beef, ancestors)
+        BSV.logger&.debug do
+          proven = ancestors.count(&:merkle_path)
+          "[Transaction] BEEF: #{ancestors.length} ancestors, #{proven} proven " \
+            "across #{bump_index_by_height.length} block heights"
+        end
 
         ancestors.each do |tx|
           entry = if tx.merkle_path
@@ -396,7 +401,7 @@ module BSV
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
         id = BSV::Primitives::Digest.sha256d(to_binary)
-        BSV.logger&.debug { "[Transaction] wtxid computed: #{id.reverse.unpack1('H*')}" }
+        BSV.logger&.debug { "[Transaction] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
         id
       end
 
@@ -480,6 +485,19 @@ module BSV
         # 10. sighash type (4 LE) — includes FORKID flag
         buf << [sighash_type].pack('V')
 
+        BSV.logger&.debug do
+          hp = buf.byteslice(4, 32).unpack1('H*')
+          hs = buf.byteslice(36, 32).unpack1('H*')
+          op = input.outpoint_binary.unpack1('H*')
+          sc = script_bytes.unpack1('H*')
+          ho = buf.byteslice(-40, 32).unpack1('H*')
+          "[Sighash] input=#{input_index} type=0x#{format('%02x', sighash_type)} " \
+            "version=#{@version} hashPrevouts=#{hp} hashSequence=#{hs} " \
+            "outpoint=#{op} scriptCode=#{sc[0, 40]}#{'...' if sc.length > 40} " \
+            "value=#{input.source_satoshis} seq=#{input.sequence} " \
+            "hashOutputs=#{ho} locktime=#{@lock_time}"
+        end
+
         buf
       end
 
@@ -490,7 +508,9 @@ module BSV
       # @param subscript [Script::Script, nil] override locking script for the input
       # @return [String] 32-byte sighash digest
       def sighash(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
-        BSV::Primitives::Digest.sha256d(sighash_preimage(input_index, sighash_type, subscript: subscript))
+        digest = BSV::Primitives::Digest.sha256d(sighash_preimage(input_index, sighash_type, subscript: subscript))
+        BSV.logger&.debug { "[Sighash] digest=#{digest.unpack1('H*')}" }
+        digest
       end
 
       # --- Signing ---
@@ -879,9 +899,16 @@ module BSV
         wtxid = tx.wtxid
         return if seen.key?(wtxid)
 
-        unless tx.merkle_path
-          tx.inputs.each do |input|
-            next unless input.source_transaction
+        if tx.merkle_path
+          BSV.logger&.debug do
+            "[Transaction] ancestor: #{tx.dtxid_hex} proven at height #{tx.merkle_path.block_height} (leaf stop)"
+          end
+        else
+          tx.inputs.each_with_index do |input, idx|
+            unless input.source_transaction
+              BSV.logger&.debug { "[Transaction] ancestor: #{tx.dtxid_hex} input #{idx} has no source_transaction (skipped)" }
+              next
+            end
 
             collect_ancestors_recursive(input.source_transaction, seen, result)
           end
