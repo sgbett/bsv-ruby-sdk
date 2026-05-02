@@ -370,11 +370,11 @@ module BSV
       #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef(data)
         beef = Beef.from_binary(data)
-        subject_txid = beef.subject_txid ||
-                       beef.transactions.reverse.find(&:transaction)&.transaction&.txid
-        return nil unless subject_txid
+        subject_wtxid = beef.subject_wtxid ||
+                        beef.transactions.reverse.find(&:transaction)&.transaction&.wtxid
+        return nil unless subject_wtxid
 
-        beef.find_atomic_transaction(subject_txid)
+        beef.find_atomic_transaction(subject_wtxid)
       end
 
       # Parse a BEEF hex string and return the subject transaction.
@@ -388,15 +388,24 @@ module BSV
 
       # --- Transaction ID ---
 
-      # Compute the transaction ID (double-SHA-256 of the serialised tx, byte-reversed).
+      # Wire-order transaction ID (raw SHA-256d of the serialised tx).
       #
-      # Returns display byte order (reversed from the natural hash).
-      # Compare with {TransactionInput#prev_tx_id} which stores wire byte
-      # order (natural hash). Use +.reverse+ to convert between the two.
+      # Used by BEEF, BUMPs, and merkle paths, which all work in wire byte order
+      # to match {TransactionInput#prev_tx_id}.
+      #
+      # @return [String] 32-byte transaction ID in wire byte order
+      def wtxid
+        BSV::Primitives::Digest.sha256d(to_binary)
+      end
+
+      # Display-order transaction ID (reversed from the natural SHA-256d hash).
+      #
+      # This is the conventional human-readable representation used in block
+      # explorers, wallets, and all user-facing contexts.
       #
       # @return [String] 32-byte transaction ID in display byte order
       def txid
-        BSV::Primitives::Digest.sha256d(to_binary).reverse
+        wtxid.reverse
       end
 
       # The transaction ID as a hex string (display byte order).
@@ -886,7 +895,7 @@ module BSV
           merged = txs.first.merkle_path.dup
           txs.drop(1).each { |t| merged.combine(t.merkle_path) }
 
-          txid_hashes = txs.map { |t| t.txid.reverse }
+          txid_hashes = txs.map(&:wtxid)
           clean = merged.extract(txid_hashes)
 
           bump_index_by_height[height] = beef.bumps.length
