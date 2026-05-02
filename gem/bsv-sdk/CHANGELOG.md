@@ -5,6 +5,31 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0 — 2026-05-02
+
+### Breaking Changes
+- Renamed `TransactionInput#prev_tx_id` to `#prev_wtxid` — all call sites must update (#678)
+- Renamed MerklePath parameters from `txid_hex` to `dtxid_hex` throughout (#681)
+
+### Added
+- `Transaction#wtxid` — wire-order transaction ID (raw SHA-256d bytes) (#673)
+- `Transaction#dtxid` / `#dtxid_hex` — display-order hex aliases (#680)
+- `TransactionInput#dtxid_hex` — display-order hex of the referenced transaction (#678)
+- `TransactionInput.wtxid_from_hex` — convert display-order hex to wire-order bytes (#678)
+- `Hex.validate_wtxid!` / `Hex.validate_dtxid_hex!` — runtime validation for wire/display txid formats (#685)
+- `Hex.validate_hash32!` — general-purpose 32-byte binary hash validator (#686)
+- `BSV.logger` — opt-in debug instrumentation with zero overhead when unused (#686)
+- Debug logging at txid conversions, sighash preimage, script interpreter, ARC broadcast, BEEF ancestry, and ProtoWallet key derivation (#686, #688)
+
+### Changed
+- All internal txid variables renamed to `wtxid` (wire-order) convention (#679)
+- BEEF internals enforce wire-order throughout — no byte-reversals inside the bundle (#675)
+- MerklePath `compute_root_hex` and `from_tsc` now validate hex input (#686)
+
+### Fixed
+- `BeefTx#dtxid` now returns hex string (was returning binary) (#677)
+- Certificate field naming aligned with BRC-52 convention (#677)
+
 ## 0.16.0 — 2026-05-01
 
 ### Breaking Changes
