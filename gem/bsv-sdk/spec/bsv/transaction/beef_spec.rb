@@ -909,7 +909,7 @@ RSpec.describe BSV::Transaction::Beef do
       tx = BSV::Transaction::Transaction.new
       expect do
         described_class::ProvenTxEntry.new(transaction: tx, bump_index: nil)
-      end.to raise_error(ArgumentError, /FORMAT_RAW_TX_AND_BUMP requires a bump_index/)
+      end.to raise_error(ArgumentError, /ProvenTxEntry requires a bump_index/)
     end
 
     it 'accepts ProvenTxEntry with a bump_index' do

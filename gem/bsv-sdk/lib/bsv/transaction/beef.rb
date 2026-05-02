@@ -96,14 +96,17 @@ module BSV
         attr_reader :transaction
 
         # @param transaction [Transaction] the transaction
+        # @raise [ArgumentError] if transaction is nil
         def initialize(transaction:)
+          raise ArgumentError, 'RawTxEntry requires a transaction' if transaction.nil?
+
           super()
           @transaction = transaction
         end
 
-        # @return [String, nil] wire-order wtxid delegated to the transaction
+        # @return [String] wire-order wtxid delegated to the transaction
         def wtxid
-          @transaction&.wtxid
+          @transaction.wtxid
         end
 
         # @return [Integer] FORMAT_RAW_TX wire-protocol flag
@@ -122,18 +125,19 @@ module BSV
 
         # @param transaction [Transaction] the transaction
         # @param bump_index [Integer] index into the bumps array
-        # @raise [ArgumentError] if bump_index is nil
+        # @raise [ArgumentError] if transaction or bump_index is nil
         def initialize(transaction:, bump_index:)
-          raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if bump_index.nil?
+          raise ArgumentError, 'ProvenTxEntry requires a transaction' if transaction.nil?
+          raise ArgumentError, 'ProvenTxEntry requires a bump_index' if bump_index.nil?
 
           super()
           @transaction = transaction
           @bump_index = bump_index
         end
 
-        # @return [String, nil] wire-order wtxid delegated to the transaction
+        # @return [String] wire-order wtxid delegated to the transaction
         def wtxid
-          @transaction&.wtxid
+          @transaction.wtxid
         end
 
         # @return [Integer] FORMAT_RAW_TX_AND_BUMP wire-protocol flag
@@ -438,7 +442,7 @@ module BSV
         level0_leaves = bump.path[0] || []
         level0_internal = level0_leaves.map(&:hash).compact.to_set
         @transactions.each_with_index do |bt, i|
-          next unless bt.is_a?(RawTxEntry) && bt.transaction
+          next unless bt.is_a?(RawTxEntry)
           next unless level0_internal.include?(bt.wtxid)
 
           bt.transaction.merkle_path ||= bump
