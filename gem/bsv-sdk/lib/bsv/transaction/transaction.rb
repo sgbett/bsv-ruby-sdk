@@ -488,12 +488,14 @@ module BSV
         BSV.logger&.debug do
           hp = buf.byteslice(4, 32).unpack1('H*')
           hs = buf.byteslice(36, 32).unpack1('H*')
-          ho = buf.byteslice(-40, 32).unpack1('H*')
+          op = input.outpoint_binary.unpack1('H*')
           sc = script_bytes.unpack1('H*')
+          ho = buf.byteslice(-40, 32).unpack1('H*')
           "[Sighash] input=#{input_index} type=0x#{format('%02x', sighash_type)} " \
-            "hashPrevouts=#{hp} hashSequence=#{hs} " \
-            "scriptCode=#{sc[0, 40]}#{'...' if sc.length > 40} " \
-            "value=#{input.source_satoshis} hashOutputs=#{ho}"
+            "version=#{@version} hashPrevouts=#{hp} hashSequence=#{hs} " \
+            "outpoint=#{op} scriptCode=#{sc[0, 40]}#{'...' if sc.length > 40} " \
+            "value=#{input.source_satoshis} seq=#{input.sequence} " \
+            "hashOutputs=#{ho} locktime=#{@lock_time}"
         end
 
         buf

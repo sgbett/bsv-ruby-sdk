@@ -174,6 +174,7 @@ module BSV
 
         sig   = BSV::Primitives::Signature.from_der(bytes_to_string(signature))
         valid = pub_key.verify(hash, sig)
+        BSV.logger&.debug { "[ProtoWallet] verify_signature result=#{valid}" }
 
         raise InvalidSignatureError unless valid
 
