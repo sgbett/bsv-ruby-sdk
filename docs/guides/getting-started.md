@@ -57,6 +57,8 @@ address = public_key.address
 
 This example builds a P2PKH transaction that spends one input and creates two outputs: an OP_RETURN data carrier and a change output.
 
+> **Transaction IDs:** The SDK uses `wtxid` for wire-order binary (the native byte order of SHA-256d hashes) and `dtxid` for display-order hex (the reversed format shown by block explorers). Internally, everything is wire order — conversion to display order happens only at JSON and UI boundaries. See the **[wtxid/dtxid guide](wtxid-dtxid.md)** for the full rationale.
+
 ```ruby
 # Set up keys
 private_key = BSV::Primitives::PrivateKey.generate
@@ -68,7 +70,7 @@ tx = BSV::Transaction::Transaction.new
 
 # Add an input (referencing a previous UTXO)
 input = BSV::Transaction::TransactionInput.new(
-  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(
+  prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(
     'a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458'
   ),
   prev_tx_out_index: 0
@@ -96,7 +98,7 @@ tx.sign(0, private_key)
 # Broadcast via Arcade (GorillaPool)
 arc = BSV::Network::ARC.default
 response = arc.broadcast(tx)
-puts response.txid
+puts response.txid  # display-order hex (ARC API boundary)
 ```
 
 ## Using Templates for Signing
@@ -108,7 +110,7 @@ tx = BSV::Transaction::Transaction.new
 
 # Create inputs with templates
 input = BSV::Transaction::TransactionInput.new(
-  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(utxo_txid),
+  prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo_txid),
   prev_tx_out_index: 0
 )
 input.source_satoshis = 50_000
@@ -129,7 +131,7 @@ If you already know the TypeScript or Go BSV SDKs, most of the API is a direct t
 | TS / Go | Ruby | Notes |
 |---|---|---|
 | `key.toPublicKey()` | `key.public_key` | Derived properties are bare nouns, not `to_*` methods |
-| `tx.getTxid()` | `tx.txid_hex` | No `get_` prefix (use `txid` for raw bytes) |
+| `tx.getTxid()` | `tx.dtxid` | Display-order hex; `tx.wtxid` for wire-order binary |
 | `input.setSourceSatoshis(5000)` | `input.source_satoshis = 5000` | Setters use assignment syntax |
 | `tx.toHex()` | `tx.to_hex` | Format conversions keep `to_` |
 | `Transaction.fromBinary(data)` | `Transaction.from_binary(data)` | Constructors use `from_` |

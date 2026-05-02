@@ -6,11 +6,11 @@ The `BSV::Transaction` module handles building, signing, serialising, and verify
 
 ### Inputs
 
-Each input references a previous transaction output (UTXO) by its transaction ID and output index:
+Each input references a previous transaction output (UTXO) by its wire-order transaction ID and output index:
 
 ```ruby
 input = BSV::Transaction::TransactionInput.new(
-  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(
+  prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(
     'a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458'
   ),
   prev_tx_out_index: 0
@@ -21,10 +21,7 @@ input.source_satoshis = 100_000
 input.source_locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
 ```
 
-!!! note "Byte Order"
-    `txid_from_hex` converts a display-order hex txid to internal byte order
-    (reversed). This is needed because Bitcoin stores txids in little-endian
-    internally but displays them in big-endian.
+`wtxid_from_hex` converts a display-order hex txid to wire-order binary (the native byte order used internally). See the **[wtxid/dtxid guide](../guides/wtxid-dtxid.md)** for why.
 
 ### Outputs
 
@@ -139,8 +136,8 @@ tx, bytes_consumed = BSV::Transaction::Transaction.from_binary_with_offset(data,
 ### Transaction ID
 
 ```ruby
-txid = tx.txid         # 32 bytes (internal byte order)
-txid = tx.txid_hex     # 64-char hex (display order)
+wtxid = tx.wtxid       # 32 bytes (wire order — for computation and storage)
+dtxid = tx.dtxid       # 64-char hex (display order — for JSON and UIs)
 ```
 
 ## Fee Estimation
@@ -289,7 +286,7 @@ recipient_lock = BSV::Script::Script.p2pkh_lock(recipient.public_key.hash160)
 tx = BSV::Transaction::Transaction.new
 
 input = BSV::Transaction::TransactionInput.new(
-  prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(utxo_txid),
+  prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo_txid),
   prev_tx_out_index: 0
 )
 input.source_satoshis = 1_000_000
@@ -313,5 +310,5 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 # Sign and serialise
 tx.sign_all
 puts tx.to_hex
-puts "txid: #{tx.txid_hex}"
+puts "txid: #{tx.dtxid}"
 ```
