@@ -165,6 +165,7 @@ module BSV
       #   hash; the caller must look up the height separately)
       # @return [MerklePath] a BRC-74 merkle path equivalent to the TSC proof
       def self.from_tsc(dtxid_hex:, index:, nodes:, block_height:)
+        BSV::Primitives::Hex.validate_dtxid_hex!(dtxid_hex, name: 'dtxid_hex')
         wtxid = [dtxid_hex].pack('H*').reverse
 
         # Level 0 always contains the txid leaf.
@@ -248,6 +249,7 @@ module BSV
       # @raise [ArgumentError] if the wtxid is not found in the path
       def compute_root(wtxid = nil)
         wtxid ||= @path[0].find(&:hash)&.hash
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid') if wtxid
         return wtxid if @path.length == 1 && @path[0].length == 1
 
         indexed = build_indexed_path
@@ -319,6 +321,7 @@ module BSV
       # @param chain_tracker [ChainTracker] chain tracker to verify the root against
       # @return [Boolean] true if the computed root matches the block at this height
       def verify(dtxid_hex, chain_tracker)
+        BSV::Primitives::Hex.validate_dtxid_hex!(dtxid_hex, name: 'dtxid_hex')
         wtxid = [dtxid_hex].pack('H*').reverse
         tx_leaf = @path[0].find { |l| l.hash == wtxid }
 

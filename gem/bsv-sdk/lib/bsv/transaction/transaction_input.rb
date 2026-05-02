@@ -37,6 +37,7 @@ module BSV
       # @param unlocking_script [Script::Script, nil] unlocking script (nil if unsigned)
       # @param sequence [Integer] sequence number
       def initialize(prev_wtxid:, prev_tx_out_index:, unlocking_script: nil, sequence: 0xFFFFFFFF)
+        BSV::Primitives::Hex.validate_wtxid!(prev_wtxid, name: 'prev_wtxid')
         @prev_wtxid = prev_wtxid.b
         @prev_tx_out_index = prev_tx_out_index
         @unlocking_script = unlocking_script
@@ -103,6 +104,7 @@ module BSV
       # @param hex [String] hex-encoded transaction ID (display order)
       # @return [String] 32-byte transaction ID in wire byte order
       def self.wtxid_from_hex(hex)
+        BSV::Primitives::Hex.validate_dtxid_hex!(hex, name: 'wtxid_from_hex input')
         [hex].pack('H*').reverse
       end
 

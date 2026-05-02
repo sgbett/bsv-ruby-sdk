@@ -72,6 +72,46 @@ module BSV
       def self.encode(bytes)
         bytes.unpack1('H*')
       end
+
+      # Validate that +value+ is a 32-byte wire-order transaction ID.
+      #
+      # @param value [String] expected 32-byte binary string
+      # @param name [String] label for the error message (e.g. +'prev_wtxid'+)
+      # @return [String] the input value (pass-through for chaining)
+      # @raise [ArgumentError] if +value+ is not a 32-byte binary string
+      def self.validate_wtxid!(value, name: 'wtxid')
+        unless value.is_a?(String) && value.bytesize == 32
+          hint = if value.is_a?(String) && value.bytesize == 64 && value.match?(HEX_RE)
+                   ' (looks like a hex txid — use wtxid_from_hex to convert)'
+                 else
+                   ''
+                 end
+          size = value.is_a?(String) ? "#{value.bytesize}-byte string" : value.class.to_s
+          raise ArgumentError,
+                "expected 32-byte wire-order wtxid for #{name}, got #{size}#{hint}"
+        end
+        value
+      end
+
+      # Validate that +value+ is a 64-character display-order hex transaction ID.
+      #
+      # @param value [String] expected 64-char hex string
+      # @param name [String] label for the error message (e.g. +'dtxid_hex'+)
+      # @return [String] the input value (pass-through for chaining)
+      # @raise [ArgumentError] if +value+ is not a 64-char hex string
+      def self.validate_dtxid_hex!(value, name: 'dtxid_hex')
+        unless value.is_a?(String) && value.length == 64 && value.match?(HEX_RE)
+          hint = if value.is_a?(String) && value.bytesize == 32 && !value.match?(HEX_RE)
+                   ' (looks like binary bytes — use dtxid_hex or unpack to convert)'
+                 else
+                   ''
+                 end
+          size = value.is_a?(String) ? "#{value.length}-char string" : value.class.to_s
+          raise ArgumentError,
+                "expected 64-char display-order hex for #{name}, got #{size}#{hint}"
+        end
+        value
+      end
     end
   end
 end

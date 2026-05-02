@@ -391,20 +391,18 @@ RSpec.describe BSV::Transaction::Beef do
 
       ancestor_a = BSV::Transaction::Transaction.new
       ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 5000, locking_script: lock))
-      txid_a_hex = ancestor_a.txid.unpack1('H*')
       ancestor_a.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 0, hash: txid_a_hex, txid: true),
-                pe.new(offset: 1, hash: 'aa' * 32)]]
+        path: [[pe.new(offset: 0, hash: ancestor_a.wtxid, txid: true),
+                pe.new(offset: 1, hash: ['aa' * 32].pack('H*'))]]
       )
 
       ancestor_b = BSV::Transaction::Transaction.new(version: 2)
       ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 3000, locking_script: lock))
-      txid_b_hex = ancestor_b.txid.unpack1('H*')
       ancestor_b.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 2, hash: txid_b_hex, txid: true),
-                pe.new(offset: 3, hash: 'bb' * 32)]]
+        path: [[pe.new(offset: 2, hash: ancestor_b.wtxid, txid: true),
+                pe.new(offset: 3, hash: ['bb' * 32].pack('H*'))]]
       )
 
       # Build a child spending both

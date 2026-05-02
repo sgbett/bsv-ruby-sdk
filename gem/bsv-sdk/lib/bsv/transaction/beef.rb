@@ -58,6 +58,7 @@ module BSV
         def initialize(format:, transaction: nil, known_wtxid: nil, bump_index: nil)
           raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if format == FORMAT_RAW_TX_AND_BUMP && bump_index.nil?
 
+          BSV::Primitives::Hex.validate_wtxid!(known_wtxid, name: 'known_wtxid') if known_wtxid
           @format = format
           @transaction = transaction
           @known_wtxid = known_wtxid
@@ -249,6 +250,7 @@ module BSV
       # @param subject_wtxid [String] 32-byte wire-order subject transaction ID
       # @return [String] raw Atomic BEEF binary
       def to_atomic_binary(subject_wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(subject_wtxid, name: 'subject_wtxid')
         buf = [ATOMIC_BEEF].pack('V')
         # subject_wtxid is already in wire (internal) byte order — write as-is.
         buf << subject_wtxid.b
@@ -264,6 +266,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the matching transaction, or nil
       def find_transaction(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         @transactions.each do |beef_tx|
           return beef_tx.transaction if beef_tx.wtxid == wtxid
         end
@@ -278,6 +281,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [MerklePath, nil] the merkle path, or nil if not found
       def find_bump(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         # Check transaction-table entries first (fast path)
         bt = @transactions.find { |entry| entry.wtxid == wtxid && entry.format == FORMAT_RAW_TX_AND_BUMP }
         return bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index]) if bt
@@ -293,6 +297,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the transaction with wired inputs, or nil
       def find_transaction_for_signing(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
         return unless tx
 
@@ -306,6 +311,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the transaction with full proof tree, or nil
       def find_atomic_transaction(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
         return unless tx
 
@@ -506,6 +512,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [BeefTx, nil] the converted entry, or nil if not found
       def make_txid_only(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         idx = @transactions.index { |bt| bt.wtxid == wtxid }
         return unless idx
 
