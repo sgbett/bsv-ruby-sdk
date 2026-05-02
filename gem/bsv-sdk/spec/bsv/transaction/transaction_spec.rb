@@ -61,12 +61,12 @@ RSpec.describe BSV::Transaction::Transaction do
   end
 
   describe '#dtxid / #dtxid_hex' do
-    it 'is an alias for txid' do
+    it 'returns display-order hex (same as txid_hex)' do
       tx = described_class.from_hex(vector1_hex)
-      expect(tx.dtxid).to eq(tx.txid)
+      expect(tx.dtxid).to eq(tx.txid_hex)
     end
 
-    it 'is an alias for txid_hex' do
+    it 'dtxid_hex is an alias for txid_hex' do
       tx = described_class.from_hex(vector1_hex)
       expect(tx.dtxid_hex).to eq(tx.txid_hex)
     end

@@ -282,28 +282,28 @@ RSpec.describe BSV::Transaction::Beef do
   end
 
   describe 'BeefTx#dtxid' do
-    it 'is an alias for txid on a raw entry' do
+    it 'returns display-order hex on a raw entry' do
       beef = described_class.from_hex(beef_set_hex)
       bt = beef.transactions.find(&:transaction)
-      expect(bt.dtxid).to eq(bt.txid)
+      expect(bt.dtxid).to eq(bt.txid.unpack1('H*'))
     end
 
-    it 'is an alias for txid on a txid-only entry' do
+    it 'returns display-order hex on a txid-only entry' do
       bt = described_class::BeefTx.new(
         format: described_class::FORMAT_TXID_ONLY,
         known_wtxid: "\x01".b * 32
       )
-      expect(bt.dtxid).to eq(bt.txid)
+      expect(bt.dtxid).to eq(bt.txid.unpack1('H*'))
     end
   end
 
   describe '#subject_dtxid' do
-    it 'is an alias for subject_txid on an Atomic BEEF' do
+    it 'returns display-order hex on an Atomic BEEF' do
       beef = described_class.from_hex(beef_set_hex)
       last_tx = beef.transactions.last.transaction
       atomic_bytes = beef.to_atomic_binary(last_tx.wtxid)
       parsed = described_class.from_binary(atomic_bytes)
-      expect(parsed.subject_dtxid).to eq(parsed.subject_txid)
+      expect(parsed.subject_dtxid).to eq(parsed.subject_txid.unpack1('H*'))
     end
 
     it 'returns nil on a non-Atomic BEEF' do

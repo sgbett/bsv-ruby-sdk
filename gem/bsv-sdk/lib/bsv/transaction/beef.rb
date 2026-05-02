@@ -76,17 +76,21 @@ module BSV
           end
         end
 
-        # Display-order transaction ID.
-        # @return [String, nil] 32-byte txid
+        # Display-order transaction ID as binary bytes.
+        # @return [String, nil] 32-byte display-order txid
         def txid
           wtxid&.reverse
         end
 
-        # Display-order transaction ID (alias for {#txid}).
+        # Display-order transaction ID as a hex string.
         #
-        # Mirrors the wallet gem's +DisplayTxid+ pattern.
-        # @return [String, nil] 32-byte txid
-        alias dtxid txid
+        # +dtxid+ always returns a 64-char hex string suitable for JSON
+        # and UI boundaries.
+        #
+        # @return [String, nil] hex-encoded transaction ID (display order)
+        def dtxid
+          wtxid&.reverse&.unpack1('H*')
+        end
       end
 
       # @return [Integer] BEEF version constant
@@ -101,17 +105,18 @@ module BSV
       # @return [String, nil] 32-byte wire-order subject txid (Atomic BEEF only)
       attr_reader :subject_wtxid
 
-      # Display-order subject txid (Atomic BEEF only).
+      # Display-order subject txid as binary bytes (Atomic BEEF only).
       # @return [String, nil] 32-byte display-order txid, or nil
       def subject_txid
         @subject_wtxid&.reverse
       end
 
-      # Display-order subject txid (alias for {#subject_txid}).
+      # Display-order subject txid as a hex string (Atomic BEEF only).
       #
-      # Mirrors the wallet gem's +DisplayTxid+ pattern.
-      # @return [String, nil] 32-byte display-order txid, or nil
-      alias subject_dtxid subject_txid
+      # @return [String, nil] hex-encoded display-order txid, or nil
+      def subject_dtxid
+        @subject_wtxid&.reverse&.unpack1('H*')
+      end
 
       # @param version [Integer] BEEF version constant (default: BEEF_V1, matching to_binary's
       #   default for ARC compatibility; from_binary overwrites this with the parsed version)

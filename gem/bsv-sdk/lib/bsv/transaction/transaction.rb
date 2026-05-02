@@ -415,17 +415,17 @@ module BSV
         txid.unpack1('H*')
       end
 
-      # Display-order transaction ID (alias for {#txid}).
+      # Display-order transaction ID as a hex string.
       #
-      # Mirrors the wallet gem's +DisplayTxid+ pattern. Use this alias in contexts
-      # where it is important to make the byte-order intent explicit.
+      # Mirrors the wallet gem's +DisplayTxid+ pattern. +dtxid+ always returns
+      # a 64-char hex string suitable for JSON and UI boundaries.
       #
-      # @return [String] 32-byte transaction ID in display byte order
-      alias dtxid txid
+      # @return [String] hex-encoded transaction ID (display order)
+      alias dtxid txid_hex
 
-      # Display-order transaction ID as a hex string (alias for {#txid_hex}).
+      # Display-order transaction ID as a hex string (alias for {#dtxid}).
       #
-      # @return [String] hex-encoded transaction ID
+      # @return [String] hex-encoded transaction ID (display order)
       alias dtxid_hex txid_hex
 
       # --- Sighash (BIP-143 with FORKID) ---

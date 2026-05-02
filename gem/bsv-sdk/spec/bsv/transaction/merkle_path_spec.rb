@@ -290,8 +290,8 @@ RSpec.describe BSV::Transaction::MerklePath do
       expect(compound_txids).not_to include(upper_target_hash)
     end
 
-    it 'raises when txid_hashes is empty' do
-      expect { mp.extract([]) }.to raise_error(ArgumentError, /at least one txid/)
+    it 'raises when wtxid_hashes is empty' do
+      expect { mp.extract([]) }.to raise_error(ArgumentError, /at least one wtxid/)
     end
 
     it 'raises when a requested txid is not in the source path' do

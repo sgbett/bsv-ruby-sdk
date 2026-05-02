@@ -255,7 +255,7 @@ module BSV
         indexed = build_indexed_path
 
         tx_leaf = @path[0].find { |l| l.hash == wtxid }
-        raise ArgumentError, 'the BUMP does not contain the txid' unless tx_leaf
+        raise ArgumentError, 'the BUMP does not contain the given wtxid' unless tx_leaf
 
         working = tx_leaf.hash
         index = tx_leaf.offset
@@ -460,15 +460,15 @@ module BSV
       #   txid is not present in the source path's level 0, or the
       #   extracted path's root does not match the source root
       def extract(wtxid_hashes)
-        raise ArgumentError, 'at least one txid must be provided to extract' if wtxid_hashes.empty?
+        raise ArgumentError, 'at least one wtxid must be provided to extract' if wtxid_hashes.empty?
 
         original_root = compute_root
         indexed = build_indexed_path
 
         # Build a level-0 hash → offset lookup
-        txid_to_offset = {}
+        wtxid_to_offset = {}
         @path[0].each do |leaf|
-          txid_to_offset[leaf.hash] = leaf.offset if leaf.hash
+          wtxid_to_offset[leaf.hash] = leaf.offset if leaf.hash
         end
 
         max_offset = @path[0].map(&:offset).max || 0
@@ -476,15 +476,15 @@ module BSV
 
         needed = Array.new(tree_height) { {} }
 
-        wtxid_hashes.each do |txid|
-          tx_offset = txid_to_offset[txid]
+        wtxid_hashes.each do |wtxid_hash|
+          tx_offset = wtxid_to_offset[wtxid_hash]
           if tx_offset.nil?
             raise ArgumentError,
-                  "transaction ID #{txid.reverse.unpack1('H*')} not found in the Merkle Path"
+                  "wtxid #{wtxid_hash.reverse.unpack1('H*')} not found in the Merkle Path"
           end
 
-          # Level 0: the txid leaf itself + its tree sibling
-          needed[0][tx_offset] = PathElement.new(offset: tx_offset, hash: txid, txid: true)
+          # Level 0: the transaction leaf itself + its tree sibling
+          needed[0][tx_offset] = PathElement.new(offset: tx_offset, hash: wtxid_hash, txid: true)
           sib0_offset = tx_offset ^ 1
           unless needed[0].key?(sib0_offset)
             sib = offset_leaf(indexed, 0, sib0_offset)
