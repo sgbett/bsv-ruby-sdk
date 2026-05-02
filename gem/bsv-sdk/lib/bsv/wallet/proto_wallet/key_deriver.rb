@@ -45,6 +45,7 @@ module BSV
           Validators.validate_protocol_id!(protocol_id)
           Validators.validate_key_id!(key_id)
           invoice = compute_invoice_number(protocol_id, key_id)
+          BSV.logger&.debug { "[KeyDeriver] derive_public_key: invoice=#{invoice.inspect} for_self=#{for_self}" }
           counterparty_pub = resolve_counterparty(counterparty)
 
           if for_self
@@ -64,6 +65,7 @@ module BSV
           Validators.validate_protocol_id!(protocol_id)
           Validators.validate_key_id!(key_id)
           invoice = compute_invoice_number(protocol_id, key_id)
+          BSV.logger&.debug { "[KeyDeriver] derive_private_key: invoice=#{invoice.inspect}" }
           counterparty_pub = resolve_counterparty(counterparty)
           @root_key.derive_child(counterparty_pub, invoice)
         end

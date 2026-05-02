@@ -89,10 +89,12 @@ module BSV
 
       def execute
         scripts = [@unlock_script, @lock_script]
+        script_names = %w[unlock_script lock_script]
 
         scripts.each_with_index do |script, script_idx|
           @current_script = script
           chunks = script.chunks
+          BSV.logger&.debug { "[Interpreter] === #{script_names[script_idx]} (#{chunks.length} chunks) ===" }
 
           chunks.each_with_index do |chunk, chunk_idx|
             @current_chunk_idx = chunk_idx
@@ -115,6 +117,7 @@ module BSV
         end
 
         check_final_stack
+        BSV.logger&.debug { "[Interpreter] final stack: #{@dstack.length} items -> success" }
         true
       end
 
@@ -156,6 +159,10 @@ module BSV
           return
         end
 
+        BSV.logger&.debug do
+          name = Opcodes.name_for(opcode) || format('0x%02x', opcode)
+          "[Interpreter]   #{name} (stack: #{@dstack.length})"
+        end
         dispatch_opcode(opcode, chunk)
       end
 

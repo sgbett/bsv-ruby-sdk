@@ -127,6 +127,7 @@ module BSV
                            counterparty: nil, privileged: false, privileged_reason: nil,
                            seek_permission: true, originator: nil)
         counterparty ||= 'anyone'
+        BSV.logger&.debug { "[ProtoWallet] create_signature: protocol=#{protocol_id} key_id=#{key_id.inspect} counterparty=#{counterparty}" }
         priv_key = @key_deriver.derive_private_key(protocol_id, key_id, counterparty)
 
         hash = if hash_to_directly_sign
@@ -156,6 +157,10 @@ module BSV
                            privileged: false, privileged_reason: nil,
                            seek_permission: true, originator: nil)
         counterparty ||= 'self'
+        BSV.logger&.debug do
+          "[ProtoWallet] verify_signature: protocol=#{protocol_id} key_id=#{key_id.inspect} " \
+            "counterparty=#{counterparty} for_self=#{for_self}"
+        end
 
         pub_key = @key_deriver.derive_public_key(
           protocol_id, key_id, counterparty, for_self: for_self

@@ -138,7 +138,8 @@ module BSV
         # lacks source_satoshis / source_locking_script.
         def ef_hex_with_fallback(tx)
           tx.to_ef_hex
-        rescue ArgumentError
+        rescue ArgumentError => e
+          BSV.logger&.debug { "[ARC] EF serialisation failed: #{e.message} — falling back to raw hex" }
           tx.to_hex
         end
 
