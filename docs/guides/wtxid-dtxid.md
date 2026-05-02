@@ -126,6 +126,17 @@ If you're writing code that touches transaction IDs, the decision is simple:
 
 There is no third case. If you find yourself reaching for `txid` without either prefix, stop and determine which of the two you actually need.
 
+## Runtime validation
+
+Because `wtxid` and `dtxid` have distinct physical formats — 32-byte binary vs 64-character hex — the SDK validates at every entry point. Pass a hex string where binary is expected and you get an immediate `ArgumentError` with a diagnostic message:
+
+```
+ArgumentError: expected 32-byte wire-order wtxid for prev_wtxid,
+got 64-byte string (looks like a hex txid — use wtxid_from_hex to convert)
+```
+
+This is only possible because the naming convention enforces a consistent type split. When everything was called `txid`, there was no way to know what format a parameter expected without reading the implementation. With `wtxid` and `dtxid`, the format is encoded in the name — and the SDK enforces it.
+
 ## BRC-74 note
 
 `MerklePath::PathElement` has a `txid` boolean attribute. This is **not** a transaction ID value — it's a BRC-74 spec field that flags whether a given leaf in the merkle path is a transaction (as opposed to a provided hash). The name comes from the specification and is not subject to the wtxid/dtxid convention.
