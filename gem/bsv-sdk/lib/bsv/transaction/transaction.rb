@@ -362,11 +362,11 @@ module BSV
       # full ancestry wired, including late-bound BUMP attachment.
       #
       # For Atomic BEEFs (BRC-95), the subject transaction is identified by
-      # the embedded subject_txid field. For plain BEEFs, the last transaction
-      # with a raw tx entry is used as the subject.
+      # the embedded +subject_wtxid+ field. For plain BEEFs, the last
+      # transaction with a raw tx entry is used as the subject.
       #
       # Uses +find_atomic_transaction+ so that FORMAT_RAW_TX ancestors whose
-      # txid appears as a leaf in a separately-stored BUMP get their
+      # wtxid appears as a leaf in a separately-stored BUMP get their
       # +merkle_path+ wired correctly — a gap not covered by the initial
       # +wire_source_transactions+ pass in +Beef.from_binary+.
       #
@@ -376,7 +376,7 @@ module BSV
       def self.from_beef(data)
         beef = Beef.from_binary(data)
         subject_wtxid = beef.subject_wtxid ||
-                        beef.transactions.reverse.find(&:transaction)&.transaction&.wtxid
+                        beef.transactions.reverse.find(&:transaction)&.wtxid
         return nil unless subject_wtxid
 
         beef.find_atomic_transaction(subject_wtxid)
@@ -405,21 +405,11 @@ module BSV
         id
       end
 
-      # Display-order transaction ID (reversed from the natural SHA-256d hash).
-      #
-      # This is the conventional human-readable representation used in block
-      # explorers, wallets, and all user-facing contexts.
-      #
-      # @return [String] 32-byte transaction ID in display byte order
-      def txid
-        wtxid.reverse
-      end
-
       # The transaction ID as a hex string (display byte order).
       #
-      # @return [String] hex-encoded transaction ID
+      # @return [String] 64-char hex-encoded transaction ID (display order)
       def txid_hex
-        txid.unpack1('H*')
+        wtxid.reverse.unpack1('H*')
       end
 
       # Display-order transaction ID as a hex string.

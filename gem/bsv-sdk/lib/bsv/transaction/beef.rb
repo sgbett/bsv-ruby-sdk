@@ -76,12 +76,6 @@ module BSV
           end
         end
 
-        # Display-order transaction ID as binary bytes.
-        # @return [String, nil] 32-byte display-order txid
-        def txid
-          wtxid&.reverse
-        end
-
         # Display-order transaction ID as a hex string.
         #
         # +dtxid+ always returns a 64-char hex string suitable for JSON
@@ -104,12 +98,6 @@ module BSV
 
       # @return [String, nil] 32-byte wire-order subject txid (Atomic BEEF only)
       attr_reader :subject_wtxid
-
-      # Display-order subject txid as binary bytes (Atomic BEEF only).
-      # @return [String, nil] 32-byte display-order txid, or nil
-      def subject_txid
-        @subject_wtxid&.reverse
-      end
 
       # Display-order subject txid as a hex string (Atomic BEEF only).
       #
@@ -372,7 +360,7 @@ module BSV
         level0_internal = level0_leaves.map(&:hash).compact.to_set
         @transactions.each_with_index do |bt, i|
           next unless bt.format == FORMAT_RAW_TX && bt.transaction
-          next unless level0_internal.include?(bt.transaction.wtxid)
+          next unless level0_internal.include?(bt.wtxid)
 
           bt.transaction.merkle_path ||= bump
           @transactions[i] = BeefTx.new(
@@ -554,7 +542,7 @@ module BSV
 
           # The txid must appear as a leaf in the BUMP and compute a valid root
           begin
-            bump.compute_root(bt.transaction.wtxid)
+            bump.compute_root(bt.wtxid)
           rescue ArgumentError
             return false
           end
@@ -765,7 +753,7 @@ module BSV
               end
             end
 
-            tx_map[beef_tx.transaction.wtxid] = beef_tx.transaction
+            tx_map[beef_tx.wtxid] = beef_tx.transaction
           end
         end
       end

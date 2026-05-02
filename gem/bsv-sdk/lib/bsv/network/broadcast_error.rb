@@ -8,6 +8,7 @@ module BSV
 
       def initialize(message, status_code: nil, txid: nil, arc_status: nil)
         @status_code = status_code
+        BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'ARC error txid') if txid
         @txid = txid
         @arc_status = arc_status
         super(message)

@@ -217,6 +217,7 @@ module BSV
       def initialize(definition_data:, txid:, output_index:, locking_script:, beef:, satoshis: 1)
         @definition_data = definition_data
         @definition_type = definition_data.definition_type
+        BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'registry definition txid')
         @txid            = txid
         @output_index    = output_index
         @locking_script  = locking_script

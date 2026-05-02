@@ -6,6 +6,7 @@ module BSV
       attr_reader :hash, :txid
 
       def initialize(hash:, txid:)
+        BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'attest response txid')
         @hash = hash
         @txid = txid
       end

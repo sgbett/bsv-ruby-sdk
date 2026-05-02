@@ -52,6 +52,7 @@ module BSV
       end
 
       def verify(data, txid, provider: nil)
+        BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'verify txid')
         p = provider || configuration.provider
         raise ArgumentError, 'provider is required' unless p
 
