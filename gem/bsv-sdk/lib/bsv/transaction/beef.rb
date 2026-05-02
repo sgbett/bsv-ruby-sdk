@@ -36,44 +36,22 @@ module BSV
 
       # @!endgroup
 
-      # A single entry in a BEEF bundle, wrapping a transaction with its format metadata.
+      # Abstract base class for a single entry in a BEEF bundle.
+      #
+      # Subclasses represent the three wire formats:
+      # - {RawTxEntry}    — raw transaction without a merkle proof
+      # - {ProvenTxEntry} — raw transaction with an associated BUMP index
+      # - {TxidOnlyEntry} — transaction ID only (no raw data)
+      #
+      # @abstract Subclass and implement {#wtxid} and {#format_flag}.
       class BeefTx
-        # @return [Integer] format flag (FORMAT_RAW_TX, FORMAT_RAW_TX_AND_BUMP, or FORMAT_TXID_ONLY)
-        attr_reader :format
-
-        # @return [Transaction, nil] the transaction (nil for TXID-only entries)
-        attr_reader :transaction
-
-        # @return [String, nil] 32-byte wire-order wtxid for TXID-only entries
-        attr_reader :known_wtxid
-
-        # @return [Integer, nil] index into the BEEF bumps array
-        attr_reader :bump_index
-
-        # @param format [Integer] format flag
-        # @param transaction [Transaction, nil] the transaction
-        # @param known_wtxid [String, nil] 32-byte wire-order wtxid for TXID-only entries
-        # @param bump_index [Integer, nil] index into the bumps array
-        # @raise [ArgumentError] if format is FORMAT_RAW_TX_AND_BUMP without a bump_index
-        def initialize(format:, transaction: nil, known_wtxid: nil, bump_index: nil)
-          raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if format == FORMAT_RAW_TX_AND_BUMP && bump_index.nil?
-
-          BSV::Primitives::Hex.validate_wtxid!(known_wtxid, name: 'known_wtxid') if known_wtxid
-          @format = format
-          @transaction = transaction
-          @known_wtxid = known_wtxid
-          @bump_index = bump_index
-        end
+        def initialize; end
 
         # Wire-order transaction ID.
         # @return [String, nil] 32-byte wtxid
+        # @abstract
         def wtxid
-          case @format
-          when FORMAT_TXID_ONLY
-            @known_wtxid
-          else
-            @transaction&.wtxid
-          end
+          raise NotImplementedError, "#{self.class}#wtxid is not implemented"
         end
 
         # Display-order transaction ID as a hex string.
@@ -84,6 +62,144 @@ module BSV
         # @return [String, nil] hex-encoded transaction ID (display order)
         def dtxid
           wtxid&.reverse&.unpack1('H*')
+        end
+
+        # The raw transaction, if available.
+        # @return [Transaction, nil] nil by default; overridden by {RawTxEntry} and {ProvenTxEntry}
+        def transaction
+          nil
+        end
+
+        # Index into the BEEF bumps array, if applicable.
+        # @return [Integer, nil] nil by default; overridden by {ProvenTxEntry}
+        def bump_index
+          nil
+        end
+
+        # Wire-order wtxid for TXID-only entries.
+        # @return [String, nil] nil by default; overridden by {TxidOnlyEntry}
+        def known_wtxid
+          nil
+        end
+
+        # Wire-protocol format integer for serialisation.
+        # @return [Integer]
+        # @abstract
+        def format_flag
+          raise NotImplementedError, "#{self.class}#format_flag is not implemented"
+        end
+
+        # Returns the wire-protocol format integer.
+        #
+        # Kept as a backward-compatible alias for {#format_flag} whilst call
+        # sites in specs are migrated (tasks #694–#697). Delegates to
+        # {#format_flag} on each subclass. Removed in task #698.
+        #
+        # @deprecated Use {#format_flag} or +is_a?+ type checks instead.
+        def format
+          format_flag
+        end
+
+        # Temporary factory method — dispatches to the correct subclass based on
+        # the +format:+ keyword argument.
+        #
+        # Kept for backward compatibility whilst call sites in beef.rb, transaction.rb,
+        # and specs are migrated to use subclass constructors directly (tasks #694–#697).
+        # This method will be removed in task #698.
+        #
+        # When called on a subclass (e.g. +RawTxEntry.new+), the guard delegates
+        # to +Class#new+ so subclass constructors work normally without recursion.
+        #
+        # @deprecated Use {RawTxEntry}, {ProvenTxEntry}, or {TxidOnlyEntry} directly.
+        def self.new(format: nil, transaction: nil, known_wtxid: nil, bump_index: nil)
+          # Only act as a factory when called directly on BeefTx; subclasses
+          # bypass this override and use the normal Class#new → initialize path.
+          return super unless self == BeefTx
+
+          case format
+          when FORMAT_TXID_ONLY
+            TxidOnlyEntry.allocate.tap { |obj| obj.send(:initialize, known_wtxid: known_wtxid) }
+          when FORMAT_RAW_TX_AND_BUMP
+            ProvenTxEntry.allocate.tap { |obj| obj.send(:initialize, transaction: transaction, bump_index: bump_index) }
+          else
+            RawTxEntry.allocate.tap { |obj| obj.send(:initialize, transaction: transaction) }
+          end
+        end
+      end
+
+      # A BEEF entry containing a raw transaction without a merkle proof.
+      class RawTxEntry < BeefTx
+        # @return [Transaction] the transaction
+        attr_reader :transaction
+
+        # @param transaction [Transaction] the transaction
+        def initialize(transaction:)
+          super()
+          @transaction = transaction
+        end
+
+        # @return [String, nil] wire-order wtxid delegated to the transaction
+        def wtxid
+          @transaction&.wtxid
+        end
+
+        # @return [Integer] FORMAT_RAW_TX wire-protocol flag
+        def format_flag
+          FORMAT_RAW_TX
+        end
+      end
+
+      # A BEEF entry containing a raw transaction with an associated BUMP index.
+      class ProvenTxEntry < BeefTx
+        # @return [Transaction] the transaction
+        attr_reader :transaction
+
+        # @return [Integer] index into the BEEF bumps array
+        attr_reader :bump_index
+
+        # @param transaction [Transaction] the transaction
+        # @param bump_index [Integer] index into the bumps array
+        # @raise [ArgumentError] if bump_index is nil
+        def initialize(transaction:, bump_index:)
+          raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if bump_index.nil?
+
+          super()
+          @transaction = transaction
+          @bump_index = bump_index
+        end
+
+        # @return [String, nil] wire-order wtxid delegated to the transaction
+        def wtxid
+          @transaction&.wtxid
+        end
+
+        # @return [Integer] FORMAT_RAW_TX_AND_BUMP wire-protocol flag
+        def format_flag
+          FORMAT_RAW_TX_AND_BUMP
+        end
+      end
+
+      # A BEEF entry containing only a transaction ID (no raw data).
+      class TxidOnlyEntry < BeefTx
+        # @return [String] 32-byte wire-order wtxid
+        attr_reader :known_wtxid
+
+        # @param known_wtxid [String] 32-byte wire-order wtxid
+        # @raise [ArgumentError] if known_wtxid is invalid
+        def initialize(known_wtxid:)
+          BSV::Primitives::Hex.validate_wtxid!(known_wtxid, name: 'known_wtxid')
+          super()
+          @known_wtxid = known_wtxid
+        end
+
+        # @return [String] the stored wire-order wtxid
+        def wtxid
+          @known_wtxid
+        end
+
+        # @return [Integer] FORMAT_TXID_ONLY wire-protocol flag
+        def format_flag
+          FORMAT_TXID_ONLY
         end
       end
 
@@ -202,7 +318,7 @@ module BSV
       #   any FORMAT_TXID_ONLY entries (V1 / BRC-62 has no TXID-only format;
       #   pass +version: BEEF_V2+ to serialise such bundles)
       def to_binary(version: BEEF_V1)
-        if version == BEEF_V1 && @transactions.any? { |bt| bt.format == FORMAT_TXID_ONLY }
+        if version == BEEF_V1 && @transactions.any?(TxidOnlyEntry)
           raise ArgumentError,
                 'BEEF V1 (BRC-62) does not support FORMAT_TXID_ONLY entries; pass version: BEEF_V2 to serialise this bundle'
         end
@@ -277,7 +393,7 @@ module BSV
       def find_bump(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         # Check transaction-table entries first (fast path)
-        bt = @transactions.find { |entry| entry.wtxid == wtxid && entry.format == FORMAT_RAW_TX_AND_BUMP }
+        bt = @transactions.find { |entry| entry.wtxid == wtxid && entry.is_a?(ProvenTxEntry) }
         return bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index]) if bt
 
         # F5.8: also scan @bumps directly for a path containing the wtxid leaf
@@ -359,7 +475,7 @@ module BSV
         level0_leaves = bump.path[0] || []
         level0_internal = level0_leaves.map(&:hash).compact.to_set
         @transactions.each_with_index do |bt, i|
-          next unless bt.format == FORMAT_RAW_TX && bt.transaction
+          next unless bt.is_a?(RawTxEntry) && bt.transaction
           next unless level0_internal.include?(bt.wtxid)
 
           bt.transaction.merkle_path ||= bump
@@ -467,15 +583,15 @@ module BSV
         # Merge transactions with remapped BUMP indices, constructing new
         # BeefTx instances rather than sharing source references (F5.9).
         other.transactions.each do |beef_tx|
-          case beef_tx.format
-          when FORMAT_TXID_ONLY
+          case beef_tx
+          when TxidOnlyEntry
             next if @transactions.any? { |bt| bt.wtxid == beef_tx.known_wtxid }
 
             @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: beef_tx.known_wtxid)
           else
             next if @transactions.any? { |bt| bt.wtxid == beef_tx.wtxid }
 
-            if beef_tx.format == FORMAT_RAW_TX_AND_BUMP && beef_tx.bump_index
+            if beef_tx.is_a?(ProvenTxEntry) && beef_tx.bump_index
               new_idx = bump_remap[beef_tx.bump_index]
               if new_idx.nil?
                 raise ArgumentError,
@@ -529,12 +645,12 @@ module BSV
       # @return [Boolean] true if structurally valid
       def valid?(allow_txid_only: false)
         # TXID-only entries are invalid unless explicitly allowed
-        has_txid_only = @transactions.any? { |bt| bt.format == FORMAT_TXID_ONLY }
+        has_txid_only = @transactions.any?(TxidOnlyEntry)
         return false if has_txid_only && !allow_txid_only
 
         # F5.4: verify BUMP linkage and computed root for each proven transaction
         @transactions.each do |bt|
-          next unless bt.format == FORMAT_RAW_TX_AND_BUMP
+          next unless bt.is_a?(ProvenTxEntry)
 
           # Must have a BUMP
           bump = bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index])
@@ -778,33 +894,28 @@ module BSV
         effective_bump_idx = bump_index
         effective_bump_idx = merge_bump(tx.merkle_path) if effective_bump_idx.nil? && tx&.merkle_path
 
-        case existing.format
-        when FORMAT_TXID_ONLY
+        case existing
+        when TxidOnlyEntry
           if effective_bump_idx
             BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: effective_bump_idx)
           elsif tx
             BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
           end
-        when FORMAT_RAW_TX
+        when RawTxEntry
           if effective_bump_idx
             tx_to_use = tx || existing.transaction
             tx_to_use.merkle_path ||= @bumps[effective_bump_idx]
             BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx_to_use, bump_index: effective_bump_idx)
           end
         end
-        # FORMAT_RAW_TX_AND_BUMP is already the strongest — no upgrade needed
+        # ProvenTxEntry is already the strongest — no upgrade needed
       end
 
       # Build a set of wire-order wtxids that are "known" (proven or txid-only).
       def build_known_wtxids(allow_txid_only)
         known = Set.new
         @transactions.each do |bt|
-          case bt.format
-          when FORMAT_RAW_TX_AND_BUMP
-            known.add(bt.wtxid)
-          when FORMAT_TXID_ONLY
-            known.add(bt.wtxid) if allow_txid_only
-          end
+          known.add(bt.wtxid) if bt.is_a?(ProvenTxEntry) || (bt.is_a?(TxidOnlyEntry) && allow_txid_only)
         end
         known
       end
@@ -834,7 +945,7 @@ module BSV
       # V1 (BRC-62): raw_tx + has_bump(byte) [+ bump_index(varint)]
       def write_v1_tx(buf, beef_tx)
         buf << beef_tx.transaction.to_binary
-        if beef_tx.format == FORMAT_RAW_TX_AND_BUMP
+        if beef_tx.is_a?(ProvenTxEntry)
           buf << [1].pack('C')
           buf << VarInt.encode(beef_tx.bump_index)
         else
@@ -844,12 +955,12 @@ module BSV
 
       # V2 (BRC-96): format_byte [+ bump_index(varint)] + raw_tx
       def write_v2_tx(buf, beef_tx)
-        case beef_tx.format
-        when FORMAT_TXID_ONLY
+        case beef_tx
+        when TxidOnlyEntry
           buf << [FORMAT_TXID_ONLY].pack('C')
           # known_wtxid is already wire (internal) byte order.
           buf << beef_tx.known_wtxid
-        when FORMAT_RAW_TX_AND_BUMP
+        when ProvenTxEntry
           buf << [FORMAT_RAW_TX_AND_BUMP].pack('C')
           buf << VarInt.encode(beef_tx.bump_index)
           buf << beef_tx.transaction.to_binary
