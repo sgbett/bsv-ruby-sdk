@@ -337,13 +337,12 @@ module BSV
 
         ancestors.each do |tx|
           entry = if tx.merkle_path
-                    Beef::BeefTx.new(
-                      format: Beef::FORMAT_RAW_TX_AND_BUMP,
+                    Beef::ProvenTxEntry.new(
                       transaction: tx,
                       bump_index: bump_index_by_height.fetch(tx.merkle_path.block_height)
                     )
                   else
-                    Beef::BeefTx.new(format: Beef::FORMAT_RAW_TX, transaction: tx)
+                    Beef::RawTxEntry.new(transaction: tx)
                   end
           beef.transactions << entry
         end

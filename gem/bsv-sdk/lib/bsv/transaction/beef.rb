@@ -111,10 +111,15 @@ module BSV
         # to +Class#new+ so subclass constructors work normally without recursion.
         #
         # @deprecated Use {RawTxEntry}, {ProvenTxEntry}, or {TxidOnlyEntry} directly.
-        def self.new(format: nil, transaction: nil, known_wtxid: nil, bump_index: nil)
+        def self.new(**kwargs)
           # Only act as a factory when called directly on BeefTx; subclasses
           # bypass this override and use the normal Class#new → initialize path.
           return super unless self == BeefTx
+
+          format = kwargs[:format]
+          transaction = kwargs[:transaction]
+          known_wtxid = kwargs[:known_wtxid]
+          bump_index = kwargs[:bump_index]
 
           case format
           when FORMAT_TXID_ONLY
@@ -479,11 +484,7 @@ module BSV
           next unless level0_internal.include?(bt.wtxid)
 
           bt.transaction.merkle_path ||= bump
-          @transactions[i] = BeefTx.new(
-            format: FORMAT_RAW_TX_AND_BUMP,
-            transaction: bt.transaction,
-            bump_index: idx
-          )
+          @transactions[i] = ProvenTxEntry.new(transaction: bt.transaction, bump_index: idx)
         end
 
         idx
@@ -518,9 +519,9 @@ module BSV
         # Merge this transaction's BUMP if it has one
         entry = if tx.merkle_path
                   bump_idx = merge_bump(tx.merkle_path)
-                  BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_idx)
+                  ProvenTxEntry.new(transaction: tx, bump_index: bump_idx)
                 else
-                  BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+                  RawTxEntry.new(transaction: tx)
                 end
         @transactions << entry
         entry
@@ -555,9 +556,9 @@ module BSV
         end
 
         entry = if bump_index
-                  BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index)
+                  ProvenTxEntry.new(transaction: tx, bump_index: bump_index)
                 else
-                  BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+                  RawTxEntry.new(transaction: tx)
                 end
         @transactions << entry
         entry
@@ -587,7 +588,7 @@ module BSV
           when TxidOnlyEntry
             next if @transactions.any? { |bt| bt.wtxid == beef_tx.known_wtxid }
 
-            @transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: beef_tx.known_wtxid)
+            @transactions << TxidOnlyEntry.new(known_wtxid: beef_tx.known_wtxid)
           else
             next if @transactions.any? { |bt| bt.wtxid == beef_tx.wtxid }
 
@@ -603,13 +604,9 @@ module BSV
               # so mutations to the merged bundle don't affect the source.
               tx = beef_tx.transaction.dup
               tx.merkle_path = @bumps[new_idx]
-              @transactions << BeefTx.new(
-                format: FORMAT_RAW_TX_AND_BUMP,
-                transaction: tx,
-                bump_index: new_idx
-              )
+              @transactions << ProvenTxEntry.new(transaction: tx, bump_index: new_idx)
             else
-              @transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: beef_tx.transaction.dup)
+              @transactions << RawTxEntry.new(transaction: beef_tx.transaction.dup)
             end
           end
         end
@@ -626,7 +623,7 @@ module BSV
         idx = @transactions.index { |bt| bt.wtxid == wtxid }
         return unless idx
 
-        @transactions[idx] = BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: wtxid)
+        @transactions[idx] = TxidOnlyEntry.new(known_wtxid: wtxid)
       end
 
       # --- Validation ---
@@ -805,20 +802,18 @@ module BSV
 
               known_wtxid = data.byteslice(offset, 32)
               offset += 32
-              beef.transactions << BeefTx.new(format: FORMAT_TXID_ONLY, known_wtxid: known_wtxid)
+              beef.transactions << TxidOnlyEntry.new(known_wtxid: known_wtxid)
             when FORMAT_RAW_TX_AND_BUMP
               bump_index, vi_size = VarInt.decode(data, offset)
               offset += vi_size
               tx, consumed = Transaction.from_binary_with_offset(data, offset)
               offset += consumed
               tx.merkle_path = beef.bumps[bump_index] if bump_index < beef.bumps.length
-              beef.transactions << BeefTx.new(
-                format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index
-              )
+              beef.transactions << ProvenTxEntry.new(transaction: tx, bump_index: bump_index)
             when FORMAT_RAW_TX
               tx, consumed = Transaction.from_binary_with_offset(data, offset)
               offset += consumed
-              beef.transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+              beef.transactions << RawTxEntry.new(transaction: tx)
             end
           end
 
@@ -837,14 +832,12 @@ module BSV
             offset += 1
 
             if has_bump.zero?
-              beef.transactions << BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+              beef.transactions << RawTxEntry.new(transaction: tx)
             else
               bump_index, vi_size = VarInt.decode(data, offset)
               offset += vi_size
               tx.merkle_path = beef.bumps[bump_index] if bump_index < beef.bumps.length
-              beef.transactions << BeefTx.new(
-                format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: bump_index
-              )
+              beef.transactions << ProvenTxEntry.new(transaction: tx, bump_index: bump_index)
             end
           end
 
@@ -897,15 +890,15 @@ module BSV
         case existing
         when TxidOnlyEntry
           if effective_bump_idx
-            BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: effective_bump_idx)
+            ProvenTxEntry.new(transaction: tx, bump_index: effective_bump_idx)
           elsif tx
-            BeefTx.new(format: FORMAT_RAW_TX, transaction: tx)
+            RawTxEntry.new(transaction: tx)
           end
         when RawTxEntry
           if effective_bump_idx
             tx_to_use = tx || existing.transaction
             tx_to_use.merkle_path ||= @bumps[effective_bump_idx]
-            BeefTx.new(format: FORMAT_RAW_TX_AND_BUMP, transaction: tx_to_use, bump_index: effective_bump_idx)
+            ProvenTxEntry.new(transaction: tx_to_use, bump_index: effective_bump_idx)
           end
         end
         # ProvenTxEntry is already the strongest — no upgrade needed
