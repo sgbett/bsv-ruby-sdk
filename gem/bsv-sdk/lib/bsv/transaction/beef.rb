@@ -88,48 +88,6 @@ module BSV
         def format_flag
           raise NotImplementedError, "#{self.class}#format_flag is not implemented"
         end
-
-        # Returns the wire-protocol format integer.
-        #
-        # Kept as a backward-compatible alias for {#format_flag} whilst call
-        # sites in specs are migrated (tasks #694–#697). Delegates to
-        # {#format_flag} on each subclass. Removed in task #698.
-        #
-        # @deprecated Use {#format_flag} or +is_a?+ type checks instead.
-        def format
-          format_flag
-        end
-
-        # Temporary factory method — dispatches to the correct subclass based on
-        # the +format:+ keyword argument.
-        #
-        # Kept for backward compatibility whilst call sites in beef.rb, transaction.rb,
-        # and specs are migrated to use subclass constructors directly (tasks #694–#697).
-        # This method will be removed in task #698.
-        #
-        # When called on a subclass (e.g. +RawTxEntry.new+), the guard delegates
-        # to +Class#new+ so subclass constructors work normally without recursion.
-        #
-        # @deprecated Use {RawTxEntry}, {ProvenTxEntry}, or {TxidOnlyEntry} directly.
-        def self.new(**kwargs)
-          # Only act as a factory when called directly on BeefTx; subclasses
-          # bypass this override and use the normal Class#new → initialize path.
-          return super unless self == BeefTx
-
-          format = kwargs[:format]
-          transaction = kwargs[:transaction]
-          known_wtxid = kwargs[:known_wtxid]
-          bump_index = kwargs[:bump_index]
-
-          case format
-          when FORMAT_TXID_ONLY
-            TxidOnlyEntry.allocate.tap { |obj| obj.send(:initialize, known_wtxid: known_wtxid) }
-          when FORMAT_RAW_TX_AND_BUMP
-            ProvenTxEntry.allocate.tap { |obj| obj.send(:initialize, transaction: transaction, bump_index: bump_index) }
-          else
-            RawTxEntry.allocate.tap { |obj| obj.send(:initialize, transaction: transaction) }
-          end
-        end
       end
 
       # A BEEF entry containing a raw transaction without a merkle proof.
