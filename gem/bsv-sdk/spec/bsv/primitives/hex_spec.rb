@@ -59,6 +59,34 @@ RSpec.describe BSV::Primitives::Hex do
     end
   end
 
+  describe '.validate_hash32!' do
+    it 'returns the input for a valid 32-byte string' do
+      hash = "\x00".b * 32
+      expect(described_class.validate_hash32!(hash)).to equal(hash)
+    end
+
+    it 'raises on nil' do
+      expect { described_class.validate_hash32!(nil) }.to raise_error(ArgumentError, /expected 32-byte hash/)
+    end
+
+    it 'raises on wrong-length binary' do
+      expect { described_class.validate_hash32!("\x00".b * 16, name: 'test') }
+        .to raise_error(ArgumentError, /expected 32-byte hash for test, got 16-byte/)
+    end
+
+    it 'hints when input looks like hex' do
+      hex64 = 'aa' * 32
+      expect { described_class.validate_hash32!(hex64) }
+        .to raise_error(ArgumentError, /looks like hex/)
+    end
+
+    it 'does not hint for non-hex 64-byte strings' do
+      non_hex = 'zz' * 32
+      expect { described_class.validate_hash32!(non_hex) }
+        .to raise_error(ArgumentError) { |e| expect(e.message).not_to include('looks like hex') }
+    end
+  end
+
   describe '.encode' do
     it 'encodes binary to lowercase hex' do
       expect(described_class.encode("\xDE\xAD\xBE\xEF".b)).to eq('deadbeef')

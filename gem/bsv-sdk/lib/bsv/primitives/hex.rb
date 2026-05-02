@@ -93,6 +93,30 @@ module BSV
         value
       end
 
+      # Validate that +value+ is a 32-byte binary hash.
+      #
+      # General-purpose validator for any 32-byte hash (merkle nodes, roots,
+      # etc.) — not specific to transaction IDs. For txid-specific validation
+      # use {.validate_wtxid!} or {.validate_dtxid_hex!} instead.
+      #
+      # @param value [String] expected 32-byte binary string
+      # @param name [String] label for the error message
+      # @return [String] the input value (pass-through for chaining)
+      # @raise [ArgumentError] if +value+ is not a 32-byte binary string
+      def self.validate_hash32!(value, name: 'hash')
+        unless value.is_a?(String) && value.bytesize == 32
+          hint = if value.is_a?(String) && value.bytesize == 64 && value.match?(HEX_RE)
+                   ' (looks like hex — decode it first)'
+                 else
+                   ''
+                 end
+          size = value.is_a?(String) ? "#{value.bytesize}-byte string" : value.class.to_s
+          raise ArgumentError,
+                "expected 32-byte hash for #{name}, got #{size}#{hint}"
+        end
+        value
+      end
+
       # Validate that +value+ is a 64-character display-order hex transaction ID.
       #
       # @param value [String] expected 64-char hex string

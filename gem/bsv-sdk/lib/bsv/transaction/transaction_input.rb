@@ -42,6 +42,7 @@ module BSV
         @prev_tx_out_index = prev_tx_out_index
         @unlocking_script = unlocking_script
         @sequence = sequence
+        BSV.logger&.debug { "[TransactionInput] prev_wtxid set: #{dtxid_hex}:#{@prev_tx_out_index}" }
       end
 
       # Serialise the input to its binary wire format.
@@ -105,7 +106,9 @@ module BSV
       # @return [String] 32-byte transaction ID in wire byte order
       def self.wtxid_from_hex(hex)
         BSV::Primitives::Hex.validate_dtxid_hex!(hex, name: 'wtxid_from_hex input')
-        [hex].pack('H*').reverse
+        wtxid = [hex].pack('H*').reverse
+        BSV.logger&.debug { "[TransactionInput] wtxid_from_hex: #{hex} -> #{wtxid.bytesize}B wire-order" }
+        wtxid
       end
 
       # Serialise the outpoint (prev_wtxid + output index) as binary.
