@@ -101,9 +101,10 @@ RSpec.describe BSV::Transaction::Beef do
   end
 
   # --- F5.1: TXID_ONLY byte-order consistency ---
-  # BeefTx#txid must return display byte order for ALL format types.
-  # Previously, TXID_ONLY entries stored wire-order bytes, making
-  # find_transaction fail and producing a silent cross-SDK divergence.
+  # BeefTx#wtxid must return wire byte order for ALL format types.
+  # Previously, TXID_ONLY entries stored wire-order bytes but the
+  # lookup path expected display-order, causing find_transaction to
+  # fail and producing a silent cross-SDK divergence.
 
   describe 'TXID_ONLY byte-order consistency (F5.1)' do
     it 'make_txid_only preserves wtxid' do
