@@ -3,5 +3,4 @@
 --output-dir doc
 gem/*/lib/**/*.rb
 -
-CHANGELOG.md
 LICENCE
