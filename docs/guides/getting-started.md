@@ -71,7 +71,7 @@ tx = BSV::Transaction::Transaction.new
 # Add an input (referencing a previous UTXO)
 input = BSV::Transaction::TransactionInput.new(
   prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(
-    'a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458'
+    '5884e5db9de218238671572340b207ee85b628074e7e467096c267266baf77a4'
   ),
   prev_tx_out_index: 0
 )
