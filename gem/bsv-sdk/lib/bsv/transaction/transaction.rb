@@ -396,7 +396,7 @@ module BSV
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
         id = BSV::Primitives::Digest.sha256d(to_binary)
-        BSV.logger&.debug { "[Transaction] wtxid computed: #{id.reverse.unpack1('H*')}" }
+        BSV.logger&.debug { "[Transaction] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
         id
       end
 

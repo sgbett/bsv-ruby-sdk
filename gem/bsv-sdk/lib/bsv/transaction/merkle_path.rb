@@ -253,7 +253,7 @@ module BSV
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid') if wtxid
         BSV.logger&.debug do
           dtxid = wtxid&.reverse&.unpack1('H*')
-          "[MerklePath] compute_root: wtxid=#{dtxid} block_height=#{@block_height} levels=#{@path.length}"
+          "[MerklePath] compute_root: dtxid=#{dtxid} block_height=#{@block_height} levels=#{@path.length}"
         end
         return wtxid if @path.length == 1 && @path[0].length == 1
 
