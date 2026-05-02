@@ -593,8 +593,8 @@ module BSV
       def sort_transactions!
         return self if @transactions.length <= 1
 
-        txid_index = {}
-        @transactions.each_with_index { |bt, i| txid_index[bt.wtxid] = i }
+        wtxid_index = {}
+        @transactions.each_with_index { |bt, i| wtxid_index[bt.wtxid] = i }
 
         # Build adjacency: for each tx, which other txs must come before it?
         in_degree = Array.new(@transactions.length, 0)
@@ -604,7 +604,7 @@ module BSV
           next unless bt.transaction
 
           bt.transaction.inputs.each do |input|
-            dep_idx = txid_index[input.prev_wtxid]
+            dep_idx = wtxid_index[input.prev_wtxid]
             next unless dep_idx
 
             dependents[dep_idx] << i
