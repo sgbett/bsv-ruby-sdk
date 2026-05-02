@@ -362,11 +362,11 @@ module BSV
       # full ancestry wired, including late-bound BUMP attachment.
       #
       # For Atomic BEEFs (BRC-95), the subject transaction is identified by
-      # the embedded subject_txid field. For plain BEEFs, the last transaction
-      # with a raw tx entry is used as the subject.
+      # the embedded +subject_wtxid+ field. For plain BEEFs, the last
+      # transaction with a raw tx entry is used as the subject.
       #
       # Uses +find_atomic_transaction+ so that FORMAT_RAW_TX ancestors whose
-      # txid appears as a leaf in a separately-stored BUMP get their
+      # wtxid appears as a leaf in a separately-stored BUMP get their
       # +merkle_path+ wired correctly — a gap not covered by the initial
       # +wire_source_transactions+ pass in +Beef.from_binary+.
       #
