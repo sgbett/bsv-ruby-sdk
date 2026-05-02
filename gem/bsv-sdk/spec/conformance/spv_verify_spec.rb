@@ -39,7 +39,7 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
     def build_spending_tx(source_tx, output_sats: 90_000)
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: source_tx.txid,
+        prev_tx_id: source_tx.wtxid,
         prev_tx_out_index: 0
       )
       input.source_satoshis = source_tx.outputs[0].satoshis
@@ -125,7 +125,7 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
 
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: source_tx.txid,
+        prev_tx_id: source_tx.wtxid,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -156,7 +156,7 @@ RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/Multiple
       tx = described_class.new
       2.times do
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: source_tx.txid,
+          prev_tx_id: source_tx.wtxid,
           prev_tx_out_index: 0
         )
         input.source_satoshis = source_tx.outputs[0].satoshis
@@ -231,7 +231,7 @@ RSpec.describe BSV::Transaction::FeeModel do
 
       tx = BSV::Transaction::Transaction.new
       spend_input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: source_tx.txid,
+        prev_tx_id: source_tx.wtxid,
         prev_tx_out_index: 0
       )
       spend_input.source_satoshis = 100_000

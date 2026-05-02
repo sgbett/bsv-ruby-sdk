@@ -378,13 +378,13 @@ RSpec.describe BSV::Transaction::Beef do
 
       # Build a child spending both
       child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.txid, prev_tx_out_index: 0)
+      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = ancestor_a
       input_a.source_satoshis = 5000
       input_a.source_locking_script = lock
       child.add_input(input_a)
 
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.txid, prev_tx_out_index: 0)
+      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.wtxid, prev_tx_out_index: 0)
       input_b.source_transaction = ancestor_b
       input_b.source_satoshis = 3000
       input_b.source_locking_script = lock
@@ -483,10 +483,10 @@ RSpec.describe BSV::Transaction::Beef do
       tx_b.merkle_path = path_b
 
       child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_a.txid, prev_tx_out_index: 0)
+      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = tx_a
       child.add_input(input_a)
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_b.txid, prev_tx_out_index: 0)
+      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_b.wtxid, prev_tx_out_index: 0)
       input_b.source_transaction = tx_b
       child.add_input(input_b)
       child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
@@ -637,7 +637,7 @@ RSpec.describe BSV::Transaction::Beef do
         tx_real.merkle_path = contaminated_bump
 
         c = BSV::Transaction::Transaction.new
-        input = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_real.txid, prev_tx_out_index: 0)
+        input = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_real.wtxid, prev_tx_out_index: 0)
         input.source_transaction = tx_real
         c.add_input(input)
         c.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 400, locking_script: lock))
