@@ -165,10 +165,10 @@ module BSV
       #   hash; the caller must look up the height separately)
       # @return [MerklePath] a BRC-74 merkle path equivalent to the TSC proof
       def self.from_tsc(dtxid_hex:, index:, nodes:, block_height:)
-        txid_bytes = [dtxid_hex].pack('H*').reverse
+        wtxid = [dtxid_hex].pack('H*').reverse
 
         # Level 0 always contains the txid leaf.
-        level0 = [PathElement.new(offset: index, hash: txid_bytes, txid: true)]
+        level0 = [PathElement.new(offset: index, hash: wtxid, txid: true)]
 
         # A single-tx block has no siblings — the txid IS the merkle root.
         return new(block_height: block_height, path: [level0]) if nodes.empty?
@@ -319,12 +319,12 @@ module BSV
       # @param chain_tracker [ChainTracker] chain tracker to verify the root against
       # @return [Boolean] true if the computed root matches the block at this height
       def verify(dtxid_hex, chain_tracker)
-        txid_bytes = [dtxid_hex].pack('H*').reverse
-        txid_leaf = @path[0].find { |l| l.hash == txid_bytes }
+        wtxid = [dtxid_hex].pack('H*').reverse
+        tx_leaf = @path[0].find { |l| l.hash == wtxid }
 
         # Offset 0 in a block's merkle tree is always the coinbase transaction —
         # a Bitcoin protocol invariant. Apply the 100-block maturity check.
-        if txid_leaf&.offset&.zero?
+        if tx_leaf&.offset&.zero?
           current = chain_tracker.current_height
           return false if current - @block_height < 100
         end

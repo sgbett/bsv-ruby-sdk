@@ -126,24 +126,6 @@ If you're writing code that touches transaction IDs, the decision is simple:
 
 There is no third case. If you find yourself reaching for `txid` without either prefix, stop and determine which of the two you actually need.
 
-## Format constants
-
-The SDK defines two constants for downstream consumers that need to make byte order explicit in API responses:
-
-```ruby
-BSV::TXID_FORMAT_WIRE    # => 'wire'
-BSV::TXID_FORMAT_DISPLAY # => 'display'
-```
-
-These are available for inclusion in API response metadata, configuration, or documentation. They make the byte order self-describing rather than assumed:
-
-```ruby
-{
-  txid: tx.dtxid,
-  txid_format: BSV::TXID_FORMAT_DISPLAY
-}
-```
-
 ## BRC-74 note
 
 `MerklePath::PathElement` has a `txid` boolean attribute. This is **not** a transaction ID value — it's a BRC-74 spec field that flags whether a given leaf in the merkle path is a transaction (as opposed to a provided hash). The name comes from the specification and is not subject to the wtxid/dtxid convention.

@@ -13,7 +13,7 @@ module BSV
     #
     # @example Parse a BEEF bundle and find a transaction
     #   beef = BSV::Transaction::Beef.from_hex(beef_hex)
-    #   tx = beef.find_transaction(txid_bytes)
+    #   tx = beef.find_transaction(wtxid)
     class Beef
       # @!group Version constants
 
