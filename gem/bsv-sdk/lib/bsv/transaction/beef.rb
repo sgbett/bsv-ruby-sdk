@@ -80,6 +80,12 @@ module BSV
         def txid
           wtxid&.reverse
         end
+
+        # Display-order transaction ID (alias for {#txid}).
+        #
+        # Mirrors the wallet gem's +DisplayTxid+ pattern.
+        # @return [String, nil] 32-byte txid
+        alias dtxid txid
       end
 
       # @return [Integer] BEEF version constant
@@ -99,6 +105,12 @@ module BSV
       def subject_txid
         @subject_wtxid&.reverse
       end
+
+      # Display-order subject txid (alias for {#subject_txid}).
+      #
+      # Mirrors the wallet gem's +DisplayTxid+ pattern.
+      # @return [String, nil] 32-byte display-order txid, or nil
+      alias subject_dtxid subject_txid
 
       # @param version [Integer] BEEF version constant (default: BEEF_V1, matching to_binary's
       #   default for ARC compatibility; from_binary overwrites this with the parsed version)

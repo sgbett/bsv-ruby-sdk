@@ -60,6 +60,18 @@ RSpec.describe BSV::Transaction::Transaction do
     end
   end
 
+  describe '#dtxid / #dtxid_hex' do
+    it 'is an alias for txid' do
+      tx = described_class.from_hex(vector1_hex)
+      expect(tx.dtxid).to eq(tx.txid)
+    end
+
+    it 'is an alias for txid_hex' do
+      tx = described_class.from_hex(vector1_hex)
+      expect(tx.dtxid_hex).to eq(tx.txid_hex)
+    end
+  end
+
   describe 'parsed structure' do
     it 'correctly parses vector 1 inputs and outputs' do
       tx = described_class.from_hex(vector1_hex)
