@@ -838,7 +838,7 @@ RSpec.describe BSV::Transaction::Transaction do
       # If this fails the spec is no longer exercising the late-bind path.
       reparsed = BSV::Transaction::Beef.from_binary(binary)
       ancestor_entry = reparsed.transactions.find { |bt| bt.transaction&.wtxid == ancestor.wtxid }
-      expect(ancestor_entry.format).to eq(BSV::Transaction::Beef::FORMAT_RAW_TX)
+      expect(ancestor_entry).to be_a(BSV::Transaction::Beef::RawTxEntry)
 
       result = described_class.from_beef(binary)
       expect(result).not_to be_nil
