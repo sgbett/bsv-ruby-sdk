@@ -339,7 +339,7 @@ module BSV
           begin
             beef = parse_beef(beef_data)
             last = beef&.transactions&.last
-            last&.transaction&.dtxid
+            last&.dtxid
           rescue StandardError
             nil
           end
