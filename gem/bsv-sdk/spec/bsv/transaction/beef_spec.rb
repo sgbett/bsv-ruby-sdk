@@ -246,7 +246,7 @@ RSpec.describe BSV::Transaction::Beef do
       expect(wired_inputs).not_to be_empty
 
       wired_inputs.each do |input|
-        expect(input.source_transaction.txid_hex).to eq(input.txid_hex)
+        expect(input.source_transaction.txid_hex).to eq(input.dtxid_hex)
       end
     end
   end
@@ -378,13 +378,13 @@ RSpec.describe BSV::Transaction::Beef do
 
       # Build a child spending both
       child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.wtxid, prev_tx_out_index: 0)
+      input_a = BSV::Transaction::TransactionInput.new(prev_wtxid: ancestor_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = ancestor_a
       input_a.source_satoshis = 5000
       input_a.source_locking_script = lock
       child.add_input(input_a)
 
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.wtxid, prev_tx_out_index: 0)
+      input_b = BSV::Transaction::TransactionInput.new(prev_wtxid: ancestor_b.wtxid, prev_tx_out_index: 0)
       input_b.source_transaction = ancestor_b
       input_b.source_satoshis = 3000
       input_b.source_locking_script = lock
@@ -483,10 +483,10 @@ RSpec.describe BSV::Transaction::Beef do
       tx_b.merkle_path = path_b
 
       child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_a.wtxid, prev_tx_out_index: 0)
+      input_a = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = tx_a
       child.add_input(input_a)
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_b.wtxid, prev_tx_out_index: 0)
+      input_b = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_b.wtxid, prev_tx_out_index: 0)
       input_b.source_transaction = tx_b
       child.add_input(input_b)
       child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
@@ -637,7 +637,7 @@ RSpec.describe BSV::Transaction::Beef do
         tx_real.merkle_path = contaminated_bump
 
         c = BSV::Transaction::Transaction.new
-        input = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_real.wtxid, prev_tx_out_index: 0)
+        input = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_real.wtxid, prev_tx_out_index: 0)
         input.source_transaction = tx_real
         c.add_input(input)
         c.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 400, locking_script: lock))
@@ -1228,21 +1228,21 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#sort_transactions! cycle handling (F5.5)' do
     it 'moves cyclic transactions to @txs_not_valid' do
       # A real txid cycle is impossible (txid is a hash of the tx, which includes
-      # the input prev_tx_id). We test cycle detection by using mocked transaction
+      # the input prev_wtxid). We test cycle detection by using mocked transaction
       # objects with stable fake wtxids that reference each other.
       #
       # sort_transactions! logic:
       #   txid_index[bt.wtxid] = i  (wire-order wtxid from BeefTx#wtxid)
-      #   dep_idx = txid_index[input.prev_tx_id]
-      #   (prev_tx_id is also wire-order — direct lookup, no reversal needed)
+      #   dep_idx = txid_index[input.prev_wtxid]
+      #   (prev_wtxid is also wire-order — direct lookup, no reversal needed)
       #
-      # For a cycle: input_a.prev_tx_id must == wtxid_b (wire-order).
+      # For a cycle: input_a.prev_wtxid must == wtxid_b (wire-order).
       wtxid_a = BSV::Primitives::Digest.sha256('fake_tx_a') # wire order
       wtxid_b = BSV::Primitives::Digest.sha256('fake_tx_b')
 
-      # prev_tx_id (wire) of A's input must equal wtxid_b so the sort sees a dep B→A
-      input_a = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: wtxid_b)
-      input_b = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: wtxid_a)
+      # prev_wtxid (wire) of A's input must equal wtxid_b so the sort sees a dep B→A
+      input_a = instance_double(BSV::Transaction::TransactionInput, prev_wtxid: wtxid_b)
+      input_b = instance_double(BSV::Transaction::TransactionInput, prev_wtxid: wtxid_a)
 
       tx_a = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_a, inputs: [input_a])
       tx_b = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_b, inputs: [input_b])

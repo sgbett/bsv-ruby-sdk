@@ -300,7 +300,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
       # Source transaction: contains the locked output.
       source_tx = BSV::Transaction::Transaction.new
       dummy_input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00" * 32,
+        prev_wtxid: "\x00" * 32,
         prev_tx_out_index: 0
       )
       dummy_input.source_locking_script = BSV::Script::Script.p2pkh_lock("\x00" * 20)
@@ -314,7 +314,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
       # Spending transaction: spends the locked output.
       spend_tx = BSV::Transaction::Transaction.new
       spend_input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: [source_tx.txid_hex].pack('H*'),
+        prev_wtxid: source_tx.wtxid,
         prev_tx_out_index: 0,
         sequence: 0xffffffff
       )

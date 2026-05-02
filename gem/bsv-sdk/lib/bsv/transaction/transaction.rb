@@ -391,7 +391,7 @@ module BSV
       # Wire-order transaction ID (raw SHA-256d of the serialised tx).
       #
       # Used by BEEF, BUMPs, and merkle paths, which all work in wire byte order
-      # to match {TransactionInput#prev_tx_id}.
+      # to match {TransactionInput#prev_wtxid}.
       #
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid

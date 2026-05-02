@@ -274,7 +274,7 @@ RSpec.describe BSV::Transaction::Transaction do
       # input_index 0 but no outputs
       tx_no_outputs = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x01".b * 32,
+        prev_wtxid: "\x01".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -322,7 +322,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x01".b * 32,
+        prev_wtxid: "\x01".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -357,7 +357,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       2.times do
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x02".b * 32,
+          prev_wtxid: "\x02".b * 32,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 50_000
@@ -385,7 +385,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
     def build_input(prev_byte: "\x01".b, satoshis: 100_000)
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: prev_byte * 32,
+        prev_wtxid: prev_byte * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = satoshis
@@ -497,7 +497,7 @@ RSpec.describe BSV::Transaction::Transaction do
     it 'estimates fee for unsigned inputs with template' do
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00".b * 32,
+        prev_wtxid: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -525,7 +525,7 @@ RSpec.describe BSV::Transaction::Transaction do
       dummy_key = BSV::Primitives::PrivateKey.generate
       3.times do |i|
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x00".b * 32,
+          prev_wtxid: "\x00".b * 32,
           prev_tx_out_index: i
         )
         input.source_satoshis = 50_000
@@ -547,7 +547,7 @@ RSpec.describe BSV::Transaction::Transaction do
     it 'estimates fee for a transaction with an OP_RETURN output' do
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00".b * 32,
+        prev_wtxid: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -571,7 +571,7 @@ RSpec.describe BSV::Transaction::Transaction do
     it 'scales fee with satoshis_per_byte rate' do
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00".b * 32,
+        prev_wtxid: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -598,7 +598,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: BSV::Primitives::Digest.sha256d('utxo'),
+        prev_wtxid: BSV::Primitives::Digest.sha256d('utxo'),
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -620,7 +620,7 @@ RSpec.describe BSV::Transaction::Transaction do
       tx = described_class.new
 
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00".b * 32,
+        prev_wtxid: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = 100_000
@@ -639,7 +639,7 @@ RSpec.describe BSV::Transaction::Transaction do
     it 'raises when any input has nil source_satoshis' do
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00".b * 32,
+        prev_wtxid: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       # source_satoshis intentionally not set
@@ -660,7 +660,7 @@ RSpec.describe BSV::Transaction::Transaction do
     def tx_with_input_sats(input_sats)
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x00".b * 32,
+        prev_wtxid: "\x00".b * 32,
         prev_tx_out_index: 0
       )
       input.source_satoshis = input_sats
@@ -721,10 +721,10 @@ RSpec.describe BSV::Transaction::Transaction do
     end
 
     # Wire an input from parent_tx output 0 into child_tx.
-    # prev_tx_id must be in wire byte order.
+    # prev_wtxid must be in wire byte order.
     def add_input(child_tx, parent_tx)
       inp = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: parent_tx.wtxid, prev_tx_out_index: 0
+        prev_wtxid: parent_tx.wtxid, prev_tx_out_index: 0
       )
       inp.source_transaction = parent_tx
       inp.source_satoshis = parent_tx.outputs[0].satoshis
@@ -867,7 +867,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
       # Fund with a UTXO
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: BSV::Primitives::Digest.sha256d('fake utxo'),
+        prev_wtxid: BSV::Primitives::Digest.sha256d('fake utxo'),
         prev_tx_out_index: 0
       )
       input.source_satoshis = 1_000_000

@@ -545,7 +545,7 @@ module BSV
           changed = false
           pending.reject! do |bt|
             all_inputs_known = bt.transaction.inputs.all? do |input|
-              known_wtxids.include?(input.prev_tx_id)
+              known_wtxids.include?(input.prev_wtxid)
             end
             if all_inputs_known
               known_wtxids.add(bt.wtxid)
@@ -604,7 +604,7 @@ module BSV
           next unless bt.transaction
 
           bt.transaction.inputs.each do |input|
-            dep_idx = txid_index[input.prev_tx_id]
+            dep_idx = txid_index[input.prev_wtxid]
             next unless dep_idx
 
             dependents[dep_idx] << i
@@ -728,9 +728,9 @@ module BSV
             next unless beef_tx.transaction
 
             # Wire inputs to ancestors already in the map (BEEF is dependency-ordered).
-            # Both prev_tx_id and wtxid are wire-order — no conversion needed.
+            # Both prev_wtxid and wtxid are wire-order — no conversion needed.
             beef_tx.transaction.inputs.each do |input|
-              source = tx_map[input.prev_tx_id]
+              source = tx_map[input.prev_wtxid]
               input.source_transaction = source if source
             end
 
@@ -795,7 +795,7 @@ module BSV
         tx.inputs.each do |input|
           next if input.source_transaction
 
-          source = find_transaction(input.prev_tx_id)
+          source = find_transaction(input.prev_wtxid)
           input.source_transaction = source if source
         end
       end

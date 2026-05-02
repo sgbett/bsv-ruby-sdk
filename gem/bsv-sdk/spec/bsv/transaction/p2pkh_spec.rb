@@ -10,7 +10,7 @@ RSpec.describe BSV::Transaction::P2PKH do
   let(:tx) do
     tx = BSV::Transaction::Transaction.new
     input = BSV::Transaction::TransactionInput.new(
-      prev_tx_id: "\x01".b * 32,
+      prev_wtxid: "\x01".b * 32,
       prev_tx_out_index: 0
     )
     input.source_satoshis = 100_000
@@ -43,7 +43,7 @@ RSpec.describe BSV::Transaction::P2PKH do
       # Sign with direct method
       direct_tx = BSV::Transaction::Transaction.new
       input1 = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: "\x01".b * 32,
+        prev_wtxid: "\x01".b * 32,
         prev_tx_out_index: 0
       )
       input1.source_satoshis = 100_000
