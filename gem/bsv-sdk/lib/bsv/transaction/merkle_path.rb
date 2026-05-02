@@ -197,6 +197,7 @@ module BSV
         if node == '*'
           PathElement.new(offset: offset, duplicate: true)
         else
+          BSV::Primitives::Hex.validate_dtxid_hex!(node, name: "TSC merkle node at offset #{offset}")
           PathElement.new(offset: offset, hash: [node].pack('H*').reverse)
         end
       end
@@ -250,6 +251,10 @@ module BSV
       def compute_root(wtxid = nil)
         wtxid ||= @path[0].find(&:hash)&.hash
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid') if wtxid
+        BSV.logger&.debug do
+          dtxid = wtxid&.reverse&.unpack1('H*')
+          "[MerklePath] compute_root: wtxid=#{dtxid} block_height=#{@block_height} levels=#{@path.length}"
+        end
         return wtxid if @path.length == 1 && @path[0].length == 1
 
         indexed = build_indexed_path
@@ -297,6 +302,7 @@ module BSV
       # @param dtxid_hex [String, nil] hex-encoded txid (display order)
       # @return [String] hex-encoded merkle root (display order)
       def compute_root_hex(dtxid_hex = nil)
+        BSV::Primitives::Hex.validate_dtxid_hex!(dtxid_hex, name: 'compute_root_hex dtxid_hex') if dtxid_hex
         wtxid = dtxid_hex ? [dtxid_hex].pack('H*').reverse : nil
         compute_root(wtxid).reverse.unpack1('H*')
       end
@@ -333,7 +339,11 @@ module BSV
         end
 
         root_hex = compute_root_hex(dtxid_hex)
-        chain_tracker.valid_root_for_height?(root_hex, @block_height)
+        valid = chain_tracker.valid_root_for_height?(root_hex, @block_height)
+        BSV.logger&.debug do
+          "[MerklePath] verify: dtxid=#{dtxid_hex} height=#{@block_height} root=#{root_hex} valid=#{valid}"
+        end
+        valid
       end
 
       # --- Combine ---

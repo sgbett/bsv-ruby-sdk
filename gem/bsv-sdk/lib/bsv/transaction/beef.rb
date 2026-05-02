@@ -272,6 +272,7 @@ module BSV
       # @return [Transaction, nil] the matching transaction, or nil
       def find_transaction(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
+        BSV.logger&.debug { "[Beef] find_transaction: #{wtxid.reverse.unpack1('H*')} in #{@transactions.length} entries" }
         @transactions.each do |beef_tx|
           return beef_tx.transaction if beef_tx.wtxid == wtxid
         end
@@ -755,7 +756,13 @@ module BSV
             # Both prev_wtxid and wtxid are wire-order — no conversion needed.
             beef_tx.transaction.inputs.each do |input|
               source = tx_map[input.prev_wtxid]
-              input.source_transaction = source if source
+              next unless source
+
+              input.source_transaction = source
+              BSV.logger&.debug do
+                "[Beef] wired input #{input.prev_wtxid.reverse.unpack1('H*')}:#{input.prev_tx_out_index} " \
+                  "-> source #{source.wtxid.reverse.unpack1('H*')}"
+              end
             end
 
             tx_map[beef_tx.transaction.wtxid] = beef_tx.transaction

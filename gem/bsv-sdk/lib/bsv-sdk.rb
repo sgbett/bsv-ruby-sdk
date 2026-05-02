@@ -3,6 +3,19 @@
 require_relative 'bsv/version'
 
 module BSV
+  class << self
+    # Optional logger for debug-level instrumentation of txid conversions,
+    # BEEF wiring, and merkle path operations.
+    #
+    # No logger is configured by default — zero overhead when unused.
+    # Consumers opt in via:
+    #
+    #   BSV.logger = Logger.new($stdout, level: :debug)
+    #
+    # @return [Logger, nil]
+    attr_accessor :logger
+  end
+
   autoload :Primitives,  'bsv/primitives'
   autoload :Script,      'bsv/script'
   autoload :Transaction, 'bsv/transaction'

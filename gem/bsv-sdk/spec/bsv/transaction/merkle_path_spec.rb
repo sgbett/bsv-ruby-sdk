@@ -716,4 +716,84 @@ RSpec.describe BSV::Transaction::MerklePath do
       expect(root.bytesize).to eq(32)
     end
   end
+
+  describe '#compute_root_hex input validation' do
+    let(:pe) { described_class::PathElement }
+    let(:leaf) { BSV::Primitives::Digest.sha256('tx_val') }
+    let(:sibling) { BSV::Primitives::Digest.sha256('sib_val') }
+    let(:mp) do
+      described_class.new(
+        block_height: 100,
+        path: [[pe.new(offset: 0, hash: leaf, txid: true),
+                pe.new(offset: 1, hash: sibling)]]
+      )
+    end
+
+    it 'raises on malformed hex input' do
+      expect { mp.compute_root_hex('not_valid_hex') }
+        .to raise_error(ArgumentError, /display-order hex/)
+    end
+
+    it 'raises on wrong-length hex' do
+      expect { mp.compute_root_hex('aabb') }
+        .to raise_error(ArgumentError, /64-char/)
+    end
+
+    it 'accepts nil (auto-detect)' do
+      expect { mp.compute_root_hex }.not_to raise_error
+    end
+
+    it 'accepts a valid 64-char hex txid' do
+      dtxid = leaf.reverse.unpack1('H*')
+      expect { mp.compute_root_hex(dtxid) }.not_to raise_error
+    end
+  end
+
+  describe '.from_tsc node validation' do
+    let(:valid_dtxid) { 'aa' * 32 }
+
+    it 'raises on non-hex node string' do
+      expect do
+        described_class.from_tsc(
+          dtxid_hex: valid_dtxid,
+          index: 0,
+          nodes: ['not_valid_hex_at_all_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'],
+          block_height: 100
+        )
+      end.to raise_error(ArgumentError, /TSC merkle node/)
+    end
+
+    it 'raises on short hex node string' do
+      expect do
+        described_class.from_tsc(
+          dtxid_hex: valid_dtxid,
+          index: 0,
+          nodes: ['aabb'],
+          block_height: 100
+        )
+      end.to raise_error(ArgumentError, /64-char/)
+    end
+
+    it 'accepts duplicate marker "*"' do
+      expect do
+        described_class.from_tsc(
+          dtxid_hex: valid_dtxid,
+          index: 0,
+          nodes: ['*'],
+          block_height: 100
+        )
+      end.not_to raise_error
+    end
+
+    it 'accepts valid 64-char hex nodes' do
+      expect do
+        described_class.from_tsc(
+          dtxid_hex: valid_dtxid,
+          index: 0,
+          nodes: ['bb' * 32],
+          block_height: 100
+        )
+      end.not_to raise_error
+    end
+  end
 end

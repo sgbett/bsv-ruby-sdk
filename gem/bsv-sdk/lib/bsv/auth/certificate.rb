@@ -81,6 +81,9 @@ module BSV
         buf << [@subject].pack('H*')
         buf << [@certifier].pack('H*')
 
+        # Certificate binary format: revocation outpoint txid stored in display byte
+        # order (matching TS and Go SDKs). Go encodes via WriteBytesReverse(wire_order),
+        # TS encodes via toArray(display_hex) — both produce identical display-order bytes.
         txid_hex, output_index_str = @revocation_outpoint.to_s.split('.', 2)
         buf << [txid_hex].pack('H*')
         buf << BSV::Transaction::VarInt.encode(output_index_str.to_i)
@@ -124,7 +127,7 @@ module BSV
         certifier_bytes = data.byteslice(pos, 33)
         pos += 33
 
-        # Outpoint txid bytes — stored as-is from the display-order hex in revocation_outpoint.
+        # Outpoint txid bytes — stored in display byte order (matching TS and Go SDKs).
         outpoint_txid = data.byteslice(pos, 32)
         pos += 32
         output_index, vi_len = BSV::Transaction::VarInt.decode(data, pos)
