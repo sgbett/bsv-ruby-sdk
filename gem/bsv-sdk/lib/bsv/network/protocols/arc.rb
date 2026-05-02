@@ -269,7 +269,7 @@ module BSV
         # same field set as broadcast responses rather than the raw parsed JSON.
         # Also checks for rejection status and missing txid (malformed 2xx).
         #
-        # @param txid [String] the transaction ID to query
+        # @param txid [String] ARC API boundary: display-order hex transaction ID to query
         # @return [Result::Success, Result::Error, Result::NotFound]
         def call_get_tx_status(txid, **)
           response = default_call(:get_tx_status, txid)
@@ -306,7 +306,7 @@ module BSV
         # @return [Hash]
         def arc_data_from(body)
           {
-            txid: body['txid'],
+            txid: body['txid'], # ARC API boundary: display-order hex from the ARC JSON response
             tx_status: body['txStatus'],
             message: body['title'],
             extra_info: body['extraInfo'],

@@ -155,6 +155,7 @@ module BSV
         verify_ownership(registered_definition)
 
         definition_type = registered_definition.definition_type
+        # Registry API boundary: outpoint uses display-order hex txid from RegisteredDefinition
         outpoint = "#{registered_definition.txid}.#{registered_definition.output_index}"
 
         create_result = @wallet.create_action(
@@ -415,7 +416,7 @@ module BSV
 
         RegisteredDefinition.new(
           definition_data: definition_data,
-          txid: tx.txid_hex,
+          txid: tx.txid_hex, # Registry API boundary: display-order hex txid
           output_index: output_idx,
           locking_script: locking_script.to_hex,
           beef: beef_raw,
@@ -434,6 +435,7 @@ module BSV
         outpoint_str = output[:outpoint] || output['outpoint']
         return nil unless outpoint_str
 
+        # Registry API boundary: outpoint string uses display-order hex txid by convention
         txid, output_idx_str = outpoint_str.split('.')
         output_idx = output_idx_str.to_i
 

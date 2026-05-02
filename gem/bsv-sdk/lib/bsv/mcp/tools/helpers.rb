@@ -25,7 +25,7 @@ module BSV
         # @return [Hash]
         def self.transaction_to_h(tx)
           {
-            txid: tx.txid_hex,
+            txid: tx.txid_hex, # MCP tool boundary: display-order hex for human consumption
             version: tx.version,
             lock_time: tx.lock_time,
             inputs: tx.inputs.each_with_index.map { |inp, i| input_to_h(inp, i) },

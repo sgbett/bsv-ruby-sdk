@@ -334,6 +334,7 @@ module BSV
         beef_data    = output['beef'] || output[:beef]
         output_index = (output['outputIndex'] || output[:output_index] || 0).to_i
 
+        # Overlay API boundary: outpoint key uses display-order txid bytes (via Transaction#txid)
         txid =
           begin
             beef = parse_beef(beef_data)

@@ -207,6 +207,7 @@ module BSV
         raise 'Revoke failed: no transaction found in BEEF' unless tx
         raise 'Revoke failed: outputIndex out of range' if output_idx >= tx.outputs.length
 
+        # Overlay API boundary: outpoint uses display-order hex txid as per overlay convention
         txid = tx.txid_hex
         outpoint = "#{txid}.#{output_idx}"
 

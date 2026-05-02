@@ -175,7 +175,7 @@ module BSV
         # The +script_hash:+ keyword is accepted for future fallback support
         # but not used in this implementation.
         #
-        # @param txid        [String]  transaction ID
+        # @param txid        [String]  WoC API boundary: display-order hex transaction ID
         # @param vout        [Integer] output index
         # @param script_hash [String, nil] ignored
         # @return [Result::Success<Boolean>, Result::Error, Result::NotFound]
@@ -242,6 +242,7 @@ module BSV
           return result unless result.success?
 
           # WoC returns plain-text txid — result.data is the raw body string
+          # WoC API boundary: display-order hex txid returned as plain text
           Result::Success.new(data: { txid: result.data.to_s.strip })
         end
 
