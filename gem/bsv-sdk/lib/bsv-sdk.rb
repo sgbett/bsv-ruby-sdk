@@ -3,6 +3,12 @@
 require_relative 'bsv/version'
 
 module BSV
+  # Byte-order format identifiers for transaction IDs.
+  # Downstream consumers (wallet, HTTP APIs) use these constants in API
+  # responses to make byte order explicit rather than assumed.
+  TXID_FORMAT_WIRE    = 'wire'
+  TXID_FORMAT_DISPLAY = 'display'
+
   autoload :Primitives,  'bsv/primitives'
   autoload :Script,      'bsv/script'
   autoload :Transaction, 'bsv/transaction'
