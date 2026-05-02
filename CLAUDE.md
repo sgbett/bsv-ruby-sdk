@@ -75,6 +75,16 @@ The script system has two distinct layers with different responsibilities:
 
 A script being parseable but failing execution is not a bug — it's the distinction between these two layers working correctly.
 
+### Transaction ID Convention
+
+Transaction IDs use an explicit naming convention to prevent byte-order bugs:
+
+- **`wtxid`** — wire-order binary (32 bytes). Used internally, in storage, and across all Ruby interfaces.
+- **`dtxid` / `dtxid_hex`** — display-order hex (64 chars). Used only at JSON and UI boundaries.
+- **`txid`** — reserved for spec-mandated names (BRC-100, BRC-74, ARC API), always with a boundary comment.
+
+Any method that accepts a txid parameter must validate the format using `BSV::Primitives::Hex.validate_wtxid!` or `BSV::Primitives::Hex.validate_dtxid_hex!`. This catches byte-order mismatches at call time rather than producing silent corruption. See `docs/guides/wtxid-dtxid.md` for the full rationale.
+
 ## Cryptography
 
 Elliptic curve operations (secp256k1) are provided by the [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem — a pure Ruby implementation ported from the TypeScript reference SDK, with an optional native C extension that accelerates field, scalar, and Jacobian point operations (~22× speedup). The `bsv-sdk` exposes these as `BSV::Primitives::Secp256k1` and `BSV::Primitives::Secp256k1Native`. An OpenSSL compatibility shim (`openssl_ec_shim.rb`) replaces `OpenSSL::PKey::EC` classes so consumer code continues to use the same API. See the [secp256k1-native documentation](https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md) for implementation details.

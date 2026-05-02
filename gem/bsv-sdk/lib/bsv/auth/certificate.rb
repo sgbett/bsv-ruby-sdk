@@ -124,7 +124,8 @@ module BSV
         certifier_bytes = data.byteslice(pos, 33)
         pos += 33
 
-        txid_bytes = data.byteslice(pos, 32)
+        # Outpoint txid bytes — stored as-is from the display-order hex in revocation_outpoint.
+        outpoint_txid = data.byteslice(pos, 32)
         pos += 32
         output_index, vi_len = BSV::Transaction::VarInt.decode(data, pos)
         pos += vi_len
@@ -158,7 +159,7 @@ module BSV
           serial_number: Base64.strict_encode64(serial_bytes),
           subject: subject_bytes.unpack1('H*'),
           certifier: certifier_bytes.unpack1('H*'),
-          revocation_outpoint: "#{txid_bytes.unpack1('H*')}.#{output_index}",
+          revocation_outpoint: "#{outpoint_txid.unpack1('H*')}.#{output_index}",
           fields: fields,
           signature: signature
         )

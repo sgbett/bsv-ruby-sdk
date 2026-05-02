@@ -188,6 +188,7 @@ module BSV
       # @return [String] the definition type (see {DefinitionType})
       attr_reader :definition_type
 
+      # Registry API boundary: display-order hex txid from the outpoint string held in the registry token.
       # @return [String] transaction ID of the containing UTXO
       attr_reader :txid
 

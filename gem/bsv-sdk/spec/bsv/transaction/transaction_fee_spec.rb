@@ -15,7 +15,7 @@ RSpec.describe BSV::Transaction::Transaction do
     def build_tx(input_sats:, output_sats:, change_sats: 0, change_count: 1)
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: BSV::Primitives::Digest.sha256d('test'),
+        prev_wtxid: BSV::Primitives::Digest.sha256d('test'),
         prev_tx_out_index: 0
       )
       input.source_satoshis = input_sats
@@ -125,7 +125,7 @@ RSpec.describe BSV::Transaction::Transaction do
       it 'works without change outputs' do
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: BSV::Primitives::Digest.sha256d('test'),
+          prev_wtxid: BSV::Primitives::Digest.sha256d('test'),
           prev_tx_out_index: 0
         )
         input.source_satoshis = 100_000

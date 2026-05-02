@@ -3,6 +3,7 @@
 module BSV
   module Network
     class BroadcastResponse
+      # ARC API boundary: display-order hex txid as returned by the ARC broadcast endpoint.
       attr_reader :txid, :tx_status, :message, :extra_info, :block_hash, :block_height, :timestamp, :competing_txs
 
       def initialize(attrs = {})

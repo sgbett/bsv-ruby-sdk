@@ -110,7 +110,7 @@ module BSV
 
         OverlayBroadcastResult.new(
           status: 'success',
-          txid: tx.txid_hex,
+          txid: tx.txid_hex, # Overlay API boundary: display-order hex txid for the broadcast result
           message: "Sent to #{successful.size} Overlay Service host(s)."
         )
       end

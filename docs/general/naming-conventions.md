@@ -40,7 +40,7 @@ Ruby treats attribute access and method calls identically, so `get_` is redundan
 # TS:   beef.getBumps()     → Ruby: beef.bumps
 ```
 
-Note: `tx.txid` returns the transaction ID as **raw bytes** (for binary comparison). Use `tx.txid_hex` for the hex-encoded display form that most TS/Go APIs return from `getTxid()`.
+Note: `tx.wtxid` returns the transaction ID as **wire-order binary** (for computation and storage). Use `tx.dtxid` for the display-order hex that most TS/Go APIs return from `getTxid()`. See the **[wtxid/dtxid guide](../guides/wtxid-dtxid.md)** for the full convention.
 
 ### 4. Setters use assignment syntax
 
@@ -129,7 +129,7 @@ wallet.create_action(
 
 This is the subtlest distinction. TypeScript uses `toX()` for both *derived properties* (things the object has or computes about itself) and *format conversions* (encoding the object in a different representation). Ruby splits them:
 
-- **Derived property** — bare noun: `key.public_key`, `key.address`, `tx.txid`
+- **Derived property** — bare noun: `key.public_key`, `key.address`, `tx.wtxid`
 - **Format conversion** — `to_` prefix: `key.to_wif`, `tx.to_hex`, `script.to_asm`
 
 The rule of thumb: if the return value is another *object* in the domain model, it's a property. If the return value is a *serialised representation* of the same object, it's a conversion.

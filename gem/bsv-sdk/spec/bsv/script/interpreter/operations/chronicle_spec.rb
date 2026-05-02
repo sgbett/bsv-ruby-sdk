@@ -16,7 +16,7 @@ RSpec.describe 'Chronicle opcodes' do
   def build_ver_tx(version:)
     tx = BSV::Transaction::Transaction.new(version: version)
     input = BSV::Transaction::TransactionInput.new(
-      prev_tx_id: "\x00" * 32,
+      prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0
     )
     dummy_lock = BSV::Script::Script.new

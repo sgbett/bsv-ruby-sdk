@@ -8,8 +8,8 @@ module BSV
     # output index (the "outpoint"), and provide an unlocking script to
     # satisfy the locking script conditions.
     class TransactionInput
-      # @return [String] 32-byte transaction ID of the output being spent (internal byte order)
-      attr_reader :prev_tx_id
+      # @return [String] 32-byte wire-order transaction ID of the output being spent
+      attr_reader :prev_wtxid
 
       # @return [Integer] index of the output within the previous transaction
       attr_reader :prev_tx_out_index
@@ -32,12 +32,13 @@ module BSV
       # @return [UnlockingScriptTemplate, nil] template for deferred signing
       attr_accessor :unlocking_script_template
 
-      # @param prev_tx_id [String] 32-byte transaction ID (internal byte order)
+      # @param prev_wtxid [String] 32-byte wire-order transaction ID
       # @param prev_tx_out_index [Integer] output index in the previous transaction
       # @param unlocking_script [Script::Script, nil] unlocking script (nil if unsigned)
       # @param sequence [Integer] sequence number
-      def initialize(prev_tx_id:, prev_tx_out_index:, unlocking_script: nil, sequence: 0xFFFFFFFF)
-        @prev_tx_id = prev_tx_id.b
+      def initialize(prev_wtxid:, prev_tx_out_index:, unlocking_script: nil, sequence: 0xFFFFFFFF)
+        BSV::Primitives::Hex.validate_wtxid!(prev_wtxid, name: 'prev_wtxid')
+        @prev_wtxid = prev_wtxid.b
         @prev_tx_out_index = prev_tx_out_index
         @unlocking_script = unlocking_script
         @sequence = sequence
@@ -48,7 +49,7 @@ module BSV
       # @return [String] binary input (outpoint + varint + script + sequence)
       def to_binary
         script_bytes = @unlocking_script ? @unlocking_script.to_binary : ''.b
-        @prev_tx_id +
+        @prev_wtxid +
           [@prev_tx_out_index].pack('V') +
           VarInt.encode(script_bytes.bytesize) +
           script_bytes +
@@ -66,7 +67,7 @@ module BSV
                 "truncated input: need 36 bytes for outpoint at offset #{offset}, got #{data.bytesize - offset}"
         end
 
-        prev_tx_id = data.byteslice(offset, 32)
+        prev_wtxid = data.byteslice(offset, 32)
         prev_tx_out_index = data.byteslice(offset + 32, 4).unpack1('V')
         offset += 36
 
@@ -90,7 +91,7 @@ module BSV
 
         total = 36 + vi_size + script_len + 4
         input = new(
-          prev_tx_id: prev_tx_id,
+          prev_wtxid: prev_wtxid,
           prev_tx_out_index: prev_tx_out_index,
           unlocking_script: unlocking_script,
           sequence: sequence
@@ -98,26 +99,27 @@ module BSV
         [input, total]
       end
 
-      # Convert a hex transaction ID to internal byte order (reversed).
+      # Convert a display-order hex transaction ID to wire-order bytes.
       #
       # @param hex [String] hex-encoded transaction ID (display order)
-      # @return [String] 32-byte transaction ID in internal byte order
-      def self.txid_from_hex(hex)
+      # @return [String] 32-byte transaction ID in wire byte order
+      def self.wtxid_from_hex(hex)
+        BSV::Primitives::Hex.validate_dtxid_hex!(hex, name: 'wtxid_from_hex input')
         [hex].pack('H*').reverse
       end
 
-      # Serialise the outpoint (prev_tx_id + output index) as binary.
+      # Serialise the outpoint (prev_wtxid + output index) as binary.
       #
       # @return [String] 36-byte outpoint
       def outpoint_binary
-        @prev_tx_id + [@prev_tx_out_index].pack('V')
+        @prev_wtxid + [@prev_tx_out_index].pack('V')
       end
 
-      # The previous transaction ID in hex (display order).
+      # The previous transaction ID in display-order hex.
       #
-      # @return [String] hex-encoded transaction ID
-      def txid_hex
-        @prev_tx_id.reverse.unpack1('H*')
+      # @return [String] hex-encoded transaction ID (display order)
+      def dtxid_hex
+        @prev_wtxid.reverse.unpack1('H*')
       end
     end
   end

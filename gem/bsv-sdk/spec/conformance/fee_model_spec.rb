@@ -62,7 +62,7 @@ RSpec.describe BSV::Transaction::Transaction do
     def build_funded_tx(input_sats:, output_sats:)
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: BSV::Primitives::Digest.sha256d('conformance'),
+        prev_wtxid: BSV::Primitives::Digest.sha256d('conformance'),
         prev_tx_out_index: 0
       )
       input.source_satoshis = input_sats

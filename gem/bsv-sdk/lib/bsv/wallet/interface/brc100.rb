@@ -38,10 +38,12 @@ module BSV
         #   - :basket [String] optional basket name for UTXO tracking
         #   - :custom_instructions [String] application-specific context
         #   - :tags [Array<String>] output tags for filtering
-        # @return [Hash] :txid, :tx, :no_send_change, :send_with_results, :signable_transaction
+        # @return [Hash] BRC-100 spec-mandated keys: :txid (display-order hex), :tx, :no_send_change,
+        #   :send_with_results, :signable_transaction
         def create_action(description:, input_beef: nil, inputs: nil, outputs: nil,
                           lock_time: nil, version: nil, labels: nil,
                           sign_and_process: true, accept_delayed_broadcast: true,
+                          # BRC-100 spec-mandated parameter names — display-order hex txids
                           trust_self: nil, known_txids: nil, return_txid_only: false,
                           no_send: false, no_send_change: nil, send_with: nil,
                           randomize_outputs: true, originator: nil)
@@ -53,7 +55,8 @@ module BSV
         # @param spends [Hash{Integer => Hash}] input index => { unlocking_script:, sequence_number: }
         # @param reference [String] reference returned by {#create_action}
         def sign_action(spends:, reference:,
-                        accept_delayed_broadcast: true, return_txid_only: false,
+                        accept_delayed_broadcast: true,
+                        return_txid_only: false, # BRC-100 spec-mandated parameter name
                         no_send: false, send_with: nil, originator: nil)
           raise NotImplementedError
         end

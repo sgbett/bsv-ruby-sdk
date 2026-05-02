@@ -25,7 +25,7 @@ module BSV
         # @return [Hash]
         def self.transaction_to_h(tx)
           {
-            txid: tx.txid_hex,
+            txid: tx.txid_hex, # MCP tool boundary: display-order hex for human consumption
             version: tx.version,
             lock_time: tx.lock_time,
             inputs: tx.inputs.each_with_index.map { |inp, i| input_to_h(inp, i) },
@@ -38,7 +38,7 @@ module BSV
         def self.input_to_h(input, _index)
           unlock_script = input.unlocking_script
           {
-            prev_txid: input.prev_tx_id.reverse.unpack1('H*'),
+            prev_txid: input.dtxid_hex,
             vout: input.prev_tx_out_index,
             script_hex: unlock_script ? unlock_script.to_hex : '',
             script_asm: unlock_script ? unlock_script.to_asm : '',

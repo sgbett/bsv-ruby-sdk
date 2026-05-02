@@ -290,8 +290,8 @@ RSpec.describe BSV::Transaction::MerklePath do
       expect(compound_txids).not_to include(upper_target_hash)
     end
 
-    it 'raises when txid_hashes is empty' do
-      expect { mp.extract([]) }.to raise_error(ArgumentError, /at least one txid/)
+    it 'raises when wtxid_hashes is empty' do
+      expect { mp.extract([]) }.to raise_error(ArgumentError, /at least one wtxid/)
     end
 
     it 'raises when a requested txid is not in the source path' do
@@ -456,7 +456,7 @@ RSpec.describe BSV::Transaction::MerklePath do
 
     let(:woc_path) do
       described_class.from_tsc(
-        txid: woc_txid,
+        dtxid_hex: woc_txid,
         index: woc_index,
         nodes: woc_nodes,
         block_height: woc_block_height
@@ -511,7 +511,7 @@ RSpec.describe BSV::Transaction::MerklePath do
     context 'with a single-tx block' do
       it 'produces a one-level path containing only the txid' do
         mp = described_class.from_tsc(
-          txid: woc_txid,
+          dtxid_hex: woc_txid,
           index: 0,
           nodes: [],
           block_height: 100
@@ -542,7 +542,7 @@ RSpec.describe BSV::Transaction::MerklePath do
 
       it 'computes the correct root when level 0 has a duplicate sibling' do
         mp = described_class.from_tsc(
-          txid: txid_hex,
+          dtxid_hex: txid_hex,
           index: 2,
           nodes: ['*', level1[0].reverse.unpack1('H*')],
           block_height: 50
@@ -552,7 +552,7 @@ RSpec.describe BSV::Transaction::MerklePath do
 
       it 'marks the duplicate level-0 sibling as duplicate' do
         mp = described_class.from_tsc(
-          txid: txid_hex,
+          dtxid_hex: txid_hex,
           index: 2,
           nodes: ['*', level1[0].reverse.unpack1('H*')],
           block_height: 50
@@ -564,7 +564,7 @@ RSpec.describe BSV::Transaction::MerklePath do
 
       it 'round-trips a path with duplicate nodes' do
         mp = described_class.from_tsc(
-          txid: txid_hex,
+          dtxid_hex: txid_hex,
           index: 2,
           nodes: ['*', level1[0].reverse.unpack1('H*')],
           block_height: 50
@@ -588,7 +588,7 @@ RSpec.describe BSV::Transaction::MerklePath do
 
       it 'computes the correct root from a hand-built TSC proof' do
         mp = described_class.from_tsc(
-          txid: leaves[2].reverse.unpack1('H*'),
+          dtxid_hex: leaves[2].reverse.unpack1('H*'),
           index: 2,
           nodes: [
             leaves[3].reverse.unpack1('H*'),  # level-0 sibling

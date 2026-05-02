@@ -139,7 +139,7 @@ RSpec.describe 'Benford change distribution — statistical validation' do # rub
     def build_tx(input_sats:, output_sats:, change_count:)
       tx = tx_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: BSV::Primitives::Digest.sha256d('test'),
+        prev_wtxid: BSV::Primitives::Digest.sha256d('test'),
         prev_tx_out_index: 0
       )
       input.source_satoshis = input_sats

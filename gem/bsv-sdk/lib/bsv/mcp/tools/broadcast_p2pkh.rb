@@ -116,7 +116,7 @@ module BSV
           return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.success?
 
           result = {
-            txid: arc_result.data[:txid],
+            txid: arc_result.data[:txid], # MCP tool boundary: display-order hex from ARC response
             tx_status: arc_result.data[:tx_status],
             hex: tx.to_hex
           }
@@ -154,7 +154,7 @@ module BSV
           selected_utxos.each do |utxo|
             locking_script = p2pkh_lock_for(sender_address)
             input = BSV::Transaction::TransactionInput.new(
-              prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(utxo.tx_hash),
+              prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo.tx_hash),
               prev_tx_out_index: utxo.tx_pos
             )
             input.source_satoshis = utxo.satoshis

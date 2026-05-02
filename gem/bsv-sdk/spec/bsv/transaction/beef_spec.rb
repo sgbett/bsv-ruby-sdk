@@ -246,7 +246,7 @@ RSpec.describe BSV::Transaction::Beef do
       expect(wired_inputs).not_to be_empty
 
       wired_inputs.each do |input|
-        expect(input.source_transaction.txid_hex).to eq(input.txid_hex)
+        expect(input.source_transaction.txid_hex).to eq(input.dtxid_hex)
       end
     end
   end
@@ -278,6 +278,37 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns nil for unknown wtxid' do
       beef = described_class.from_hex(beef_set_hex)
       expect(beef.find_transaction("\x00".b * 32)).to be_nil
+    end
+  end
+
+  describe 'BeefTx#dtxid' do
+    it 'returns display-order hex on a raw entry' do
+      beef = described_class.from_hex(beef_set_hex)
+      bt = beef.transactions.find(&:transaction)
+      expect(bt.dtxid).to eq(bt.txid.unpack1('H*'))
+    end
+
+    it 'returns display-order hex on a txid-only entry' do
+      bt = described_class::BeefTx.new(
+        format: described_class::FORMAT_TXID_ONLY,
+        known_wtxid: "\x01".b * 32
+      )
+      expect(bt.dtxid).to eq(bt.txid.unpack1('H*'))
+    end
+  end
+
+  describe '#subject_dtxid' do
+    it 'returns display-order hex on an Atomic BEEF' do
+      beef = described_class.from_hex(beef_set_hex)
+      last_tx = beef.transactions.last.transaction
+      atomic_bytes = beef.to_atomic_binary(last_tx.wtxid)
+      parsed = described_class.from_binary(atomic_bytes)
+      expect(parsed.subject_dtxid).to eq(parsed.subject_txid.unpack1('H*'))
+    end
+
+    it 'returns nil on a non-Atomic BEEF' do
+      beef = described_class.from_hex(beef_set_hex)
+      expect(beef.subject_dtxid).to be_nil
     end
   end
 
@@ -360,31 +391,29 @@ RSpec.describe BSV::Transaction::Beef do
 
       ancestor_a = BSV::Transaction::Transaction.new
       ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 5000, locking_script: lock))
-      txid_a_hex = ancestor_a.txid.unpack1('H*')
       ancestor_a.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 0, hash: txid_a_hex, txid: true),
-                pe.new(offset: 1, hash: 'aa' * 32)]]
+        path: [[pe.new(offset: 0, hash: ancestor_a.wtxid, txid: true),
+                pe.new(offset: 1, hash: ['aa' * 32].pack('H*'))]]
       )
 
       ancestor_b = BSV::Transaction::Transaction.new(version: 2)
       ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 3000, locking_script: lock))
-      txid_b_hex = ancestor_b.txid.unpack1('H*')
       ancestor_b.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: 800_000,
-        path: [[pe.new(offset: 2, hash: txid_b_hex, txid: true),
-                pe.new(offset: 3, hash: 'bb' * 32)]]
+        path: [[pe.new(offset: 2, hash: ancestor_b.wtxid, txid: true),
+                pe.new(offset: 3, hash: ['bb' * 32].pack('H*'))]]
       )
 
       # Build a child spending both
       child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_a.wtxid, prev_tx_out_index: 0)
+      input_a = BSV::Transaction::TransactionInput.new(prev_wtxid: ancestor_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = ancestor_a
       input_a.source_satoshis = 5000
       input_a.source_locking_script = lock
       child.add_input(input_a)
 
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: ancestor_b.wtxid, prev_tx_out_index: 0)
+      input_b = BSV::Transaction::TransactionInput.new(prev_wtxid: ancestor_b.wtxid, prev_tx_out_index: 0)
       input_b.source_transaction = ancestor_b
       input_b.source_satoshis = 3000
       input_b.source_locking_script = lock
@@ -483,10 +512,10 @@ RSpec.describe BSV::Transaction::Beef do
       tx_b.merkle_path = path_b
 
       child = BSV::Transaction::Transaction.new
-      input_a = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_a.wtxid, prev_tx_out_index: 0)
+      input_a = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = tx_a
       child.add_input(input_a)
-      input_b = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_b.wtxid, prev_tx_out_index: 0)
+      input_b = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_b.wtxid, prev_tx_out_index: 0)
       input_b.source_transaction = tx_b
       child.add_input(input_b)
       child.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 150, locking_script: lock))
@@ -637,7 +666,7 @@ RSpec.describe BSV::Transaction::Beef do
         tx_real.merkle_path = contaminated_bump
 
         c = BSV::Transaction::Transaction.new
-        input = BSV::Transaction::TransactionInput.new(prev_tx_id: tx_real.wtxid, prev_tx_out_index: 0)
+        input = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_real.wtxid, prev_tx_out_index: 0)
         input.source_transaction = tx_real
         c.add_input(input)
         c.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 400, locking_script: lock))
@@ -1228,21 +1257,21 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#sort_transactions! cycle handling (F5.5)' do
     it 'moves cyclic transactions to @txs_not_valid' do
       # A real txid cycle is impossible (txid is a hash of the tx, which includes
-      # the input prev_tx_id). We test cycle detection by using mocked transaction
+      # the input prev_wtxid). We test cycle detection by using mocked transaction
       # objects with stable fake wtxids that reference each other.
       #
       # sort_transactions! logic:
       #   txid_index[bt.wtxid] = i  (wire-order wtxid from BeefTx#wtxid)
-      #   dep_idx = txid_index[input.prev_tx_id]
-      #   (prev_tx_id is also wire-order — direct lookup, no reversal needed)
+      #   dep_idx = txid_index[input.prev_wtxid]
+      #   (prev_wtxid is also wire-order — direct lookup, no reversal needed)
       #
-      # For a cycle: input_a.prev_tx_id must == wtxid_b (wire-order).
+      # For a cycle: input_a.prev_wtxid must == wtxid_b (wire-order).
       wtxid_a = BSV::Primitives::Digest.sha256('fake_tx_a') # wire order
       wtxid_b = BSV::Primitives::Digest.sha256('fake_tx_b')
 
-      # prev_tx_id (wire) of A's input must equal wtxid_b so the sort sees a dep B→A
-      input_a = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: wtxid_b)
-      input_b = instance_double(BSV::Transaction::TransactionInput, prev_tx_id: wtxid_a)
+      # prev_wtxid (wire) of A's input must equal wtxid_b so the sort sees a dep B→A
+      input_a = instance_double(BSV::Transaction::TransactionInput, prev_wtxid: wtxid_b)
+      input_b = instance_double(BSV::Transaction::TransactionInput, prev_wtxid: wtxid_a)
 
       tx_a = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_a, inputs: [input_a])
       tx_b = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_b, inputs: [input_b])

@@ -29,7 +29,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x01".b * 32,
+          prev_wtxid: "\x01".b * 32,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 50_000
@@ -53,7 +53,7 @@ RSpec.describe BSV::Transaction::Transaction do
       it 'raises when source_satoshis and source_locking_script both absent and no source_transaction' do
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x01".b * 32,
+          prev_wtxid: "\x01".b * 32,
           prev_tx_out_index: 0
         )
         tx.add_input(input)
@@ -64,7 +64,7 @@ RSpec.describe BSV::Transaction::Transaction do
       it 'raises when source_locking_script absent and no source_transaction' do
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x01".b * 32,
+          prev_wtxid: "\x01".b * 32,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 1000
@@ -83,7 +83,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # Build unlocking script with full explicit fields, then strip source_satoshis
         prep_tx = described_class.new
         prep_input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x02".b * 32,
+          prev_wtxid: "\x02".b * 32,
           prev_tx_out_index: 0
         )
         prep_input.source_satoshis = 75_000
@@ -94,7 +94,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x02".b * 32,
+          prev_wtxid: "\x02".b * 32,
           prev_tx_out_index: 0
         )
         input.unlocking_script = prep_tx.inputs[0].unlocking_script
@@ -122,7 +122,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # Build and sign a tx with explicit fields, then strip them to simulate a BEEF-parsed input
         prep_tx = described_class.new
         prep_input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x05".b * 32,
+          prev_wtxid: "\x05".b * 32,
           prev_tx_out_index: 0
         )
         prep_input.source_satoshis = 75_000
@@ -134,7 +134,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # Simulate BEEF-parsed input: has unlocking_script + source_transaction, no explicit source fields
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x05".b * 32,
+          prev_wtxid: "\x05".b * 32,
           prev_tx_out_index: 0
         )
         input.unlocking_script = prep_tx.inputs[0].unlocking_script
@@ -160,7 +160,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # Build unlocking script using a separate signed tx
         prep_tx = described_class.new
         prep_input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x03".b * 32,
+          prev_wtxid: "\x03".b * 32,
           prev_tx_out_index: 0
         )
         prep_input.source_satoshis = 50_000
@@ -171,7 +171,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x03".b * 32,
+          prev_wtxid: "\x03".b * 32,
           prev_tx_out_index: 0
         )
         input.unlocking_script = prep_tx.inputs[0].unlocking_script
@@ -197,7 +197,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # Prepare a signed unlocking script for input1
         prep_tx = described_class.new
         prep_input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x02".b * 32,
+          prev_wtxid: "\x02".b * 32,
           prev_tx_out_index: 0
         )
         prep_input.source_satoshis = 30_000
@@ -209,14 +209,14 @@ RSpec.describe BSV::Transaction::Transaction do
         tx = described_class.new
 
         # Input 0: explicit fields
-        input0 = BSV::Transaction::TransactionInput.new(prev_tx_id: "\x01".b * 32, prev_tx_out_index: 0)
+        input0 = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x01".b * 32, prev_tx_out_index: 0)
         input0.source_satoshis = 20_000
         input0.source_locking_script = lock_script
         input0.unlocking_script_template = BSV::Transaction::P2PKH.new(priv)
         tx.add_input(input0)
 
         # Input 1: only source_transaction (no explicit source_satoshis / source_locking_script)
-        input1 = BSV::Transaction::TransactionInput.new(prev_tx_id: "\x02".b * 32, prev_tx_out_index: 0)
+        input1 = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x02".b * 32, prev_tx_out_index: 0)
         input1.source_transaction = source_tx
         input1.unlocking_script = prep_tx.inputs[0].unlocking_script
         tx.add_input(input1)
@@ -241,7 +241,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x04".b * 32,
+          prev_wtxid: "\x04".b * 32,
           prev_tx_out_index: 99 # out of range
         )
         input.source_transaction = source_tx
@@ -259,7 +259,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x01".b * 32,
+          prev_wtxid: "\x01".b * 32,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 50_000
@@ -321,7 +321,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: BSV::Primitives::Digest.sha256d('test source tx'),
+          prev_wtxid: BSV::Primitives::Digest.sha256d('test source tx'),
           prev_tx_out_index: 0
         )
         input.source_satoshis = 100_000
@@ -346,7 +346,7 @@ RSpec.describe BSV::Transaction::Transaction do
         tx = described_class.new
         3.times do |i|
           input = BSV::Transaction::TransactionInput.new(
-            prev_tx_id: BSV::Primitives::Digest.sha256d("source #{i}"),
+            prev_wtxid: BSV::Primitives::Digest.sha256d("source #{i}"),
             prev_tx_out_index: i
           )
           input.source_satoshis = 50_000 + i
@@ -376,7 +376,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: BSV::Primitives::Digest.sha256d('source tx'),
+          prev_wtxid: BSV::Primitives::Digest.sha256d('source tx'),
           prev_tx_out_index: 0
         )
         input.source_satoshis = 100_000
@@ -398,7 +398,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: "\x01".b * 32,
+          prev_wtxid: "\x01".b * 32,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 50_000

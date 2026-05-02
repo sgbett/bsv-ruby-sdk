@@ -13,7 +13,7 @@ module BSV
     #
     # @example Parse a BEEF bundle and find a transaction
     #   beef = BSV::Transaction::Beef.from_hex(beef_hex)
-    #   tx = beef.find_transaction(txid_bytes)
+    #   tx = beef.find_transaction(wtxid)
     class Beef
       # @!group Version constants
 
@@ -58,6 +58,7 @@ module BSV
         def initialize(format:, transaction: nil, known_wtxid: nil, bump_index: nil)
           raise ArgumentError, 'FORMAT_RAW_TX_AND_BUMP requires a bump_index' if format == FORMAT_RAW_TX_AND_BUMP && bump_index.nil?
 
+          BSV::Primitives::Hex.validate_wtxid!(known_wtxid, name: 'known_wtxid') if known_wtxid
           @format = format
           @transaction = transaction
           @known_wtxid = known_wtxid
@@ -75,10 +76,20 @@ module BSV
           end
         end
 
-        # Display-order transaction ID.
-        # @return [String, nil] 32-byte txid
+        # Display-order transaction ID as binary bytes.
+        # @return [String, nil] 32-byte display-order txid
         def txid
           wtxid&.reverse
+        end
+
+        # Display-order transaction ID as a hex string.
+        #
+        # +dtxid+ always returns a 64-char hex string suitable for JSON
+        # and UI boundaries.
+        #
+        # @return [String, nil] hex-encoded transaction ID (display order)
+        def dtxid
+          wtxid&.reverse&.unpack1('H*')
         end
       end
 
@@ -94,10 +105,17 @@ module BSV
       # @return [String, nil] 32-byte wire-order subject txid (Atomic BEEF only)
       attr_reader :subject_wtxid
 
-      # Display-order subject txid (Atomic BEEF only).
+      # Display-order subject txid as binary bytes (Atomic BEEF only).
       # @return [String, nil] 32-byte display-order txid, or nil
       def subject_txid
         @subject_wtxid&.reverse
+      end
+
+      # Display-order subject txid as a hex string (Atomic BEEF only).
+      #
+      # @return [String, nil] hex-encoded display-order txid, or nil
+      def subject_dtxid
+        @subject_wtxid&.reverse&.unpack1('H*')
       end
 
       # @param version [Integer] BEEF version constant (default: BEEF_V1, matching to_binary's
@@ -237,6 +255,7 @@ module BSV
       # @param subject_wtxid [String] 32-byte wire-order subject transaction ID
       # @return [String] raw Atomic BEEF binary
       def to_atomic_binary(subject_wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(subject_wtxid, name: 'subject_wtxid')
         buf = [ATOMIC_BEEF].pack('V')
         # subject_wtxid is already in wire (internal) byte order — write as-is.
         buf << subject_wtxid.b
@@ -252,6 +271,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the matching transaction, or nil
       def find_transaction(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         @transactions.each do |beef_tx|
           return beef_tx.transaction if beef_tx.wtxid == wtxid
         end
@@ -266,6 +286,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [MerklePath, nil] the merkle path, or nil if not found
       def find_bump(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         # Check transaction-table entries first (fast path)
         bt = @transactions.find { |entry| entry.wtxid == wtxid && entry.format == FORMAT_RAW_TX_AND_BUMP }
         return bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index]) if bt
@@ -281,6 +302,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the transaction with wired inputs, or nil
       def find_transaction_for_signing(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
         return unless tx
 
@@ -294,6 +316,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [Transaction, nil] the transaction with full proof tree, or nil
       def find_atomic_transaction(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
         return unless tx
 
@@ -494,6 +517,7 @@ module BSV
       # @param wtxid [String] 32-byte wire-order wtxid
       # @return [BeefTx, nil] the converted entry, or nil if not found
       def make_txid_only(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         idx = @transactions.index { |bt| bt.wtxid == wtxid }
         return unless idx
 
@@ -545,7 +569,7 @@ module BSV
           changed = false
           pending.reject! do |bt|
             all_inputs_known = bt.transaction.inputs.all? do |input|
-              known_wtxids.include?(input.prev_tx_id)
+              known_wtxids.include?(input.prev_wtxid)
             end
             if all_inputs_known
               known_wtxids.add(bt.wtxid)
@@ -593,8 +617,8 @@ module BSV
       def sort_transactions!
         return self if @transactions.length <= 1
 
-        txid_index = {}
-        @transactions.each_with_index { |bt, i| txid_index[bt.wtxid] = i }
+        wtxid_index = {}
+        @transactions.each_with_index { |bt, i| wtxid_index[bt.wtxid] = i }
 
         # Build adjacency: for each tx, which other txs must come before it?
         in_degree = Array.new(@transactions.length, 0)
@@ -604,7 +628,7 @@ module BSV
           next unless bt.transaction
 
           bt.transaction.inputs.each do |input|
-            dep_idx = txid_index[input.prev_tx_id]
+            dep_idx = wtxid_index[input.prev_wtxid]
             next unless dep_idx
 
             dependents[dep_idx] << i
@@ -728,9 +752,9 @@ module BSV
             next unless beef_tx.transaction
 
             # Wire inputs to ancestors already in the map (BEEF is dependency-ordered).
-            # Both prev_tx_id and wtxid are wire-order — no conversion needed.
+            # Both prev_wtxid and wtxid are wire-order — no conversion needed.
             beef_tx.transaction.inputs.each do |input|
-              source = tx_map[input.prev_tx_id]
+              source = tx_map[input.prev_wtxid]
               input.source_transaction = source if source
             end
 
@@ -795,7 +819,7 @@ module BSV
         tx.inputs.each do |input|
           next if input.source_transaction
 
-          source = find_transaction(input.prev_tx_id)
+          source = find_transaction(input.prev_wtxid)
           input.source_transaction = source if source
         end
       end

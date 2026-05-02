@@ -82,6 +82,7 @@ module BSV
       # @return [String] result status ('success' or 'error')
       attr_reader :status
 
+      # Overlay API boundary: display-order hex txid echoed from the broadcast response.
       # @return [String, nil] transaction identifier (present on success)
       attr_reader :txid
 

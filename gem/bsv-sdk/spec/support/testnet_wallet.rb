@@ -65,7 +65,7 @@ module TestnetWallet
   # Convert a WoC UTXO hash into a TransactionInput with source metadata attached.
   def utxo_to_input(utxo, locking_script)
     input = BSV::Transaction::TransactionInput.new(
-      prev_tx_id: BSV::Transaction::TransactionInput.txid_from_hex(utxo['tx_hash']),
+      prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo['tx_hash']),
       prev_tx_out_index: utxo['tx_pos']
     )
     input.source_satoshis = utxo['value']

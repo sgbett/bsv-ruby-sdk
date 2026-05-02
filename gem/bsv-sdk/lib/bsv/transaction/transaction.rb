@@ -391,7 +391,7 @@ module BSV
       # Wire-order transaction ID (raw SHA-256d of the serialised tx).
       #
       # Used by BEEF, BUMPs, and merkle paths, which all work in wire byte order
-      # to match {TransactionInput#prev_tx_id}.
+      # to match {TransactionInput#prev_wtxid}.
       #
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
@@ -414,6 +414,19 @@ module BSV
       def txid_hex
         txid.unpack1('H*')
       end
+
+      # Display-order transaction ID as a hex string.
+      #
+      # Mirrors the wallet gem's +DisplayTxid+ pattern. +dtxid+ always returns
+      # a 64-char hex string suitable for JSON and UI boundaries.
+      #
+      # @return [String] hex-encoded transaction ID (display order)
+      alias dtxid txid_hex
+
+      # Display-order transaction ID as a hex string (alias for {#dtxid}).
+      #
+      # @return [String] hex-encoded transaction ID (display order)
+      alias dtxid_hex txid_hex
 
       # --- Sighash (BIP-143 with FORKID) ---
 
@@ -589,17 +602,17 @@ module BSV
 
         until queue.empty?
           tx = queue.shift
-          tx_id = tx.txid_hex
-          next if verified[tx_id]
+          wtxid = tx.wtxid
+          next if verified[wtxid]
 
           # Merkle path short-circuit: proven transaction needs no input verification
           if tx.merkle_path
-            unless tx.merkle_path.verify(tx_id, chain_tracker)
+            unless tx.merkle_path.verify(tx.txid_hex, chain_tracker)
               raise VerificationError.new(:invalid_merkle_proof,
-                                          "invalid merkle proof for transaction #{tx_id}")
+                                          "invalid merkle proof for transaction #{tx.txid_hex}")
             end
 
-            verified[tx_id] = true
+            verified[wtxid] = true
             next
           end
 
@@ -631,13 +644,13 @@ module BSV
 
             # Enqueue source transaction for verification if not yet verified
             source_tx = input.source_transaction
-            queue << source_tx if source_tx && !verified[source_tx.txid_hex]
+            queue << source_tx if source_tx && !verified[source_tx.wtxid]
           end
 
           # Output ≤ input check
           verify_output_constraint(tx)
 
-          verified[tx_id] = true
+          verified[wtxid] = true
         end
 
         true
@@ -786,19 +799,19 @@ module BSV
       end
 
       def verify_input_requirements(tx, input, index)
-        tx_id = tx.txid_hex
+        dtxid_hex = tx.txid_hex
         if input.unlocking_script.nil?
           raise VerificationError.new(:missing_source,
-                                      "input #{index} of transaction #{tx_id} has no unlocking script")
+                                      "input #{index} of transaction #{dtxid_hex} has no unlocking script")
         end
         if input.source_locking_script.nil?
           raise VerificationError.new(:missing_source,
-                                      "input #{index} of transaction #{tx_id} has no source locking script")
+                                      "input #{index} of transaction #{dtxid_hex} has no source locking script")
         end
         return unless input.source_satoshis.nil?
 
         raise VerificationError.new(:missing_source,
-                                    "input #{index} of transaction #{tx_id} has no source satoshis")
+                                    "input #{index} of transaction #{dtxid_hex} has no source satoshis")
       end
 
       def verify_fee(fee_model)
@@ -852,7 +865,7 @@ module BSV
 
       # Collect this transaction and all its ancestors in dependency order
       # (ancestors first, self last). Stops recursion at transactions with
-      # a merkle_path (proven leaves). Deduplicates by txid.
+      # a merkle_path (proven leaves). Deduplicates by wtxid (wire-order bytes).
       def collect_ancestors
         seen = {}
         result = []
@@ -861,8 +874,8 @@ module BSV
       end
 
       def collect_ancestors_recursive(tx, seen, result)
-        txid = tx.txid
-        return if seen.key?(txid)
+        wtxid = tx.wtxid
+        return if seen.key?(wtxid)
 
         unless tx.merkle_path
           tx.inputs.each do |input|
@@ -872,7 +885,7 @@ module BSV
           end
         end
 
-        seen[txid] = true
+        seen[wtxid] = true
         result << tx
       end
 
@@ -895,8 +908,8 @@ module BSV
           merged = txs.first.merkle_path.dup
           txs.drop(1).each { |t| merged.combine(t.merkle_path) }
 
-          txid_hashes = txs.map(&:wtxid)
-          clean = merged.extract(txid_hashes)
+          wtxid_hashes = txs.map(&:wtxid)
+          clean = merged.extract(wtxid_hashes)
 
           bump_index_by_height[height] = beef.bumps.length
           beef.bumps << clean

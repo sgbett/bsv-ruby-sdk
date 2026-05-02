@@ -15,7 +15,7 @@ RSpec.describe BSV::Transaction::Transaction do
       tx = described_class.new
       # Coinbase-like input (no real source needed)
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: BSV::Primitives::Digest.sha256d('source'),
+        prev_wtxid: BSV::Primitives::Digest.sha256d('source'),
         prev_tx_out_index: 0
       )
       input.unlocking_script = BSV::Script::Script.from_asm('OP_TRUE')
@@ -34,7 +34,7 @@ RSpec.describe BSV::Transaction::Transaction do
     def build_spending_tx(source_tx, output_sats: 90_000)
       tx = described_class.new
       input = BSV::Transaction::TransactionInput.new(
-        prev_tx_id: source_tx.wtxid,
+        prev_wtxid: source_tx.wtxid,
         prev_tx_out_index: 0
       )
       input.source_satoshis = source_tx.outputs[0].satoshis
@@ -163,7 +163,7 @@ RSpec.describe BSV::Transaction::Transaction do
         tx = described_class.new
         [0, 0].each_with_index do |out_idx, _i|
           input = BSV::Transaction::TransactionInput.new(
-            prev_tx_id: source_tx.wtxid,
+            prev_wtxid: source_tx.wtxid,
             prev_tx_out_index: out_idx
           )
           input.source_satoshis = source_tx.outputs[0].satoshis
@@ -251,7 +251,7 @@ RSpec.describe BSV::Transaction::Transaction do
         # Use OP_TRUE scripts so script verification passes despite invalid amounts
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: source_tx.wtxid,
+          prev_wtxid: source_tx.wtxid,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 100_000
@@ -276,7 +276,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: source_tx.wtxid,
+          prev_wtxid: source_tx.wtxid,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 100_000
@@ -302,7 +302,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: source_tx.wtxid,
+          prev_wtxid: source_tx.wtxid,
           prev_tx_out_index: 0
         )
         input.source_satoshis = 100_000
@@ -327,7 +327,7 @@ RSpec.describe BSV::Transaction::Transaction do
 
         tx = described_class.new
         input = BSV::Transaction::TransactionInput.new(
-          prev_tx_id: source_tx.wtxid,
+          prev_wtxid: source_tx.wtxid,
           prev_tx_out_index: 0
         )
         input.unlocking_script = BSV::Script::Script.from_asm('OP_TRUE')
