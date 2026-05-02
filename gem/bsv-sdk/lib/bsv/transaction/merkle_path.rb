@@ -21,7 +21,8 @@ module BSV
       # @!attribute [r] hash
       #   @return [String, nil] 32-byte hash (nil when duplicate)
       # @!attribute [r] txid
-      #   @return [Boolean] whether this leaf is a transaction ID
+      #   @return [Boolean] BRC-74 flag — whether this leaf represents a transaction in
+      #     the merkle tree (the 0x02 bit in the BRC-74 serialisation). Not a txid value.
       # @!attribute [r] duplicate
       #   @return [Boolean] whether this leaf duplicates its sibling
       class PathElement
@@ -29,7 +30,9 @@ module BSV
 
         # @param offset [Integer] position index within the tree level
         # @param hash [String, nil] 32-byte hash (nil when duplicate)
-        # @param txid [Boolean] whether this leaf is a transaction ID
+        # @param txid [Boolean] BRC-74 flag — true when this leaf represents a transaction
+        #   in the tree (the 0x02 bit in the BRC-74 serialisation). This is NOT a txid
+        #   value; it is a boolean presence flag mandated by the BRC-74 specification.
         # @param duplicate [Boolean] whether this leaf duplicates its sibling
         def initialize(offset:, hash: nil, txid: false, duplicate: false)
           @offset = offset
@@ -147,22 +150,22 @@ module BSV
       # @example Convert a WoC TSC proof
       #   tsc = JSON.parse(woc_response).first
       #   mp = BSV::Transaction::MerklePath.from_tsc(
-      #     txid:         tsc['txOrId'],
+      #     dtxid_hex:    tsc['txOrId'],
       #     index:        tsc['index'],
       #     nodes:        tsc['nodes'],
       #     block_height: 612_251
       #   )
       #   mp.compute_root_hex(tsc['txOrId']) #=> the block's merkle root
       #
-      # @param txid [String] hex-encoded transaction ID in display byte order
+      # @param dtxid_hex [String] hex-encoded transaction ID in display byte order
       # @param index [Integer] the transaction's position in the block
       # @param nodes [Array<String>] sibling hashes leaf-to-root, each a 32-byte
       #   hex string in display byte order, or +"*"+ for a duplicate node
       # @param block_height [Integer] the block's height (TSC carries the block
       #   hash; the caller must look up the height separately)
       # @return [MerklePath] a BRC-74 merkle path equivalent to the TSC proof
-      def self.from_tsc(txid:, index:, nodes:, block_height:)
-        txid_bytes = [txid].pack('H*').reverse
+      def self.from_tsc(dtxid_hex:, index:, nodes:, block_height:)
+        txid_bytes = [dtxid_hex].pack('H*').reverse
 
         # Level 0 always contains the txid leaf.
         level0 = [PathElement.new(offset: index, hash: txid_bytes, txid: true)]
@@ -240,16 +243,16 @@ module BSV
 
       # Recompute the merkle root from this path and a transaction ID.
       #
-      # @param txid [String, nil] 32-byte txid in internal byte order (auto-detected if nil)
-      # @return [String] 32-byte merkle root in internal byte order
-      # @raise [ArgumentError] if the txid is not found in the path
-      def compute_root(txid = nil)
-        txid ||= @path[0].find(&:hash)&.hash
-        return txid if @path.length == 1 && @path[0].length == 1
+      # @param wtxid [String, nil] 32-byte txid in wire byte order (auto-detected if nil)
+      # @return [String] 32-byte merkle root in wire byte order
+      # @raise [ArgumentError] if the wtxid is not found in the path
+      def compute_root(wtxid = nil)
+        wtxid ||= @path[0].find(&:hash)&.hash
+        return wtxid if @path.length == 1 && @path[0].length == 1
 
         indexed = build_indexed_path
 
-        tx_leaf = @path[0].find { |l| l.hash == txid }
+        tx_leaf = @path[0].find { |l| l.hash == wtxid }
         raise ArgumentError, 'the BUMP does not contain the txid' unless tx_leaf
 
         working = tx_leaf.hash
@@ -289,11 +292,11 @@ module BSV
 
       # Recompute the merkle root and return it as a hex string.
       #
-      # @param txid_hex [String, nil] hex-encoded txid (display order)
+      # @param dtxid_hex [String, nil] hex-encoded txid (display order)
       # @return [String] hex-encoded merkle root (display order)
-      def compute_root_hex(txid_hex = nil)
-        txid = txid_hex ? [txid_hex].pack('H*').reverse : nil
-        compute_root(txid).reverse.unpack1('H*')
+      def compute_root_hex(dtxid_hex = nil)
+        wtxid = dtxid_hex ? [dtxid_hex].pack('H*').reverse : nil
+        compute_root(wtxid).reverse.unpack1('H*')
       end
 
       # --- Verification ---
@@ -312,11 +315,11 @@ module BSV
       # and accepts immature ones — the opposite of the intended behaviour. The correct
       # logic is: reject when `current_height - block_height < 100` (immature).
       #
-      # @param txid_hex [String] hex-encoded transaction ID (display order)
+      # @param dtxid_hex [String] hex-encoded transaction ID (display order)
       # @param chain_tracker [ChainTracker] chain tracker to verify the root against
       # @return [Boolean] true if the computed root matches the block at this height
-      def verify(txid_hex, chain_tracker)
-        txid_bytes = [txid_hex].pack('H*').reverse
+      def verify(dtxid_hex, chain_tracker)
+        txid_bytes = [dtxid_hex].pack('H*').reverse
         txid_leaf = @path[0].find { |l| l.hash == txid_bytes }
 
         # Offset 0 in a block's merkle tree is always the coinbase transaction —
@@ -326,7 +329,7 @@ module BSV
           return false if current - @block_height < 100
         end
 
-        root_hex = compute_root_hex(txid_hex)
+        root_hex = compute_root_hex(dtxid_hex)
         chain_tracker.valid_root_for_height?(root_hex, @block_height)
       end
 
@@ -445,16 +448,16 @@ module BSV
       #
       # Matches the TS SDK's +MerklePath.extract+ behaviour.
       #
-      # @param txid_hashes [Array<String>] 32-byte txids in internal byte
+      # @param wtxid_hashes [Array<String>] 32-byte txids in wire byte
       #   order (reverse of display order). To pass hex strings, use
-      #   +txid_hexes.map { |h| [h].pack('H*').reverse }+.
+      #   +dtxid_hexes.map { |h| [h].pack('H*').reverse }+.
       # @return [MerklePath] a new trimmed compound path proving only the
       #   requested txids
-      # @raise [ArgumentError] if +txid_hashes+ is empty, any requested
+      # @raise [ArgumentError] if +wtxid_hashes+ is empty, any requested
       #   txid is not present in the source path's level 0, or the
       #   extracted path's root does not match the source root
-      def extract(txid_hashes)
-        raise ArgumentError, 'at least one txid must be provided to extract' if txid_hashes.empty?
+      def extract(wtxid_hashes)
+        raise ArgumentError, 'at least one txid must be provided to extract' if wtxid_hashes.empty?
 
         original_root = compute_root
         indexed = build_indexed_path
@@ -470,7 +473,7 @@ module BSV
 
         needed = Array.new(tree_height) { {} }
 
-        txid_hashes.each do |txid|
+        wtxid_hashes.each do |txid|
           tx_offset = txid_to_offset[txid]
           if tx_offset.nil?
             raise ArgumentError,
