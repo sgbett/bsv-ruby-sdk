@@ -153,7 +153,38 @@ RSpec.describe 'BSV::Auth.get_verifiable_certificates' do
     end
   end
 
-  context 'when prove_certificate raises an error' do
+  context 'when prove_certificate raises UnsupportedActionError' do
+    let(:wallet) { double('wallet') } # rubocop:disable RSpec/VerifiedDoubles
+
+    before do
+      allow(wallet).to receive(:respond_to?).with(:list_certificates).and_return(true)
+      allow(wallet).to receive(:respond_to?).with(:prove_certificate).and_return(true)
+      allow(wallet).to receive(:list_certificates).and_return({ certificates: [cert_hash_a] })
+      allow(wallet).to receive(:prove_certificate).and_raise(BSV::Wallet::UnsupportedActionError)
+    end
+
+    it 'returns []' do
+      result = BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
+      expect(result).to eq([])
+    end
+  end
+
+  context 'when list_certificates raises UnsupportedActionError' do
+    let(:wallet) { double('wallet') } # rubocop:disable RSpec/VerifiedDoubles
+
+    before do
+      allow(wallet).to receive(:respond_to?).with(:list_certificates).and_return(true)
+      allow(wallet).to receive(:respond_to?).with(:prove_certificate).and_return(true)
+      allow(wallet).to receive(:list_certificates).and_raise(BSV::Wallet::UnsupportedActionError)
+    end
+
+    it 'returns []' do
+      result = BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
+      expect(result).to eq([])
+    end
+  end
+
+  context 'when prove_certificate raises an unexpected error' do
     let(:wallet) { double('wallet') } # rubocop:disable RSpec/VerifiedDoubles
 
     before do
@@ -163,13 +194,14 @@ RSpec.describe 'BSV::Auth.get_verifiable_certificates' do
       allow(wallet).to receive(:prove_certificate).and_raise(RuntimeError, 'protocol mismatch')
     end
 
-    it 'returns [] gracefully' do
-      result = BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
-      expect(result).to eq([])
+    it 'propagates the error to the caller' do
+      expect do
+        BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
+      end.to raise_error(RuntimeError, 'protocol mismatch')
     end
   end
 
-  context 'when list_certificates raises an error' do
+  context 'when list_certificates raises an unexpected error' do
     let(:wallet) { double('wallet') } # rubocop:disable RSpec/VerifiedDoubles
 
     before do
@@ -178,9 +210,27 @@ RSpec.describe 'BSV::Auth.get_verifiable_certificates' do
       allow(wallet).to receive(:list_certificates).and_raise(RuntimeError, 'network error')
     end
 
-    it 'returns [] gracefully' do
-      result = BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
-      expect(result).to eq([])
+    it 'propagates the error to the caller' do
+      expect do
+        BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
+      end.to raise_error(RuntimeError, 'network error')
+    end
+  end
+
+  context 'when prove_certificate raises ArgumentError' do
+    let(:wallet) { double('wallet') } # rubocop:disable RSpec/VerifiedDoubles
+
+    before do
+      allow(wallet).to receive(:respond_to?).with(:list_certificates).and_return(true)
+      allow(wallet).to receive(:respond_to?).with(:prove_certificate).and_return(true)
+      allow(wallet).to receive(:list_certificates).and_return({ certificates: [cert_hash_a] })
+      allow(wallet).to receive(:prove_certificate).and_raise(ArgumentError, 'invalid verifier key')
+    end
+
+    it 'propagates the error to the caller' do
+      expect do
+        BSV::Auth.get_verifiable_certificates(wallet, requested_certificates, verifier_key)
+      end.to raise_error(ArgumentError, 'invalid verifier key')
     end
   end
 

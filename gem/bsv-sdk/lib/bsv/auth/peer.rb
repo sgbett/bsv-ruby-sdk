@@ -488,7 +488,7 @@ module BSV
         signature   = fetch!(message, :signature)
 
         # Verify the echoed nonce is one we created
-        raise AuthError, "Nonce verification failed from peer: #{peer_key}" unless Nonce.verify(our_nonce, @wallet)
+        verify_nonce!(our_nonce, context: "initial response from peer: #{peer_key}")
 
         session = @session_manager.get_session(our_nonce)
         raise AuthError, "No pending session for nonce: #{our_nonce.inspect}" unless session
@@ -566,7 +566,7 @@ module BSV
         msg_nonce = fetch!(message, :nonce)
 
         # Verify the echoed nonce is one we created
-        raise AuthError, "Unable to verify nonce for general message from: #{peer_key}" unless Nonce.verify(our_nonce, @wallet)
+        verify_nonce!(our_nonce, context: "general message from: #{peer_key}")
 
         session = @session_manager.get_session(our_nonce)
         raise AuthError, "Session not found for nonce: #{our_nonce.inspect}" unless session
@@ -602,7 +602,7 @@ module BSV
         requested = message[:requested_certificates] || message['requested_certificates']
         signature = fetch!(message, :signature)
 
-        raise AuthError, "Unable to verify nonce for certificate request message from: #{peer_key}" unless Nonce.verify(our_nonce, @wallet)
+        verify_nonce!(our_nonce, context: "certificate request from: #{peer_key}")
 
         session = @session_manager.get_session(our_nonce)
         raise AuthError, "Session not found for nonce: #{our_nonce.inspect}" unless session
@@ -647,7 +647,7 @@ module BSV
         certs     = message[:certificates] || message['certificates'] || []
         signature = fetch!(message, :signature)
 
-        raise AuthError, "Unable to verify nonce for certificate response from: #{peer_key}" unless Nonce.verify(our_nonce, @wallet)
+        verify_nonce!(our_nonce, context: "certificate response from: #{peer_key}")
 
         session = @session_manager.get_session(our_nonce)
         raise AuthError, "Session not found for nonce: #{our_nonce.inspect}" unless session
@@ -771,6 +771,12 @@ module BSV
         return nil if certs.empty?
 
         certs.map { |c| c.respond_to?(:to_h) ? c.to_h : c }
+      end
+
+      def verify_nonce!(nonce, context:)
+        return if Nonce.verify(nonce, @wallet)
+
+        raise AuthError, "Nonce verification failed for #{context}"
       end
 
       def current_time_ms

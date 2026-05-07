@@ -18,6 +18,10 @@ module BSV
   #   BSV::WireFormat.to_wire({ outputs: [{ locking_script: 'abc' }] })
   #   # => { 'outputs' => [{ 'lockingScript' => 'abc' }] }
   module WireFormat
+    # Maximum nesting depth for deep conversions. Prevents stack overflow on
+    # pathologically deep hashes or arrays.
+    MAX_DEPTH = 20
+
     # Well-known snake_case -> camelCase pairs for BRC-100/BRC-103 protocol keys.
     #
     # Acronyms like protocolID, keyID are canonical per the TS SDK (Wallet.interfaces.ts).
@@ -90,10 +94,7 @@ module BSV
     def to_wire(hash)
       raise ArgumentError, 'argument must not be nil' if hash.nil?
 
-      hash.each_with_object({}) do |(k, v), out|
-        camel_key = snake_to_camel(k.to_s)
-        out[camel_key] = deep_convert_value_to_wire(v)
-      end
+      to_wire_at_depth(hash, 0)
     end
 
     # Deeply converts all Hash keys from camelCase strings to snake_case symbols.
@@ -107,10 +108,7 @@ module BSV
     def from_wire(hash)
       raise ArgumentError, 'argument must not be nil' if hash.nil?
 
-      hash.each_with_object({}) do |(k, v), out|
-        snake_key = camel_to_snake(k.to_s).to_sym
-        out[snake_key] = deep_convert_value_from_wire(v)
-      end
+      from_wire_at_depth(hash, 0)
     end
 
     # Converts top-level Hash keys only from snake_case to camelCase strings.
@@ -182,12 +180,35 @@ module BSV
     end
     private_class_method :generic_camel_to_snake
 
+    # Depth-aware inner implementation of to_wire.
+    def to_wire_at_depth(hash, depth)
+      hash.each_with_object({}) do |(k, v), out|
+        camel_key = snake_to_camel(k.to_s)
+        out[camel_key] = deep_convert_value_to_wire(v, depth + 1)
+      end
+    end
+    private_class_method :to_wire_at_depth
+
+    # Depth-aware inner implementation of from_wire.
+    def from_wire_at_depth(hash, depth)
+      hash.each_with_object({}) do |(k, v), out|
+        snake_key = camel_to_snake(k.to_s).to_sym
+        out[snake_key] = deep_convert_value_from_wire(v, depth + 1)
+      end
+    end
+    private_class_method :from_wire_at_depth
+
     # Recursively converts a value destined for the wire (to_wire direction).
-    def deep_convert_value_to_wire(value)
+    # depth is the nesting level of this value (1 = directly inside the root hash).
+    def deep_convert_value_to_wire(value, depth = 0)
       if value.is_a?(Hash)
-        to_wire(value)
+        raise ArgumentError, "WireFormat nesting exceeds maximum depth (#{MAX_DEPTH})" if depth >= MAX_DEPTH
+
+        to_wire_at_depth(value, depth)
       elsif value.is_a?(Array)
-        value.map { |elem| deep_convert_value_to_wire(elem) }
+        raise ArgumentError, "WireFormat nesting exceeds maximum depth (#{MAX_DEPTH})" if depth >= MAX_DEPTH
+
+        value.map { |elem| deep_convert_value_to_wire(elem, depth + 1) }
       else
         value
       end
@@ -195,11 +216,16 @@ module BSV
     private_class_method :deep_convert_value_to_wire
 
     # Recursively converts a value coming from the wire (from_wire direction).
-    def deep_convert_value_from_wire(value)
+    # depth is the nesting level of this value (1 = directly inside the root hash).
+    def deep_convert_value_from_wire(value, depth = 0)
       if value.is_a?(Hash)
-        from_wire(value)
+        raise ArgumentError, "WireFormat nesting exceeds maximum depth (#{MAX_DEPTH})" if depth >= MAX_DEPTH
+
+        from_wire_at_depth(value, depth)
       elsif value.is_a?(Array)
-        value.map { |elem| deep_convert_value_from_wire(elem) }
+        raise ArgumentError, "WireFormat nesting exceeds maximum depth (#{MAX_DEPTH})" if depth >= MAX_DEPTH
+
+        value.map { |elem| deep_convert_value_from_wire(elem, depth + 1) }
       else
         value
       end

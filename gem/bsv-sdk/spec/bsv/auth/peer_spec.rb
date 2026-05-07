@@ -496,7 +496,7 @@ RSpec.describe BSV::Auth::Peer do
         signature: [0] * 71
       }
       expect { bob.send(:handle_incoming_message, bad_nonce_msg) }
-        .to raise_error(BSV::Auth::AuthError, /Unable to verify nonce/)
+        .to raise_error(BSV::Auth::AuthError, /Nonce verification failed/)
     end
 
     it 'raises AuthError when certificateRequest signature is tampered' do
