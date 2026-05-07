@@ -406,21 +406,21 @@ module BSV
         return nil if output_idx.negative? || beef_raw.nil?
 
         beef = BSV::Transaction::Beef.from_binary(beef_raw)
-        tx   = beef.transactions.last&.transaction
-        return nil unless tx
+        beef_tx = beef.transactions.last
+        return nil if beef_tx.nil? || beef_tx.is_a?(BSV::Transaction::Beef::TxidOnlyEntry)
 
-        locking_script = tx.outputs[output_idx]&.locking_script
+        locking_script = beef_tx.transaction.outputs[output_idx]&.locking_script
         return nil unless locking_script
 
         definition_data = parse_locking_script(definition_type, locking_script)
 
         RegisteredDefinition.new(
           definition_data: definition_data,
-          txid: tx.txid_hex, # Registry API boundary: display-order hex txid
+          txid: beef_tx.transaction.txid_hex, # Registry API boundary: display-order hex txid
           output_index: output_idx,
           locking_script: locking_script.to_hex,
           beef: beef_raw,
-          satoshis: tx.outputs[output_idx].satoshis
+          satoshis: beef_tx.transaction.outputs[output_idx].satoshis
         )
       end
 
@@ -439,10 +439,10 @@ module BSV
         txid, output_idx_str = outpoint_str.split('.')
         output_idx = output_idx_str.to_i
 
-        tx = beef.transactions.last&.transaction
-        return nil unless tx
+        beef_tx = beef.transactions.last
+        return nil if beef_tx.nil? || beef_tx.is_a?(BSV::Transaction::Beef::TxidOnlyEntry)
 
-        locking_script = tx.outputs[output_idx]&.locking_script
+        locking_script = beef_tx.transaction.outputs[output_idx]&.locking_script
         return nil unless locking_script
 
         definition_data = parse_locking_script(definition_type, locking_script)

@@ -203,8 +203,10 @@ module BSV
         raise 'Revoke failed: invalid outputIndex from overlay' if output_idx.negative?
 
         beef = BSV::Transaction::Beef.from_binary(beef_bytes)
-        tx   = beef.transactions.last&.transaction
-        raise 'Revoke failed: no transaction found in BEEF' unless tx
+        beef_tx = beef.transactions.last
+        raise 'Revoke failed: no transaction found in BEEF' if beef_tx.nil? || beef_tx.is_a?(BSV::Transaction::Beef::TxidOnlyEntry)
+
+        tx = beef_tx.transaction
         raise 'Revoke failed: outputIndex out of range' if output_idx >= tx.outputs.length
 
         # Overlay API boundary: outpoint uses display-order hex txid as per overlay convention
