@@ -21,7 +21,9 @@ module BSV
       #   - +:types+ [Hash] type (Base64 string) → array of field names to reveal
       # @param verifier_identity_key [String] the verifier's compressed public key hex
       # @return [Array<VerifiableCertificate>] list of verifiable certificates ready for
-      #   presentation, or +[]+ on any failure
+      #   presentation, or +[]+ when the wallet does not support certificate operations
+      # @raise [StandardError] propagates unexpected errors (network failures, key derivation
+      #   errors, etc.) to the caller — only +UnsupportedActionError+ is swallowed
       def get_verifiable_certificates(wallet, requested_certificates, verifier_identity_key)
         return [] unless wallet.respond_to?(:list_certificates) && wallet.respond_to?(:prove_certificate)
 
@@ -65,11 +67,9 @@ module BSV
             signature: cert[:signature] || cert['signature']
           )
         end
-      rescue StandardError
-        # Auto-fetch is best-effort: wallet may raise UnsupportedActionError,
-        # key derivation errors, or other failures. The peer protocol handles
-        # "no certificates" gracefully — the requesting peer enforces its own
-        # certificate requirements independently.
+      rescue BSV::Wallet::UnsupportedActionError
+        # Wallet does not implement certificate operations (e.g. ProtoWallet).
+        # Return empty — the requesting peer enforces its own requirements independently.
         []
       end
     end
