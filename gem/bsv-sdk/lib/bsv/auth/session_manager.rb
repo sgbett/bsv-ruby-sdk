@@ -78,13 +78,19 @@ module BSV
           return nil if nonces.nil? || nonces.empty?
 
           best = nil
+          expired_nonces = []
           nonces.each do |nonce|
             s = @by_nonce[nonce]
             next if s.nil?
-            next if expired_locked?(s)
+
+            if expired_locked?(s)
+              expired_nonces << s
+              next
+            end
 
             best = s if best.nil? || (s.last_update || 0) > (best.last_update || 0)
           end
+          expired_nonces.each { |s| remove_session_locked(s) }
           best
         end
       end
@@ -112,10 +118,20 @@ module BSV
           nonces = @by_identity[identifier]
           return false if nonces.nil? || nonces.empty?
 
-          nonces.any? do |nonce|
+          has_active = false
+          expired_sessions = []
+          nonces.each do |nonce|
             s = @by_nonce[nonce]
-            s && !expired_locked?(s)
+            next if s.nil?
+
+            if expired_locked?(s)
+              expired_sessions << s
+            else
+              has_active = true
+            end
           end
+          expired_sessions.each { |s| remove_session_locked(s) }
+          has_active
         end
       end
 
