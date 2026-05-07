@@ -439,6 +439,7 @@ module BSV
         raise ArgumentError, 'only SIGHASH_FORKID types are supported' unless sighash_type & Sighash::FORK_ID != 0
 
         input = @inputs[input_index]
+        raise ArgumentError, "no input at index #{input_index}" if input.nil?
 
         if input.source_satoshis.nil?
           raise ArgumentError,

@@ -436,6 +436,17 @@ RSpec.describe BSV::Transaction::Transaction do
         ArgumentError, /input 0 has nil source_locking_script/
       )
     end
+
+    it 'raises ArgumentError when input_index is out of bounds' do
+      private_key = BSV::Primitives::PrivateKey.generate
+
+      tx = described_class.new
+      # No inputs added
+
+      expect { tx.sign(0, private_key) }.to raise_error(
+        ArgumentError, /no input at index 0/
+      )
+    end
   end
 
   describe 'UnlockingScriptTemplate integration' do
