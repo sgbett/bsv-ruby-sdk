@@ -375,7 +375,7 @@ module BSV
       def self.from_beef(data)
         beef = Beef.from_binary(data)
         subject_wtxid = beef.subject_wtxid ||
-                        beef.transactions.reverse.find(&:transaction)&.wtxid
+                        beef.transactions.reverse.find { |bt| !bt.is_a?(Beef::TxidOnlyEntry) }&.wtxid
         return nil unless subject_wtxid
 
         beef.find_atomic_transaction(subject_wtxid)

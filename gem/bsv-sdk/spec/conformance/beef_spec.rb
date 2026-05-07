@@ -34,7 +34,7 @@ RSpec.describe BSV::Transaction::Beef do
     it('contains 2 transactions') { expect(beef.transactions.length).to eq(2) }
 
     it 'wires source transactions during parse' do
-      wired = beef.transactions.flat_map { |bt| bt.transaction.inputs.select(&:source_transaction) }
+      wired = beef.transactions.grep_v(described_class::TxidOnlyEntry).flat_map { |bt| bt.transaction.inputs.select(&:source_transaction) }
       expect(wired).not_to be_empty
     end
 

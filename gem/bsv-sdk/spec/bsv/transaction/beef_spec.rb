@@ -143,7 +143,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'attaches merkle_paths from BUMPs' do
-      with_paths = beef.transactions.select { |bt| bt.transaction&.merkle_path }
+      with_paths = beef.transactions.grep_v(described_class::TxidOnlyEntry).select { |bt| bt.transaction.merkle_path }
       expect(with_paths).not_to be_empty
     end
   end
@@ -235,7 +235,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'wires source transactions on child inputs' do
       wired_inputs = beef.transactions.flat_map do |bt|
-        next [] unless bt.transaction
+        next [] if bt.is_a?(described_class::TxidOnlyEntry)
 
         bt.transaction.inputs.select(&:source_transaction)
       end
@@ -281,7 +281,7 @@ RSpec.describe BSV::Transaction::Beef do
   describe 'BeefTx#dtxid' do
     it 'returns display-order hex on a raw entry' do
       beef = described_class.from_hex(beef_set_hex)
-      bt = beef.transactions.find(&:transaction)
+      bt = beef.transactions.find { |entry| !entry.is_a?(described_class::TxidOnlyEntry) }
       expect(bt.dtxid).to eq(bt.wtxid.reverse.unpack1('H*'))
     end
 

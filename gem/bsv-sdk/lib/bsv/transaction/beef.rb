@@ -64,24 +64,6 @@ module BSV
           wtxid&.reverse&.unpack1('H*')
         end
 
-        # The raw transaction, if available.
-        # @return [Transaction, nil] nil by default; overridden by {RawTxEntry} and {ProvenTxEntry}
-        def transaction
-          nil
-        end
-
-        # Index into the BEEF bumps array, if applicable.
-        # @return [Integer, nil] nil by default; overridden by {ProvenTxEntry}
-        def bump_index
-          nil
-        end
-
-        # Wire-order wtxid for TXID-only entries.
-        # @return [String, nil] nil by default; overridden by {TxidOnlyEntry}
-        def known_wtxid
-          nil
-        end
-
         # Wire-protocol format integer for serialisation.
         # @return [Integer]
         # @abstract
@@ -345,6 +327,7 @@ module BSV
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         BSV.logger&.debug { "[Beef] find_transaction: #{wtxid.reverse.unpack1('H*')} in #{@transactions.length} entries" }
         @transactions.each do |beef_tx|
+          next if beef_tx.is_a?(TxidOnlyEntry)
           return beef_tx.transaction if beef_tx.wtxid == wtxid
         end
         nil
@@ -361,7 +344,7 @@ module BSV
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         # Check transaction-table entries first (fast path)
         bt = @transactions.find { |entry| entry.wtxid == wtxid && entry.is_a?(ProvenTxEntry) }
-        return bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index]) if bt
+        return bt.transaction.merkle_path || @bumps[bt.bump_index] if bt
 
         # F5.8: also scan @bumps directly for a path containing the wtxid leaf
         @bumps.find do |bump|
@@ -612,7 +595,7 @@ module BSV
           next unless bt.is_a?(ProvenTxEntry)
 
           # Must have a BUMP
-          bump = bt.transaction&.merkle_path || (bt.bump_index && @bumps[bt.bump_index])
+          bump = bt.transaction.merkle_path || @bumps[bt.bump_index]
           return false unless bump
 
           # The txid must appear as a leaf in the BUMP and compute a valid root
@@ -625,7 +608,7 @@ module BSV
 
         known_wtxids = build_known_wtxids(allow_txid_only)
 
-        pending = @transactions.select { |bt| bt.transaction && !known_wtxids.include?(bt.wtxid) }
+        pending = @transactions.reject { |bt| bt.is_a?(TxidOnlyEntry) || known_wtxids.include?(bt.wtxid) }
 
         # Iteratively resolve: if all inputs of a tx are known, it becomes known
         changed = true
@@ -689,7 +672,7 @@ module BSV
         dependents = Array.new(@transactions.length) { [] }
 
         @transactions.each_with_index do |bt, i|
-          next unless bt.transaction
+          next if bt.is_a?(TxidOnlyEntry)
 
           bt.transaction.inputs.each do |input|
             dep_idx = wtxid_index[input.prev_wtxid]
@@ -809,7 +792,7 @@ module BSV
         def wire_source_transactions(beef)
           tx_map = {}
           beef.transactions.each do |beef_tx|
-            next unless beef_tx.transaction
+            next if beef_tx.is_a?(TxidOnlyEntry)
 
             # Wire inputs to ancestors already in the map (BEEF is dependency-ordered).
             # Both prev_wtxid and wtxid are wire-order — no conversion needed.

@@ -837,7 +837,7 @@ RSpec.describe BSV::Transaction::Transaction do
       # Sanity: the serialised ancestor must be FORMAT_RAW_TX (has_bump=0).
       # If this fails the spec is no longer exercising the late-bind path.
       reparsed = BSV::Transaction::Beef.from_binary(binary)
-      ancestor_entry = reparsed.transactions.find { |bt| bt.transaction&.wtxid == ancestor.wtxid }
+      ancestor_entry = reparsed.transactions.find { |bt| bt.is_a?(BSV::Transaction::Beef::RawTxEntry) && bt.transaction.wtxid == ancestor.wtxid }
       expect(ancestor_entry).to be_a(BSV::Transaction::Beef::RawTxEntry)
 
       result = described_class.from_beef(binary)
