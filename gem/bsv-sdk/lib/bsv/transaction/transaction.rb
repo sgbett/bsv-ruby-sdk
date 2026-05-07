@@ -439,6 +439,29 @@ module BSV
         raise ArgumentError, 'only SIGHASH_FORKID types are supported' unless sighash_type & Sighash::FORK_ID != 0
 
         input = @inputs[input_index]
+        raise ArgumentError, "no input at index #{input_index}" if input.nil?
+
+        # Resolve source data from wired source_transaction when not explicitly set.
+        if input.source_transaction
+          source_output = input.source_transaction.outputs[input.prev_tx_out_index]
+          if source_output
+            input.source_satoshis       ||= source_output.satoshis
+            input.source_locking_script ||= source_output.locking_script
+          end
+        end
+
+        if input.source_satoshis.nil?
+          raise ArgumentError,
+                "input #{input_index} has nil source_satoshis — " \
+                'set it or wire source_transaction before computing sighash'
+        end
+
+        unless subscript || input.source_locking_script
+          raise ArgumentError,
+                "input #{input_index} has nil source_locking_script — " \
+                'set it or wire source_transaction before computing sighash'
+        end
+
         base_type = sighash_type & Sighash::MASK
         anyone = sighash_type.anybits?(Sighash::ANYONE_CAN_PAY)
 

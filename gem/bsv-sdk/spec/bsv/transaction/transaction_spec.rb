@@ -388,6 +388,65 @@ RSpec.describe BSV::Transaction::Transaction do
         expect(input.unlocking_script).not_to be_nil
       end
     end
+
+    it 'raises ArgumentError when input has nil source_satoshis' do
+      private_key = BSV::Primitives::PrivateKey.generate
+      pubkey_hash = private_key.public_key.hash160
+      locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
+
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_wtxid: "\x01".b * 32,
+        prev_tx_out_index: 0
+      )
+      # source_satoshis intentionally not set
+      input.source_locking_script = locking_script
+      tx.add_input(input)
+
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000,
+                      locking_script: locking_script
+                    ))
+
+      expect { tx.sign(0, private_key) }.to raise_error(
+        ArgumentError, /input 0 has nil source_satoshis/
+      )
+    end
+
+    it 'raises ArgumentError when input has nil source_locking_script' do
+      private_key = BSV::Primitives::PrivateKey.generate
+      pubkey_hash = private_key.public_key.hash160
+      locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
+
+      tx = described_class.new
+      input = BSV::Transaction::TransactionInput.new(
+        prev_wtxid: "\x01".b * 32,
+        prev_tx_out_index: 0
+      )
+      input.source_satoshis = 100_000
+      # source_locking_script intentionally not set
+      tx.add_input(input)
+
+      tx.add_output(BSV::Transaction::TransactionOutput.new(
+                      satoshis: 90_000,
+                      locking_script: locking_script
+                    ))
+
+      expect { tx.sign(0, private_key) }.to raise_error(
+        ArgumentError, /input 0 has nil source_locking_script/
+      )
+    end
+
+    it 'raises ArgumentError when input_index is out of bounds' do
+      private_key = BSV::Primitives::PrivateKey.generate
+
+      tx = described_class.new
+      # No inputs added
+
+      expect { tx.sign(0, private_key) }.to raise_error(
+        ArgumentError, /no input at index 0/
+      )
+    end
   end
 
   describe 'UnlockingScriptTemplate integration' do
