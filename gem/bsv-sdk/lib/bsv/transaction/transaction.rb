@@ -337,13 +337,12 @@ module BSV
 
         ancestors.each do |tx|
           entry = if tx.merkle_path
-                    Beef::BeefTx.new(
-                      format: Beef::FORMAT_RAW_TX_AND_BUMP,
+                    Beef::ProvenTxEntry.new(
                       transaction: tx,
                       bump_index: bump_index_by_height.fetch(tx.merkle_path.block_height)
                     )
                   else
-                    Beef::BeefTx.new(format: Beef::FORMAT_RAW_TX, transaction: tx)
+                    Beef::RawTxEntry.new(transaction: tx)
                   end
           beef.transactions << entry
         end
@@ -376,7 +375,7 @@ module BSV
       def self.from_beef(data)
         beef = Beef.from_binary(data)
         subject_wtxid = beef.subject_wtxid ||
-                        beef.transactions.reverse.find(&:transaction)&.wtxid
+                        beef.transactions.reverse.find { |bt| !bt.is_a?(Beef::TxidOnlyEntry) }&.wtxid
         return nil unless subject_wtxid
 
         beef.find_atomic_transaction(subject_wtxid)

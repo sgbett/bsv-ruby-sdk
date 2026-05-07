@@ -276,7 +276,7 @@ RSpec.describe 'BSV::Registry::Client' do
     end
 
     let(:beef_obj) do
-      beef_tx = instance_double(BSV::Transaction::Beef::BeefTx, transaction: mock_output_tx)
+      beef_tx = instance_double(BSV::Transaction::Beef::RawTxEntry, transaction: mock_output_tx)
       instance_double(BSV::Transaction::Beef, transactions: [beef_tx])
     end
 
@@ -428,7 +428,7 @@ RSpec.describe 'BSV::Registry::Client' do
                       outputs: [mock_tx_output])
     end
 
-    let(:mock_beef_tx) { instance_double(BSV::Transaction::Beef::BeefTx, transaction: mock_tx) }
+    let(:mock_beef_tx) { instance_double(BSV::Transaction::Beef::RawTxEntry, transaction: mock_tx) }
     let(:mock_beef)    { instance_double(BSV::Transaction::Beef, transactions: [mock_beef_tx]) }
 
     let(:wallet_output) do

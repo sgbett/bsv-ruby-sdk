@@ -143,7 +143,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'attaches merkle_paths from BUMPs' do
-      with_paths = beef.transactions.select { |bt| bt.transaction&.merkle_path }
+      with_paths = beef.transactions.grep_v(described_class::TxidOnlyEntry).select { |bt| bt.transaction.merkle_path }
       expect(with_paths).not_to be_empty
     end
   end
@@ -192,10 +192,7 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#to_binary with FORMAT_TXID_ONLY entries (issue #290)' do
     let(:beef_with_txid_only) do
       beef = described_class.new
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_TXID_ONLY,
-        known_wtxid: "\x01".b * 32
-      )
+      beef.transactions << described_class::TxidOnlyEntry.new(known_wtxid: "\x01".b * 32)
       beef
     end
 
@@ -215,7 +212,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       parsed = described_class.from_binary(bytes)
       expect(parsed.transactions.length).to eq(1)
-      expect(parsed.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
+      expect(parsed.transactions.first).to be_a(described_class::TxidOnlyEntry)
       expect(parsed.transactions.first.known_wtxid).to eq("\x01".b * 32)
     end
 
@@ -238,7 +235,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'wires source transactions on child inputs' do
       wired_inputs = beef.transactions.flat_map do |bt|
-        next [] unless bt.transaction
+        next [] if bt.is_a?(described_class::TxidOnlyEntry)
 
         bt.transaction.inputs.select(&:source_transaction)
       end
@@ -284,15 +281,12 @@ RSpec.describe BSV::Transaction::Beef do
   describe 'BeefTx#dtxid' do
     it 'returns display-order hex on a raw entry' do
       beef = described_class.from_hex(beef_set_hex)
-      bt = beef.transactions.find(&:transaction)
+      bt = beef.transactions.find { |entry| !entry.is_a?(described_class::TxidOnlyEntry) }
       expect(bt.dtxid).to eq(bt.wtxid.reverse.unpack1('H*'))
     end
 
     it 'returns display-order hex on a txid-only entry' do
-      bt = described_class::BeefTx.new(
-        format: described_class::FORMAT_TXID_ONLY,
-        known_wtxid: "\x01".b * 32
-      )
+      bt = described_class::TxidOnlyEntry.new(known_wtxid: "\x01".b * 32)
       expect(bt.dtxid).to eq(bt.wtxid.reverse.unpack1('H*'))
     end
   end
@@ -427,7 +421,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef.merge_transaction(child)
 
       # Both ancestors should be present and proven
-      proven = beef.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      proven = beef.transactions.grep(described_class::ProvenTxEntry)
       expect(proven.length).to eq(2)
 
       # Two separate BUMPs (different merkle roots at same height).
@@ -543,17 +537,9 @@ RSpec.describe BSV::Transaction::Beef do
 
       beef = described_class.new
       idx_a = beef.merge_bump(tx_a.merkle_path)
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_RAW_TX_AND_BUMP,
-        transaction: tx_a,
-        bump_index: idx_a
-      )
+      beef.transactions << described_class::ProvenTxEntry.new(transaction: tx_a, bump_index: idx_a)
       idx_b = beef.merge_bump(tx_b.merkle_path)
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_RAW_TX_AND_BUMP,
-        transaction: tx_b,
-        bump_index: idx_b
-      )
+      beef.transactions << described_class::ProvenTxEntry.new(transaction: tx_b, bump_index: idx_b)
 
       parsed = described_class.from_binary(beef.to_binary)
       expect(parsed.bumps.length).to eq(1)
@@ -565,13 +551,11 @@ RSpec.describe BSV::Transaction::Beef do
       tx_b.merkle_path = path_b
 
       beef = described_class.new
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+      beef.transactions << described_class::ProvenTxEntry.new(
         transaction: tx_a,
         bump_index: beef.merge_bump(tx_a.merkle_path)
       )
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+      beef.transactions << described_class::ProvenTxEntry.new(
         transaction: tx_b,
         bump_index: beef.merge_bump(tx_b.merkle_path)
       )
@@ -800,7 +784,7 @@ RSpec.describe BSV::Transaction::Beef do
   describe '#find_bump' do
     it 'returns the merkle path for a mined transaction' do
       beef = described_class.from_hex(beef_set_hex)
-      mined = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      mined = beef.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }
       mp = beef.find_bump(mined.wtxid)
       expect(mp).to be_a(BSV::Transaction::MerklePath)
     end
@@ -812,7 +796,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'returns nil for unproven transaction' do
       beef = described_class.from_hex(beef_set_hex)
-      raw_only = beef.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX }
+      raw_only = beef.transactions.find { |bt| bt.is_a?(described_class::RawTxEntry) }
       if raw_only
         expect(beef.find_bump(raw_only.wtxid)).to be_nil
       else
@@ -889,7 +873,7 @@ RSpec.describe BSV::Transaction::Beef do
     it 'stores a raw transaction without a BUMP' do
       beef = described_class.new
       entry = beef.merge_raw_tx([raw_tx_hex].pack('H*'))
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+      expect(entry).to be_a(described_class::RawTxEntry)
     end
 
     it 'stores a raw transaction with a valid BUMP index' do
@@ -898,7 +882,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef.merge_bump(source.bumps.first)
 
       entry = beef.merge_raw_tx([raw_tx_hex].pack('H*'), bump_index: 0)
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry).to be_a(described_class::ProvenTxEntry)
       expect(entry.bump_index).to eq(0)
     end
 
@@ -921,31 +905,24 @@ RSpec.describe BSV::Transaction::Beef do
   end
 
   describe 'BeefTx initialisation invariants' do
-    it 'raises when FORMAT_RAW_TX_AND_BUMP is constructed without a bump_index' do
+    it 'raises when ProvenTxEntry is constructed without a bump_index' do
       tx = BSV::Transaction::Transaction.new
       expect do
-        described_class::BeefTx.new(
-          format: described_class::FORMAT_RAW_TX_AND_BUMP,
-          transaction: tx
-        )
-      end.to raise_error(ArgumentError, /FORMAT_RAW_TX_AND_BUMP requires a bump_index/)
+        described_class::ProvenTxEntry.new(transaction: tx, bump_index: nil)
+      end.to raise_error(ArgumentError, /ProvenTxEntry requires a bump_index/)
     end
 
-    it 'accepts FORMAT_RAW_TX_AND_BUMP with a bump_index' do
+    it 'accepts ProvenTxEntry with a bump_index' do
       tx = BSV::Transaction::Transaction.new
       expect do
-        described_class::BeefTx.new(
-          format: described_class::FORMAT_RAW_TX_AND_BUMP,
-          transaction: tx,
-          bump_index: 0
-        )
+        described_class::ProvenTxEntry.new(transaction: tx, bump_index: 0)
       end.not_to raise_error
     end
 
-    it 'accepts FORMAT_RAW_TX without a bump_index' do
+    it 'accepts RawTxEntry without a bump_index' do
       tx = BSV::Transaction::Transaction.new
       expect do
-        described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+        described_class::RawTxEntry.new(transaction: tx)
       end.not_to raise_error
     end
   end
@@ -1032,8 +1009,7 @@ RSpec.describe BSV::Transaction::Beef do
       # Construct a malformed source BEEF by direct mutation: a tx pointing at
       # a bump_index that doesn't exist in @bumps.
       source = described_class.from_hex(brc62_hex)
-      bogus_entry = described_class::BeefTx.new(
-        format: described_class::FORMAT_RAW_TX_AND_BUMP,
+      bogus_entry = described_class::ProvenTxEntry.new(
         transaction: BSV::Transaction::Transaction.new(version: 99), # unique txid
         bump_index: source.bumps.length + 42
       )
@@ -1051,7 +1027,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       beef.make_txid_only(first_bt.wtxid)
       entry = beef.transactions.find { |bt| bt.wtxid == original_wtxid }
-      expect(entry.format).to eq(described_class::FORMAT_TXID_ONLY)
+      expect(entry).to be_a(described_class::TxidOnlyEntry)
       expect(entry.known_wtxid).to eq(first_bt.wtxid)
     end
 
@@ -1085,25 +1061,19 @@ RSpec.describe BSV::Transaction::Beef do
         '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
         '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
       )
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      beef.transactions << described_class::RawTxEntry.new(transaction: tx)
       expect(beef.valid?).to be false
     end
 
     it 'returns false for TXID-only entries by default' do
       beef = described_class.new
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_TXID_ONLY,
-        known_wtxid: "\x01".b * 32
-      )
+      beef.transactions << described_class::TxidOnlyEntry.new(known_wtxid: "\x01".b * 32)
       expect(beef.valid?).to be false
     end
 
     it 'returns true for TXID-only when allow_txid_only is true' do
       beef = described_class.new
-      beef.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_TXID_ONLY,
-        known_wtxid: "\x01".b * 32
-      )
+      beef.transactions << described_class::TxidOnlyEntry.new(known_wtxid: "\x01".b * 32)
       expect(beef.valid?(allow_txid_only: true)).to be true
     end
   end
@@ -1192,7 +1162,7 @@ RSpec.describe BSV::Transaction::Beef do
       # but the BUMP won't contain the fresh tx's txid — compute_root will raise.
       beef.bumps << mp_class.from_hex(described_class.from_hex(brc62_hex).bumps.first.to_hex)
       # Build an entry whose txid does NOT appear in the BUMP
-      entry = described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX_AND_BUMP, transaction: tx, bump_index: 0)
+      entry = described_class::ProvenTxEntry.new(transaction: tx, bump_index: 0)
       beef.transactions << entry
 
       # The BUMP exists but the txid is not a leaf — compute_root should raise → valid? false
@@ -1220,7 +1190,7 @@ RSpec.describe BSV::Transaction::Beef do
         '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
         '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
       )
-      bad_beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      bad_beef.transactions << described_class::RawTxEntry.new(transaction: tx)
       expect(bad_beef.verify).to be false
     end
 
@@ -1244,10 +1214,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'passes allow_txid_only through to valid?' do
       beef_with_txid_only = described_class.new
-      beef_with_txid_only.transactions << described_class::BeefTx.new(
-        format: described_class::FORMAT_TXID_ONLY,
-        known_wtxid: "\x01".b * 32
-      )
+      beef_with_txid_only.transactions << described_class::TxidOnlyEntry.new(known_wtxid: "\x01".b * 32)
       expect(beef_with_txid_only.verify(nil, allow_txid_only: true)).to be true
       expect(beef_with_txid_only.verify(nil, allow_txid_only: false)).to be false
     end
@@ -1277,8 +1244,8 @@ RSpec.describe BSV::Transaction::Beef do
       tx_b = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_b, inputs: [input_b])
 
       beef = described_class.new
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx_a)
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx_b)
+      beef.transactions << described_class::RawTxEntry.new(transaction: tx_a)
+      beef.transactions << described_class::RawTxEntry.new(transaction: tx_b)
 
       beef.sort_transactions!
 
@@ -1326,8 +1293,8 @@ RSpec.describe BSV::Transaction::Beef do
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: BSV::Script::Script.new))
 
       # Add as raw tx first
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
-      expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
+      beef.transactions << described_class::RawTxEntry.new(transaction: tx)
+      expect(beef.transactions.first).to be_a(described_class::RawTxEntry)
 
       # Now add a BUMP that covers this wtxid
       sibling = BSV::Primitives::Digest.sha256('sibling')
@@ -1340,19 +1307,19 @@ RSpec.describe BSV::Transaction::Beef do
 
       # The entry should be retroactively upgraded
       entry = beef.transactions.first
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry).to be_a(described_class::ProvenTxEntry)
       expect(entry.bump_index).to eq(0)
     end
 
     it 'does not touch FORMAT_RAW_TX_AND_BUMP entries (already proven)' do
       source = described_class.from_hex(brc62_hex)
-      proven = source.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      proven = source.transactions.grep(described_class::ProvenTxEntry)
       expect(proven).not_to be_empty
 
       # Re-merging the same BUMP should not change the format
       bump = source.bumps.first
       source.merge_bump(bump)
-      proven_after = source.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      proven_after = source.transactions.grep(described_class::ProvenTxEntry)
       expect(proven_after.length).to eq(proven.length)
     end
   end
@@ -1383,13 +1350,13 @@ RSpec.describe BSV::Transaction::Beef do
       tx = make_tx
       tx_wtxid = tx.wtxid
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
-      expect(beef.transactions.first.format).to eq(described_class::FORMAT_TXID_ONLY)
+      beef.transactions << described_class::TxidOnlyEntry.new(known_wtxid: tx.wtxid)
+      expect(beef.transactions.first).to be_a(described_class::TxidOnlyEntry)
 
       beef.merge_transaction(tx)
 
       entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+      expect(entry).to be_a(described_class::RawTxEntry)
     end
 
     it 'upgrades TXID_ONLY to RAW_TX_AND_BUMP when raw tx + bump merged' do
@@ -1398,11 +1365,11 @@ RSpec.describe BSV::Transaction::Beef do
       tx_wtxid = tx.wtxid
       tx.merkle_path = make_bump(tx)
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
+      beef.transactions << described_class::TxidOnlyEntry.new(known_wtxid: tx.wtxid)
       beef.merge_transaction(tx)
 
       entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry).to be_a(described_class::ProvenTxEntry)
     end
 
     it 'upgrades RAW_TX to RAW_TX_AND_BUMP when a BUMP becomes available via merge_transaction' do
@@ -1410,8 +1377,8 @@ RSpec.describe BSV::Transaction::Beef do
       tx = make_tx
       tx_wtxid = tx.wtxid
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
-      expect(beef.transactions.first.format).to eq(described_class::FORMAT_RAW_TX)
+      beef.transactions << described_class::RawTxEntry.new(transaction: tx)
+      expect(beef.transactions.first).to be_a(described_class::RawTxEntry)
 
       # Now merge again with a merkle_path attached
       tx_with_bump = tx.dup
@@ -1420,7 +1387,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef.merge_transaction(tx_with_bump)
 
       entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry).to be_a(described_class::ProvenTxEntry)
     end
 
     it 'upgrades TXID_ONLY to RAW_TX via merge_raw_tx' do
@@ -1428,11 +1395,11 @@ RSpec.describe BSV::Transaction::Beef do
       tx = make_tx
       tx_wtxid = tx.wtxid
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_TXID_ONLY, known_wtxid: tx.wtxid)
+      beef.transactions << described_class::TxidOnlyEntry.new(known_wtxid: tx.wtxid)
       beef.merge_raw_tx(tx.to_binary)
 
       entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX)
+      expect(entry).to be_a(described_class::RawTxEntry)
     end
 
     it 'upgrades RAW_TX to RAW_TX_AND_BUMP via merge_raw_tx with bump_index' do
@@ -1443,11 +1410,11 @@ RSpec.describe BSV::Transaction::Beef do
       bump = make_bump(tx)
       beef.bumps << bump
 
-      beef.transactions << described_class::BeefTx.new(format: described_class::FORMAT_RAW_TX, transaction: tx)
+      beef.transactions << described_class::RawTxEntry.new(transaction: tx)
       beef.merge_raw_tx(tx.to_binary, bump_index: 0)
 
       entry = beef.transactions.find { |bt| bt.wtxid == tx_wtxid }
-      expect(entry.format).to eq(described_class::FORMAT_RAW_TX_AND_BUMP)
+      expect(entry).to be_a(described_class::ProvenTxEntry)
       expect(entry.bump_index).to eq(0)
     end
   end
@@ -1477,7 +1444,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'prefers the transaction-table entry when both exist' do
       source = described_class.from_hex(brc62_hex)
-      mined = source.transactions.find { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      mined = source.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }
       bump_via_table = source.find_bump(mined.wtxid)
       expect(bump_via_table).to be_a(BSV::Transaction::MerklePath)
     end
@@ -1485,15 +1452,15 @@ RSpec.describe BSV::Transaction::Beef do
 
   # F5.9 — merge doesn't mutate source
   describe '#merge does not mutate source BeefTx objects (F5.9)' do
-    it 'does not alter the source BEEF transactions format' do
+    it 'does not alter the source BEEF transactions classes' do
       source = described_class.from_hex(brc62_hex)
-      original_formats = source.transactions.map(&:format)
+      original_classes = source.transactions.map(&:class)
 
       target = described_class.new
       target.merge(source)
 
-      # Source format array must be unchanged
-      expect(source.transactions.map(&:format)).to eq(original_formats)
+      # Source class array must be unchanged (no entries upgraded/replaced)
+      expect(source.transactions.map(&:class)).to eq(original_classes)
     end
 
     it 'the merged target has independent BeefTx instances from the source' do

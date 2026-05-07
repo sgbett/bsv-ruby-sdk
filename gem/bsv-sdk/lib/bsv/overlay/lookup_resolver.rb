@@ -203,7 +203,7 @@ module BSV
 
         # Get the last (subject) transaction — typically the most recent entry
         beef_tx = beef.transactions.last
-        return nil unless beef_tx&.transaction
+        return nil if beef_tx.nil? || beef_tx.is_a?(BSV::Transaction::Beef::TxidOnlyEntry)
 
         tx     = beef_tx.transaction
         txout  = tx.outputs[output_index]

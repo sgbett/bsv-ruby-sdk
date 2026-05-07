@@ -34,12 +34,12 @@ RSpec.describe BSV::Transaction::Beef do
     it('contains 2 transactions') { expect(beef.transactions.length).to eq(2) }
 
     it 'wires source transactions during parse' do
-      wired = beef.transactions.flat_map { |bt| bt.transaction.inputs.select(&:source_transaction) }
+      wired = beef.transactions.grep_v(described_class::TxidOnlyEntry).flat_map { |bt| bt.transaction.inputs.select(&:source_transaction) }
       expect(wired).not_to be_empty
     end
 
     it 'attaches merkle_path to the mined transaction' do
-      mined = beef.transactions.select { |bt| bt.format == described_class::FORMAT_RAW_TX_AND_BUMP }
+      mined = beef.transactions.grep(described_class::ProvenTxEntry)
       expect(mined.length).to eq(1)
       expect(mined.first.transaction.merkle_path).to be_a(BSV::Transaction::MerklePath)
     end
@@ -113,7 +113,7 @@ RSpec.describe BSV::Transaction::Beef do
       original_wtxid = bt.wtxid
 
       beef.make_txid_only(bt.wtxid)
-      txid_only_entry = beef.transactions.find { |entry| entry.format == described_class::FORMAT_TXID_ONLY }
+      txid_only_entry = beef.transactions.find { |entry| entry.is_a?(described_class::TxidOnlyEntry) }
       expect(txid_only_entry).not_to be_nil
       expect(txid_only_entry.wtxid).to eq(original_wtxid)
     end
@@ -127,7 +127,7 @@ RSpec.describe BSV::Transaction::Beef do
       v2_bytes = beef.to_binary(version: described_class::BEEF_V2)
       parsed = described_class.from_binary(v2_bytes)
 
-      txid_entry = parsed.transactions.find { |entry| entry.format == described_class::FORMAT_TXID_ONLY }
+      txid_entry = parsed.transactions.find { |entry| entry.is_a?(described_class::TxidOnlyEntry) }
       expect(txid_entry).not_to be_nil
       expect(txid_entry.wtxid).to eq(original_wtxid)
     end
