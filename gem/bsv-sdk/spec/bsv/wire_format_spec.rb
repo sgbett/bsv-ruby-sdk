@@ -234,6 +234,88 @@ RSpec.describe BSV::WireFormat do
     end
   end
 
+  describe 'depth limit' do
+    def build_nested_hash(depth)
+      return { key: 'leaf' } if depth == 0
+
+      { key: build_nested_hash(depth - 1) }
+    end
+
+    def build_wire_nested_hash(depth)
+      return { 'key' => 'leaf' } if depth == 0
+
+      { 'key' => build_wire_nested_hash(depth - 1) }
+    end
+
+    def build_nested_array(depth)
+      return ['leaf'] if depth == 0
+
+      [build_nested_array(depth - 1)]
+    end
+
+    it 'exposes MAX_DEPTH constant' do
+      expect(described_class::MAX_DEPTH).to eq(20)
+    end
+
+    describe '.to_wire' do
+      it 'converts a hash nested to depth 19 successfully' do
+        expect { described_class.to_wire(build_nested_hash(19)) }.not_to raise_error
+      end
+
+      it 'raises ArgumentError for a hash nested to depth 20' do
+        expect { described_class.to_wire(build_nested_hash(20)) }
+          .to raise_error(ArgumentError, /WireFormat nesting exceeds maximum depth \(20\)/)
+      end
+
+      it 'raises ArgumentError for arrays nested to depth 20' do
+        # Root hash containing an array nested 20 levels deep
+        input = { key: build_nested_array(20) }
+        expect { described_class.to_wire(input) }
+          .to raise_error(ArgumentError, /WireFormat nesting exceeds maximum depth \(20\)/)
+      end
+
+      it 'raises ArgumentError for mixed hash/array nesting at depth 20' do
+        # Alternating hash and array nesting — each level counts toward the limit
+        nested = 'leaf'
+        20.times { |i| nested = i.odd? ? [nested] : { key: nested } }
+        expect { described_class.to_wire({ root: nested }) }
+          .to raise_error(ArgumentError, /WireFormat nesting exceeds maximum depth \(20\)/)
+      end
+
+      it 'succeeds for a flat hash with many keys' do
+        flat = (1..100).to_h { |i| [:"key_#{i}", i] }
+        expect { described_class.to_wire(flat) }.not_to raise_error
+      end
+
+      it 'includes the depth limit in the error message' do
+        expect { described_class.to_wire(build_nested_hash(20)) }
+          .to raise_error(ArgumentError, /20/)
+      end
+    end
+
+    describe '.from_wire' do
+      it 'converts a hash nested to depth 19 successfully' do
+        expect { described_class.from_wire(build_wire_nested_hash(19)) }.not_to raise_error
+      end
+
+      it 'raises ArgumentError for a hash nested to depth 20' do
+        expect { described_class.from_wire(build_wire_nested_hash(20)) }
+          .to raise_error(ArgumentError, /WireFormat nesting exceeds maximum depth \(20\)/)
+      end
+
+      it 'raises ArgumentError for arrays nested to depth 20' do
+        input = { 'key' => build_nested_array(20) }
+        expect { described_class.from_wire(input) }
+          .to raise_error(ArgumentError, /WireFormat nesting exceeds maximum depth \(20\)/)
+      end
+
+      it 'includes the depth limit in the error message' do
+        expect { described_class.from_wire(build_wire_nested_hash(20)) }
+          .to raise_error(ArgumentError, /20/)
+      end
+    end
+  end
+
   describe 'round-trip' do
     it 'round-trips a representative BRC-100 payload' do
       original = {
