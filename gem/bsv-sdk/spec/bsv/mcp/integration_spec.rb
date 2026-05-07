@@ -259,10 +259,14 @@ RSpec.describe 'BSV MCP server — protocol integration' do
   # Error handling — missing required argument
   # ------------------------------------------------------------------
   describe 'tools/call with missing required argument' do
-    it 'returns a JSON-RPC error when the required hex argument is absent' do
+    it 'returns an error when the required hex argument is absent' do
       response = server.handle(rpc('tools/call', { name: 'decode_tx', arguments: {} }, 4))
 
-      expect(response[:error]).to be_a(Hash)
+      # mcp >= 0.15 returns a tool-level error (isError in :result) rather
+      # than a JSON-RPC error (top-level :error key).
+      has_jsonrpc_error = response.key?(:error)
+      has_tool_error = response.dig(:result, :isError) == true
+      expect(has_jsonrpc_error || has_tool_error).to be true
     end
   end
 end
