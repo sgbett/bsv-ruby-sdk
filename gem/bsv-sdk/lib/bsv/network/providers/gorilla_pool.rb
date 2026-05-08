@@ -4,13 +4,15 @@ module BSV
   module Network
     module Providers
       # GorillaPool returns pre-configured Provider instances using the GorillaPool
-      # ARCADE infrastructure for ARC and Chaintracks, and the GorillaPool Ordinals
-      # API for transaction and merkle path lookups.
+      # ARCADE infrastructure for ARC and Chaintracks, the GorillaPool Ordinals
+      # API for transaction and merkle path lookups, and JungleBus for indexed
+      # transaction data and block headers.
       #
-      # Mainnet composes three protocols:
+      # Mainnet composes four protocols:
       # - ARC at +https://arcade.gorillapool.io+
       # - Chaintracks at +https://arcade.gorillapool.io+
       # - Ordinals at +https://ordinals.gorillapool.io+
+      # - JungleBus at +https://junglebus.gorillapool.io+
       #
       # Testnet provides ARC only at +https://testnet.arcade.gorillapool.io+.
       #
@@ -22,7 +24,7 @@ module BSV
       #   provider = BSV::Network::Providers::GorillaPool.testnet(api_key: 'my-key')
       #   provider.call(:broadcast, tx)
       class GorillaPool
-        # Returns a mainnet Provider configured with ARC, Chaintracks, and Ordinals.
+        # Returns a mainnet Provider configured with ARC, Chaintracks, Ordinals, and JungleBus.
         #
         # @param opts [Hash] keyword arguments forwarded to each protocol constructor
         # @return [Provider]
@@ -32,6 +34,7 @@ module BSV
             p.protocol Protocols::ARC,         base_url: 'https://arcade.gorillapool.io', **opts
             p.protocol Protocols::Chaintracks, base_url: 'https://arcade.gorillapool.io', **common
             p.protocol Protocols::Ordinals,    base_url: 'https://ordinals.gorillapool.io', **common
+            p.protocol Protocols::JungleBus, base_url: 'https://junglebus.gorillapool.io', **common
           end
         end
 

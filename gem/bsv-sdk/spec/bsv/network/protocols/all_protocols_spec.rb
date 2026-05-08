@@ -106,6 +106,25 @@ RSpec.describe 'BSV::Network::Protocols integration' do
       end
     end
 
+    describe 'JungleBus' do
+      subject(:commands) { BSV::Network::Protocols::JungleBus.commands }
+
+      it 'has 5 commands' do
+        expect(commands.size).to eq(5)
+      end
+
+      it 'includes the expected commands' do
+        expect(commands).to include(
+          :get_tx, :get_address_meta, :get_address_txs,
+          :get_block_header, :get_block_headers
+        )
+      end
+
+      it 'has no duplicate command names' do
+        expect(commands.size).to eq(commands.to_a.uniq.size)
+      end
+    end
+
     describe 'Ordinals' do
       subject(:commands) { BSV::Network::Protocols::Ordinals.commands }
 
