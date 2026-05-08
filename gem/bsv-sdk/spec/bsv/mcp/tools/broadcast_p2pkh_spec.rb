@@ -16,14 +16,19 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
   # A funded UTXO worth 100_000 satoshis
   let(:utxo_response_body) do
-    [
-      {
-        'tx_hash' => 'a' * 64,
-        'tx_pos' => 0,
-        'value' => 100_000,
-        'height' => 800_000
-      }
-    ].to_json
+    {
+      'address' => '1test',
+      'script' => 'deadbeef',
+      'result' => [
+        {
+          'tx_hash' => 'a' * 64,
+          'tx_pos' => 0,
+          'value' => 100_000,
+          'height' => 800_000
+        }
+      ],
+      'error' => ''
+    }.to_json
   end
 
   let(:mock_http_class) do

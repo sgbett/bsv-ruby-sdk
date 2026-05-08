@@ -62,8 +62,8 @@ module BSV
 
           utxos = utxo_result.data.map do |entry|
             BSV::Network::UTXO.new(
-              tx_hash: entry[:tx_hash], tx_pos: entry[:tx_pos],
-              satoshis: entry[:satoshis], height: entry[:height]
+              tx_hash: entry['tx_hash'], tx_pos: entry['tx_pos'],
+              value: entry['value'], height: entry['height']
             )
           end
 

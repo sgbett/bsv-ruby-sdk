@@ -42,6 +42,8 @@ RSpec.describe 'BSV::Network::Protocol' do
   let(:ok_response)        { ProtocolSpecFakeResponse.new('200', 'raw_body') }
   let(:json_response)      { ProtocolSpecFakeResponse.new('200', '{"txid":"abc"}') }
   let(:array_response)     { ProtocolSpecFakeResponse.new('200', '[{"txid":"abc"}]') }
+  let(:wrapped_array_resp) { ProtocolSpecFakeResponse.new('200', '{"result":[{"txid":"abc"}],"error":""}') }
+  let(:hash_no_result_resp) { ProtocolSpecFakeResponse.new('200', '{"address":"1abc","error":""}') }
   let(:not_found_response) { ProtocolSpecFakeResponse.new('404', 'not found') }
   let(:too_many_response)  { ProtocolSpecFakeResponse.new('429', 'rate limited') }
   let(:server_error_resp)  { ProtocolSpecFakeResponse.new('500', 'server error') }
@@ -315,6 +317,19 @@ RSpec.describe 'BSV::Network::Protocol' do
       expect(result).to be_a(BSV::Network::Result::Success)
       expect(result.data).to be_an(Array)
       expect(result.data.first).to eq({ 'txid' => 'abc' })
+    end
+
+    it ':json_array unwraps Hash with result key' do
+      result = make_instance(wrapped_array_resp).default_call(:get_list)
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first).to eq({ 'txid' => 'abc' })
+    end
+
+    it ':json_array rejects Hash without result key' do
+      result = make_instance(hash_no_result_resp).default_call(:get_list)
+      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result.message).to match(/expected Array, got Hash/)
     end
 
     it 'custom lambda is called with body' do

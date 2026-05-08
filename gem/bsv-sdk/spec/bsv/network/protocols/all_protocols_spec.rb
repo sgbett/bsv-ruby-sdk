@@ -48,21 +48,40 @@ RSpec.describe 'BSV::Network::Protocols integration' do
     describe 'WoCREST' do
       subject(:commands) { BSV::Network::Protocols::WoCREST.commands }
 
-      it 'has 30 commands' do
-        expect(commands.size).to eq(30)
+      it 'has 54 commands' do
+        expect(commands.size).to eq(54)
       end
 
       it 'includes the expected commands' do
         expect(commands).to include(
+          # Chain
           :current_height, :get_chain_info, :get_block_header, :get_block_headers,
+          :get_circulating_supply, :get_chain_tips, :get_peer_info,
+          # Transaction
           :get_tx, :get_tx_details, :get_output_script, :get_opreturn,
           :get_merkle_path, :broadcast, :decode_tx, :get_tx_status,
-          :get_tx_hex_bulk, :get_utxos, :get_utxos_all, :is_utxo,
-          :is_utxo_bulk, :valid_root, :get_script_unspent,
-          :get_script_history, :get_script_all_unspent, :get_script_unspent_bulk,
-          :get_balance, :get_unconfirmed_balance, :get_history,
-          :is_address_used, :get_exchange_rate, :get_fee_recommendation,
-          :get_mempool_info, :health
+          :get_tx_hex_bulk, :get_tx_binary, :get_tx_by_block_index,
+          :get_tx_propagation, :get_bulk_tx_details, :get_bulk_output_scripts,
+          # UTXO / spent status
+          :get_utxos, :get_utxos_all, :is_utxo, :is_utxo_bulk, :valid_root,
+          :get_unconfirmed_utxos, :get_confirmed_spent, :get_unconfirmed_spent,
+          :get_bulk_address_utxos, :get_bulk_address_unconfirmed_utxos,
+          # Script
+          :get_script_unspent, :get_script_history, :get_script_all_unspent,
+          :get_script_unspent_bulk, :get_script_unconfirmed_unspent,
+          :get_bulk_script_unconfirmed_unspent,
+          # Address
+          :get_balance, :get_unconfirmed_balance, :get_history, :is_address_used,
+          # Exchange rate / fees / mempool
+          :get_exchange_rate, :get_fee_recommendation, :get_mempool_info,
+          :get_exchange_rate_historical, :get_mempool_raw,
+          # Search
+          :search_links,
+          # Stats
+          :get_block_stats, :get_block_stats_by_hash, :get_miner_block_stats,
+          :get_miner_fees, :get_miner_summary, :get_block_tag_count,
+          # Health
+          :health
         )
       end
 

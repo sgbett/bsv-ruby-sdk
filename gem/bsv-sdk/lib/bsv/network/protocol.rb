@@ -305,6 +305,8 @@ module BSV
           JSON.parse(body)
         when :json_array
           parsed = JSON.parse(body)
+          # Some providers (e.g. WoC) wrap arrays in { "result": [...] }
+          parsed = parsed['result'] if parsed.is_a?(Hash) && parsed.key?('result')
           raise TypeError, "expected Array, got #{parsed.class}" unless parsed.is_a?(Array)
 
           parsed
