@@ -15,8 +15,8 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.name).to eq('GorillaPool')
     end
 
-    it 'registers three protocols' do
-      expect(provider.protocols.length).to eq(3)
+    it 'registers four protocols' do
+      expect(provider.protocols.length).to eq(4)
     end
 
     it 'registers ARC as first protocol' do

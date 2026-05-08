@@ -9,6 +9,7 @@ module BSV
     module Protocols
       autoload :ARC,         'bsv/network/protocols/arc'
       autoload :Chaintracks, 'bsv/network/protocols/chaintracks'
+      autoload :JungleBus,   'bsv/network/protocols/jungle_bus'
       autoload :Ordinals,    'bsv/network/protocols/ordinals'
       autoload :TAALBinary,  'bsv/network/protocols/taal_binary'
       autoload :WoCREST,     'bsv/network/protocols/woc_rest'
