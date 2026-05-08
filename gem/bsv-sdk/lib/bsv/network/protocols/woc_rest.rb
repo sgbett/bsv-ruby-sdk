@@ -7,9 +7,9 @@ module BSV
     module Protocols
       # WoCREST implements the WhatsOnChain REST API as a Protocol subclass.
       #
-      # Provides 30 endpoints covering chain info, block headers, transactions,
-      # UTXOs, scripts, address queries, broadcast, and health. Seven escape hatches
-      # handle WoC-specific body formats and field remapping.
+      # Provides endpoints covering chain info, block headers, transactions,
+      # UTXOs, scripts, address queries, broadcast, search, stats, and health.
+      # Escape hatches handle WoC-specific body formats and field remapping.
       #
       # == Network resolution
       #
@@ -40,6 +40,9 @@ module BSV
         endpoint :get_chain_info,    :get, '/chain/info', response: :json
         endpoint :get_block_header,  :get, '/block/{height}/header', response: :json
         endpoint :get_block_headers, :get, '/block/headers', response: :json_array
+        endpoint :get_circulating_supply, :get, '/circulatingsupply'
+        endpoint :get_chain_tips,         :get, '/chain/tips', response: :json_array
+        endpoint :get_peer_info,          :get, '/peer/info',  response: :json_array
 
         # Transaction
         endpoint :get_tx,            :get,  '/tx/{txid}/hex'
@@ -51,6 +54,11 @@ module BSV
         endpoint :decode_tx,         :post, '/tx/decode', response: :json
         endpoint :get_tx_status,     :post, '/txs/status', response: :json
         endpoint :get_tx_hex_bulk,   :post, '/txs/hex', response: :json
+        endpoint :get_tx_binary,          :get,  '/tx/{txid}/bin'
+        endpoint :get_tx_by_block_index,  :get,  '/block/height/{height}/txindex/{txindex}', response: :json
+        endpoint :get_tx_propagation,     :get,  '/tx/hash/{txid}/propagation', response: :json
+        endpoint :get_bulk_tx_details,    :post, '/txs', response: :json
+        endpoint :get_bulk_output_scripts, :post, '/txs/vouts/hex', response: :json
 
         # UTXO / spent status
         endpoint :get_utxos,        :get,  '/address/{address}/confirmed/unspent',
@@ -60,6 +68,12 @@ module BSV
         endpoint :is_utxo,          :get,  '/tx/{txid}/{vout}/spent', response: :json
         endpoint :is_utxo_bulk,     :post, '/utxos/spent', response: :json_array
         endpoint :valid_root,       :get,  '/block/{height}/header', response: :json
+        endpoint :get_unconfirmed_utxos,  :get,  '/address/{address}/unconfirmed/unspent',
+                 response: :json_array
+        endpoint :get_confirmed_spent,    :get,  '/tx/{txid}/{vout}/confirmed/spent', response: :json
+        endpoint :get_unconfirmed_spent,  :get,  '/tx/{txid}/{vout}/unconfirmed/spent', response: :json
+        endpoint :get_bulk_address_utxos, :post, '/addresses/confirmed/unspent', response: :json
+        endpoint :get_bulk_address_unconfirmed_utxos, :post, '/addresses/unconfirmed/unspent', response: :json
 
         # Script
         endpoint :get_script_unspent,     :get,  '/script/{script_hash}/confirmed/unspent',
@@ -69,6 +83,9 @@ module BSV
         endpoint :get_script_all_unspent, :get,  '/script/{script_hash}/unspent/all',
                  response: :json_array
         endpoint :get_script_unspent_bulk, :post, '/scripts/confirmed/unspent', response: :json
+        endpoint :get_script_unconfirmed_unspent, :get, '/script/{script_hash}/unconfirmed/unspent',
+                 response: :json_array
+        endpoint :get_bulk_script_unconfirmed_unspent, :post, '/scripts/unconfirmed/unspent', response: :json
 
         # Address balance / history
         endpoint :get_balance,             :get, '/address/{address}/confirmed/balance',
@@ -83,6 +100,19 @@ module BSV
         endpoint :get_exchange_rate,      :get, '/exchangerate',      response: :json
         endpoint :get_fee_recommendation, :get, '/feerecommendation', response: :json
         endpoint :get_mempool_info,       :get, '/mempool/info',      response: :json
+        endpoint :get_exchange_rate_historical, :get, '/exchangerate/historical', response: :json_array
+        endpoint :get_mempool_raw,              :get, '/mempool/raw', response: :json_array
+
+        # Search
+        endpoint :search_links, :post, '/search/links', response: :json
+
+        # Stats
+        endpoint :get_block_stats,          :get, '/block/height/{height}/stats', response: :json
+        endpoint :get_block_stats_by_hash,  :get, '/block/hash/{hash}/stats', response: :json
+        endpoint :get_miner_block_stats,    :get, '/miner/blocks/stats', response: :json
+        endpoint :get_miner_fees,           :get, '/miner/fees', response: :json
+        endpoint :get_miner_summary,        :get, '/miner/summary/stats', response: :json
+        endpoint :get_block_tag_count,      :get, '/block/tagcount/height/{height}/stats', response: :json
 
         # Health
         endpoint :health, :get, '/woc'
@@ -286,6 +316,87 @@ module BSV
         def call_get_script_unspent_bulk(script_hashes)
           body = JSON.generate(scripts: script_hashes)
           default_call(:get_script_unspent_bulk, body: body)
+        end
+
+        # Fetches full transaction details for multiple transactions.
+        #
+        # WoC expects +{ "txids": [...] }+ as the request body.
+        #
+        # @param txids [Array<String>] list of transaction IDs
+        # @return [Result::Success<Array>, Result::Error]
+        def call_get_bulk_tx_details(txids)
+          body = JSON.generate(txids: txids)
+          default_call(:get_bulk_tx_details, body: body)
+        end
+
+        # Fetches output scripts for specific vouts across multiple transactions.
+        #
+        # WoC expects +{ "txids": [{ "txid": "...", "vouts": [0, 1] }, ...] }+ as the request body.
+        #
+        # @param tx_vouts [Array<Hash>] array of +{ txid:, vouts: [Integer] }+ hashes
+        # @return [Result::Success<Array>, Result::Error]
+        def call_get_bulk_output_scripts(tx_vouts)
+          body = JSON.generate(txids: tx_vouts.map { |tv| { 'txid' => tv[:txid].to_s, 'vouts' => tv[:vouts] } })
+          default_call(:get_bulk_output_scripts, body: body)
+        end
+
+        # Fetches confirmed UTXOs for multiple addresses in a single request.
+        #
+        # WoC expects +{ "addresses": [...] }+ as the request body.
+        #
+        # @param addresses [Array<String>] list of addresses
+        # @return [Result::Success<Array>, Result::Error]
+        def call_get_bulk_address_utxos(addresses)
+          body = JSON.generate(addresses: addresses)
+          default_call(:get_bulk_address_utxos, body: body)
+        end
+
+        # Fetches unconfirmed UTXOs for multiple addresses in a single request.
+        #
+        # WoC expects +{ "addresses": [...] }+ as the request body.
+        #
+        # @param addresses [Array<String>] list of addresses
+        # @return [Result::Success<Array>, Result::Error]
+        def call_get_bulk_address_unconfirmed_utxos(addresses)
+          body = JSON.generate(addresses: addresses)
+          default_call(:get_bulk_address_unconfirmed_utxos, body: body)
+        end
+
+        # Fetches unconfirmed UTXOs for multiple script hashes in a single request.
+        #
+        # WoC expects +{ "scripts": [...] }+ as the request body.
+        #
+        # @param script_hashes [Array<String>] list of script hashes
+        # @return [Result::Success<Hash>, Result::Error]
+        def call_get_bulk_script_unconfirmed_unspent(script_hashes)
+          body = JSON.generate(scripts: script_hashes)
+          default_call(:get_bulk_script_unconfirmed_unspent, body: body)
+        end
+
+        # Searches WhatsOnChain for links matching a query.
+        #
+        # WoC expects +{ "query": "..." }+ as the request body.
+        #
+        # @param query [String] search term
+        # @return [Result::Success<Hash>, Result::Error]
+        def call_search_links(query)
+          body = JSON.generate(query: query)
+          default_call(:search_links, body: body)
+        end
+
+        # Fetches status for multiple transactions.
+        #
+        # WoC expects +{ "txids": [...] }+ as the request body. When called
+        # with a raw +body:+ keyword the body is forwarded as-is, which
+        # preserves backwards-compatibility with callers that build the body
+        # themselves.
+        #
+        # @param txids [Array<String>, nil] list of transaction IDs (positional)
+        # @param body  [String, nil] pre-serialised request body (keyword)
+        # @return [Result::Success<Hash>, Result::Error]
+        def call_get_tx_status(txids = nil, body: nil)
+          raw_body = body || JSON.generate(txids: txids)
+          default_call(:get_tx_status, body: raw_body)
         end
 
         # Verifies that a merkle root matches the one recorded for a given

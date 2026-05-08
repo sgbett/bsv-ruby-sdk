@@ -117,12 +117,22 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     it 'declares all expected commands' do
       expected = %i[
         current_height get_chain_info get_block_header get_block_headers
+        get_circulating_supply get_chain_tips get_peer_info
         get_tx get_tx_details get_output_script get_opreturn
         get_merkle_path broadcast decode_tx get_tx_status get_tx_hex_bulk
+        get_tx_binary get_tx_by_block_index get_tx_propagation
+        get_bulk_tx_details get_bulk_output_scripts
         get_utxos get_utxos_all is_utxo is_utxo_bulk valid_root
+        get_unconfirmed_utxos get_confirmed_spent get_unconfirmed_spent
+        get_bulk_address_utxos get_bulk_address_unconfirmed_utxos
         get_script_unspent get_script_history get_script_all_unspent get_script_unspent_bulk
+        get_script_unconfirmed_unspent get_bulk_script_unconfirmed_unspent
         get_balance get_unconfirmed_balance get_history is_address_used
         get_exchange_rate get_fee_recommendation get_mempool_info
+        get_exchange_rate_historical get_mempool_raw
+        search_links
+        get_block_stats get_block_stats_by_hash get_miner_block_stats
+        get_miner_fees get_miner_summary get_block_tag_count
         health
       ]
       expected.each do |cmd|
@@ -1577,6 +1587,816 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       expect(result).to be_a(BSV::Network::Result::Error)
       expect(result.retryable?).to be(true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_circulating_supply
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_circulating_supply)' do
+    it 'returns raw circulating supply string on success' do
+      http_client = fake(200, '19890434.375')
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_circulating_supply)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to eq('19890434.375')
+    end
+
+    it 'sends GET to /circulatingsupply' do
+      http_client = fake(200, '19890434.375')
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_circulating_supply)
+
+      expect(http_client.last_uri.path).to end_with('/circulatingsupply')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_chain_tips
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_chain_tips)' do
+    let(:chain_tips_json) do
+      [{ 'height' => 948_246, 'hash' => '000' * 10, 'branchlen' => 0, 'status' => 'active' }].to_json
+    end
+
+    it 'returns a JSON array of chain tips on success' do
+      http_client = fake(200, chain_tips_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_chain_tips)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['status']).to eq('active')
+    end
+
+    it 'sends GET to /chain/tips' do
+      http_client = fake(200, chain_tips_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_chain_tips)
+
+      expect(http_client.last_uri.path).to end_with('/chain/tips')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_peer_info
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_peer_info)' do
+    let(:peer_info_json) do
+      [{ 'addr' => '1.2.3.4:8333', 'services' => '0x01' }].to_json
+    end
+
+    it 'returns a JSON array of peer info on success' do
+      http_client = fake(200, peer_info_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_peer_info)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['addr']).to eq('1.2.3.4:8333')
+    end
+
+    it 'sends GET to /peer/info' do
+      http_client = fake(200, peer_info_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_peer_info)
+
+      expect(http_client.last_uri.path).to end_with('/peer/info')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_tx_binary
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_tx_binary)' do
+    let(:txid) { 'a' * 64 }
+
+    it 'returns raw binary string on success' do
+      binary = "\x01\x00\x00\x00\xde\xad\xbe\xef"
+      http_client = fake(200, binary)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_binary, txid)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_a(String)
+    end
+
+    it 'sends GET to /tx/{txid}/bin' do
+      http_client = fake(200, "\x01\x00")
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_binary, txid)
+
+      expect(http_client.last_uri.path).to end_with("/tx/#{txid}/bin")
+    end
+
+    it 'returns Result::NotFound for unknown txid' do
+      http_client = fake(404, 'not found')
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_binary, 'unknown')
+
+      expect(result).to be_a(BSV::Network::Result::NotFound)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_tx_by_block_index
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_tx_by_block_index)' do
+    let(:tx_json) { '{"txid":"abc","hash":"abc","version":1}' }
+
+    it 'returns parsed JSON transaction on success' do
+      http_client = fake(200, tx_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_by_block_index, 556_767, 0)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['txid']).to eq('abc')
+    end
+
+    it 'sends GET to /block/height/{height}/txindex/{txindex}' do
+      http_client = fake(200, tx_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_by_block_index, 556_767, 0)
+
+      expect(http_client.last_uri.path).to end_with('/block/height/556767/txindex/0')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_tx_propagation
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_tx_propagation)' do
+    let(:txid) { 'd' * 64 }
+    let(:propagation_json) { '{"propagation":"100%"}' }
+
+    it 'returns parsed JSON propagation info on success' do
+      http_client = fake(200, propagation_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_propagation, txid)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['propagation']).to eq('100%')
+    end
+
+    it 'sends GET to /tx/hash/{txid}/propagation' do
+      http_client = fake(200, propagation_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_propagation, txid)
+
+      expect(http_client.last_uri.path).to end_with("/tx/hash/#{txid}/propagation")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_bulk_tx_details — POST escape hatch
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_bulk_tx_details)' do
+    let(:txids)     { ['a' * 64, 'b' * 64] }
+    let(:bulk_json) { [{ 'txid' => 'abc', 'version' => 1 }].to_json }
+
+    it 'returns parsed JSON array on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_bulk_tx_details, txids)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['txid']).to eq('abc')
+    end
+
+    it 'sends POST to /txs' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_tx_details, txids)
+
+      expect(http_client.last_uri.path).to end_with('/txs')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends txids wrapped in a JSON object' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_tx_details, txids)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('txids')
+      expect(body['txids']).to eq(txids)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_bulk_output_scripts — POST escape hatch
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_bulk_output_scripts)' do
+    let(:tx_vouts) { [{ txid: 'a' * 64, vouts: [0, 1] }] }
+    let(:bulk_json) do
+      [{ 'txid' => 'abc', 'vout' => { '0' => { 'scriptPubKey' => { 'hex' => '76a914deadbeef88ac' } } } }].to_json
+    end
+
+    it 'returns parsed JSON array on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_bulk_output_scripts, tx_vouts)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+    end
+
+    it 'sends POST to /txs/vouts/hex' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_output_scripts, tx_vouts)
+
+      expect(http_client.last_uri.path).to end_with('/txs/vouts/hex')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends a txids array with nested vouts in the body' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_output_scripts, tx_vouts)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('txids')
+      expect(body['txids']).to be_an(Array)
+      expect(body['txids'].first).to have_key('txid')
+      expect(body['txids'].first).to have_key('vouts')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_unconfirmed_utxos
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_unconfirmed_utxos)' do
+    let(:address) { '1AzDmXHX891VQovic5A7iqrW3AnikSf6tm' }
+    let(:utxo_response) do
+      {
+        'address' => address,
+        'script' => 'deadbeef',
+        'result' => [{ 'tx_hash' => 'abc', 'value' => 1000, 'height' => 0, 'hex' => '76a914deadbeef88ac' }],
+        'error' => ''
+      }.to_json
+    end
+
+    it 'returns a JSON array on success' do
+      http_client = fake(200, utxo_response)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_unconfirmed_utxos, address)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['tx_hash']).to eq('abc')
+    end
+
+    it 'sends GET to /address/{address}/unconfirmed/unspent' do
+      http_client = fake(200, utxo_response)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_unconfirmed_utxos, address)
+
+      expect(http_client.last_uri.path).to end_with("/address/#{address}/unconfirmed/unspent")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_confirmed_spent
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_confirmed_spent)' do
+    let(:txid) { 'e' * 64 }
+    let(:spent_json) { '{"txid":"spending...","vin":0,"status":"confirmed"}' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, spent_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_confirmed_spent, txid, 1)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['status']).to eq('confirmed')
+    end
+
+    it 'sends GET to /tx/{txid}/{vout}/confirmed/spent' do
+      http_client = fake(200, spent_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_confirmed_spent, txid, 1)
+
+      expect(http_client.last_uri.path).to end_with("/tx/#{txid}/1/confirmed/spent")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_unconfirmed_spent
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_unconfirmed_spent)' do
+    let(:txid) { 'f' * 64 }
+    let(:spent_json) { '{"txid":"spending...","vin":0,"status":"unconfirmed"}' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, spent_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_unconfirmed_spent, txid, 2)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['status']).to eq('unconfirmed')
+    end
+
+    it 'sends GET to /tx/{txid}/{vout}/unconfirmed/spent' do
+      http_client = fake(200, spent_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_unconfirmed_spent, txid, 2)
+
+      expect(http_client.last_uri.path).to end_with("/tx/#{txid}/2/unconfirmed/spent")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_bulk_address_utxos — POST escape hatch
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_bulk_address_utxos)' do
+    let(:addresses) { %w[1AddressOne 1AddressTwo] }
+    let(:bulk_json) { '[{"address":"1AddressOne","utxos":[]}]' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_bulk_address_utxos, addresses)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+    end
+
+    it 'sends POST to /addresses/confirmed/unspent' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_address_utxos, addresses)
+
+      expect(http_client.last_uri.path).to end_with('/addresses/confirmed/unspent')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends addresses wrapped in a JSON object' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_address_utxos, addresses)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('addresses')
+      expect(body['addresses']).to eq(addresses)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_bulk_address_unconfirmed_utxos — POST escape hatch
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_bulk_address_unconfirmed_utxos)' do
+    let(:addresses) { %w[1AddressOne 1AddressTwo] }
+    let(:bulk_json) { '[{"address":"1AddressOne","utxos":[]}]' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_bulk_address_unconfirmed_utxos, addresses)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+    end
+
+    it 'sends POST to /addresses/unconfirmed/unspent' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_address_unconfirmed_utxos, addresses)
+
+      expect(http_client.last_uri.path).to end_with('/addresses/unconfirmed/unspent')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends addresses wrapped in a JSON object' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_address_unconfirmed_utxos, addresses)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('addresses')
+      expect(body['addresses']).to eq(addresses)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_script_unconfirmed_unspent
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_script_unconfirmed_unspent)' do
+    let(:script_hash) { 'a' * 64 }
+    let(:utxo_response) do
+      {
+        'script' => script_hash,
+        'result' => [{ 'tx_hash' => 'abc', 'tx_pos' => 0, 'value' => 5000, 'height' => 0 }],
+        'error' => ''
+      }.to_json
+    end
+
+    it 'returns a JSON array on success' do
+      http_client = fake(200, utxo_response)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_script_unconfirmed_unspent, script_hash)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['tx_hash']).to eq('abc')
+    end
+
+    it 'sends GET to /script/{script_hash}/unconfirmed/unspent' do
+      http_client = fake(200, utxo_response)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_script_unconfirmed_unspent, script_hash)
+
+      expect(http_client.last_uri.path).to end_with("/script/#{script_hash}/unconfirmed/unspent")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_bulk_script_unconfirmed_unspent — POST escape hatch
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_bulk_script_unconfirmed_unspent)' do
+    let(:hashes)    { ['a' * 64, 'b' * 64] }
+    let(:bulk_json) { '{"aaa...":[]}' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_bulk_script_unconfirmed_unspent, hashes)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_a(Hash)
+    end
+
+    it 'sends POST to /scripts/unconfirmed/unspent' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_script_unconfirmed_unspent, hashes)
+
+      expect(http_client.last_uri.path).to end_with('/scripts/unconfirmed/unspent')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends scripts wrapped in a JSON object' do
+      http_client = fake(200, bulk_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_bulk_script_unconfirmed_unspent, hashes)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('scripts')
+      expect(body['scripts']).to eq(hashes)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_exchange_rate_historical
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_exchange_rate_historical)' do
+    let(:historical_json) do
+      [{ 'rate' => 16.50, 'time' => 1_778_000_000 }, { 'rate' => 16.41, 'time' => 1_778_100_000 }].to_json
+    end
+
+    it 'returns a JSON array of historical rates on success' do
+      http_client = fake(200, historical_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_exchange_rate_historical)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['rate']).to eq(16.50)
+    end
+
+    it 'sends GET to /exchangerate/historical' do
+      http_client = fake(200, historical_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_exchange_rate_historical)
+
+      expect(http_client.last_uri.path).to end_with('/exchangerate/historical')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_mempool_raw
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_mempool_raw)' do
+    let(:mempool_json) { '["abc123","def456"]' }
+
+    it 'returns a JSON array of txids on success' do
+      http_client = fake(200, mempool_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_mempool_raw)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data).to include('abc123', 'def456')
+    end
+
+    it 'sends GET to /mempool/raw' do
+      http_client = fake(200, mempool_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_mempool_raw)
+
+      expect(http_client.last_uri.path).to end_with('/mempool/raw')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # search_links — POST escape hatch
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:search_links)' do
+    let(:search_json) { '{"results":[{"type":"address","url":"https://whatsonchain.com/address/1Addr"}]}' }
+
+    it 'returns parsed JSON on success' do
+      http_client = fake(200, search_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:search_links, '1Addr')
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['results']).to be_an(Array)
+    end
+
+    it 'sends POST to /search/links' do
+      http_client = fake(200, search_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:search_links, '1Addr')
+
+      expect(http_client.last_uri.path).to end_with('/search/links')
+      expect(http_client.last_request).to be_a(Net::HTTP::Post)
+    end
+
+    it 'sends query wrapped in a JSON object' do
+      http_client = fake(200, search_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:search_links, 'my search term')
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('query')
+      expect(body['query']).to eq('my search term')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_block_stats
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_block_stats)' do
+    let(:stats_json) { '{"height":556767,"txcount":1234}' }
+
+    it 'returns parsed JSON block stats on success' do
+      http_client = fake(200, stats_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_stats, 556_767)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['txcount']).to eq(1234)
+    end
+
+    it 'sends GET to /block/height/{height}/stats' do
+      http_client = fake(200, stats_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_block_stats, 556_767)
+
+      expect(http_client.last_uri.path).to end_with('/block/height/556767/stats')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_block_stats_by_hash
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_block_stats_by_hash)' do
+    let(:block_hash) { 'abc' * 20 }
+    let(:stats_json) { '{"height":556767,"txcount":1234}' }
+
+    it 'returns parsed JSON block stats on success' do
+      http_client = fake(200, stats_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_stats_by_hash, block_hash)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['height']).to eq(556_767)
+    end
+
+    it 'sends GET to /block/hash/{hash}/stats' do
+      http_client = fake(200, stats_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_block_stats_by_hash, block_hash)
+
+      expect(http_client.last_uri.path).to end_with("/block/hash/#{block_hash}/stats")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_miner_block_stats
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_miner_block_stats)' do
+    let(:stats_json) { '{"miners":[{"name":"TAAL","blocks":100}]}' }
+
+    it 'returns parsed JSON miner block stats on success' do
+      http_client = fake(200, stats_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_miner_block_stats)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['miners']).to be_an(Array)
+    end
+
+    it 'sends GET to /miner/blocks/stats' do
+      http_client = fake(200, stats_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_miner_block_stats)
+
+      expect(http_client.last_uri.path).to end_with('/miner/blocks/stats')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_miner_fees
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_miner_fees)' do
+    let(:fees_json) { '{"fees":[{"height":948000,"fee_rate":100}]}' }
+
+    it 'returns parsed JSON miner fees on success' do
+      http_client = fake(200, fees_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_miner_fees)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['fees']).to be_an(Array)
+    end
+
+    it 'sends GET to /miner/fees' do
+      http_client = fake(200, fees_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_miner_fees)
+
+      expect(http_client.last_uri.path).to end_with('/miner/fees')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_miner_summary
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_miner_summary)' do
+    let(:summary_json) { '{"total_blocks":1000}' }
+
+    it 'returns parsed JSON miner summary on success' do
+      http_client = fake(200, summary_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_miner_summary)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['total_blocks']).to eq(1000)
+    end
+
+    it 'sends GET to /miner/summary/stats' do
+      http_client = fake(200, summary_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_miner_summary)
+
+      expect(http_client.last_uri.path).to end_with('/miner/summary/stats')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_block_tag_count
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_block_tag_count)' do
+    let(:tag_json) { '{"height":556767,"tags":{"OP_RETURN":500}}' }
+
+    it 'returns parsed JSON block tag count on success' do
+      http_client = fake(200, tag_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_tag_count, 556_767)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data['tags']['OP_RETURN']).to eq(500)
+    end
+
+    it 'sends GET to /block/tagcount/height/{height}/stats' do
+      http_client = fake(200, tag_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_block_tag_count, 556_767)
+
+      expect(http_client.last_uri.path).to end_with('/block/tagcount/height/556767/stats')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_tx_status — escape hatch wraps txids array
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:get_tx_status) — escape hatch' do
+    let(:txids) { ['a' * 64, 'b' * 64] }
+    let(:status_json) do
+      [{ 'txid' => 'a' * 64, 'blockhash' => 'def' * 21, 'blockheight' => 612_251,
+         'blocktime' => 1_575_841_517, 'confirmations' => 300_000 }].to_json
+    end
+
+    it 'returns parsed JSON status array on success' do
+      http_client = fake(200, status_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_tx_status, txids)
+
+      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result.data).to be_an(Array)
+      expect(result.data.first['confirmations']).to eq(300_000)
+    end
+
+    it 'sends txids wrapped in a JSON object' do
+      http_client = fake(200, status_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      protocol.call(:get_tx_status, txids)
+
+      body = JSON.parse(http_client.last_request.body)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('txids')
+      expect(body['txids']).to eq(txids)
     end
   end
 
