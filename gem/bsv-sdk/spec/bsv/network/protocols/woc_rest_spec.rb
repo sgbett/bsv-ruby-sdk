@@ -1869,7 +1869,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       }.to_json
     end
 
-    it 'returns a JSON array on success' do
+    it 'remaps value to satoshis in the result' do
       http_client = fake(200, utxo_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1877,7 +1877,10 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       expect(result).to be_a(BSV::Network::Result::Success)
       expect(result.data).to be_an(Array)
-      expect(result.data.first['tx_hash']).to eq('abc')
+      expect(result.data.first[:tx_hash]).to eq('abc')
+      expect(result.data.first[:satoshis]).to eq(1000)
+      expect(result.data.first).not_to have_key(:value)
+      expect(result.data.first).not_to have_key('value')
     end
 
     it 'sends GET to /address/{address}/unconfirmed/unspent' do
@@ -2397,6 +2400,12 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(body).to be_a(Hash)
       expect(body).to have_key('txids')
       expect(body['txids']).to eq(txids)
+    end
+
+    it 'raises ArgumentError when neither txids nor body is provided' do
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: fake(200, ''))
+
+      expect { protocol.call(:get_tx_status) }.to raise_error(ArgumentError, /provide txids/)
     end
   end
 

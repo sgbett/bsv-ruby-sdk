@@ -171,13 +171,24 @@ module BSV
         end
 
         # Fetches all UTXOs (confirmed and unconfirmed) for an address and
-        # remaps the +value+ field to +satoshis+. Uses the legacy +/unspent+
-        # endpoint rather than +/confirmed/unspent+.
+        # remaps the +value+ field to +satoshis+.
         #
         # @param address [String] BSV address
         # @return [Result::Success, Result::Error, Result::NotFound]
         def call_get_utxos_all(address)
           result = default_call(:get_utxos_all, address)
+          return result unless result.success?
+
+          Result::Success.new(data: remap_utxo_entries(result.data))
+        end
+
+        # Fetches unconfirmed UTXOs for an address and remaps the +value+
+        # field to +satoshis+ to match the SDK's UTXO convention.
+        #
+        # @param address [String] BSV address
+        # @return [Result::Success, Result::Error, Result::NotFound]
+        def call_get_unconfirmed_utxos(address)
+          result = default_call(:get_unconfirmed_utxos, address)
           return result unless result.success?
 
           Result::Success.new(data: remap_utxo_entries(result.data))
@@ -393,8 +404,11 @@ module BSV
         #
         # @param txids [Array<String>, nil] list of transaction IDs (positional)
         # @param body  [String, nil] pre-serialised request body (keyword)
-        # @return [Result::Success<Hash>, Result::Error]
+        # @return [Result::Success<Array>, Result::Error]
+        # @raise [ArgumentError] when neither txids nor body is provided
         def call_get_tx_status(txids = nil, body: nil)
+          raise ArgumentError, 'provide txids array or body: keyword' if txids.nil? && body.nil?
+
           raw_body = body || JSON.generate(txids: txids)
           default_call(:get_tx_status, body: raw_body)
         end
