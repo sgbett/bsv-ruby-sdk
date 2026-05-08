@@ -28,6 +28,7 @@ jobs:
         run: bundle exec rake
         env:
           COVERAGE: ${{ matrix.ruby-version == '3.4' && 'true' || '' }}
+          BSV_INTEGRATION: ${{ matrix.ruby-version == '3.4' && 'true' || '' }}
 
       - name: Upload coverage
         if: matrix.ruby-version == '3.4'

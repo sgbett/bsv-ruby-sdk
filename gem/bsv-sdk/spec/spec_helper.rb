@@ -27,6 +27,7 @@ RSpec.configure do |config|
   config.define_derived_metadata(chaintracks_live: true) do |meta|
     meta[:skip] = 'chaintracks live tests excluded (run with: bundle exec rspec --tag chaintracks_live)'
   end
+  config.filter_run_excluding integration: true unless ENV['BSV_INTEGRATION']
   config.order = :random
   Kernel.srand config.seed
 end
