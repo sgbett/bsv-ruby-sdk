@@ -5,10 +5,14 @@ module BSV
     class UTXO
       attr_reader :tx_hash, :tx_pos, :satoshis, :height
 
-      def initialize(tx_hash:, tx_pos:, satoshis:, height: nil)
+      # @param tx_hash  [String]  transaction ID
+      # @param tx_pos   [Integer] output index
+      # @param satoshis [Integer] output value in satoshis (accepts +value+ as alias)
+      # @param height   [Integer, nil] block height (0 or nil = unconfirmed)
+      def initialize(tx_hash:, tx_pos:, satoshis: nil, value: nil, height: nil)
         @tx_hash = tx_hash
         @tx_pos = tx_pos
-        @satoshis = satoshis
+        @satoshis = satoshis || value
         @height = height
       end
 

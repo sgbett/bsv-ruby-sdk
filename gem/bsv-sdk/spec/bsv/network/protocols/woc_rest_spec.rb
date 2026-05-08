@@ -334,37 +334,17 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       }.to_json
     end
 
-    it 'remaps value to satoshis in the result' do
+    it 'returns raw WoC UTXO entries with string keys' do
       http_client = fake(200, woc_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos, '1AddressBSV')
 
       expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[0][:satoshis]).to eq(50_000)
-      expect(result.data[1][:satoshis]).to eq(100_000)
-    end
-
-    it 'does not include a value key in remapped entries' do
-      http_client = fake(200, woc_response)
-      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
-
-      result = protocol.call(:get_utxos, '1AddressBSV')
-
-      expect(result.data[0]).not_to have_key(:value)
-      expect(result.data[0]).not_to have_key('value')
-    end
-
-    it 'preserves tx_hash, tx_pos, and height fields as symbol keys' do
-      http_client = fake(200, woc_response)
-      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
-
-      result = protocol.call(:get_utxos, '1AddressBSV')
-
-      entry = result.data[0]
-      expect(entry[:tx_hash]).to eq('abc')
-      expect(entry[:tx_pos]).to eq(0)
-      expect(entry[:height]).to eq(800_000)
+      expect(result.data[0]['value']).to eq(50_000)
+      expect(result.data[0]['tx_hash']).to eq('abc')
+      expect(result.data[0]['tx_pos']).to eq(0)
+      expect(result.data[0]['height']).to eq(800_000)
     end
 
     it 'returns an empty array when the address has no UTXOs' do
@@ -425,37 +405,17 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       }.to_json
     end
 
-    it 'remaps value to satoshis in the result' do
+    it 'returns raw WoC UTXO entries with string keys' do
       http_client = fake(200, woc_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos_all, '1AddressBSV')
 
       expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[0][:satoshis]).to eq(50_000)
-      expect(result.data[1][:satoshis]).to eq(100_000)
-    end
-
-    it 'does not include a value key in remapped entries' do
-      http_client = fake(200, woc_response)
-      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
-
-      result = protocol.call(:get_utxos_all, '1AddressBSV')
-
-      expect(result.data[0]).not_to have_key(:value)
-      expect(result.data[0]).not_to have_key('value')
-    end
-
-    it 'preserves tx_hash, tx_pos, and height fields as symbol keys' do
-      http_client = fake(200, woc_response)
-      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
-
-      result = protocol.call(:get_utxos_all, '1AddressBSV')
-
-      entry = result.data[0]
-      expect(entry[:tx_hash]).to eq('abc')
-      expect(entry[:tx_pos]).to eq(0)
-      expect(entry[:height]).to eq(800_000)
+      expect(result.data[0]['value']).to eq(50_000)
+      expect(result.data[0]['tx_hash']).to eq('abc')
+      expect(result.data[0]['tx_pos']).to eq(0)
+      expect(result.data[0]['height']).to eq(800_000)
     end
 
     it 'returns an empty array when the address has no UTXOs' do
@@ -1869,7 +1829,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       }.to_json
     end
 
-    it 'remaps value to satoshis in the result' do
+    it 'returns raw WoC UTXO entries with string keys' do
       http_client = fake(200, utxo_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1877,10 +1837,8 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       expect(result).to be_a(BSV::Network::Result::Success)
       expect(result.data).to be_an(Array)
-      expect(result.data.first[:tx_hash]).to eq('abc')
-      expect(result.data.first[:satoshis]).to eq(1000)
-      expect(result.data.first).not_to have_key(:value)
-      expect(result.data.first).not_to have_key('value')
+      expect(result.data.first['tx_hash']).to eq('abc')
+      expect(result.data.first['value']).to eq(1000)
     end
 
     it 'sends GET to /address/{address}/unconfirmed/unspent' do

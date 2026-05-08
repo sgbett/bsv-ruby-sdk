@@ -19,10 +19,15 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
   end
 
   let(:utxo_response_body) do
-    [
-      { 'tx_hash' => 'aabb1122', 'tx_pos' => 0, 'value' => 100_000, 'height' => 800_000 },
-      { 'tx_hash' => 'ccdd3344', 'tx_pos' => 2, 'value' => 50_000, 'height' => 0 }
-    ].to_json
+    {
+      'address' => '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+      'script' => 'deadbeef',
+      'result' => [
+        { 'tx_hash' => 'aabb1122', 'tx_pos' => 0, 'value' => 100_000, 'height' => 800_000 },
+        { 'tx_hash' => 'ccdd3344', 'tx_pos' => 2, 'value' => 50_000, 'height' => 0 }
+      ],
+      'error' => ''
+    }.to_json
   end
 
   let(:address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }

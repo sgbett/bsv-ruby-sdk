@@ -166,26 +166,25 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   # UTXO / spent status
   # ---------------------------------------------------------------------------
 
-  it 'get_utxos returns remapped UTXOs for the test address' do
+  it 'get_utxos returns raw WoC UTXO entries for the test address' do
     result = protocol.call(:get_utxos, test_address)
 
     expect(result).to be_a(BSV::Network::Result::Success)
     expect(result.data).to be_an(Array)
     expect(result.data).not_to be_empty
     utxo = result.data.first
-    expect(utxo).to have_key(:satoshis)
-    expect(utxo).to have_key(:tx_hash)
-    expect(utxo).to have_key(:tx_pos)
-    expect(utxo).to have_key(:height)
-    expect(utxo).not_to have_key(:value)
+    expect(utxo).to have_key('value')
+    expect(utxo).to have_key('tx_hash')
+    expect(utxo).to have_key('tx_pos')
+    expect(utxo).to have_key('height')
   end
 
-  it 'get_utxos_all returns remapped UTXOs' do
+  it 'get_utxos_all returns raw WoC UTXO entries' do
     result = protocol.call(:get_utxos_all, test_address)
 
     expect(result).to be_a(BSV::Network::Result::Success)
     expect(result.data).to be_an(Array)
-    expect(result.data.first).to have_key(:satoshis) unless result.data.empty?
+    expect(result.data.first).to have_key('value') unless result.data.empty?
   end
 
   it 'is_utxo returns true for a known unspent output' do

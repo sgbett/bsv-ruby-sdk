@@ -155,60 +155,6 @@ module BSV
           end
         end
 
-        # Fetches confirmed UTXOs for an address and remaps the +value+ field
-        # to +satoshis+ to match the SDK's UTXO convention.
-        #
-        # WoC returns entries with +{ tx_hash, tx_pos, value, height }+;
-        # callers and facades expect +satoshis+ in place of +value+.
-        #
-        # @param address [String] BSV address
-        # @return [Result::Success, Result::Error, Result::NotFound]
-        def call_get_utxos(address)
-          result = default_call(:get_utxos, address)
-          return result unless result.success?
-
-          Result::Success.new(data: remap_utxo_entries(result.data))
-        end
-
-        # Fetches all UTXOs (confirmed and unconfirmed) for an address and
-        # remaps the +value+ field to +satoshis+.
-        #
-        # @param address [String] BSV address
-        # @return [Result::Success, Result::Error, Result::NotFound]
-        def call_get_utxos_all(address)
-          result = default_call(:get_utxos_all, address)
-          return result unless result.success?
-
-          Result::Success.new(data: remap_utxo_entries(result.data))
-        end
-
-        # Fetches unconfirmed UTXOs for an address and remaps the +value+
-        # field to +satoshis+ to match the SDK's UTXO convention.
-        #
-        # @param address [String] BSV address
-        # @return [Result::Success, Result::Error, Result::NotFound]
-        def call_get_unconfirmed_utxos(address)
-          result = default_call(:get_unconfirmed_utxos, address)
-          return result unless result.success?
-
-          Result::Success.new(data: remap_utxo_entries(result.data))
-        end
-
-        # Remaps WoC UTXO entries from +{ 'value' => n }+ to +{ satoshis: n }+.
-        #
-        # @param entries [Array<Hash>]
-        # @return [Array<Hash>]
-        def remap_utxo_entries(entries)
-          entries.map do |entry|
-            {
-              tx_hash: entry['tx_hash'],
-              tx_pos: entry['tx_pos'],
-              satoshis: entry['value'],
-              height: entry['height']
-            }
-          end
-        end
-
         # Checks whether a specific output is unspent by querying the WoC
         # spent-status endpoint.
         #
