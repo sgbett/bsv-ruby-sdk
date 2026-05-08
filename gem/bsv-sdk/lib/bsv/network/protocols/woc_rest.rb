@@ -171,25 +171,29 @@ module BSV
         # Checks whether a specific output is unspent by querying the WoC
         # spent-status endpoint.
         #
-        # WoC returns a JSON object indicating whether the output has been spent.
+        # WoC returns 200 with spending transaction details when an output
+        # has been spent, or 404 when the output is unspent (no spending
+        # transaction found). This escape hatch maps both cases to a
+        # boolean: +true+ = unspent, +false+ = spent.
+        #
         # The +script_hash:+ keyword is accepted for future fallback support
         # but not used in this implementation.
         #
         # @param txid        [String]  WoC API boundary: display-order hex transaction ID
         # @param vout        [Integer] output index
         # @param script_hash [String, nil] ignored
-        # @return [Result::Success<Boolean>, Result::Error, Result::NotFound]
+        # @return [Result::Success<Boolean>, Result::Error]
         def call_is_utxo(txid, vout, script_hash: nil) # rubocop:disable Lint/UnusedMethodArgument
           result = default_call(:is_utxo, txid, vout)
+
+          # 404 = no spending tx found = output is unspent
+          return Result::Success.new(data: true) if result.not_found?
+
+          # Non-success, non-404 = genuine error
           return result unless result.success?
 
-          # WoC returns { "spent": true/false, ... } — unspent means NOT spent
-          unless result.data.is_a?(Hash) && result.data.key?('spent')
-            return Result::Error.new(message: 'missing spent field in response', retryable: false)
-          end
-
-          spent = result.data['spent']
-          Result::Success.new(data: !spent)
+          # 200 with spending tx details = output is spent
+          Result::Success.new(data: false)
         end
 
         # Bulk-checks whether a set of outputs are unspent.

@@ -487,8 +487,13 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   # ---------------------------------------------------------------------------
 
   describe '#call(:is_utxo)' do
-    it 'returns true when the output is unspent' do
-      http_client = fake(200, '{"spent":false}')
+    # WoC API contract: 200 with spending tx details = spent, 404 = unspent
+    let(:spent_response) do
+      '{"txid":"4a97bc492e6604660654e53faabfc7ff615db7608a9fd3c7d74da0d9914e65e5","vin":1,"status":"confirmed"}'
+    end
+
+    it 'returns true when the output is unspent (404 from WoC)' do
+      http_client = fake(404, 'Not Found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc123', 0)
@@ -497,8 +502,8 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data).to be(true)
     end
 
-    it 'returns false when the output is spent' do
-      http_client = fake(200, '{"spent":true}')
+    it 'returns false when the output is spent (200 with spending tx)' do
+      http_client = fake(200, spent_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:is_utxo, 'abc123', 1)
@@ -508,7 +513,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     end
 
     it 'sends GET to /tx/{txid}/{vout}/spent' do
-      http_client = fake(200, '{"spent":false}')
+      http_client = fake(200, spent_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
       txid = 'c' * 64
 
@@ -518,19 +523,10 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     end
 
     it 'accepts script_hash: keyword without error' do
-      http_client = fake(200, '{"spent":false}')
+      http_client = fake(404, 'Not Found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       expect { protocol.call(:is_utxo, 'abc', 0, script_hash: 'deadbeef') }.not_to raise_error
-    end
-
-    it 'returns Result::NotFound when the txid is unknown' do
-      http_client = fake(404, 'not found')
-      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
-
-      result = protocol.call(:is_utxo, 'unknown', 0)
-
-      expect(result).to be_a(BSV::Network::Result::NotFound)
     end
 
     it 'returns Result::Error(retryable: true) on 500' do
@@ -543,24 +539,14 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.retryable?).to be(true)
     end
 
-    it 'returns Result::Error when the spent field is absent from the response' do
-      http_client = fake(200, '{"something_else":true}')
+    it 'returns Result::Error(retryable: true) on 429' do
+      http_client = fake(429, 'rate limited')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
-      result = protocol.call(:is_utxo, 'abc123', 0)
+      result = protocol.call(:is_utxo, 'abc', 0)
 
       expect(result).to be_a(BSV::Network::Result::Error)
-      expect(result.message).to include('missing spent field')
-    end
-
-    it 'returns Result::Error when the response body is not a Hash' do
-      http_client = fake(200, '"just a string"')
-      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
-
-      result = protocol.call(:is_utxo, 'abc123', 0)
-
-      expect(result).to be_a(BSV::Network::Result::Error)
-      expect(result.message).to include('missing spent field')
+      expect(result.retryable?).to be(true)
     end
   end
 
