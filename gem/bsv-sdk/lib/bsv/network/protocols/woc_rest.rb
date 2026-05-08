@@ -85,7 +85,7 @@ module BSV
         endpoint :get_mempool_info,       :get, '/mempool/info',      response: :json
 
         # Health
-        endpoint :health, :get, '/health'
+        endpoint :health, :get, '/woc'
 
         attr_reader :network_name
 

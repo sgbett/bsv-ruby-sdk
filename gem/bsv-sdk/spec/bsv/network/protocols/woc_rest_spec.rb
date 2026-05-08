@@ -869,7 +869,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
       protocol.call(:health)
 
-      expect(http_client.last_uri.path).to end_with('/health')
+      expect(http_client.last_uri.path).to end_with('/woc')
     end
   end
 
