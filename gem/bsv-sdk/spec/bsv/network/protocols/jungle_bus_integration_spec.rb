@@ -49,15 +49,13 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
     expect(result.data.first).to have_key('block_height')
   end
 
-  it 'get_address_txs sends GET to the correct path' do
-    # JungleBus returns empty body for addresses with few transactions,
-    # so we verify the path rather than asserting on response data.
-    # The unit spec covers response parsing.
+  it 'get_address_txs returns empty body (endpoint appears inactive on REST API)' do
+    # This endpoint returns 200 with zero bytes for all addresses.
+    # It may require a JungleBus subscription to populate.
     result = protocol.call(:get_address_txs, test_address)
 
-    # Either valid data or a parse error from empty body — both confirm the endpoint is reachable
-    expect(result).to be_a(BSV::Network::Result::Success).or be_a(BSV::Network::Result::Error)
-    expect(result.data).to be_an(Array) if result.success?
+    expect(result).to be_a(BSV::Network::Result::Error)
+    expect(result.message).to include('JSON/response error')
   end
 
   # ---------------------------------------------------------------------------

@@ -26,7 +26,9 @@ module BSV
         # Address — transaction metadata for an address
         endpoint :get_address_meta, :get, '/v1/address/get/{address}', response: :json_array
 
-        # Address — full transaction documents for an address
+        # Address — full transaction documents for an address.
+        # Note: this endpoint currently returns empty bodies for all addresses
+        # via the REST API. It may require a subscription to populate.
         endpoint :get_address_txs, :get, '/v1/address/transactions/{address}', response: :json_array
 
         # Block header by height or hash
