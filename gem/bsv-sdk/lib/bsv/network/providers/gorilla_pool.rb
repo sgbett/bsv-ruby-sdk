@@ -24,7 +24,7 @@ module BSV
       #   provider = BSV::Network::Providers::GorillaPool.testnet(api_key: 'my-key')
       #   provider.call(:broadcast, tx)
       class GorillaPool
-        # Returns a mainnet Provider configured with ARC, Chaintracks, and Ordinals.
+        # Returns a mainnet Provider configured with ARC, Chaintracks, Ordinals, and JungleBus.
         #
         # @param opts [Hash] keyword arguments forwarded to each protocol constructor
         # @return [Provider]

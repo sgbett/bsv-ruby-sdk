@@ -24,10 +24,10 @@ module BSV
         endpoint :get_tx, :get, '/v1/transaction/get/{txid}', response: :json
 
         # Address — transaction metadata for an address
-        endpoint :get_address_meta, :get, '/v1/address/get/{address}', response: :json
+        endpoint :get_address_meta, :get, '/v1/address/get/{address}', response: :json_array
 
         # Address — full transaction documents for an address
-        endpoint :get_address_txs, :get, '/v1/address/transactions/{address}', response: :json
+        endpoint :get_address_txs, :get, '/v1/address/transactions/{address}', response: :json_array
 
         # Block header by height or hash
         endpoint :get_block_header, :get, '/v1/block_header/get/{height}', response: :json
