@@ -55,7 +55,7 @@ module BSV
         # UTXO / spent status
         endpoint :get_utxos,        :get,  '/address/{address}/confirmed/unspent',
                  response: :json_array
-        endpoint :get_utxos_all,    :get,  '/address/{address}/unspent',
+        endpoint :get_utxos_all,    :get,  '/address/{address}/unspent/all',
                  response: :json_array
         endpoint :is_utxo,          :get,  '/tx/{txid}/{vout}/spent', response: :json
         endpoint :is_utxo_bulk,     :post, '/utxos/spent', response: :json_array
@@ -198,8 +198,10 @@ module BSV
 
         # Bulk-checks whether a set of outputs are unspent.
         #
-        # WoC expects a JSON array of +{ txid, vout }+ objects. It returns an
-        # array of entries, each containing +txid+, +vout+, and +spent+ fields.
+        # WoC expects +{ "utxos": [{ "txid": "...", "vout": N }, ...] }+ as the
+        # request body. It returns an array of entries, each with:
+        #   +{ "utxo": { "txid": "...", "vout": N }, "spentIn": {...} | nil, "error": "" }+
+        # When +spentIn+ is present and non-empty the output is spent.
         # Entries absent from the response (unknown outputs) are treated as spent.
         #
         # @param outpoints [Array<Hash>] array of +{ txid:, vout: }+ hashes
@@ -209,22 +211,24 @@ module BSV
         def call_is_utxo_bulk(outpoints)
           return Result::Success.new(data: {}) if outpoints.empty?
 
-          body = JSON.generate(outpoints.map { |op| { 'txid' => op[:txid].to_s, 'vout' => op[:vout].to_i } })
+          body = JSON.generate(utxos: outpoints.map { |op| { 'txid' => op[:txid].to_s, 'vout' => op[:vout].to_i } })
           result = default_call(:is_utxo_bulk, body: body)
           return result unless result.success?
 
-          # Build a lookup from the response — unknown outpoints default to spent
-          spent_map = {}
-          result.data.each do |entry|
-            next unless entry.is_a?(Hash) && entry.key?('txid') && entry.key?('vout')
+          # Build a lookup from the response entries
+          # spentIn present and non-empty → spent (false); absent or empty → unspent (true)
+          normalised = result.data.each_with_object({}) do |entry, h|
+            next unless entry.is_a?(Hash) && entry.key?('utxo')
 
-            key = "#{entry['txid']}.#{entry['vout']}"
-            spent_map[key] = entry['spent']
+            utxo = entry['utxo']
+            key = "#{utxo['txid']}.#{utxo['vout']}"
+            h[key] = entry['spentIn'].nil? || entry['spentIn'].empty?
           end
 
-          normalised = outpoints.each_with_object({}) do |op, h|
+          # Unknown outpoints (absent from response) default to spent (false)
+          outpoints.each do |op|
             key = "#{op[:txid]}.#{op[:vout]}"
-            h[key] = spent_map.key?(key) ? !spent_map[key] : false
+            normalised[key] = false unless normalised.key?(key)
           end
 
           Result::Success.new(data: normalised)
@@ -264,23 +268,23 @@ module BSV
 
         # Fetches raw hex for multiple transactions in a single request.
         #
-        # WoC expects a bare JSON array of txid strings as the request body.
+        # WoC expects +{ "txids": [...] }+ as the request body.
         #
         # @param txids [Array<String>] list of transaction IDs
         # @return [Result::Success<Array>, Result::Error]
         def call_get_tx_hex_bulk(txids)
-          body = JSON.generate(txids)
+          body = JSON.generate(txids: txids)
           default_call(:get_tx_hex_bulk, body: body)
         end
 
         # Fetches confirmed UTXOs for multiple script hashes in a single request.
         #
-        # WoC expects a bare JSON array of script hash strings as the request body.
+        # WoC expects +{ "scripts": [...] }+ as the request body.
         #
         # @param script_hashes [Array<String>] list of script hashes
         # @return [Result::Success<Hash>, Result::Error]
         def call_get_script_unspent_bulk(script_hashes)
-          body = JSON.generate(script_hashes)
+          body = JSON.generate(scripts: script_hashes)
           default_call(:get_script_unspent_bulk, body: body)
         end
 

@@ -404,10 +404,15 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
   describe '#call(:get_utxos_all)' do
     let(:woc_response) do
-      [
-        { 'tx_hash' => 'abc', 'tx_pos' => 0, 'value' => 50_000, 'height' => 800_000 },
-        { 'tx_hash' => 'def', 'tx_pos' => 1, 'value' => 100_000, 'height' => 0 }
-      ].to_json
+      {
+        'address' => '1AzDmXHX891VQovic5A7iqrW3AnikSf6tm',
+        'script' => '2673c96e7c5ab126b5f99251882d74c84997a52df85ae6c8ddbd843a7d322ad1',
+        'result' => [
+          { 'tx_hash' => 'abc', 'tx_pos' => 0, 'value' => 50_000, 'height' => 800_000, 'isSpentInMempoolTx' => false, 'status' => 'confirmed' },
+          { 'tx_hash' => 'def', 'tx_pos' => 1, 'value' => 100_000, 'height' => 0, 'isSpentInMempoolTx' => false, 'status' => 'unconfirmed' }
+        ],
+        'error' => ''
+      }.to_json
     end
 
     it 'remaps value to satoshis in the result' do
@@ -444,7 +449,8 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
     end
 
     it 'returns an empty array when the address has no UTXOs' do
-      http_client = fake(200, '[]')
+      empty_response = { 'address' => '1EmptyAddress', 'script' => 'deadbeef', 'result' => [], 'error' => '' }.to_json
+      http_client = fake(200, empty_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       result = protocol.call(:get_utxos_all, '1EmptyAddress')
@@ -453,13 +459,14 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data).to eq([])
     end
 
-    it 'sends GET to the unspent path' do
-      http_client = fake(200, '[]')
+    it 'sends GET to the unspent/all path' do
+      empty_response = '{"address":"1CheckPath","script":"deadbeef","result":[],"error":""}'
+      http_client = fake(200, empty_response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_utxos_all, '1CheckPath')
 
-      expect(http_client.last_uri.path).to end_with('/address/1CheckPath/unspent')
+      expect(http_client.last_uri.path).to end_with('/address/1CheckPath/unspent/all')
     end
 
     it 'returns Result::NotFound on 404' do
@@ -560,8 +567,8 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'returns a hash mapping outpoints to booleans — mix of spent and unspent' do
       response = [
-        { 'txid' => first_txid, 'vout' => 0, 'spent' => false },
-        { 'txid' => second_txid, 'vout' => 1, 'spent' => true }
+        { 'utxo' => { 'txid' => first_txid, 'vout' => 0 }, 'error' => '' },
+        { 'utxo' => { 'txid' => second_txid, 'vout' => 1 }, 'spentIn' => { 'txid' => 'deadbeef', 'vin' => 0, 'status' => 'confirmed' }, 'error' => '' }
       ].to_json
       http_client = fake(200, response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
@@ -573,8 +580,8 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data["#{second_txid}.1"]).to be(false)
     end
 
-    it 'sends POST to /utxos/spent with correct body format' do
-      response = [{ 'txid' => first_txid, 'vout' => 0, 'spent' => false }].to_json
+    it 'sends POST to /utxos/spent with utxos-wrapped body format' do
+      response = [{ 'utxo' => { 'txid' => first_txid, 'vout' => 0 }, 'error' => '' }].to_json
       http_client = fake(200, response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -583,8 +590,10 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/utxos/spent')
       expect(http_client.last_request).to be_a(Net::HTTP::Post)
       body = JSON.parse(http_client.last_request.body)
-      expect(body).to be_an(Array)
-      expect(body.first).to include('txid' => first_txid, 'vout' => 0)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('utxos')
+      expect(body['utxos']).to be_an(Array)
+      expect(body['utxos'].first).to include('txid' => first_txid, 'vout' => 0)
     end
 
     it 'returns an empty hash for an empty input array without making an HTTP request' do
@@ -599,7 +608,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
 
     it 'treats outpoints absent from the response as spent (false)' do
       # Response only includes one of the two queried outpoints
-      response = [{ 'txid' => first_txid, 'vout' => 0, 'spent' => false }].to_json
+      response = [{ 'utxo' => { 'txid' => first_txid, 'vout' => 0 }, 'error' => '' }].to_json
       http_client = fake(200, response)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1348,15 +1357,16 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_request).to be_a(Net::HTTP::Post)
     end
 
-    it 'sends a bare JSON array of txid strings as the body' do
+    it 'sends txids wrapped in a JSON object' do
       http_client = fake(200, bulk_json)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_tx_hex_bulk, txids)
 
       body = JSON.parse(http_client.last_request.body)
-      expect(body).to be_an(Array)
-      expect(body).to eq(txids)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('txids')
+      expect(body['txids']).to eq(txids)
     end
 
     it 'returns Result::Error(retryable: true) on 500' do
@@ -1547,15 +1557,16 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_request).to be_a(Net::HTTP::Post)
     end
 
-    it 'sends a bare JSON array of script hash strings as the body' do
+    it 'sends scripts wrapped in a JSON object' do
       http_client = fake(200, bulk_json)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
       protocol.call(:get_script_unspent_bulk, hashes)
 
       body = JSON.parse(http_client.last_request.body)
-      expect(body).to be_an(Array)
-      expect(body).to eq(hashes)
+      expect(body).to be_a(Hash)
+      expect(body).to have_key('scripts')
+      expect(body['scripts']).to eq(hashes)
     end
 
     it 'returns Result::Error(retryable: true) on 500' do
