@@ -209,7 +209,8 @@ module BSV
 
             utxo = entry['utxo']
             key = "#{utxo['txid']}.#{utxo['vout']}"
-            h[key] = entry['spentIn'].nil? || entry['spentIn'].empty?
+            spent_in = entry['spentIn']
+            h[key] = spent_in.nil? || !spent_in.is_a?(Hash) || spent_in.empty?
           end
 
           # Unknown outpoints (absent from response) default to spent (false)

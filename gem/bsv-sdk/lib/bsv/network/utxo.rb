@@ -13,6 +13,8 @@ module BSV
         @tx_hash = tx_hash
         @tx_pos = tx_pos
         @satoshis = satoshis || value
+        raise ArgumentError, 'satoshis or value is required' if @satoshis.nil?
+
         @height = height
       end
 
