@@ -117,7 +117,7 @@ module BSV
       # @param http_client [Object, nil] injectable HTTP client (used in Task 3)
       def initialize(base_url:, api_key: nil, auth: nil, network: nil, http_client: nil)
         @api_key     = api_key
-        @auth        = auth
+        @auth        = normalise_auth(auth)
         @network     = network
         @http_client = http_client
         @base_url    = build_base_url(base_url, network)
@@ -270,7 +270,7 @@ module BSV
       # @param request [Net::HTTPRequest]
       def apply_auth(request)
         # auth: config takes precedence over legacy api_key:
-        if @auth && @auth != :none
+        if @auth != :none
           auth = @auth
           if auth[:bearer]
             request['Authorization'] = "Bearer #{auth[:bearer]}"
@@ -278,10 +278,24 @@ module BSV
             header = auth[:header] || 'Authorization'
             request[header] = auth[:api_key]
           end
-        elsif @api_key && @auth.nil?
+        elsif @api_key
           # Legacy shorthand: api_key: without auth: sends Bearer
           request['Authorization'] = "Bearer #{@api_key}"
         end
+      end
+
+      # Normalises the +auth+ argument so that +nil+ and empty hashes are
+      # stored as +:none+, giving a single canonical sentinel value for
+      # "no authentication".
+      #
+      # @param auth [Hash, Symbol, nil]
+      # @return [Hash, Symbol]
+      def normalise_auth(auth)
+        return :none if auth.nil?
+        return :none if auth == :none
+        return :none if auth.is_a?(Hash) && (auth.empty? || (auth[:bearer].nil? && auth[:api_key].nil?))
+
+        auth
       end
 
       # Executes the request via the injectable client or +Net::HTTP.start+.

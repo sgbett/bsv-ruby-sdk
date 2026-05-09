@@ -21,7 +21,7 @@ module BSV
       #
       # == Example
       #
-      #   provider = BSV::Network::Providers::TAAL.mainnet(auth: { api_key: 'mainnet_...' })
+      #   provider = BSV::Network::Providers::TAAL.mainnet(auth: { bearer: 'mainnet_...' })
       #   provider.call(:broadcast, tx)
       #
       #   # Legacy api_key: shorthand — still supported
@@ -33,7 +33,9 @@ module BSV
 
         # Returns a mainnet Provider configured with ARC and TAALBinary.
         #
-        # Both protocols receive the same auth credentials.
+        # Auth is forwarded to both protocols. ARC uses Bearer tokens;
+        # TAALBinary uses raw API keys. Each protocol's constructor handles
+        # the translation appropriate to its endpoint.
         #
         # @param auth       [Hash, Symbol, nil] auth config forwarded to Provider and all protocols
         # @param rate_limit [Numeric, nil] requests per second; defaults to +DEFAULT_RATE_LIMIT+ (nil)

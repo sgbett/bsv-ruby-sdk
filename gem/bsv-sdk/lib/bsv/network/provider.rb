@@ -119,24 +119,6 @@ module BSV
       end
       alias inspect to_s
 
-      private
-
-      # Normalises the +auth+ argument so that +nil+ and empty hashes are
-      # stored as +:none+, giving a single canonical sentinel value for
-      # "no authentication".
-      #
-      # @param auth [Hash, Symbol, nil]
-      # @return [Hash, Symbol]
-      def normalise_auth(auth)
-        return :none if auth.nil?
-        return :none if auth == :none
-        return :none if auth.is_a?(Hash) && auth.empty?
-
-        auth
-      end
-
-      public
-
       # Dispatches a command to the first-registered protocol that serves it.
       #
       # @param command_name [Symbol, String] command to invoke
@@ -150,6 +132,22 @@ module BSV
         raise ArgumentError, "#{@name} does not provide command :#{sym}" unless instance
 
         instance.call(sym, *args, **kwargs)
+      end
+
+      private
+
+      # Normalises the +auth+ argument so that +nil+ and empty hashes are
+      # stored as +:none+, giving a single canonical sentinel value for
+      # "no authentication".
+      #
+      # @param auth [Hash, Symbol, nil]
+      # @return [Hash, Symbol]
+      def normalise_auth(auth)
+        return :none if auth.nil?
+        return :none if auth == :none
+        return :none if auth.is_a?(Hash) && (auth.empty? || (auth[:bearer].nil? && auth[:api_key].nil?))
+
+        auth
       end
     end
   end

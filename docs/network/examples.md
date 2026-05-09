@@ -232,9 +232,6 @@ gp = BSV::Network::Providers::GorillaPool.default(auth: { bearer: ENV['GP_TOKEN'
 
 # TAAL with a bearer token
 taal = BSV::Network::Providers::TAAL.default(auth: { bearer: ENV['TAAL_TOKEN'] })
-
-# Directly on a facade
-arc = BSV::Network::ARC.default(auth: { bearer: ENV['ARC_TOKEN'] })
 ```
 
 ### Raw API key (no Bearer prefix)
@@ -294,9 +291,9 @@ arc = BSV::Network::ARC.default(api_key: 'my-key')
 arc = BSV::Network::ARC.default(auth: { bearer: 'my-key' })
 ```
 
-For WhatsOnChain, where the protocol sends a bare key (no `Bearer` prefix), use
-`auth: { api_key: 'key' }` rather than the legacy `api_key:` shorthand — the
-legacy form sends a Bearer prefix which WoC does not expect.
+For WhatsOnChain, the protocol sends a bare key (no `Bearer` prefix). Both the
+new `auth: { api_key: 'key' }` form and the legacy `api_key:` shorthand work
+correctly — the factory translates the legacy form automatically.
 
 ## Rate Limit Metadata
 
