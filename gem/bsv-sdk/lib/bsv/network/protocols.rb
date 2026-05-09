@@ -3,9 +3,8 @@
 module BSV
   module Network
     # Protocols is a namespace module for concrete Protocol subclasses.
-    #
-    # Protocol implementations (e.g. ARC, WhatsOnChain adapters built on
-    # the Protocol base class) will be autoloaded here in Phase B.
+    # Each class maps a service's commands to HTTP endpoints: ARC, Chaintracks,
+    # JungleBus, Ordinals, TAALBinary, and WoCREST.
     module Protocols
       autoload :ARC,         'bsv/network/protocols/arc'
       autoload :Chaintracks, 'bsv/network/protocols/chaintracks'
