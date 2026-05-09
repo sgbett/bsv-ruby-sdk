@@ -68,7 +68,8 @@ module BSV
         # Broadcast escape hatch: EF format preference, custom headers, rejection
         # detection, and malformed 2xx detection.
         #
-        # @param tx [Transaction] the transaction to broadcast
+        # @param tx [#to_ef_hex, #to_hex, String] transaction object, hex string,
+        #   or binary string
         # @param wait_for [String, nil] ARC wait condition
         # @param skip_fee_validation [Boolean, nil]
         # @param skip_script_validation [Boolean, nil]
@@ -80,7 +81,7 @@ module BSV
         def call_broadcast(tx, wait_for: nil, skip_fee_validation: nil,
                            skip_script_validation: nil, skip_tx_validation: nil,
                            callback_url: nil, callback_token: nil, callback_batch: nil, **)
-          hex  = ef_hex_with_fallback(tx)
+          hex  = resolve_tx_hex(tx)
           body = JSON.generate(rawTx: hex)
 
           extra_headers = build_broadcast_headers(
@@ -99,7 +100,7 @@ module BSV
 
         # Broadcast-many escape hatch: batch broadcast with per-item rejection detection.
         #
-        # @param txs [Array<Transaction>]
+        # @param txs [Array<#to_ef_hex, #to_hex, String>]
         # @param wait_for [String, nil]
         # @param skip_fee_validation [Boolean, nil]
         # @param skip_script_validation [Boolean, nil]
@@ -113,7 +114,7 @@ module BSV
                                 callback_url: nil, callback_token: nil, callback_batch: nil, **)
           return Result::Success.new(data: []) if txs.empty?
 
-          body = JSON.generate(txs.map { |tx| { rawTx: ef_hex_with_fallback(tx) } })
+          body = JSON.generate(txs.map { |tx| { rawTx: resolve_tx_hex(tx) } })
 
           extra_headers = build_broadcast_headers(
             wait_for: wait_for,
@@ -136,10 +137,22 @@ module BSV
           request
         end
 
-        # Prefer Extended Format hex (BRC-30) so ARC can validate sighashes without
-        # fetching parent transactions. Falls back to plain raw-tx hex when any input
-        # lacks source_satoshis / source_locking_script.
-        def ef_hex_with_fallback(tx)
+        # Coerce a transaction input to hex for the ARC JSON body.
+        #
+        # Accepts (in order of preference):
+        # 1. Hex string — pass-through, zero conversion
+        # 2. Binary string — convert to hex
+        # 3. Transaction object — prefer EF hex (BRC-30), fall back to raw hex
+        #
+        # @param tx [String, #to_ef_hex, #to_hex] transaction in any supported form
+        # @return [String] hex-encoded transaction
+        def resolve_tx_hex(tx)
+          if tx.is_a?(String)
+            return tx.unpack1('H*') if tx.encoding == Encoding::BINARY
+
+            return tx
+          end
+
           tx.to_ef_hex
         rescue ArgumentError => e
           BSV.logger&.debug { "[ARC] EF serialisation failed: #{e.message} — falling back to raw hex" }

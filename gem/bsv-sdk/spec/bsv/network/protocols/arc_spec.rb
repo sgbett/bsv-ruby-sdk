@@ -109,6 +109,47 @@ RSpec.describe BSV::Network::Protocols::ARC do
       end
     end
 
+    context 'when tx is a hex string' do
+      before do
+        stub_json_response(200, { 'txid' => 'hex123', 'txStatus' => 'RECEIVED' })
+      end
+
+      it 'sends the hex string directly as rawTx' do
+        arc.call(:broadcast, 'deadbeef')
+        expect(http_client).to have_received(:request) do |_uri, req|
+          body = JSON.parse(req.body)
+          expect(body['rawTx']).to eq('deadbeef')
+        end
+      end
+
+      it 'returns Result::Success' do
+        result = arc.call(:broadcast, 'deadbeef')
+        expect(result).to be_a(BSV::Network::Result::Success)
+        expect(result.data[:txid]).to eq('hex123')
+      end
+    end
+
+    context 'when tx is a binary string' do
+      before do
+        stub_json_response(200, { 'txid' => 'bin456', 'txStatus' => 'RECEIVED' })
+      end
+
+      it 'converts binary to hex for rawTx' do
+        binary = "\xDE\xAD\xBE\xEF".b
+        arc.call(:broadcast, binary)
+        expect(http_client).to have_received(:request) do |_uri, req|
+          body = JSON.parse(req.body)
+          expect(body['rawTx']).to eq('deadbeef')
+        end
+      end
+
+      it 'returns Result::Success' do
+        result = arc.call(:broadcast, "\xCA\xFE".b)
+        expect(result).to be_a(BSV::Network::Result::Success)
+        expect(result.data[:txid]).to eq('bin456')
+      end
+    end
+
     context 'when ARC returns a rejected status' do
       let(:tx) { make_tx(ef_hex: 'efhex') }
 
@@ -395,6 +436,39 @@ RSpec.describe BSV::Network::Protocols::ARC do
       expect(http_client).to have_received(:request) do |_uri, req|
         body = JSON.parse(req.body)
         expect(body[0]['rawTx']).to eq('raw2')
+      end
+    end
+
+    it 'accepts hex strings directly' do
+      stub_json_response(200, [{ 'txid' => 'abc', 'txStatus' => 'RECEIVED' }])
+      arc.call(:broadcast_many, ['deadbeef'])
+      expect(http_client).to have_received(:request) do |_uri, req|
+        body = JSON.parse(req.body)
+        expect(body[0]['rawTx']).to eq('deadbeef')
+      end
+    end
+
+    it 'accepts binary strings' do
+      stub_json_response(200, [{ 'txid' => 'abc', 'txStatus' => 'RECEIVED' }])
+      arc.call(:broadcast_many, ["\xCA\xFE".b])
+      expect(http_client).to have_received(:request) do |_uri, req|
+        body = JSON.parse(req.body)
+        expect(body[0]['rawTx']).to eq('cafe')
+      end
+    end
+
+    it 'accepts a mixed array of Transaction objects, hex strings, and binary strings' do
+      stub_json_response(200, [
+                           { 'txid' => 't1', 'txStatus' => 'RECEIVED' },
+                           { 'txid' => 't2', 'txStatus' => 'RECEIVED' },
+                           { 'txid' => 't3', 'txStatus' => 'RECEIVED' }
+                         ])
+      arc.call(:broadcast_many, [tx_with_ef, 'aabbccdd', "\xDE\xAD".b])
+      expect(http_client).to have_received(:request) do |_uri, req|
+        body = JSON.parse(req.body)
+        expect(body[0]['rawTx']).to eq('ef1')
+        expect(body[1]['rawTx']).to eq('aabbccdd')
+        expect(body[2]['rawTx']).to eq('dead')
       end
     end
   end
