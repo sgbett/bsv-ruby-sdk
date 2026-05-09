@@ -33,6 +33,84 @@ RSpec.describe 'BSV::Network::Provider' do
       p = provider.new('Test') { |pr| yielded = pr }
       expect(yielded).to be(p)
     end
+
+    it 'defaults auth to :none' do
+      p = provider.new('X')
+      expect(p.auth).to eq(:none)
+    end
+
+    it 'defaults rate_limit to nil' do
+      p = provider.new('X')
+      expect(p.rate_limit).to be_nil
+    end
+  end
+
+  # ── #auth / #rate_limit / #authenticated? ─────────────────────────────────────
+
+  describe '#auth' do
+    it 'stores an api_key auth hash' do
+      p = provider.new('X', auth: { api_key: 'k' })
+      expect(p.auth).to eq({ api_key: 'k' })
+    end
+
+    it 'stores a bearer auth hash' do
+      p = provider.new('X', auth: { bearer: 'token' })
+      expect(p.auth).to eq({ bearer: 'token' })
+    end
+
+    it 'normalises nil to :none' do
+      p = provider.new('X', auth: nil)
+      expect(p.auth).to eq(:none)
+    end
+
+    it 'normalises empty hash to :none' do
+      p = provider.new('X', auth: {})
+      expect(p.auth).to eq(:none)
+    end
+  end
+
+  describe '#rate_limit' do
+    it 'stores the supplied rate limit' do
+      p = provider.new('X', rate_limit: 10)
+      expect(p.rate_limit).to eq(10)
+    end
+
+    it 'accepts rate_limit: 0 as a valid value' do
+      p = provider.new('X', rate_limit: 0)
+      expect(p.rate_limit).to eq(0)
+    end
+
+    it 'defaults to nil when not supplied' do
+      p = provider.new('X')
+      expect(p.rate_limit).to be_nil
+    end
+  end
+
+  describe '#authenticated?' do
+    it 'returns false when auth is :none (default)' do
+      p = provider.new('X')
+      expect(p.authenticated?).to be(false)
+    end
+
+    it 'returns true when auth is an api_key hash' do
+      p = provider.new('X', auth: { api_key: 'x' })
+      expect(p.authenticated?).to be(true)
+    end
+
+    it 'returns true when auth is a bearer hash' do
+      p = provider.new('X', auth: { bearer: 'token' })
+      expect(p.authenticated?).to be(true)
+    end
+
+    it 'returns false when auth is an empty hash' do
+      p = provider.new('X', auth: {})
+      expect(p.authenticated?).to be(false)
+    end
+
+    it 'returns false when auth is nil' do
+      p = provider.new('X', auth: nil)
+      expect(p.authenticated?).to be(false)
+    end
   end
 
   # ── Block DSL ─────────────────────────────────────────────────────────────────
@@ -362,6 +440,26 @@ RSpec.describe 'BSV::Network::Provider' do
     it 'shows an empty protocols list when no protocols are registered' do
       p = provider.new('Empty')
       expect(p.to_s).to include('protocols=[]')
+    end
+
+    it 'shows auth=unauthenticated when no auth is configured' do
+      p = provider.new('Test')
+      expect(p.to_s).to include('auth=unauthenticated')
+    end
+
+    it 'shows auth=authenticated when an auth hash is supplied' do
+      p = provider.new('Test', auth: { api_key: 'k' })
+      expect(p.to_s).to include('auth=authenticated')
+    end
+
+    it 'omits rate_limit from output when nil' do
+      p = provider.new('Test')
+      expect(p.to_s).not_to include('rate_limit')
+    end
+
+    it 'includes rate_limit in output when set' do
+      p = provider.new('Test', rate_limit: 10)
+      expect(p.to_s).to include('rate_limit=10')
     end
   end
 

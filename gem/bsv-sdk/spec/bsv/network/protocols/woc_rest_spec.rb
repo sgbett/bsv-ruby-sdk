@@ -2372,7 +2372,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
   # ---------------------------------------------------------------------------
 
   describe 'API key authentication' do
-    it 'sends Bearer auth header when api_key is provided' do
+    it 'sends raw api_key as Authorization header (no Bearer prefix) when api_key is provided' do
       http_client = fake(200, '{"blocks":800000}')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, api_key: 'my-woc-key', http_client: http_client)
 

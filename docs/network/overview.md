@@ -55,6 +55,41 @@ Each provider composes protocol instances with concrete URLs and credentials. Wh
 call `.default`, you get a ready-to-use provider pointed at the mainnet endpoints.
 Pass `testnet: true` for testnet.
 
+#### Auth and Rate Limit Metadata
+
+Providers carry `auth` and `rate_limit` as metadata — they describe what credentials
+the provider is configured with and what request rate is appropriate. The SDK does not
+enforce rate limiting itself; that is a consumer concern.
+
+```ruby
+provider = BSV::Network::Providers::WhatsOnChain.mainnet(
+  auth: { api_key: 'my-key' },
+  rate_limit: 10
+)
+
+provider.authenticated?   # => true
+provider.auth             # => { api_key: 'my-key' }
+provider.rate_limit       # => 10
+```
+
+Without credentials:
+
+```ruby
+provider = BSV::Network::Providers::GorillaPool.default
+provider.authenticated?   # => false
+provider.auth             # => :none
+provider.rate_limit       # => 3  (GorillaPool default)
+```
+
+The `rate_limit` value is requests per second. Each provider factory sets a
+`DEFAULT_RATE_LIMIT` constant for unauthenticated use:
+
+| Provider | `DEFAULT_RATE_LIMIT` | Notes |
+|----------|---------------------|-------|
+| `WhatsOnChain` | 3 | Public tier limit |
+| `GorillaPool` | 3 | Public tier limit |
+| `TAAL` | `nil` | Depends on subscription tier |
+
 ## SDK Facades
 
 For convenience, the SDK provides facade classes that preserve the familiar API from

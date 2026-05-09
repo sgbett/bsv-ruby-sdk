@@ -215,22 +215,114 @@ result = my_tracker.call(:current_height)
 puts result.data  # => 945398
 ```
 
-## API Key Configuration
+## Auth Configuration
 
-API keys are passed through `**opts` on `.default` or directly on constructors:
+The SDK supports three authentication mechanisms via the `auth:` hash. The SDK does not
+read environment variables for credentials — that is a consumer concern. Pass credentials
+in at construction time.
+
+### Bearer token
+
+Use `auth: { bearer: 'token' }` for services that expect `Authorization: Bearer <token>`.
+This is the standard form for GorillaPool ARC and TAAL ARC.
 
 ```ruby
-# Via .default
-arc = BSV::Network::ARC.default(api_key: 'my-key')
-woc = BSV::Network::WhatsOnChain.default(api_key: 'my-woc-key')
+# GorillaPool with a bearer token
+gp = BSV::Network::Providers::GorillaPool.default(auth: { bearer: ENV['GP_TOKEN'] })
 
-# Via provider
-gp = BSV::Network::Providers::GorillaPool.default(api_key: 'my-key')
-
-# Via constructor
-arc = BSV::Network::ARC.new('https://arc.taal.com', api_key: 'taal-key')
+# TAAL with a bearer token
+taal = BSV::Network::Providers::TAAL.default(auth: { bearer: ENV['TAAL_TOKEN'] })
 ```
 
-The SDK does not read environment variables for API keys — that's a consumer concern.
-Set them however makes sense for your application (ENV vars, Rails credentials,
-config files, etc.) and pass them in at construction time.
+### Raw API key (no Bearer prefix)
+
+Use `auth: { api_key: 'key' }` for services that expect a bare key in the
+`Authorization` header. This is the WhatsOnChain style.
+
+```ruby
+woc = BSV::Network::Providers::WhatsOnChain.default(auth: { api_key: ENV['WOC_KEY'] })
+```
+
+### Custom header
+
+Use `auth: { api_key: 'key', header: 'X-Header-Name' }` when the service expects
+credentials in a non-standard header.
+
+```ruby
+my_provider = BSV::Network::Providers::GorillaPool.default(
+  auth: { api_key: ENV['MY_KEY'], header: 'Api-Key' }
+)
+```
+
+### Auth mechanisms summary
+
+| `auth:` form | Header sent |
+|---|---|
+| `{ bearer: 'token' }` | `Authorization: Bearer token` |
+| `{ api_key: 'key' }` | `Authorization: key` (no prefix) |
+| `{ api_key: 'key', header: 'X-Custom' }` | `X-Custom: key` |
+| `:none` / omitted | No auth header |
+
+### Checking auth status
+
+Providers expose `authenticated?` and `auth` accessors for introspection:
+
+```ruby
+provider = BSV::Network::Providers::WhatsOnChain.mainnet(auth: { api_key: 'my-key' })
+provider.authenticated?   # => true
+provider.auth             # => { api_key: 'my-key' }
+
+public_provider = BSV::Network::Providers::GorillaPool.default
+public_provider.authenticated?  # => false
+public_provider.auth            # => :none
+```
+
+### Migration from `api_key:`
+
+The legacy `api_key:` keyword argument is still supported for backwards compatibility.
+The new `auth:` hash is the preferred form. Both work; `auth:` takes precedence when
+both are supplied.
+
+```ruby
+# Legacy — still works
+arc = BSV::Network::ARC.default(api_key: 'my-key')
+
+# Preferred — explicit about the mechanism
+arc = BSV::Network::ARC.default(auth: { bearer: 'my-key' })
+```
+
+For WhatsOnChain, the protocol sends a bare key (no `Bearer` prefix). Both the
+new `auth: { api_key: 'key' }` form and the legacy `api_key:` shorthand work
+correctly — the factory translates the legacy form automatically.
+
+## Rate Limit Metadata
+
+Providers carry a `rate_limit` attribute that declares the requests-per-second limit
+appropriate for the configured credentials. **The SDK does not enforce this limit** —
+it is metadata for the consumer to use in their own rate-limiting logic (e.g. a token
+bucket in an application layer).
+
+```ruby
+# Default rate limit for unauthenticated use
+woc = BSV::Network::Providers::WhatsOnChain.default
+woc.rate_limit   # => 3
+
+# Override for an authenticated tier with higher limits
+woc = BSV::Network::Providers::WhatsOnChain.mainnet(
+  auth: { api_key: ENV['WOC_KEY'] },
+  rate_limit: 25
+)
+woc.rate_limit   # => 25
+
+# TAAL: nil because it depends on subscription tier
+taal = BSV::Network::Providers::TAAL.default
+taal.rate_limit  # => nil
+```
+
+Default rate limits per provider (unauthenticated tier):
+
+| Provider | `DEFAULT_RATE_LIMIT` |
+|----------|---------------------|
+| `WhatsOnChain` | 3 req/s |
+| `GorillaPool` | 3 req/s |
+| `TAAL` | `nil` (depends on subscription) |

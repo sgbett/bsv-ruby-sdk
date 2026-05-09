@@ -28,9 +28,10 @@ module BSV
                  response: ->(body) { JSON.parse(body)['height'] }
 
         # @param base_url    [String] base URL for the Chaintracks API
-        # @param api_key     [String, nil] optional Bearer API key
+        # @param api_key     [String, nil] legacy Bearer API key shorthand — use +auth:+ for new code
+        # @param auth        [Hash, Symbol, nil] auth config; takes precedence over +api_key:+
         # @param http_client [Object, nil] injectable HTTP client for testing
-        def initialize(base_url:, api_key: nil, http_client: nil)
+        def initialize(base_url:, api_key: nil, auth: nil, http_client: nil)
           super
         end
       end

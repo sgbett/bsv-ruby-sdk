@@ -8,7 +8,7 @@ module BSV
       #
       # TAAL quirks handled here:
       # - Content-Type is +application/octet-stream+ (not JSON)
-      # - Authorization header uses the API key directly with no "Bearer" prefix
+      # - Authorization header is applied via the standard +apply_auth+ mechanism
       # - A response containing +txn-already-known+ in the error field is treated
       #   as success (the transaction is already in the mempool — idempotent)
       #
@@ -16,12 +16,23 @@ module BSV
       #
       #   protocol = BSV::Network::Protocols::TAALBinary.new(
       #     base_url: 'https://api.taal.com',
-      #     api_key: 'mainnet_your_key_here'
+      #     auth: { api_key: 'mainnet_your_key_here' }
       #   )
       #   result = protocol.call(:broadcast, tx)
       #   puts result.data[:txid] if result.success?
       class TAALBinary < BSV::Network::Protocol
         endpoint :broadcast, :post, '/api/v1/broadcast', response: :json
+
+        # @param base_url    [String] base URL for the TAAL binary API
+        # @param api_key     [String, nil] legacy API key shorthand (no Bearer prefix) — use +auth:+ for new code
+        # @param auth        [Hash, Symbol, nil] auth config; takes precedence over +api_key:+
+        # @param http_client [Object, nil] injectable HTTP client for testing
+        def initialize(base_url:, api_key: nil, auth: nil, http_client: nil)
+          # Translate legacy api_key: to auth: { api_key: } so the base class sends
+          # the raw key without a Bearer prefix, matching TAAL's expected auth format.
+          resolved_auth = auth || (api_key ? { api_key: api_key } : nil)
+          super(base_url: base_url, auth: resolved_auth, http_client: http_client)
+        end
 
         private
 
@@ -35,8 +46,8 @@ module BSV
 
           uri     = URI("#{@base_url}/api/v1/broadcast")
           request = Net::HTTP::Post.new(uri)
-          request['Content-Type']  = 'application/octet-stream'
-          request['Authorization'] = @api_key if @api_key
+          request['Content-Type'] = 'application/octet-stream'
+          apply_auth(request)
 
           request.body = body
 

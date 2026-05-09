@@ -22,15 +22,28 @@ module BSV
     #   result = gorillapool.call(:broadcast, tx)
     #   result.success?  # => true
     class Provider
-      attr_reader :name
+      attr_reader :name, :auth, :rate_limit
 
-      # @param name  [String] human-readable provider name (e.g. 'GorillaPool')
-      # @param block [Proc]   optional configuration block — yields +self+
-      def initialize(name, &block)
+      # @param name       [String]        human-readable provider name (e.g. 'GorillaPool')
+      # @param auth       [Hash, Symbol]  authentication config or +:none+ (default: +:none+).
+      #                                   An empty hash or +nil+ is treated as +:none+.
+      # @param rate_limit [Numeric, nil]  maximum requests per second (+nil+ = unlimited)
+      # @param block      [Proc]          optional configuration block — yields +self+
+      def initialize(name, auth: :none, rate_limit: nil, &block)
         @name           = name
+        @auth           = normalise_auth(auth)
+        @rate_limit     = rate_limit
         @protocols      = []
         @command_index  = {}
         block&.call(self)
+      end
+
+      # Returns +true+ when the provider is configured with authentication
+      # credentials (i.e. +auth+ is not +:none+ and not an empty hash).
+      #
+      # @return [Boolean]
+      def authenticated?
+        @auth != :none
       end
 
       # Registers a protocol class with the provider.
@@ -100,7 +113,9 @@ module BSV
       # @return [String]
       def to_s
         protocol_summary = @protocols.map { |p| p.class.name&.split('::')&.last || p.class.to_s }.join(', ')
-        "#<#{self.class} name=#{@name.inspect} protocols=[#{protocol_summary}]>"
+        auth_status      = authenticated? ? 'authenticated' : 'unauthenticated'
+        rate_part        = @rate_limit.nil? ? '' : " rate_limit=#{@rate_limit}"
+        "#<#{self.class} name=#{@name.inspect} auth=#{auth_status}#{rate_part} protocols=[#{protocol_summary}]>"
       end
       alias inspect to_s
 
@@ -117,6 +132,22 @@ module BSV
         raise ArgumentError, "#{@name} does not provide command :#{sym}" unless instance
 
         instance.call(sym, *args, **kwargs)
+      end
+
+      private
+
+      # Normalises the +auth+ argument so that +nil+ and empty hashes are
+      # stored as +:none+, giving a single canonical sentinel value for
+      # "no authentication".
+      #
+      # @param auth [Hash, Symbol, nil]
+      # @return [Hash, Symbol]
+      def normalise_auth(auth)
+        return :none if auth.nil?
+        return :none if auth == :none
+        return :none if auth.is_a?(Hash) && (auth.empty? || (auth[:bearer].nil? && auth[:api_key].nil?))
+
+        auth
       end
     end
   end

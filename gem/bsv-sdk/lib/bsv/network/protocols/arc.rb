@@ -45,16 +45,17 @@ module BSV
         endpoint :health,         :get,  '/v1/health',      response: :json
 
         # @param base_url      [String]      ARC base URL (may contain {network})
-        # @param api_key       [String, nil] optional bearer token
+        # @param api_key       [String, nil] legacy bearer token shorthand — use +auth:+ for new code
+        # @param auth          [Hash, Symbol, nil] auth config; takes precedence over +api_key:+
         # @param network       [String, nil] network name for base URL interpolation
         # @param deployment_id [String, nil] deployment identifier for the
         #   XDeployment-ID header; defaults to a per-instance random hex value
         # @param callback_url  [String, nil] optional X-CallbackUrl header value
         # @param callback_token [String, nil] optional X-CallbackToken header value
         # @param http_client   [#request, nil] injectable HTTP client for testing
-        def initialize(base_url:, api_key: nil, network: nil, deployment_id: nil,
+        def initialize(base_url:, api_key: nil, auth: nil, network: nil, deployment_id: nil,
                        callback_url: nil, callback_token: nil, http_client: nil)
-          super(base_url: base_url, api_key: api_key, network: network, http_client: http_client)
+          super(base_url: base_url, api_key: api_key, auth: auth, network: network, http_client: http_client)
           @deployment_id  = deployment_id || "bsv-ruby-sdk-#{SecureRandom.hex(8)}"
           @callback_url   = callback_url
           @callback_token = callback_token

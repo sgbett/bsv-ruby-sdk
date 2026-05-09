@@ -136,9 +136,9 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.protocols[0].base_url).to eq('https://api.whatsonchain.com/v1/bsv/main')
     end
 
-    it 'forwards api_key to WoCREST protocol' do
+    it 'forwards api_key to WoCREST protocol as auth: { api_key: }' do
       p = BSV::Network::Providers::WhatsOnChain.mainnet(api_key: 'woc-key', http_client: http_client)
-      expect(p.protocols[0].api_key).to eq('woc-key')
+      expect(p.protocols[0].auth).to eq({ api_key: 'woc-key' })
     end
   end
 
@@ -242,10 +242,14 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.protocols[1].base_url).to eq('https://api.taal.com')
     end
 
-    it 'forwards api_key to both protocols' do
+    it 'forwards api_key to ARC protocol' do
       p = BSV::Network::Providers::TAAL.mainnet(api_key: 'taal-key', http_client: http_client)
       expect(p.protocols[0].api_key).to eq('taal-key')
-      expect(p.protocols[1].api_key).to eq('taal-key')
+    end
+
+    it 'translates api_key to auth: { api_key: } for TAALBinary (no Bearer prefix)' do
+      p = BSV::Network::Providers::TAAL.mainnet(api_key: 'taal-key', http_client: http_client)
+      expect(p.protocols[1].auth).to eq({ api_key: 'taal-key' })
     end
   end
 
@@ -266,6 +270,169 @@ RSpec.describe 'BSV::Network::Providers defaults' do
 
     it 'sets ARC base_url to arc-test.taal.com' do
       expect(provider.protocols[0].base_url).to eq('https://arc-test.taal.com')
+    end
+  end
+  # ── Auth and rate_limit wiring ────────────────────────────────────────────────
+
+  describe 'DEFAULT_RATE_LIMIT constants' do
+    it 'WhatsOnChain::DEFAULT_RATE_LIMIT is 3' do
+      expect(BSV::Network::Providers::WhatsOnChain::DEFAULT_RATE_LIMIT).to eq(3)
+    end
+
+    it 'GorillaPool::DEFAULT_RATE_LIMIT is 3' do
+      expect(BSV::Network::Providers::GorillaPool::DEFAULT_RATE_LIMIT).to eq(3)
+    end
+
+    it 'TAAL::DEFAULT_RATE_LIMIT is nil (tier-dependent)' do
+      expect(BSV::Network::Providers::TAAL::DEFAULT_RATE_LIMIT).to be_nil
+    end
+  end
+
+  describe 'WhatsOnChain — auth and rate_limit' do
+    it 'provider.auth is :none when no auth supplied' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(http_client: http_client)
+      expect(p.auth).to eq(:none)
+    end
+
+    it 'provider.rate_limit is DEFAULT_RATE_LIMIT when no rate_limit supplied' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(http_client: http_client)
+      expect(p.rate_limit).to eq(BSV::Network::Providers::WhatsOnChain::DEFAULT_RATE_LIMIT)
+    end
+
+    it 'provider.auth reflects auth: hash' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(auth: { api_key: 'k' }, http_client: http_client)
+      expect(p.auth).to eq({ api_key: 'k' })
+    end
+
+    it 'provider.authenticated? is true when auth: hash supplied' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(auth: { api_key: 'k' }, http_client: http_client)
+      expect(p.authenticated?).to be(true)
+    end
+
+    it 'protocol receives auth: hash' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(auth: { api_key: 'k' }, http_client: http_client)
+      expect(p.protocols[0].auth).to eq({ api_key: 'k' })
+    end
+
+    it 'rate_limit: override replaces default' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(rate_limit: 10, http_client: http_client)
+      expect(p.rate_limit).to eq(10)
+    end
+
+    it 'auth: takes precedence over api_key:' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(
+        auth: { api_key: 'explicit' }, api_key: 'legacy', http_client: http_client
+      )
+      expect(p.protocols[0].auth).to eq({ api_key: 'explicit' })
+    end
+
+    it 'legacy api_key: populates provider auth metadata' do
+      p = BSV::Network::Providers::WhatsOnChain.mainnet(api_key: 'legacy-key', http_client: http_client)
+      expect(p.auth).to eq({ api_key: 'legacy-key' })
+      expect(p.authenticated?).to be(true)
+    end
+  end
+
+  describe 'GorillaPool — auth and rate_limit' do
+    it 'provider.auth is :none when no auth supplied' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(http_client: http_client)
+      expect(p.auth).to eq(:none)
+    end
+
+    it 'provider.rate_limit is DEFAULT_RATE_LIMIT when no rate_limit supplied' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(http_client: http_client)
+      expect(p.rate_limit).to eq(BSV::Network::Providers::GorillaPool::DEFAULT_RATE_LIMIT)
+    end
+
+    it 'provider.auth reflects auth: hash' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'provider.authenticated? is true when auth: supplied' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.authenticated?).to be(true)
+    end
+
+    it 'forwards auth: to ARC protocol' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.protocols[0].auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'forwards auth: to Chaintracks protocol' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.protocols[1].auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'forwards auth: to Ordinals protocol' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.protocols[2].auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'forwards auth: to JungleBus protocol' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.protocols[3].auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'rate_limit: override replaces default' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(rate_limit: 50, http_client: http_client)
+      expect(p.rate_limit).to eq(50)
+    end
+
+    it 'legacy api_key: populates provider auth metadata as bearer' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(api_key: 'gp-key', http_client: http_client)
+      expect(p.auth).to eq({ bearer: 'gp-key' })
+      expect(p.authenticated?).to be(true)
+    end
+
+    it 'testnet forwards auth: to all protocols' do
+      p = BSV::Network::Providers::GorillaPool.testnet(auth: { bearer: 'tok' }, http_client: http_client)
+      p.protocols.each do |proto|
+        expect(proto.auth).to eq({ bearer: 'tok' })
+      end
+    end
+  end
+
+  describe 'TAAL — auth and rate_limit' do
+    it 'provider.auth is :none when no auth supplied' do
+      p = BSV::Network::Providers::TAAL.mainnet(http_client: http_client)
+      expect(p.auth).to eq(:none)
+    end
+
+    it 'provider.rate_limit is nil (DEFAULT_RATE_LIMIT) when no rate_limit supplied' do
+      p = BSV::Network::Providers::TAAL.mainnet(http_client: http_client)
+      expect(p.rate_limit).to be_nil
+    end
+
+    it 'provider.auth reflects auth: hash' do
+      p = BSV::Network::Providers::TAAL.mainnet(auth: { api_key: 'taal-k' }, http_client: http_client)
+      expect(p.auth).to eq({ api_key: 'taal-k' })
+    end
+
+    it 'provider.authenticated? is true when auth: supplied' do
+      p = BSV::Network::Providers::TAAL.mainnet(auth: { api_key: 'taal-k' }, http_client: http_client)
+      expect(p.authenticated?).to be(true)
+    end
+
+    it 'forwards auth: to ARC protocol' do
+      p = BSV::Network::Providers::TAAL.mainnet(auth: { api_key: 'taal-k' }, http_client: http_client)
+      expect(p.protocols[0].auth).to eq({ api_key: 'taal-k' })
+    end
+
+    it 'forwards auth: to TAALBinary protocol' do
+      p = BSV::Network::Providers::TAAL.mainnet(auth: { api_key: 'taal-k' }, http_client: http_client)
+      expect(p.protocols[1].auth).to eq({ api_key: 'taal-k' })
+    end
+
+    it 'rate_limit: override replaces default' do
+      p = BSV::Network::Providers::TAAL.mainnet(rate_limit: 25, http_client: http_client)
+      expect(p.rate_limit).to eq(25)
+    end
+
+    it 'legacy api_key: populates provider auth metadata as bearer' do
+      p = BSV::Network::Providers::TAAL.mainnet(api_key: 'taal-key', http_client: http_client)
+      expect(p.auth).to eq({ bearer: 'taal-key' })
+      expect(p.authenticated?).to be(true)
     end
   end
 end
