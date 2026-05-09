@@ -128,12 +128,16 @@ RSpec.describe 'BSV::Network::Protocols integration' do
     describe 'Ordinals' do
       subject(:commands) { BSV::Network::Protocols::Ordinals.commands }
 
-      it 'has 2 commands' do
-        expect(commands.size).to eq(2)
+      it 'has 8 commands' do
+        expect(commands.size).to eq(8)
       end
 
       it 'includes the expected commands' do
-        expect(commands).to include(:get_tx, :get_merkle_path)
+        expect(commands).to include(
+          :get_tx, :get_tx_details, :get_tx_status,
+          :get_merkle_path, :get_utxos, :get_balance,
+          :get_spend, :get_chain_tip
+        )
       end
 
       it 'has no duplicate command names' do

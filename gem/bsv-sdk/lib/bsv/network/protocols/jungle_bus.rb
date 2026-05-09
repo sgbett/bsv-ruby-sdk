@@ -19,6 +19,8 @@ module BSV
       #   result = jb.call(:get_tx, 'abc123...')
       #   result.data['transaction']  # => base64-encoded raw tx
       #   result.data['merkle_proof'] # => base64-encoded TSC proof (or nil)
+      #
+      # @see https://junglebus.gorillapool.io/docs/ JungleBus API documentation
       class JungleBus < Protocol
         # Transaction — full tx with parsed metadata and merkle proof
         endpoint :get_tx, :get, '/v1/transaction/get/{txid}', response: :json

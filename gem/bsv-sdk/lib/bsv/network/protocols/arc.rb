@@ -24,6 +24,8 @@ module BSV
       #   result = arc.call(:broadcast, tx)
       #   result.success? # => true
       #   result.data[:txid] # => "abc123..."
+      #
+      # @see https://docs.gorillapool.io/arc/api.html ARC API v1 documentation
       class ARC < Protocol
         # ARC response statuses that indicate a transaction was NOT accepted.
         # Matches the TypeScript SDK's ARC broadcaster failure set.
