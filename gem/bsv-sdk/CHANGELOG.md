@@ -5,6 +5,34 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.0 — 2026-05-09
+
+### Breaking Changes
+- Eliminated display-order binary txid from public API — all methods now use `wtxid` (wire-order) internally (#690)
+
+### Added
+- Provider auth and rate limit metadata: `auth:`, `rate_limit:`, `authenticated?` on Provider; generic auth dispatch in Protocol `build_request` (#718)
+- JungleBus protocol: transaction lookup, address queries, block headers via GorillaPool JungleBus REST API (#717)
+- Ordinals protocol: fixed endpoint paths, added tx details, tx status, UTXOs, balance, spends, chain tip (#727)
+- Full WoC API coverage: expanded from 30 to 54 endpoints with complete address, script, UTXO, and analytics support (#715)
+- Integration tests for ARC, JungleBus, Ordinals, and WoCREST against live APIs (#726)
+- API documentation URLs in all protocol file headers (#730)
+
+### Fixed
+- Ordinals `get_tx` path corrected (`/hex` → `/raw`) and response handler fixed (binary, not JSON) (#727)
+- Auth normalisation: `{ bearer: nil }` and `{ api_key: nil }` treated as unauthenticated (#725)
+- WoC health endpoint path corrected (`/health` → `/woc`)
+- Bulk POST body formats and `get_utxos_all` path corrected for WoC
+- Lazy removal of expired sessions during identity-key lookup (#707)
+- Session TTL expiration added to SessionManager (#707)
+- Guard against nil source data and out-of-bounds input_index in sighash (#702)
+- Wire format deep conversion depth limit (#709)
+
+### Changed
+- BeefTx refactored to polymorphic subclass hierarchy with validated constructors (#692-698)
+- WoCREST `build_request` override removed — replaced by generic auth dispatch
+- MCP dependency bumped from ~> 0.12 to ~> 0.15 (#700)
+
 ## 0.17.0 — 2026-05-02
 
 ### Breaking Changes
