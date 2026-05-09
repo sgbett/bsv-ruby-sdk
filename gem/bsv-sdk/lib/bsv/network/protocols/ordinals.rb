@@ -90,8 +90,12 @@ module BSV
         # @param txid     [String, nil] transaction ID (keyword form)
         # @return [Result::Success<String>, Result::Error, Result::NotFound]
         def call_get_tx(pos_txid = nil, txid: nil)
-          result = default_call(:get_tx, pos_txid || txid)
+          resolved = pos_txid || txid
+          raise ArgumentError, 'txid is required' if resolved.nil? || resolved.empty?
+
+          result = default_call(:get_tx, resolved)
           return result unless result.success?
+          return Result::Error.new(message: 'empty response body') if result.data.nil? || result.data.empty?
 
           Result::Success.new(data: result.data.unpack1('H*'))
         end
@@ -109,7 +113,10 @@ module BSV
         # @param outpoint     [String, nil] outpoint in +"txid_vout"+ format (keyword form)
         # @return [Result::Success<Hash>, Result::Error, Result::NotFound]
         def call_get_spend(pos_outpoint = nil, outpoint: nil)
-          result = default_call(:get_spend, pos_outpoint || outpoint)
+          resolved = pos_outpoint || outpoint
+          raise ArgumentError, 'outpoint is required' if resolved.nil? || resolved.empty?
+
+          result = default_call(:get_spend, resolved)
           return result unless result.success?
 
           spending_txid = JSON.parse(result.data).to_s.strip
@@ -118,6 +125,8 @@ module BSV
           else
             Result::Success.new(data: { spent: true, spending_txid: spending_txid })
           end
+        rescue JSON::ParserError => e
+          Result::Error.new(message: "spend response parse error: #{e.message}")
         end
       end
     end

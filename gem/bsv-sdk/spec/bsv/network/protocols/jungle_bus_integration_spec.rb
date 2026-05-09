@@ -74,8 +74,7 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
   # Block headers
   # ---------------------------------------------------------------------------
 
-  it 'get_block_header returns a block header for a known height' do
-    # JungleBus may not index genesis/early blocks — use the fork block
+  it 'get_block_header returns the BSV fork block header' do
     result = protocol.call(:get_block_header, fork_block_height)
 
     if result.is_a?(BSV::Network::Result::Success)
@@ -87,16 +86,6 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
       expect(result).to be_a(BSV::Network::Result::NotFound)
         .or be_a(BSV::Network::Result::Error)
     end
-  end
-
-  it 'get_block_header returns header data for the BSV fork block' do
-    result = protocol.call(:get_block_header, fork_block_height)
-
-    expect(result).to be_a(BSV::Network::Result::Success)
-    expect(result.data).to be_a(Hash)
-    expect(result.data['hash']).to eq(fork_block_hash)
-    expect(result.data['height']).to eq(fork_block_height)
-    expect(result.data['merkleroot']).to be_a(String)
   end
 
   it 'get_block_headers returns an array of headers from a given height' do

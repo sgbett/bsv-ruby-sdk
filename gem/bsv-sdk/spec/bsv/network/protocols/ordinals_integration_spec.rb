@@ -164,6 +164,10 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
 
     expect(result).to be_a(BSV::Network::Result::Success)
     expect(result.data).to be_a(Hash)
-    expect(result.data[:spent]).to be(true).or be(false)
+    expect(result.data).to have_key(:spent)
+    if result.data[:spent]
+      expect(result.data).to have_key(:spending_txid)
+      expect(result.data[:spending_txid]).to be_a(String)
+    end
   end
 end

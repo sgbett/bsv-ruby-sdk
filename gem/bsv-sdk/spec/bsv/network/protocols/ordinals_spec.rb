@@ -4,7 +4,7 @@ require 'spec_helper'
 
 RSpec.describe BSV::Network::Protocols::Ordinals do
   let(:txid) { 'deadbeefcafe0123456789abcdef0123456789abcdef0123456789abcdef0123' }
-  let(:address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7Divfna' }
+  let(:address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
 
   let(:mock_http) do
     Class.new do
