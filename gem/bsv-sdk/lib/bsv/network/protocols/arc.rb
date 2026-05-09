@@ -144,13 +144,17 @@ module BSV
         # 2. Binary string — convert to hex
         # 3. Transaction object — prefer EF hex (BRC-30), fall back to raw hex
         #
+        # Detection uses content, not encoding: a string is hex if it has even
+        # length and contains only hex characters. This handles hex strings
+        # tagged as ASCII-8BIT (e.g. read from IO in binary mode).
+        #
         # @param tx [String, #to_ef_hex, #to_hex] transaction in any supported form
         # @return [String] hex-encoded transaction
         def resolve_tx_hex(tx)
           if tx.is_a?(String)
-            return tx.unpack1('H*') if tx.encoding == Encoding::BINARY
+            return tx if tx.match?(/\A[0-9a-fA-F]*\z/) && tx.length.even?
 
-            return tx
+            return tx.unpack1('H*')
           end
 
           tx.to_ef_hex

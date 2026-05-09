@@ -129,6 +129,21 @@ RSpec.describe BSV::Network::Protocols::ARC do
       end
     end
 
+    context 'when tx is a hex string tagged as ASCII-8BIT' do
+      before do
+        stub_json_response(200, { 'txid' => 'hex8bit', 'txStatus' => 'RECEIVED' })
+      end
+
+      it 'treats it as hex, not binary' do
+        ascii8bit_hex = 'deadbeef'.b
+        arc.call(:broadcast, ascii8bit_hex)
+        expect(http_client).to have_received(:request) do |_uri, req|
+          body = JSON.parse(req.body)
+          expect(body['rawTx']).to eq('deadbeef')
+        end
+      end
+    end
+
     context 'when tx is a binary string' do
       before do
         stub_json_response(200, { 'txid' => 'bin456', 'txStatus' => 'RECEIVED' })
