@@ -84,10 +84,13 @@ module BSV
         # This escape hatch unpacks the binary body to a lowercase hex string,
         # matching the convention used by other protocol +get_tx+ implementations.
         #
-        # @param txid [String] transaction ID
+        # Accepts +txid+ as a positional argument or as a +txid:+ keyword.
+        #
+        # @param pos_txid [String, nil] transaction ID (positional form)
+        # @param txid     [String, nil] transaction ID (keyword form)
         # @return [Result::Success<String>, Result::Error, Result::NotFound]
-        def call_get_tx(txid)
-          result = default_call(:get_tx, txid)
+        def call_get_tx(pos_txid = nil, txid: nil)
+          result = default_call(:get_tx, pos_txid || txid)
           return result unless result.success?
 
           Result::Success.new(data: result.data.unpack1('H*'))
@@ -100,11 +103,13 @@ module BSV
         # hatch parses the JSON string body and returns a structured hash.
         #
         # The +outpoint+ argument must use underscore-separated format: +"txid_vout"+.
+        # Accepts +outpoint+ as a positional argument or as an +outpoint:+ keyword.
         #
-        # @param outpoint [String] outpoint in +"txid_vout"+ format
+        # @param pos_outpoint [String, nil] outpoint in +"txid_vout"+ format (positional form)
+        # @param outpoint     [String, nil] outpoint in +"txid_vout"+ format (keyword form)
         # @return [Result::Success<Hash>, Result::Error, Result::NotFound]
-        def call_get_spend(outpoint)
-          result = default_call(:get_spend, outpoint)
+        def call_get_spend(pos_outpoint = nil, outpoint: nil)
+          result = default_call(:get_spend, pos_outpoint || outpoint)
           return result unless result.success?
 
           spending_txid = JSON.parse(result.data).to_s.strip
