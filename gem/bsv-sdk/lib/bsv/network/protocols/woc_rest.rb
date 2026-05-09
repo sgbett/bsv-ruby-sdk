@@ -121,25 +121,23 @@ module BSV
 
         # @param base_url    [String] base URL for the WoC API; may contain
         #   +{network}+ which will be interpolated with the resolved network name
-        # @param network  [Symbol, String] :main, :mainnet, :test, :testnet, :stn
-        # @param api_key  [String, nil]    optional Bearer API key
+        # @param network     [Symbol, String] :main, :mainnet, :test, :testnet, :stn
+        # @param api_key     [String, nil] legacy API key — sends +Authorization: key+
+        #   (no Bearer prefix, matching WoC's expected auth format)
+        # @param auth        [Hash, Symbol, nil] auth config hash forwarded to Protocol;
+        #   when provided, takes precedence over +api_key:+
         # @param http_client [Object, nil] injectable HTTP client for testing
-        def initialize(base_url:, network: :main, api_key: nil, http_client: nil)
+        def initialize(base_url:, network: :main, api_key: nil, auth: nil, http_client: nil)
           @network_name = resolve_network(network)
+          # Translate legacy api_key: to auth: { api_key: } so the base class sends
+          # the raw key without a Bearer prefix, matching WoC's expected auth format.
+          resolved_auth = auth || (api_key ? { api_key: api_key } : nil)
           super(
             base_url: base_url,
-            api_key: api_key,
+            auth: resolved_auth,
             network: @network_name,
             http_client: http_client
           )
-        end
-
-        # WoC expects a raw Authorization header (no Bearer prefix).
-        # Override the base class which adds "Bearer ".
-        def build_request(http_method, uri, body)
-          request = super
-          request['Authorization'] = @api_key if @api_key
-          request
         end
 
         private

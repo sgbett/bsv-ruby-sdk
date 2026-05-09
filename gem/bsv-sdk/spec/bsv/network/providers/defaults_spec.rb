@@ -136,9 +136,9 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.protocols[0].base_url).to eq('https://api.whatsonchain.com/v1/bsv/main')
     end
 
-    it 'forwards api_key to WoCREST protocol' do
+    it 'forwards api_key to WoCREST protocol as auth: { api_key: }' do
       p = BSV::Network::Providers::WhatsOnChain.mainnet(api_key: 'woc-key', http_client: http_client)
-      expect(p.protocols[0].api_key).to eq('woc-key')
+      expect(p.protocols[0].auth).to eq({ api_key: 'woc-key' })
     end
   end
 

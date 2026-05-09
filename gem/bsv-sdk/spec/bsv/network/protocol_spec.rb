@@ -397,7 +397,7 @@ RSpec.describe 'BSV::Network::Protocol' do
   end
 
   describe '#default_call — Authorization header' do
-    it 'sends Authorization: Bearer header when api_key is set' do
+    it 'sends Authorization: Bearer header when api_key is set (legacy shorthand)' do
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
       instance = test_protocol_class.new(
         base_url: 'https://api.example.com',
@@ -413,6 +413,67 @@ RSpec.describe 'BSV::Network::Protocol' do
       instance = test_protocol_class.new(base_url: 'https://api.example.com', http_client: http)
       instance.default_call(:get_raw)
       expect(http.last_request['Authorization']).to be_nil
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Generic auth dispatch
+  # ---------------------------------------------------------------------------
+
+  def make_auth_instance(auth_opts)
+    http = ProtocolSpecFakeHttpClient.new(ok_response)
+    instance = test_protocol_class.new(base_url: 'https://api.example.com', http_client: http, **auth_opts)
+    [instance, http]
+  end
+
+  describe '#default_call — generic auth dispatch' do
+    it 'auth: { bearer: token } sends Authorization: Bearer token' do
+      instance, http = make_auth_instance(auth: { bearer: 'my-token' })
+      instance.default_call(:get_raw)
+      expect(http.last_request['Authorization']).to eq('Bearer my-token')
+    end
+
+    it 'auth: { api_key: key } sends Authorization: key (no Bearer prefix)' do
+      instance, http = make_auth_instance(auth: { api_key: 'raw-key' })
+      instance.default_call(:get_raw)
+      expect(http.last_request['Authorization']).to eq('raw-key')
+    end
+
+    it 'auth: { api_key: key, header: X-Custom } sends X-Custom: key' do
+      instance, http = make_auth_instance(auth: { api_key: 'raw-key', header: 'X-Custom' })
+      instance.default_call(:get_raw)
+      expect(http.last_request['X-Custom']).to eq('raw-key')
+      expect(http.last_request['Authorization']).to be_nil
+    end
+
+    it 'auth: :none sends no Authorization header' do
+      instance, http = make_auth_instance(auth: :none)
+      instance.default_call(:get_raw)
+      expect(http.last_request['Authorization']).to be_nil
+    end
+
+    it 'no auth options sends no Authorization header' do
+      instance, http = make_auth_instance({})
+      instance.default_call(:get_raw)
+      expect(http.last_request['Authorization']).to be_nil
+    end
+
+    it 'auth: takes precedence over api_key: when both are provided' do
+      http = ProtocolSpecFakeHttpClient.new(ok_response)
+      instance = test_protocol_class.new(
+        base_url: 'https://api.example.com',
+        api_key: 'legacy-key',
+        auth: { bearer: 'auth-token' },
+        http_client: http
+      )
+      instance.default_call(:get_raw)
+      expect(http.last_request['Authorization']).to eq('Bearer auth-token')
+    end
+
+    it 'auth: { bearer: empty } sends Authorization: Bearer with empty value' do
+      instance, http = make_auth_instance(auth: { bearer: '' })
+      instance.default_call(:get_raw)
+      expect(http.last_request['Authorization']).to eq('Bearer ')
     end
   end
 end
