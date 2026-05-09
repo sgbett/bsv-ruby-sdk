@@ -8,15 +8,51 @@ module BSV
   module Wallet
     # Minimal cryptographic wallet implementing the BRC-100 interface.
     #
-    # ProtoWallet provides signing, encryption, HMAC, and key derivation
-    # without transactions, storage, or blockchain interaction. It is the
-    # direct implementation of the BRC-100 crypto methods, not a delegating
-    # client. This makes it suitable for use in the SDK's Auth module without
-    # depending on the bsv-wallet gem.
+    # ProtoWallet is a direct, in-process implementation of the BRC-100 crypto
+    # operations. It requires no external gem, no storage, and no blockchain
+    # access — making it suitable for use inside the SDK itself (e.g. the Auth
+    # module) as well as lightweight applications that need cryptographic
+    # operations without full wallet infrastructure.
     #
-    # Includes +BSV::Wallet::Interface::BRC100+ — methods it supports are
-    # overridden; unsupported methods (transactions, blockchain, authentication)
-    # fall through to +NotImplementedError+.
+    # == Supported BRC-100 areas
+    #
+    # - *Public key management* — {#get_public_key}, {#reveal_counterparty_key_linkage},
+    #   {#reveal_specific_key_linkage}
+    # - *Cryptography* — {#encrypt}, {#decrypt}, {#create_hmac}, {#verify_hmac},
+    #   {#create_signature}, {#verify_signature}
+    # - *Certificates (read-only stub)* — {#list_certificates} returns an empty list;
+    #   {#prove_certificate} raises {UnsupportedActionError}
+    #
+    # == NOT supported
+    #
+    # The following BRC-100 areas are not implemented and will raise
+    # +NotImplementedError+:
+    #
+    # - Transactions (+create_action+, +sign_action+, +list_actions+, etc.)
+    # - Output management (+list_outputs+, +relinquish_output+, etc.)
+    # - Authentication (+authenticated?+, +wait_for_authentication+)
+    # - Blockchain / network data (+get_height+, +get_header_for_height+, etc.)
+    # - Certificate acquisition / discovery (+acquire_certificate+,
+    #   +discover_by_identity_key+, etc.)
+    #
+    # For full wallet functionality, use the +bsv-wallet+ gem. See
+    # +docs/sdk/wallet.md+ for usage guidance.
+    #
+    # == Construction
+    #
+    # Pass a {BSV::Primitives::PrivateKey} or the special string <tt>'anyone'</tt>.
+    # The <tt>'anyone'</tt> variant uses a well-known key (private key = 1) and is
+    # suitable for verifying or encrypting data that should be readable by
+    # any party — it must not be used where secrecy is required.
+    #
+    # @example Normal usage
+    #   wallet = BSV::Wallet::ProtoWallet.new(BSV::Primitives::PrivateKey.generate)
+    #   sig = wallet.create_signature(protocol_id: [1, 'my-app'], key_id: 'msg-1',
+    #                                 data: 'hello'.bytes)
+    #
+    # @example Anyone wallet
+    #   wallet = BSV::Wallet::ProtoWallet.new('anyone')
+    #   pub = wallet.get_public_key(identity_key: true)
     #
     class ProtoWallet
       include Interface::BRC100
