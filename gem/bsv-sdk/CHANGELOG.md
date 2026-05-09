@@ -5,6 +5,15 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.1 — 2026-05-09
+
+### Added
+- ARC broadcast accepts hex and binary strings directly, in addition to transaction objects
+
+### Fixed
+- Hex string detection uses content inspection rather than string encoding
+- Stale "Phase B" text removed from Protocols namespace module doc
+
 ## 0.18.0 — 2026-05-09
 
 ### Breaking Changes
