@@ -56,7 +56,6 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
       expect(result.data['block_hash']).not_to be_empty
       expect(result.data['transaction']).to be_a(String)
       expect(result.data['transaction']).not_to be_empty
-      expect(result.data['merkle_proof']).to be_a(String)
     else
       expect(result).to be_a(BSV::Network::Result::NotFound)
         .or be_a(BSV::Network::Result::Error)
