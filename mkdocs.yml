@@ -52,6 +52,7 @@ nav:
       - Script: sdk/script.md
       - Transaction: sdk/transaction.md
       - Network: sdk/network.md
+      - Wallet: sdk/wallet.md
   - Network:
       - Overview: network/overview.md
       - Examples: network/examples.md
