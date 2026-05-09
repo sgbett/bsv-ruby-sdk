@@ -29,9 +29,22 @@ arc = BSV::Network::ARC.default(testnet: true)
 
 ### Custom Endpoint
 
-Point at any ARC-compatible endpoint:
+Point at any ARC-compatible endpoint. Use `auth:` to specify the authentication mechanism:
 
 ```ruby
+# Bearer token (default for GorillaPool and TAAL ARC)
+arc = BSV::Network::ARC.new(
+  'https://my-arc-server.example.com',
+  auth: { bearer: 'my-api-key' }
+)
+
+# Raw API key in Authorization header (no Bearer prefix)
+arc = BSV::Network::ARC.new(
+  'https://my-arc-server.example.com',
+  auth: { api_key: 'my-api-key' }
+)
+
+# The legacy api_key: shorthand is still supported and sends Bearer
 arc = BSV::Network::ARC.new(
   'https://my-arc-server.example.com',
   api_key: 'my-api-key'
@@ -214,7 +227,7 @@ Environment variables:
 |----------|---------|-------------|
 | `BSV_NETWORK` | `main` | Network: `main` or `test` |
 | `BSV_ARC_URL` | GorillaPool | Custom ARC endpoint URL |
-| `BSV_ARC_API_KEY` | *(none)* | ARC API key for authenticated access |
+| `BSV_ARC_API_KEY` | *(none)* | ARC API key — passed as `auth: { bearer: value }` |
 
 See the **[MCP Server Guide](../general/mcp.md)** for full setup instructions, testnet configuration, and example workflows.
 
