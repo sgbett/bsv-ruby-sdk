@@ -22,6 +22,8 @@ module BSV
       #   woc = BSV::Network::Protocols::WoCREST.new(network: :main)
       #   result = woc.call(:get_tx, 'abc123...')
       #   puts result.data if result.success?
+      #
+      # @see https://developers.whatsonchain.com/ WhatsOnChain API documentation
       class WoCREST < Protocol
         NETWORKS = {
           'main' => 'main',

@@ -22,6 +22,9 @@ module BSV
       #
       #   result = ct.call(:get_block_header, 800_000)
       #   result.data  # => { 'hash' => '...', 'height' => 800000, 'merkleRoot' => '...' }
+      #
+      # @note Chaintracks is an internal GorillaPool service; no public API documentation
+      #   is available.
       class Chaintracks < Protocol
         endpoint :get_block_header, :get, '/chaintracks/v2/header/height/{height}', response: :json
         endpoint :current_height,   :get, '/chaintracks/v2/tip',

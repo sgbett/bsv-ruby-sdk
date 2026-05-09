@@ -20,6 +20,8 @@ module BSV
       #   )
       #   result = protocol.call(:broadcast, tx)
       #   puts result.data[:txid] if result.success?
+      #
+      # @see https://docs.taal.com TAAL API documentation
       class TAALBinary < BSV::Network::Protocol
         endpoint :broadcast, :post, '/api/v1/broadcast', response: :json
 
