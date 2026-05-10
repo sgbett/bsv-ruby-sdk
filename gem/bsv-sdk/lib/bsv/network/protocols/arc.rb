@@ -11,9 +11,7 @@ module BSV
       # Extends Protocol with five endpoints and two escape hatches for broadcast
       # logic: EF format preference, rejection detection, and custom headers.
       #
-      # The protocol returns ProtocolResponse objects (never raises). The facade
-      # layer is responsible for translating ProtocolResponse to BroadcastResponse
-      # / BroadcastError as needed by consumer code.
+      # The protocol returns ProtocolResponse objects (never raises).
       #
       # == Example
       #

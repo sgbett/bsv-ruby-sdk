@@ -108,7 +108,7 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
       )
 
       expect { tracker.valid_root_for_height?(genesis_merkle_root, 100) }
-        .to raise_error(BSV::Network::ChainProviderError)
+        .to raise_error(RuntimeError)
     end
 
     # Go SDK: TestWhatsOnChainCurrentHeight

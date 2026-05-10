@@ -2,8 +2,6 @@
 
 # rubocop:disable RSpec/DescribeClass
 
-# rubocop:disable Style/OneClassPerFile
-
 # Injectable HTTP client that records the last call and returns a canned response.
 class IntegrationFakeHttpClient
   attr_reader :last_uri, :last_request
@@ -46,8 +44,6 @@ class TestIntegrationProtocol < BSV::Network::Protocol
     result.with(data: result.data.upcase)
   end
 end
-
-# rubocop:enable Style/OneClassPerFile
 
 RSpec.describe 'BSV::Network::Protocol — integration' do
   let(:ok_response)       { fake_http_response(200, 'item_body') }

@@ -54,17 +54,12 @@ module BSV
         # @param root [String] merkle root as a hex string
         # @param height [Integer] block height
         # @return [Boolean]
-        # @raise [BSV::Network::ChainProviderError] on network or API error
+        # @raise [StandardError] on network or API error
         def valid_root_for_height?(root, height)
           result = @protocol.call(:get_block_header, height)
           return false if result.http_not_found?
 
-          unless result.http_success?
-            raise BSV::Network::ChainProviderError.new(
-              result.message.to_s,
-              status_code: result.code&.to_i
-            )
-          end
+          raise result.message.to_s unless result.http_success?
 
           merkle_root = result.data['merkleRoot']
           return false unless merkle_root
@@ -75,15 +70,12 @@ module BSV
         # Return the current blockchain height.
         #
         # @return [Integer]
-        # @raise [BSV::Network::ChainProviderError] on network or API error
+        # @raise [StandardError] on network or API error
         def current_height
           result = @protocol.call(:current_height)
           return result.data if result.http_success?
 
-          raise BSV::Network::ChainProviderError.new(
-            result.message.to_s,
-            status_code: result.code&.to_i
-          )
+          raise result.message.to_s
         end
       end
     end
