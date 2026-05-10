@@ -4,9 +4,6 @@
 
 # rubocop:disable Style/OneClassPerFile
 
-# Minimal fake response — mimics Net::HTTPResponse interface.
-IntegrationFakeResponse = Struct.new(:code, :body)
-
 # Injectable HTTP client that records the last call and returns a canned response.
 class IntegrationFakeHttpClient
   attr_reader :last_uri, :last_request
@@ -46,20 +43,20 @@ class TestIntegrationProtocol < BSV::Network::Protocol
     result = default_call(:get_item, *args, **kwargs)
     return result unless result.success?
 
-    BSV::Network::Result::Success.new(data: result.data.upcase, metadata: { transformed: true })
+    result.with(data: result.data.upcase)
   end
 end
 
 # rubocop:enable Style/OneClassPerFile
 
 RSpec.describe 'BSV::Network::Protocol — integration' do
-  let(:ok_response)       { IntegrationFakeResponse.new('200', 'item_body') }
-  let(:created_response)  { IntegrationFakeResponse.new('201', 'created') }
-  let(:json_response)     { IntegrationFakeResponse.new('200', '{"version":"1.0"}') }
-  let(:count_response)    { IntegrationFakeResponse.new('200', '42') }
-  let(:not_found_resp)    { IntegrationFakeResponse.new('404', 'not found') }
-  let(:server_error_resp) { IntegrationFakeResponse.new('500', 'internal error') }
-  let(:auth_error_resp)   { IntegrationFakeResponse.new('401', 'unauthorised') }
+  let(:ok_response)       { fake_http_response(200, 'item_body') }
+  let(:created_response)  { fake_http_response(201, 'created') }
+  let(:json_response)     { fake_http_response(200, '{"version":"1.0"}') }
+  let(:count_response)    { fake_http_response(200, '42') }
+  let(:not_found_resp)    { fake_http_response(404, 'not found') }
+  let(:server_error_resp) { fake_http_response(500, 'internal error') }
+  let(:auth_error_resp)   { fake_http_response(401, 'unauthorised') }
 
   def make_client(response, api_key: nil)
     http = IntegrationFakeHttpClient.new(response)
@@ -87,6 +84,10 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
     it 'BSV::Network::Protocols is accessible without explicit require' do
       expect(BSV::Network::Protocols).to be_a(Module)
     end
+
+    it 'BSV::Network::ProtocolResponse is accessible without explicit require' do
+      expect(BSV::Network::ProtocolResponse).to be_a(Class)
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -94,11 +95,12 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
   # ---------------------------------------------------------------------------
 
   describe 'GET endpoint round-trip' do
-    it 'call(:get_item, id) issues GET to /items/{id} and returns Success' do
+    it 'call(:get_item, id) issues GET to /items/{id} and returns successful ProtocolResponse' do
       instance, http = make_client(ok_response)
       result = instance.call(:get_item, 'abc')
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_success
       expect(result.data).to eq('item_body')
       expect(http.last_uri.to_s).to eq('https://api.example.com/items/abc')
     end
@@ -115,11 +117,12 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
   # ---------------------------------------------------------------------------
 
   describe 'POST endpoint round-trip' do
-    it 'call(:create_item, body:) issues POST and returns Success' do
+    it 'call(:create_item, body:) issues POST and returns successful ProtocolResponse' do
       instance, http = make_client(created_response)
       result = instance.call(:create_item, body: '{"name":"test"}')
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_success
       expect(result.data).to eq('created')
       expect(http.last_request).to be_a(Net::HTTP::Post)
       expect(http.last_request.body).to eq('{"name":"test"}')
@@ -135,7 +138,8 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       instance, _http = make_client(json_response)
       result = instance.call(:get_info)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_success
       expect(result.data).to eq({ 'version' => '1.0' })
     end
   end
@@ -149,7 +153,8 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       instance, _http = make_client(count_response)
       result = instance.call(:get_count)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_success
       expect(result.data).to eq(42)
     end
   end
@@ -163,9 +168,9 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       instance, http = make_client(ok_response)
       result = instance.call(:transform_item, 'abc')
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_success
       expect(result.data).to eq('ITEM_BODY')
-      expect(result.metadata).to eq({ transformed: true })
       # The underlying HTTP call still targets the correct URL
       expect(http.last_uri.to_s).to eq('https://api.example.com/items/abc')
     end
@@ -200,26 +205,30 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
   # ---------------------------------------------------------------------------
 
   describe 'HTTP 404' do
-    it 'returns Result::NotFound' do
+    it 'returns not_found ProtocolResponse' do
       instance, _http = make_client(not_found_resp)
-      expect(instance.call(:get_item, 'missing')).to be_a(BSV::Network::Result::NotFound)
+      result = instance.call(:get_item, 'missing')
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_not_found
     end
   end
 
   describe 'HTTP 500' do
-    it 'returns Result::Error with retryable: true' do
+    it 'returns retryable error ProtocolResponse' do
       instance, _http = make_client(server_error_resp)
       result = instance.call(:get_item, 'id')
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_error
       expect(result.retryable?).to be(true)
     end
   end
 
   describe 'HTTP 401' do
-    it 'returns Result::Error with retryable: false' do
+    it 'returns non-retryable error ProtocolResponse' do
       instance, _http = make_client(auth_error_resp)
       result = instance.call(:get_item, 'id')
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_error
       expect(result.retryable?).to be(false)
     end
   end

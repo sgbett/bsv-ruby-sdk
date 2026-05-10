@@ -257,17 +257,8 @@ RSpec.describe 'BSV::Network::Provider' do
   # ── First-registered wins ─────────────────────────────────────────────────────
 
   describe 'first-registered-wins for duplicate commands' do
-    let(:ct_response) do
-      resp = double('response') # rubocop:disable RSpec/VerifiedDoubles
-      allow(resp).to receive_messages(code: '200', body: '{"height":1000}')
-      resp
-    end
-
-    let(:woc_response) do
-      resp = double('response') # rubocop:disable RSpec/VerifiedDoubles
-      allow(resp).to receive_messages(code: '200', body: '{"blocks":900}')
-      resp
-    end
+    let(:ct_response)  { fake_http_response(200, '{"height":1000}') }
+    let(:woc_response) { fake_http_response(200, '{"blocks":900}') }
 
     let(:ct_client)  { double('ct_http_client') } # rubocop:disable RSpec/VerifiedDoubles
     let(:woc_client) { double('woc_http_client') } # rubocop:disable RSpec/VerifiedDoubles
