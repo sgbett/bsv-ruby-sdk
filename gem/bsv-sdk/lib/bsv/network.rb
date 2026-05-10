@@ -2,7 +2,6 @@
 
 module BSV
   module Network
-    autoload :Result,             'bsv/network/result'
     autoload :ProtocolResponse,   'bsv/network/protocol_response'
     autoload :Protocol,           'bsv/network/protocol'
     autoload :Protocols,          'bsv/network/protocols'

@@ -73,10 +73,6 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
   # ---------------------------------------------------------------------------
 
   describe 'autoload resolution' do
-    it 'BSV::Network::Result is accessible without explicit require' do
-      expect(BSV::Network::Result).to be_a(Module)
-    end
-
     it 'BSV::Network::Protocol is accessible without explicit require' do
       expect(BSV::Network::Protocol).to be_a(Class)
     end
