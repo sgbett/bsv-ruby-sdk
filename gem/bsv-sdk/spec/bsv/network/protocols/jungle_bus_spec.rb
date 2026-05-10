@@ -89,7 +89,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       expect(http_client.last_uri.path).to end_with("/v1/transaction/get/#{genesis_txid}")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
 
@@ -201,7 +201,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       expect(http_client.last_uri.path).to end_with('/v1/block_header/get/556767')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
 

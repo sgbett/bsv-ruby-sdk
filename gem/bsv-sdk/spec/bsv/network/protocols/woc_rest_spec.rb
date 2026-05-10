@@ -168,7 +168,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/chain/info')
     end
 
-    it 'returns Result::Error on 500' do
+    it 'returns error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -178,7 +178,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.retryable?).to be(true)
     end
 
-    it 'returns Result::Error on 429 (rate limited)' do
+    it 'returns error on 429 (rate limited)' do
       http_client = fake(429, 'rate limited')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -221,7 +221,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/block/800000/header')
     end
 
-    it 'returns Result::NotFound for an unknown height' do
+    it 'returns not_found for an unknown height' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -257,7 +257,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/tx/#{txid}/hex")
     end
 
-    it 'returns Result::NotFound for unknown txid' do
+    it 'returns not_found for unknown txid' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -297,7 +297,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/tx/#{txid}/proof/tsc")
     end
 
-    it 'returns Result::NotFound when proof does not exist' do
+    it 'returns not_found when proof does not exist' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -306,7 +306,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'internal error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -368,7 +368,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/address/1CheckPath/confirmed/unspent')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -377,7 +377,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -439,7 +439,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/address/1CheckPath/unspent/all')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -448,7 +448,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -506,7 +506,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect { protocol.call(:is_utxo, 'abc', 0, script_hash: 'deadbeef') }.not_to raise_error
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -516,7 +516,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.retryable?).to be(true)
     end
 
-    it 'returns Result::Error(retryable: true) on 429' do
+    it 'returns retryable error on 429' do
       http_client = fake(429, 'rate limited')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -588,7 +588,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data["#{second_txid}.1"]).to be(false)
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -598,7 +598,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.retryable?).to be(true)
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -607,7 +607,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error on malformed (non-array) response body' do
+    it 'returns error on malformed (non-array) response body' do
       http_client = fake(200, '{"not":"an array"}')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -686,7 +686,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_request).to be_a(Net::HTTP::Post)
     end
 
-    it 'returns Result::Error on 400' do
+    it 'returns error on 400' do
       http_client = fake(400, 'bad request')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -696,7 +696,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.retryable?).to be(false)
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -745,7 +745,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data).to be(true)
     end
 
-    it 'returns Result::NotFound when the block height is unknown' do
+    it 'returns not_found when the block height is unknown' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -754,7 +754,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error on 500' do
+    it 'returns error on 500' do
       http_client = fake(500, 'error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -896,7 +896,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/chain/info')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -939,7 +939,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/block/headers')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -974,7 +974,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/address/1TestAddr/unconfirmed/balance')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1023,7 +1023,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/address/1TestAddr/confirmed/history')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1057,7 +1057,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/address/1TestAddr/used')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1092,7 +1092,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/exchangerate')
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1128,7 +1128,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/feerecommendation')
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1164,7 +1164,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with('/mempool/info')
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1205,7 +1205,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/tx/hash/#{txid}")
     end
 
-    it 'returns Result::NotFound for unknown txid' do
+    it 'returns not_found for unknown txid' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1214,7 +1214,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1252,7 +1252,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/tx/#{txid}/out/2/hex")
     end
 
-    it 'returns Result::NotFound for unknown txid or index' do
+    it 'returns not_found for unknown txid or index' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1289,7 +1289,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/tx/#{txid}/opreturn")
     end
 
-    it 'returns Result::NotFound when no OP_RETURN output exists' do
+    it 'returns not_found when no OP_RETURN output exists' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1339,7 +1339,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(body['txids']).to eq(txids)
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1388,7 +1388,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(body['txhex']).to eq('deadbeef')
     end
 
-    it 'returns Result::Error on 400 (malformed hex)' do
+    it 'returns error on 400 (malformed hex)' do
       http_client = fake(400, 'bad request')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1434,7 +1434,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/script/#{script_hash}/confirmed/history")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1443,7 +1443,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1489,7 +1489,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/script/#{script_hash}/unspent/all")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1539,7 +1539,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(body['scripts']).to eq(hashes)
     end
 
-    it 'returns Result::Error(retryable: true) on 500' do
+    it 'returns retryable error on 500' do
       http_client = fake(500, 'server error')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 
@@ -1662,7 +1662,7 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(http_client.last_uri.path).to end_with("/tx/#{txid}/bin")
     end
 
-    it 'returns Result::NotFound for unknown txid' do
+    it 'returns not_found for unknown txid' do
       http_client = fake(404, 'not found')
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
 

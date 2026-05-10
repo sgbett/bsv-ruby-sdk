@@ -52,7 +52,7 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       expect(http.last_uri.to_s).to eq('https://arcade.gorillapool.io/chaintracks/v2/header/height/800000')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_block_header, height: 9_999_999)
 
@@ -86,14 +86,14 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       expect(result.data).to be_an(Integer)
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:current_height)
 
       expect(result).to be_not_found
     end
 
-    it 'returns Result::Error with retryable true on 5xx' do
+    it 'returns error with retryable true on 5xx' do
       instance, _http = make_instance(503, 'service unavailable')
       result = instance.call(:current_height)
 
