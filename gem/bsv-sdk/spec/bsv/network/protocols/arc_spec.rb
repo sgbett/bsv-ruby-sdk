@@ -70,7 +70,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns success with all ARC fields as raw JSON string keys' do
         result = arc.call(:broadcast, tx)
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data['txid']).to eq('abc123')
         expect(result.data['txStatus']).to eq('RECEIVED')
         expect(result.data['title']).to eq('Transaction received')
@@ -99,7 +99,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns success' do
         result = arc.call(:broadcast, tx)
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data['txid']).to eq('def456')
       end
     end
@@ -119,7 +119,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns success' do
         result = arc.call(:broadcast, 'deadbeef')
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data['txid']).to eq('hex123')
       end
     end
@@ -155,7 +155,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns success' do
         result = arc.call(:broadcast, "\xCA\xFE".b)
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data['txid']).to eq('bin456')
       end
     end
@@ -167,7 +167,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
         it "returns error for #{status}" do
           stub_json_response(200, { 'txid' => 'abc', 'txStatus' => status })
           result = arc.call(:broadcast, tx)
-          expect(result).to be_error
+          expect(result).not_to be_http_success
           expect(result.data['txStatus']).to eq(status)
         end
       end
@@ -175,7 +175,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
       it 'is case-insensitive for rejected statuses' do
         stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'rejected' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
     end
 
@@ -185,25 +185,25 @@ RSpec.describe BSV::Network::Protocols::ARC do
       it 'detects ORPHAN in txStatus' do
         stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'ORPHAN' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
 
       it 'detects ORPHAN substring in txStatus' do
         stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'SEEN_IN_ORPHAN_MEMPOOL' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
 
       it 'detects ORPHAN in extraInfo' do
         stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'RECEIVED', 'extraInfo' => 'orphan detected' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
 
       it 'is case-insensitive for ORPHAN detection in extraInfo' do
         stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'RECEIVED', 'extraInfo' => 'ORPHAN_MEMPOOL' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
     end
 
@@ -213,26 +213,26 @@ RSpec.describe BSV::Network::Protocols::ARC do
       it 'returns error for missing txid' do
         stub_json_response(200, { 'txStatus' => 'RECEIVED' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.error_message).to include('malformed')
       end
 
       it 'returns error for null txid' do
         stub_json_response(200, { 'txid' => nil, 'txStatus' => 'RECEIVED' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
 
       it 'returns error for non-JSON body' do
         stub_response(200, 'not json at all')
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
 
       it 'returns error when JSON parses to a non-Hash (e.g. Array)' do
         stub_response(200, JSON.generate([{ 'txid' => 'abc' }]))
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
       end
     end
 
@@ -242,21 +242,21 @@ RSpec.describe BSV::Network::Protocols::ARC do
       it 'returns error for 400' do
         stub_json_response(400, { 'detail' => 'bad request' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.retryable?).to be(false)
       end
 
       it 'returns retryable error for 500' do
         stub_json_response(500, { 'detail' => 'server error' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
       end
 
       it 'returns retryable error for 429' do
         stub_json_response(429, { 'detail' => 'rate limited' })
         result = arc.call(:broadcast, tx)
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
       end
     end
@@ -347,7 +347,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
       it 'returns success with empty data without making HTTP calls' do
         allow(http_client).to receive(:request)
         result = arc.call(:broadcast_many, [])
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data).to eq([])
         expect(http_client).not_to have_received(:request)
       end
@@ -372,7 +372,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns success containing a raw JSON array' do
         result = arc.call(:broadcast_many, [tx_with_ef, tx_without_ef])
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data.length).to eq(2)
       end
 
@@ -399,7 +399,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns error for the whole batch' do
         result = arc.call(:broadcast_many, [tx_with_ef])
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
       end
     end
@@ -409,7 +409,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns error for malformed batch response' do
         result = arc.call(:broadcast_many, [tx_with_ef])
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.error_message).to include('malformed batch')
       end
     end
@@ -483,7 +483,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns success with raw JSON string keys' do
         result = arc.call(:get_tx_status, 'abc123')
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data['txid']).to eq('abc123')
         expect(result.data['txStatus']).to eq('MINED')
         expect(result.data['title']).to eq('Transaction mined')
@@ -500,7 +500,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns not_found' do
         result = arc.call(:get_tx_status, 'unknowntxid')
-        expect(result).to be_not_found
+        expect(result).to be_http_not_found
       end
     end
 
@@ -509,7 +509,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns retryable error' do
         result = arc.call(:get_tx_status, 'abc123')
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
       end
     end
@@ -521,7 +521,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns error' do
         result = arc.call(:get_tx_status, 'abc123')
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.error_message).to include('REJECTED')
       end
     end
@@ -533,7 +533,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       it 'returns error for malformed response' do
         result = arc.call(:get_tx_status, 'abc123')
-        expect(result).to be_error
+        expect(result).not_to be_http_success
         expect(result.error_message).to include('malformed')
       end
     end
@@ -548,7 +548,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
     it 'returns success with parsed JSON policy data' do
       result = arc.call(:get_policy)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['policy']).to be_a(Hash)
     end
   end
@@ -558,7 +558,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
     it 'returns success' do
       result = arc.call(:health)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['healthy']).to be(true)
     end
   end

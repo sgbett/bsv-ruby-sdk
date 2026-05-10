@@ -7,10 +7,10 @@ module BSV
     class ProtocolResponse
       attr_reader :data, :error_message
 
-      def initialize(http_response, data: nil, ok: nil, error_message: nil)
+      def initialize(http_response, data: nil, http_success: nil, error_message: nil)
         @http_response = http_response
         @data = data
-        @ok = ok.nil? ? http_response&.is_a?(Net::HTTPSuccess) : ok
+        @http_success = http_success.nil? ? http_response&.is_a?(Net::HTTPSuccess) : http_success
         @error_message = error_message
         freeze
       end
@@ -28,16 +28,27 @@ module BSV
         @http_response&.content_type
       end
 
-      # Status predicates
-      def success?
-        @ok
+      # Two layers of status predicates:
+      #
+      # HTTP logical status — did the operation succeed? Driven by the +http_success:+
+      # parameter, which defaults to the RFC 9110 success class check
+      # (+Net::HTTPSuccess+, i.e. 2xx) but can be overridden by escape
+      # hatches that reinterpret HTTP status (e.g. ARC REJECTED on 2xx
+      # sets http_success: false; WoC is_utxo 404 sets http_success: true).
+      #
+      # Transport status — what did the HTTP layer actually return?
+      # These always reflect the +Net::HTTPResponse+ class hierarchy
+      # regardless of the +http_success:+ override. +http_not_found?+ maps
+      # directly to +Net::HTTPNotFound+ (404). +retryable?+ is a
+      # domain composite: 429 (+Net::HTTPTooManyRequests+) or 5xx
+      # (+Net::HTTPServerError+) — not an RFC 9110 category itself,
+      # but a useful signal for retry logic.
+
+      def http_success?
+        @http_success
       end
 
-      def error?
-        !@ok
-      end
-
-      def not_found?
+      def http_not_found?
         @http_response.is_a?(Net::HTTPNotFound)
       end
 
@@ -59,7 +70,7 @@ module BSV
         self.class.new(
           @http_response,
           data: overrides.fetch(:data, @data),
-          ok: overrides.fetch(:ok, @ok),
+          http_success: overrides.fetch(:http_success, @http_success),
           error_message: overrides.fetch(:error_message, @error_message)
         )
       end

@@ -94,8 +94,8 @@ module BSV
           raise ArgumentError, 'txid is required' if resolved.nil? || resolved.empty?
 
           result = default_call(:get_tx, resolved)
-          return result unless result.success?
-          return result.with(ok: false, error_message: 'empty response body') if result.data.nil? || result.data.empty?
+          return result unless result.http_success?
+          return result.with(http_success: false, error_message: 'empty response body') if result.data.nil? || result.data.empty?
 
           result.with(data: result.data.unpack1('H*'))
         end
@@ -117,7 +117,7 @@ module BSV
           raise ArgumentError, 'outpoint is required' if resolved.nil? || resolved.empty?
 
           result = default_call(:get_spend, resolved)
-          return result unless result.success?
+          return result unless result.http_success?
 
           spending_txid = JSON.parse(result.data).to_s.strip
           if spending_txid.empty?
@@ -126,7 +126,7 @@ module BSV
             result.with(data: { spent: true, spending_txid: spending_txid })
           end
         rescue JSON::ParserError => e
-          result.with(ok: false, error_message: "spend response parse error: #{e.message}")
+          result.with(http_success: false, error_message: "spend response parse error: #{e.message}")
         end
       end
     end

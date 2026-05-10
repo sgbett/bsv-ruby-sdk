@@ -44,7 +44,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(200, success_body)
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data[:txid]).to eq('deadbeef' * 8)
     end
 
@@ -52,7 +52,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(200, nil)
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to include('malformed')
       expect(result.retryable?).to be(false)
     end
@@ -61,7 +61,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(200, '')
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to include('malformed')
     end
 
@@ -69,7 +69,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(200, 'OK')
       result = instance.call(:broadcast, "\x01\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to include('malformed')
     end
 
@@ -137,7 +137,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(400, body)
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data[:txid]).to eq('abc123')
     end
 
@@ -146,7 +146,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(409, body)
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
 
     it 'treats txn-already-known even when embedded in a longer error string' do
@@ -154,7 +154,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(400, body)
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
   end
 
@@ -164,7 +164,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(400, body)
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to eq('txn-invalid-script')
     end
 
@@ -172,7 +172,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(400, '{}')
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to eq('HTTP 400')
     end
 
@@ -188,7 +188,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(429, '{"error":"rate limited"}')
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
 
@@ -196,7 +196,7 @@ RSpec.describe 'BSV::Network::Protocols::TAALBinary' do
       instance, _http = make_instance(500, '{"error":"internal error"}')
       result = instance.call(:broadcast, "\x00")
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end

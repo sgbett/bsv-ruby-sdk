@@ -47,7 +47,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, raw_bytes)
       result = instance.call(:get_tx, txid: txid)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(expected_hex)
     end
 
@@ -76,7 +76,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_tx, txid: txid)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -87,7 +87,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, tx_json)
       result = instance.call(:get_tx_details, txid: txid)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_a(Hash)
       expect(result.data['txid']).to eq(txid)
     end
@@ -103,7 +103,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_tx_details, txid: txid)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -114,7 +114,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, status_json)
       result = instance.call(:get_tx_status, txid: txid)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['height']).to eq(800_000)
     end
 
@@ -129,7 +129,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_tx_status, txid: txid)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -140,7 +140,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, binary_proof)
       result = instance.call(:get_merkle_path, txid: txid)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(binary_proof)
     end
 
@@ -162,14 +162,14 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_merkle_path, txid: txid)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
 
     it 'returns error with retryable true on 5xx' do
       instance, _http = make_instance(500, 'internal server error')
       result = instance.call(:get_merkle_path, txid: txid)
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end
@@ -186,7 +186,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, utxos_json)
       result = instance.call(:get_utxos, address: address)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_a(Array)
       expect(result.data.length).to eq(2)
     end
@@ -202,7 +202,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_utxos, address: address)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -214,7 +214,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, balance_body)
       result = instance.call(:get_balance, address: address)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(1_000_000)
       expect(result.data).to be_a(Integer)
     end
@@ -230,7 +230,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_balance, address: address)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -244,7 +244,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
         instance, _http = make_instance(200, unspent_body)
         result = instance.call(:get_spend, outpoint: outpoint)
 
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data).to eq({ spent: false })
       end
 
@@ -264,7 +264,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
         instance, _http = make_instance(200, spent_body)
         result = instance.call(:get_spend, outpoint: outpoint)
 
-        expect(result).to be_success
+        expect(result).to be_http_success
         expect(result.data).to eq({ spent: true, spending_txid: spending_txid })
       end
     end
@@ -273,7 +273,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_spend, outpoint: outpoint)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -284,7 +284,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, tip_json)
       result = instance.call(:get_chain_tip)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['height']).to eq(800_000)
     end
 
@@ -299,7 +299,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(500, 'internal server error')
       result = instance.call(:get_chain_tip)
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end

@@ -74,7 +74,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_tx, genesis_txid)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['id']).to eq(genesis_txid)
       expect(result.data['block_height']).to eq(0)
       expect(result.data['transaction']).to be_a(String)
@@ -95,7 +95,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_tx, 'unknown')
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -116,7 +116,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_address_meta, address)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first['transaction_id']).to eq('abc123')
     end
@@ -147,7 +147,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_address_txs, address)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first['id']).to eq('abc123')
     end
@@ -187,7 +187,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_block_header, 556_767)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['height']).to eq(556_767)
       expect(result.data['hash']).to start_with('0000000000')
     end
@@ -207,7 +207,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_block_header, 99_999_999)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -229,7 +229,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_block_headers, 948_120)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.length).to eq(2)
       expect(result.data[0]['height']).to eq(948_120)

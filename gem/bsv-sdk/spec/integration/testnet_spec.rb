@@ -46,14 +46,14 @@ RSpec.describe 'Testnet integration', :testnet do
 
   def arc_broadcast!(tx)
     result = arc_protocol.call(:broadcast, tx)
-    raise "Broadcast failed: #{result.message}" unless result.success?
+    raise "Broadcast failed: #{result.message}" unless result.http_success?
 
     result
   end
 
   def arc_status!(txid)
     result = arc_protocol.call(:get_tx_status, txid)
-    raise "Status query failed: #{result.message}" unless result.success?
+    raise "Status query failed: #{result.message}" unless result.http_success?
 
     result
   end
@@ -101,11 +101,11 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['txid']).to eq(tx.txid_hex)
 
       status = arc_status!(tx.txid_hex)
-      expect(status).to be_success
+      expect(status).to be_http_success
       expect(status.data['txid']).to eq(tx.txid_hex)
     end
   end
@@ -125,7 +125,7 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data['txid']).to eq(tx.txid_hex)
     end
   end

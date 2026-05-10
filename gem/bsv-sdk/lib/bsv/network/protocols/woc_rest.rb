@@ -21,7 +21,7 @@ module BSV
       #
       #   woc = BSV::Network::Protocols::WoCREST.new(network: :main)
       #   result = woc.call(:get_tx, 'abc123...')
-      #   puts result.data if result.success?
+      #   puts result.data if result.http_success?
       #
       # @see https://developers.whatsonchain.com/ WhatsOnChain API documentation
       class WoCREST < Protocol
@@ -174,10 +174,10 @@ module BSV
           result = default_call(:is_utxo, txid, vout)
 
           # 404 = no spending tx found = output is unspent
-          return result.with(data: true, ok: true) if result.not_found?
+          return result.with(data: true, http_success: true) if result.http_not_found?
 
           # Non-success, non-404 = genuine error
-          return result unless result.success?
+          return result unless result.http_success?
 
           # 200 with spending tx details = output is spent
           result.with(data: false)
@@ -196,11 +196,11 @@ module BSV
         #   On success, data is a hash mapping +"txid.vout"+ keys to booleans
         #   (+true+ = unspent, +false+ = spent).
         def call_is_utxo_bulk(outpoints)
-          return ProtocolResponse.new(nil, data: {}, ok: true) if outpoints.empty?
+          return ProtocolResponse.new(nil, data: {}, http_success: true) if outpoints.empty?
 
           body = JSON.generate(utxos: outpoints.map { |op| { 'txid' => op[:txid].to_s, 'vout' => op[:vout].to_i } })
           result = default_call(:is_utxo_bulk, body: body)
-          return result unless result.success?
+          return result unless result.http_success?
 
           # Build a lookup from the response entries
           # spentIn present and non-empty → spent (false); absent or empty → unspent (true)
@@ -235,7 +235,7 @@ module BSV
           body = JSON.generate(txhex: hex)
 
           result = default_call(:broadcast, body: body)
-          return result unless result.success?
+          return result unless result.http_success?
 
           # WoC returns plain-text txid — result.data is the raw body string
           # WoC API boundary: display-order hex txid returned as plain text
@@ -371,7 +371,7 @@ module BSV
         # @return [ProtocolResponse<Boolean>]
         def call_valid_root(root, height)
           result = default_call(:valid_root, height)
-          return result unless result.success?
+          return result unless result.http_success?
 
           actual = result.data['merkleroot']
           result.with(data: actual.to_s.downcase == root.to_s.downcase)

@@ -41,7 +41,7 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       instance, _http = make_instance(200, header_body)
       result = instance.call(:get_block_header, height: 800_000)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq({ 'hash' => 'abc123', 'height' => 800_000, 'merkleroot' => 'def456' })
     end
 
@@ -56,8 +56,8 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_block_header, height: 9_999_999)
 
-      expect(result).to be_not_found
-      expect(result.not_found?).to be(true)
+      expect(result).to be_http_not_found
+      expect(result.http_not_found?).to be(true)
     end
 
     it 'accepts height as a positional argument' do
@@ -75,7 +75,7 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       instance, _http = make_instance(200, tip_body)
       result = instance.call(:current_height)
 
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(825_000)
     end
 
@@ -90,14 +90,14 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:current_height)
 
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
 
     it 'returns error with retryable true on 5xx' do
       instance, _http = make_instance(503, 'service unavailable')
       result = instance.call(:current_height)
 
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end

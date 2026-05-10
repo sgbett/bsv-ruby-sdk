@@ -52,7 +52,7 @@ module BSV
           provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           fetch_result = provider.call(:get_tx, txid)
 
-          unless fetch_result.success?
+          unless fetch_result.http_success?
             code = fetch_result.code
             msg = fetch_result.message
             msg = "#{msg} (HTTP #{code})" if code

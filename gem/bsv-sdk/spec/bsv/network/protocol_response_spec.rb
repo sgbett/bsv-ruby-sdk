@@ -12,16 +12,12 @@ RSpec.describe BSV::Network::ProtocolResponse do
   describe 'construction with 2xx response' do
     subject(:pr) { described_class.new(ok_response) }
 
-    it 'is successful' do
-      expect(pr.success?).to be true
+    it 'is http_success' do
+      expect(pr.http_success?).to be true
     end
 
-    it 'is not an error' do
-      expect(pr.error?).to be false
-    end
-
-    it 'is not a not-found' do
-      expect(pr.not_found?).to be false
+    it 'is not http_not_found' do
+      expect(pr.http_not_found?).to be false
     end
 
     it 'is not retryable' do
@@ -32,12 +28,12 @@ RSpec.describe BSV::Network::ProtocolResponse do
   describe 'construction with 404 response' do
     subject(:pr) { described_class.new(not_found_response) }
 
-    it 'is not successful' do
-      expect(pr.success?).to be false
+    it 'is not http_success' do
+      expect(pr.http_success?).to be false
     end
 
-    it 'is not_found' do
-      expect(pr.not_found?).to be true
+    it 'is http_not_found' do
+      expect(pr.http_not_found?).to be true
     end
 
     it 'is not retryable' do
@@ -64,8 +60,8 @@ RSpec.describe BSV::Network::ProtocolResponse do
   describe 'construction with 400 response' do
     subject(:pr) { described_class.new(bad_req_response) }
 
-    it 'is an error' do
-      expect(pr.error?).to be true
+    it 'is not http_success' do
+      expect(pr.http_success?).to be false
     end
 
     it 'is not retryable' do
@@ -73,20 +69,20 @@ RSpec.describe BSV::Network::ProtocolResponse do
     end
   end
 
-  describe 'ok: override' do
-    it '2xx with ok: false is not successful (ARC REJECTED pattern)' do
-      pr = described_class.new(ok_response, ok: false)
-      expect(pr.success?).to be false
+  describe 'http_success: override' do
+    it '2xx with http_success: false is not http_success (ARC REJECTED pattern)' do
+      pr = described_class.new(ok_response, http_success: false)
+      expect(pr.http_success?).to be false
     end
 
-    it '404 with ok: true is successful (WoC is_utxo pattern)' do
-      pr = described_class.new(not_found_response, ok: true)
-      expect(pr.success?).to be true
+    it '404 with http_success: true is http_success (WoC is_utxo pattern)' do
+      pr = described_class.new(not_found_response, http_success: true)
+      expect(pr.http_success?).to be true
     end
 
-    it '404 with ok: true still reports not_found? (transport status independent)' do
-      pr = described_class.new(not_found_response, ok: true)
-      expect(pr.not_found?).to be true
+    it '404 with http_success: true still reports http_not_found? (transport status independent)' do
+      pr = described_class.new(not_found_response, http_success: true)
+      expect(pr.http_not_found?).to be true
     end
   end
 
@@ -149,8 +145,8 @@ RSpec.describe BSV::Network::ProtocolResponse do
       expect(pr.content_type).to be_nil
     end
 
-    it 'not_found? returns false without raising' do
-      expect(pr.not_found?).to be false
+    it 'http_not_found? returns false without raising' do
+      expect(pr.http_not_found?).to be false
     end
 
     it 'retryable? returns false without raising' do
@@ -171,9 +167,9 @@ RSpec.describe BSV::Network::ProtocolResponse do
       expect(derived.error_message).to eq('none')
     end
 
-    it 'allows overriding ok:' do
-      derived = original.with(ok: false)
-      expect(derived.success?).to be false
+    it 'allows overriding http_success:' do
+      derived = original.with(http_success: false)
+      expect(derived.http_success?).to be false
     end
 
     it 'preserves HTTP delegation after with()' do

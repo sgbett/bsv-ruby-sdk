@@ -37,11 +37,11 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   it 'health returns a healthy status or is unavailable' do
     result = protocol.call(:health)
 
-    if result.success?
+    if result.http_success?
       expect(result.data['healthy']).to be(true)
     else
       # ARC may return 404 from some networks/IPs — not a test failure
-      expect(result).to be_not_found.or(be_error)
+      expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
     end
   end
 
@@ -52,7 +52,7 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   it 'get_policy returns mining policy or is unavailable' do
     result = protocol.call(:get_policy)
 
-    if result.success?
+    if result.http_success?
       expect(result.data).to have_key('policy')
       policy = result.data['policy']
       expect(policy).to be_a(Hash)
@@ -62,7 +62,7 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
       expect(policy['miningFee']).to have_key('bytes')
       expect(policy['miningFee']).to have_key('satoshis')
     else
-      expect(result).to be_not_found.or(be_error)
+      expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
     end
   end
 
@@ -73,6 +73,6 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   it 'get_tx_status returns not_found for a historical txid not retained by ARC' do
     result = protocol.call(:get_tx_status, genesis_txid)
 
-    expect(result).to be_not_found
+    expect(result).to be_http_not_found
   end
 end

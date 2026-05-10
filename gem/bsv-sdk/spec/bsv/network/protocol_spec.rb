@@ -189,14 +189,14 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'delegates to call_<name> when defined' do
       klass = Class.new(test_protocol_class) do
         def call_broadcast(*_args, **_kwargs)
-          BSV::Network::ProtocolResponse.new(nil, data: 'escape_hatch', ok: true)
+          BSV::Network::ProtocolResponse.new(nil, data: 'escape_hatch', http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
       instance = klass.new(base_url: 'https://api.example.com', http_client: http)
       result   = instance.call(:broadcast)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('escape_hatch')
     end
 
@@ -206,7 +206,7 @@ RSpec.describe 'BSV::Network::Protocol' do
         define_method(:call_get_tx) do |*args, **kwargs|
           received[:args]   = args
           received[:kwargs] = kwargs
-          BSV::Network::ProtocolResponse.new(nil, ok: true)
+          BSV::Network::ProtocolResponse.new(nil, http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
@@ -219,7 +219,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'accepts escape hatch command as String' do
       klass = Class.new(test_protocol_class) do
         def call_get_tx(*_args, **_kwargs)
-          BSV::Network::ProtocolResponse.new(nil, data: 'string_command', ok: true)
+          BSV::Network::ProtocolResponse.new(nil, data: 'string_command', http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
@@ -237,7 +237,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'calls default_call when no escape hatch is defined' do
       result = make_instance(ok_response).call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('raw_body')
     end
 
@@ -289,7 +289,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'bypasses any escape hatch method' do
       klass = Class.new(test_protocol_class) do
         def call_get_raw(*_args, **_kwargs)
-          BSV::Network::ProtocolResponse.new(nil, data: 'escape', ok: true)
+          BSV::Network::ProtocolResponse.new(nil, data: 'escape', http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
@@ -302,21 +302,21 @@ RSpec.describe 'BSV::Network::Protocol' do
     it ':raw returns body as a String' do
       result = make_instance(ok_response).default_call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('raw_body')
     end
 
     it ':json parses body to Hash' do
       result = make_instance(json_response).default_call(:get_info)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq({ 'txid' => 'abc' })
     end
 
     it ':json_array parses body to Array' do
       result = make_instance(array_response).default_call(:get_list)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first).to eq({ 'txid' => 'abc' })
     end
@@ -324,7 +324,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it ':json_array unwraps Hash with result key' do
       result = make_instance(wrapped_array_resp).default_call(:get_list)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first).to eq({ 'txid' => 'abc' })
     end
@@ -332,21 +332,21 @@ RSpec.describe 'BSV::Network::Protocol' do
     it ':json_array rejects Hash without result key' do
       result = make_instance(hash_no_result_resp).default_call(:get_list)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to match(/expected Array, got Hash/)
     end
 
     it 'custom lambda is called with body' do
       result = make_instance(ok_response).default_call(:custom)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('RAW_BODY')
     end
 
     it 'JSON parse failure returns error ProtocolResponse' do
       result = make_instance(bad_json_response).default_call(:get_info)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.message).to match(%r{JSON/response error})
       expect(result.retryable?).to be(false)
     end
@@ -356,33 +356,33 @@ RSpec.describe 'BSV::Network::Protocol' do
     it '2xx returns successful ProtocolResponse' do
       result = make_instance(ok_response).default_call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
 
     it '404 returns not_found ProtocolResponse' do
       result = make_instance(not_found_response).default_call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
 
     it '429 returns retryable error ProtocolResponse' do
       result = make_instance(too_many_response).default_call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
 
     it '5xx returns retryable error ProtocolResponse' do
       result = make_instance(server_error_resp).default_call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
 
     it 'other 4xx returns non-retryable error ProtocolResponse' do
       result = make_instance(bad_request_resp).default_call(:get_raw)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(false)
     end
 

@@ -231,7 +231,7 @@ RSpec.describe 'BSV::Network::Provider' do
       allow(tx).to receive(:to_ef_hex).and_return('deadbeef')
 
       result = p.call(:broadcast, tx)
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
 
     it 'raises ArgumentError for an unknown command' do
@@ -270,7 +270,7 @@ RSpec.describe 'BSV::Network::Provider' do
       end
 
       result = p.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       # Chaintracks returns the height integer directly; WoCREST would return 900
       expect(result.data).to eq(1000)
     end
@@ -284,7 +284,7 @@ RSpec.describe 'BSV::Network::Provider' do
       end
 
       result = p.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(900)
     end
 
@@ -310,7 +310,7 @@ RSpec.describe 'BSV::Network::Provider' do
       expect(first_instance.base_url).to eq('https://ct1.example.com')
       # Verify dispatch hits the first instance
       result = p.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
   end
 

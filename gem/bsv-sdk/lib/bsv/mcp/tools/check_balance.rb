@@ -62,7 +62,7 @@ module BSV
           provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           utxo_result = provider.call(:get_utxos_all, address)
 
-          unless utxo_result.success?
+          unless utxo_result.http_success?
             code = utxo_result.code
             msg = utxo_result.message
             msg = "#{msg} (HTTP #{code})" if code

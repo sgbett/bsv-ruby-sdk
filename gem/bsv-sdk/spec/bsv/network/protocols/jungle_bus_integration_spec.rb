@@ -48,7 +48,7 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
     result = protocol.call(:get_tx, known_txid)
 
     # JungleBus may not index all transactions — skip gracefully if not found
-    if result.success?
+    if result.http_success?
       expect(result.data).to be_a(Hash)
       expect(result.data['id']).to eq(known_txid)
       expect(result.data['block_height']).to eq(known_block_height)
@@ -57,7 +57,7 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
       expect(result.data['transaction']).to be_a(String)
       expect(result.data['transaction']).not_to be_empty
     else
-      expect(result).to be_not_found.or be_error
+      expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
     end
   end
 
@@ -66,7 +66,7 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
 
     # JungleBus returns 404 or null body for unknown txids — the protocol layer
     # normalises this to a Failure or an Error result
-    expect(result).not_to be_success
+    expect(result).not_to be_http_success
   end
 
   # ---------------------------------------------------------------------------
@@ -76,20 +76,20 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
   it 'get_block_header returns the BSV fork block header' do
     result = protocol.call(:get_block_header, fork_block_height)
 
-    if result.success?
+    if result.http_success?
       expect(result.data).to be_a(Hash)
       expect(result.data['hash']).to eq(fork_block_hash)
       expect(result.data['height']).to eq(fork_block_height)
       expect(result.data['merkleroot']).to be_a(String)
     else
-      expect(result).to be_not_found.or be_error
+      expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
     end
   end
 
   it 'get_block_headers returns an array of headers from a given height' do
     result = protocol.call(:get_block_headers, fork_block_height)
 
-    expect(result).to be_success
+    expect(result).to be_http_success
     expect(result.data).to be_an(Array)
     expect(result.data).not_to be_empty
     header = result.data.first

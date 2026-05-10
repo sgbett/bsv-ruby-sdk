@@ -139,21 +139,21 @@ RSpec.describe 'Custom Provider: chaintracks-cloudflare', :chaintracks_live do
   describe 'Result handling' do
     it 'returns Success with :json handler' do
       result = provider.call(:get_info)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_a(Hash)
       expect(result.data['status']).to eq('success')
     end
 
     it 'returns Success with lambda handler (unwrapped integer)' do
       result = provider.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_a(Integer)
       expect(result.data).to be > 900_000
     end
 
     it 'returns Success with lambda handler (unwrapped hash)' do
       result = provider.call(:find_header, height: confirmed_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_a(Hash)
       expect(result.data['height']).to eq(confirmed_height)
       expect(result.data['merkleRoot'].length).to eq(64)
@@ -161,7 +161,7 @@ RSpec.describe 'Custom Provider: chaintracks-cloudflare', :chaintracks_live do
 
     it 'returns Success with lambda handler (unwrapped string)' do
       result = provider.call(:chain_tip_hash)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be_a(String)
       expect(result.data.length).to eq(64)
     end
@@ -171,13 +171,13 @@ RSpec.describe 'Custom Provider: chaintracks-cloudflare', :chaintracks_live do
       root = header.data['merkleRoot']
 
       result = provider.call(:is_valid_root, root: root, height: confirmed_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to be(true)
     end
 
     it 'interpolates multiple path parameters' do
       result = provider.call(:get_headers, height: confirmed_height, count: 3)
-      expect(result).to be_success
+      expect(result).to be_http_success
       # 3 headers x 80 bytes x 2 hex chars = 480
       expect(result.data).to be_a(String)
       expect(result.data.length).to eq(480)
@@ -185,7 +185,7 @@ RSpec.describe 'Custom Provider: chaintracks-cloudflare', :chaintracks_live do
 
     it 'handles NotFound for an out-of-range height' do
       result = provider.call(:find_header, height: 999_999_999)
-      expect(result).not_to be_success
+      expect(result).not_to be_http_success
     end
   end
 

@@ -19,7 +19,7 @@ module BSV
       #     auth: { api_key: 'mainnet_your_key_here' }
       #   )
       #   result = protocol.call(:broadcast, tx)
-      #   puts result.data[:txid] if result.success?
+      #   puts result.data[:txid] if result.http_success?
       #
       # @see https://docs.taal.com TAAL API documentation
       class TAALBinary < BSV::Network::Protocol
@@ -67,16 +67,16 @@ module BSV
           body = parse_json_body(response.body)
 
           # TAAL API boundary: display-order hex txid from the TAAL broadcast response.
-          # The HTTP response class is non-2xx here, so we must pass ok: true explicitly.
-          return ProtocolResponse.new(response, data: { txid: body['txid'] }, ok: true) if already_known?(body) && body['txid']
+          # The HTTP response class is non-2xx here, so we must pass http_success: true explicitly.
+          return ProtocolResponse.new(response, data: { txid: body['txid'] }, http_success: true) if already_known?(body) && body['txid']
 
           if (200..299).cover?(code)
-            return ProtocolResponse.new(response, ok: false, error_message: 'TAAL returned a malformed 2xx response') unless body['txid']
+            return ProtocolResponse.new(response, http_success: false, error_message: 'TAAL returned a malformed 2xx response') unless body['txid']
 
             ProtocolResponse.new(response, data: { txid: body['txid'] })
           else
             message = (body.is_a?(Hash) && body['error']) || "HTTP #{code}"
-            ProtocolResponse.new(response, ok: false, error_message: message)
+            ProtocolResponse.new(response, http_success: false, error_message: message)
           end
         end
 

@@ -41,7 +41,7 @@ class TestIntegrationProtocol < BSV::Network::Protocol
   # Escape hatch: delegates to the default GET path then augments the result.
   def call_transform_item(*args, **kwargs)
     result = default_call(:get_item, *args, **kwargs)
-    return result unless result.success?
+    return result unless result.http_success?
 
     result.with(data: result.data.upcase)
   end
@@ -96,7 +96,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       result = instance.call(:get_item, 'abc')
 
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('item_body')
       expect(http.last_uri.to_s).to eq('https://api.example.com/items/abc')
     end
@@ -118,7 +118,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       result = instance.call(:create_item, body: '{"name":"test"}')
 
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('created')
       expect(http.last_request).to be_a(Net::HTTP::Post)
       expect(http.last_request.body).to eq('{"name":"test"}')
@@ -135,7 +135,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       result = instance.call(:get_info)
 
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq({ 'version' => '1.0' })
     end
   end
@@ -150,7 +150,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       result = instance.call(:get_count)
 
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(42)
     end
   end
@@ -165,7 +165,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       result = instance.call(:transform_item, 'abc')
 
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq('ITEM_BODY')
       # The underlying HTTP call still targets the correct URL
       expect(http.last_uri.to_s).to eq('https://api.example.com/items/abc')
@@ -205,7 +205,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       instance, _http = make_client(not_found_resp)
       result = instance.call(:get_item, 'missing')
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_not_found
+      expect(result).to be_http_not_found
     end
   end
 
@@ -214,7 +214,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       instance, _http = make_client(server_error_resp)
       result = instance.call(:get_item, 'id')
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end
@@ -224,7 +224,7 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
       instance, _http = make_client(auth_error_resp)
       result = instance.call(:get_item, 'id')
       expect(result).to be_a(BSV::Network::ProtocolResponse)
-      expect(result).to be_error
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(false)
     end
   end

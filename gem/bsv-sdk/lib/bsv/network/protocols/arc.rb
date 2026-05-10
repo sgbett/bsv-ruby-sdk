@@ -22,7 +22,7 @@ module BSV
       #     api_key: 'my-api-key'
       #   )
       #   result = arc.call(:broadcast, tx)
-      #   result.success? # => true
+      #   result.http_success? # => true
       #   result.data['txid'] # => "abc123..."
       #
       # @see https://docs.gorillapool.io/arc/api.html ARC API v1 documentation
@@ -112,7 +112,7 @@ module BSV
         def call_broadcast_many(txs, wait_for: nil, skip_fee_validation: nil,
                                 skip_script_validation: nil, skip_tx_validation: nil,
                                 callback_url: nil, callback_token: nil, callback_batch: nil, **)
-          return ProtocolResponse.new(nil, data: [], ok: true) if txs.empty?
+          return ProtocolResponse.new(nil, data: [], http_success: true) if txs.empty?
 
           body = JSON.generate(txs.map { |tx| { rawTx: resolve_tx_hex(tx) } })
 
@@ -194,12 +194,12 @@ module BSV
           code = response.code.to_i
           body = safe_parse_json(response.body)
 
-          return ProtocolResponse.new(response, ok: false, error_message: "HTTP #{code}") unless body.is_a?(Hash)
+          return ProtocolResponse.new(response, http_success: false, error_message: "HTTP #{code}") unless body.is_a?(Hash)
 
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
               response,
-              ok: false,
+              http_success: false,
               error_message: body['detail'] || body['title'] || "HTTP #{code}"
             )
           end
@@ -207,7 +207,7 @@ module BSV
           if rejected_status?(body)
             return ProtocolResponse.new(
               response,
-              ok: false,
+              http_success: false,
               error_message: body['detail'] || body['title'] || body['txStatus'],
               data: body
             )
@@ -216,7 +216,7 @@ module BSV
           unless body['txid']
             return ProtocolResponse.new(
               response,
-              ok: false,
+              http_success: false,
               error_message: 'ARC returned a malformed 2xx response'
             )
           end
@@ -235,7 +235,7 @@ module BSV
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
               response,
-              ok: false,
+              http_success: false,
               error_message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}"
             )
           end
@@ -243,7 +243,7 @@ module BSV
           unless body.is_a?(Array)
             return ProtocolResponse.new(
               response,
-              ok: false,
+              http_success: false,
               error_message: 'ARC returned a malformed batch response'
             )
           end
@@ -258,20 +258,20 @@ module BSV
         # @return [ProtocolResponse]
         def call_get_tx_status(txid, **)
           response = default_call(:get_tx_status, txid)
-          return response unless response.success?
+          return response unless response.http_success?
 
           body = response.data
 
           if rejected_status?(body)
             return response.with(
-              ok: false,
+              http_success: false,
               error_message: body['detail'] || body['title'] || body['txStatus']
             )
           end
 
           unless body['txid']
             return response.with(
-              ok: false,
+              http_success: false,
               error_message: 'ARC returned a malformed 2xx response'
             )
           end

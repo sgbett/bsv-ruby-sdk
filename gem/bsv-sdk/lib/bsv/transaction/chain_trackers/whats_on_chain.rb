@@ -50,9 +50,9 @@ module BSV
         # @raise [BSV::Network::ChainProviderError] on network or API error
         def valid_root_for_height?(root, height)
           result = @protocol.call(:valid_root, root, height)
-          return false if result.not_found?
+          return false if result.http_not_found?
 
-          if result.error?
+          unless result.http_success?
             raise BSV::Network::ChainProviderError.new(
               result.message.to_s,
               status_code: result.code&.to_i
@@ -68,7 +68,7 @@ module BSV
         # @raise [BSV::Network::ChainProviderError] on network or API error
         def current_height
           result = @protocol.call(:current_height)
-          return result.data if result.success?
+          return result.data if result.http_success?
 
           raise BSV::Network::ChainProviderError.new(
             result.message.to_s,

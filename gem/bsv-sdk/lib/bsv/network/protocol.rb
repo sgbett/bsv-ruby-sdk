@@ -331,7 +331,7 @@ module BSV
             data = apply_handler(response.body, handler)
             ProtocolResponse.new(response, data: data)
           rescue JSON::ParserError, TypeError => e
-            ProtocolResponse.new(response, ok: false, error_message: "JSON/response error: #{e.message}")
+            ProtocolResponse.new(response, http_success: false, error_message: "JSON/response error: #{e.message}")
           end
         else
           ProtocolResponse.new(response, error_message: response.body)

@@ -20,7 +20,7 @@ module BSV
     #   end
     #
     #   result = gorillapool.call(:broadcast, tx)
-    #   result.success?  # => true
+    #   result.http_success?  # => true
     class Provider
       attr_reader :name, :auth, :rate_limit
 
