@@ -42,7 +42,7 @@ module BSV
         # TAAL-specific headers and applies TAAL-specific response quirk handling.
         #
         # @param tx [#to_binary, String] transaction object or raw binary string
-        # @return [Result::Success, Result::Error]
+        # @return [ProtocolResponse]
         def call_broadcast(tx)
           body = tx.respond_to?(:to_binary) ? tx.to_binary : tx
 
@@ -57,27 +57,26 @@ module BSV
           parse_broadcast_response(response)
         end
 
-        # Maps the HTTP response from TAAL broadcast to a Result, applying the
-        # +txn-already-known+ idempotency quirk.
+        # Maps the HTTP response from TAAL broadcast to a ProtocolResponse, applying
+        # the +txn-already-known+ idempotency quirk.
         #
         # @param response [Net::HTTPResponse]
-        # @return [Result::Success, Result::Error]
+        # @return [ProtocolResponse]
         def parse_broadcast_response(response)
           code = response.code.to_i
           body = parse_json_body(response.body)
 
-          # TAAL API boundary: display-order hex txid from the TAAL broadcast response
-          return Result::Success.new(data: { txid: body['txid'] }) if already_known?(body) && body['txid']
-
-          retryable = code == 429 || (500..599).cover?(code)
+          # TAAL API boundary: display-order hex txid from the TAAL broadcast response.
+          # The HTTP response class is non-2xx here, so we must pass ok: true explicitly.
+          return ProtocolResponse.new(response, data: { txid: body['txid'] }, ok: true) if already_known?(body) && body['txid']
 
           if (200..299).cover?(code)
-            return Result::Error.new(message: 'TAAL returned a malformed 2xx response', retryable: false) unless body['txid']
+            return ProtocolResponse.new(response, ok: false, error_message: 'TAAL returned a malformed 2xx response') unless body['txid']
 
-            Result::Success.new(data: { txid: body['txid'] })
+            ProtocolResponse.new(response, data: { txid: body['txid'] })
           else
             message = (body.is_a?(Hash) && body['error']) || "HTTP #{code}"
-            Result::Error.new(message: message, retryable: retryable)
+            ProtocolResponse.new(response, ok: false, error_message: message)
           end
         end
 

@@ -46,33 +46,31 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
     result = protocol.call(:get_tx, genesis_txid)
 
     # Ordinals API may return 500 "fetch failed" for some txids from CI
-    if result.is_a?(BSV::Network::Result::Success)
+    if result.success?
       expect(result.data).to be_a(String)
       # Version 1 transaction starts with 01000000
       expect(result.data).to start_with('01000000')
     else
-      expect(result).to be_a(BSV::Network::Result::Error)
-        .or be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_error.or be_not_found
     end
   end
 
   it 'get_tx returns a non-empty hex string for a known confirmed tx' do
     result = protocol.call(:get_tx, known_txid)
 
-    if result.is_a?(BSV::Network::Result::Success)
+    if result.success?
       expect(result.data).to be_a(String)
       expect(result.data).not_to be_empty
       expect(result.data).to start_with('01000000')
     else
-      expect(result).to be_a(BSV::Network::Result::Error)
-        .or be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_error.or be_not_found
     end
   end
 
   it 'get_tx returns an appropriate failure for a nonexistent txid' do
     result = protocol.call(:get_tx, nonexistent_txid)
 
-    expect(result).not_to be_a(BSV::Network::Result::Success)
+    expect(result).not_to be_success
   end
 
   # ---------------------------------------------------------------------------
@@ -84,13 +82,12 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
 
     # The /api/tx/{txid} endpoint may return binary instead of JSON for
     # some transactions — handle gracefully
-    if result.is_a?(BSV::Network::Result::Success)
+    if result.success?
       expect(result.data).to be_a(Hash)
       expect(result.data['txid']).to eq(known_txid)
       expect(result.data['blockHeight']).to eq(known_block_height)
     else
-      expect(result).to be_a(BSV::Network::Result::Error)
-        .or be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_error.or be_not_found
     end
   end
 
@@ -101,7 +98,7 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   it 'get_tx_status returns confirmation status for a known confirmed tx' do
     result = protocol.call(:get_tx_status, known_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(Hash)
     # Confirmed tx must have a height
     expect(result.data['height']).to be_a(Integer)
@@ -115,7 +112,7 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   it 'get_merkle_path returns binary proof data for a known confirmed tx' do
     result = protocol.call(:get_merkle_path, known_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(String)
     expect(result.data).not_to be_empty
   end
@@ -127,7 +124,7 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   it 'get_utxos returns an array for Satoshi\'s address' do
     result = protocol.call(:get_utxos, satoshi_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
   end
 
@@ -138,7 +135,7 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   it 'get_balance returns an Integer for Satoshi\'s address' do
     result = protocol.call(:get_balance, satoshi_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(Integer)
   end
 
@@ -149,7 +146,7 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   it 'get_chain_tip returns a JSON hash with a positive block height' do
     result = protocol.call(:get_chain_tip)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(Hash)
     expect(result.data['height']).to be_a(Integer)
     expect(result.data['height']).to be > 900_000
@@ -162,7 +159,7 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   it 'get_spend returns spent status for a known spent outpoint' do
     result = protocol.call(:get_spend, spent_outpoint)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(Hash)
     expect(result.data).to have_key(:spent)
     if result.data[:spent]
