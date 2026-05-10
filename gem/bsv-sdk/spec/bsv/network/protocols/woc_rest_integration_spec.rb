@@ -55,7 +55,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'health returns Whats On Chain' do
     result = protocol.call(:health)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to include('Whats On Chain')
   end
 
@@ -66,7 +66,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'current_height returns a positive integer' do
     result = protocol.call(:current_height)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(Integer)
     expect(result.data).to be > 900_000
   end
@@ -74,7 +74,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_chain_info returns chain details' do
     result = protocol.call(:get_chain_info)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['chain']).to eq('main')
     expect(result.data['blocks']).to be_a(Integer)
   end
@@ -82,7 +82,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_block_header returns the genesis block header' do
     result = protocol.call(:get_block_header, 0)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['hash']).to eq(genesis_hash)
     expect(result.data['height']).to eq(0)
     expect(result.data['previousblockhash']).to eq('')
@@ -91,7 +91,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_block_headers returns an array of recent headers' do
     result = protocol.call(:get_block_headers)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     expect(result.data.first).to have_key('hash')
     expect(result.data.first).to have_key('height')
@@ -100,7 +100,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_circulating_supply returns a numeric string' do
     result = protocol.call(:get_circulating_supply)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(Float(result.data)).to be > 19_000_000
   end
 
@@ -111,7 +111,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_tx returns raw hex for the genesis coinbase' do
     result = protocol.call(:get_tx, genesis_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(String)
     # The coinbase contains "The Times 03/Jan/2009..."
     expect(result.data).to include('5468652054696d65732030332f4a616e2f32303039')
@@ -120,7 +120,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_tx_details returns parsed transaction JSON' do
     result = protocol.call(:get_tx_details, genesis_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['txid']).to eq(genesis_txid)
     expect(result.data['blockhash']).to eq(genesis_hash)
     expect(result.data['vout']).to be_an(Array)
@@ -129,7 +129,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_output_script returns the genesis coinbase output script' do
     result = protocol.call(:get_output_script, genesis_txid, 0)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(String)
     # P2PK script ending in OP_CHECKSIG (ac)
     expect(result.data).to end_with('ac')
@@ -138,7 +138,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_opreturn returns OP_RETURN data as an array' do
     result = protocol.call(:get_opreturn, opreturn_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     expect(result.data.first).to have_key('hex')
   end
@@ -146,7 +146,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_merkle_path returns a TSC proof array' do
     result = protocol.call(:get_merkle_path, confirmed_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     proof = result.data.first
     expect(proof).to have_key('index')
@@ -158,7 +158,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_tx_binary returns binary data' do
     result = protocol.call(:get_tx_binary, genesis_txid)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_a(String)
   end
 
@@ -169,7 +169,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_utxos returns raw WoC UTXO entries for the test address' do
     result = protocol.call(:get_utxos, test_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     expect(result.data).not_to be_empty
     utxo = result.data.first
@@ -182,7 +182,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_utxos_all returns raw WoC UTXO entries' do
     result = protocol.call(:get_utxos_all, test_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     expect(result.data.first).to have_key('value') unless result.data.empty?
   end
@@ -191,7 +191,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
     # vout 1 of test_utxo_txid is the unspent 1M sat output
     result = protocol.call(:is_utxo, test_utxo_txid, 1)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be(true)
   end
 
@@ -199,7 +199,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
     # vout 0 of test_utxo_txid is spent
     result = protocol.call(:is_utxo, test_utxo_txid, 0)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be(false)
   end
 
@@ -209,7 +209,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
                              { txid: test_utxo_txid, vout: 1 }
                            ])
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data["#{test_utxo_txid}.0"]).to be(false) # spent
     expect(result.data["#{test_utxo_txid}.1"]).to be(true)  # unspent
   end
@@ -218,7 +218,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
     genesis_merkle_root = '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b'
     result = protocol.call(:valid_root, genesis_merkle_root, 0)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be(true)
   end
 
@@ -229,14 +229,14 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_script_unspent returns UTXOs for a known script hash' do
     result = protocol.call(:get_script_unspent, test_script_hash)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
   end
 
   it 'get_script_history returns history for a known script hash' do
     result = protocol.call(:get_script_history, test_script_hash)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     expect(result.data.first).to have_key('tx_hash') unless result.data.empty?
   end
@@ -244,7 +244,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_script_all_unspent returns UTXOs for a known script hash' do
     result = protocol.call(:get_script_all_unspent, test_script_hash)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
   end
 
@@ -255,7 +255,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_balance returns a confirmed balance for the test address' do
     result = protocol.call(:get_balance, test_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['confirmed']).to be_a(Integer)
     expect(result.data['confirmed']).to eq(1_000_000)
   end
@@ -263,14 +263,14 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_unconfirmed_balance returns an unconfirmed balance' do
     result = protocol.call(:get_unconfirmed_balance, test_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to have_key('unconfirmed')
   end
 
   it 'get_history returns transaction history' do
     result = protocol.call(:get_history, test_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be_an(Array)
     expect(result.data.first).to have_key('tx_hash') unless result.data.empty?
   end
@@ -278,7 +278,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'is_address_used returns true for a known used address' do
     result = protocol.call(:is_address_used, test_address)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data).to be(true)
   end
 
@@ -289,7 +289,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_exchange_rate returns a rate' do
     result = protocol.call(:get_exchange_rate)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['rate']).to be_a(Numeric)
     expect(result.data['currency']).to eq('USD')
   end
@@ -297,7 +297,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_fee_recommendation returns fee info' do
     result = protocol.call(:get_fee_recommendation)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['fee']).to be_a(Integer)
     expect(result.data['fee_unit']).to eq('sat/KB')
   end
@@ -305,7 +305,7 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   it 'get_mempool_info returns mempool stats' do
     result = protocol.call(:get_mempool_info)
 
-    expect(result).to be_a(BSV::Network::Result::Success)
+    expect(result).to be_success
     expect(result.data['size']).to be_a(Integer)
   end
 end
