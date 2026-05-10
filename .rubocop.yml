@@ -35,6 +35,7 @@ Naming/MethodParameterName:
   AllowedNames:
     - a
     - b
+    - ok
     - r
     - s
     - w
