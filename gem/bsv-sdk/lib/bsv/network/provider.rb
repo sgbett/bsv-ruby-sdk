@@ -124,7 +124,7 @@ module BSV
       # @param command_name [Symbol, String] command to invoke
       # @param args   [Array]  positional arguments forwarded to the protocol
       # @param kwargs [Hash]   keyword arguments forwarded to the protocol
-      # @return [Result::Success, Result::Error, Result::NotFound]
+      # @return [ProtocolResponse]
       # @raise [ArgumentError] when no registered protocol serves the command
       def call(command_name, *args, **kwargs)
         sym      = command_name.to_sym

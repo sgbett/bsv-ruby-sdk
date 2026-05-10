@@ -55,7 +55,7 @@ module BSV
           if result.error?
             raise BSV::Network::ChainProviderError.new(
               result.message.to_s,
-              status_code: result.metadata[:status_code]
+              status_code: result.code&.to_i
             )
           end
 
@@ -72,7 +72,7 @@ module BSV
 
           raise BSV::Network::ChainProviderError.new(
             result.message.to_s,
-            status_code: result.metadata[:status_code]
+            status_code: result.code&.to_i
           )
         end
 

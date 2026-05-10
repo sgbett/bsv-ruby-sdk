@@ -53,7 +53,7 @@ module BSV
           fetch_result = provider.call(:get_tx, txid)
 
           unless fetch_result.success?
-            code = fetch_result.metadata[:status_code]
+            code = fetch_result.code
             msg = fetch_result.message
             msg = "#{msg} (HTTP #{code})" if code
             return Helpers.error_response(msg)

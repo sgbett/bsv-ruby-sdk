@@ -101,12 +101,12 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[:txid]).to eq(tx.txid_hex)
+      expect(result).to be_success
+      expect(result.data['txid']).to eq(tx.txid_hex)
 
       status = arc_status!(tx.txid_hex)
-      expect(status).to be_a(BSV::Network::Result::Success)
-      expect(status.data[:txid]).to eq(tx.txid_hex)
+      expect(status).to be_success
+      expect(status.data['txid']).to eq(tx.txid_hex)
     end
   end
 
@@ -125,8 +125,8 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
-      expect(result.data[:txid]).to eq(tx.txid_hex)
+      expect(result).to be_success
+      expect(result.data['txid']).to eq(tx.txid_hex)
     end
   end
 

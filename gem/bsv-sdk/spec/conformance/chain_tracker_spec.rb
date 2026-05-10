@@ -21,7 +21,7 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
   let(:tracker) { described_class.new(http_client: http_client) }
 
   def mock_response(code, body)
-    instance_double(Net::HTTPResponse, code: code.to_s, body: body)
+    fake_http_response(code, body)
   end
 
   def block_header_json(merkle_root, height: 0)

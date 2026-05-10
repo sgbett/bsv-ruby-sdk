@@ -116,8 +116,8 @@ module BSV
           return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.success?
 
           result = {
-            txid: arc_result.data[:txid], # MCP tool boundary: display-order hex from ARC response
-            tx_status: arc_result.data[:tx_status],
+            txid: arc_result.data['txid'], # MCP tool boundary: display-order hex from ARC response
+            tx_status: arc_result.data['txStatus'],
             hex: tx.to_hex
           }
 

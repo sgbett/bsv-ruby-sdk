@@ -216,9 +216,7 @@ RSpec.describe 'BSV::Network::Provider' do
 
   describe '#call' do
     let(:mock_response) do
-      resp = double('response') # rubocop:disable RSpec/VerifiedDoubles
-      allow(resp).to receive_messages(code: '200', body: '{"txid":"abc123","txStatus":"MINED"}')
-      resp
+      fake_http_response(200, '{"txid":"abc123","txStatus":"MINED"}')
     end
 
     it 'dispatches to the correct protocol' do

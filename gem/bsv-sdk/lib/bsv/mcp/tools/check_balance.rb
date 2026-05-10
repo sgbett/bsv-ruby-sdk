@@ -63,7 +63,7 @@ module BSV
           utxo_result = provider.call(:get_utxos_all, address)
 
           unless utxo_result.success?
-            code = utxo_result.metadata[:status_code]
+            code = utxo_result.code
             msg = utxo_result.message
             msg = "#{msg} (HTTP #{code})" if code
             return Helpers.error_response(msg)
