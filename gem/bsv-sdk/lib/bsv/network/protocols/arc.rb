@@ -192,7 +192,10 @@ module BSV
           code = response.code.to_i
           body = safe_parse_json(response.body)
 
-          return ProtocolResponse.new(response, http_success: false, error_message: "HTTP #{code}") unless body.is_a?(Hash)
+          unless body.is_a?(Hash)
+            return ProtocolResponse.new(response, http_success: false,
+                                                  error_message: "ARC returned #{body.class}, expected Hash")
+          end
 
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
