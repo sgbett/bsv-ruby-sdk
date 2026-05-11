@@ -174,7 +174,7 @@ module BSV
           result = default_call(:is_utxo, txid, vout)
 
           # 404 = no spending tx found = output is unspent
-          return result.with(data: true, http_success: true) if result.http_not_found?
+          return result.with(data: true, http_success: true, error_message: nil) if result.http_not_found?
 
           # Non-success, non-404 = genuine error
           return result unless result.http_success?
