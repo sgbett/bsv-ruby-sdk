@@ -125,7 +125,7 @@ module BSV
           else
             result.with(data: { spent: true, spending_txid: spending_txid })
           end
-        rescue JSON::ParserError => e
+        rescue JSON::ParserError, TypeError => e
           result.with(http_success: false, error_message: "spend response parse error: #{e.message}")
         end
       end

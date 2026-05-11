@@ -215,7 +215,7 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: 'ARC returned a malformed 2xx response'
+              error_message: body['detail'] || 'ARC returned a malformed 2xx response'
             )
           end
 
