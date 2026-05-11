@@ -9,6 +9,11 @@ AllCops:
 Style/Documentation:
   Enabled: false
 
+# Spec files legitimately define helper classes alongside describe blocks.
+Style/OneClassPerFile:
+  Exclude:
+    - 'gem/*/spec/**/*'
+
 # extconf.rb must use MakeMakefile globals ($CFLAGS, $srcs, $srcdir).
 Style/GlobalVars:
   Exclude:

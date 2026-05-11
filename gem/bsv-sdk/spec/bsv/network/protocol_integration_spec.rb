@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# rubocop:disable RSpec/DescribeClass, Style/OneClassPerFile
+# rubocop:disable RSpec/DescribeClass
 
 # Injectable HTTP client that records the last call and returns a canned response.
 class IntegrationFakeHttpClient
@@ -276,4 +276,4 @@ RSpec.describe 'BSV::Network::Protocol — integration' do
   end
 end
 
-# rubocop:enable RSpec/DescribeClass, Style/OneClassPerFile
+# rubocop:enable RSpec/DescribeClass
