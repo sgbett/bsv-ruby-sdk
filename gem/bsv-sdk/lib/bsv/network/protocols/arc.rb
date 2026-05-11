@@ -277,11 +277,6 @@ module BSV
           response
         end
 
-        # Determine whether a status code indicates a retryable failure.
-        def retryable_code?(code)
-          code == 429 || (500..599).cover?(code)
-        end
-
         # Determine whether an ARC response body represents a rejected transaction.
         # Case-insensitive match — the TypeScript reference SDK explicitly uppercases
         # both fields before membership / substring checks. ARC has a documented
