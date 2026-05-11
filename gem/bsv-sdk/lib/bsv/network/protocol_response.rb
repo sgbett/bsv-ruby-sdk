@@ -10,7 +10,7 @@ module BSV
       def initialize(http_response, data: nil, http_success: nil, error_message: nil)
         @http_response = http_response
         @data = data
-        @http_success = http_success.nil? ? !!http_response&.is_a?(Net::HTTPSuccess) : http_success
+        @http_success = http_success.nil? ? http_response.is_a?(Net::HTTPSuccess) : http_success
         @error_message = error_message
         freeze
       end
