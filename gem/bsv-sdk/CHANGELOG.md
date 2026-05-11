@@ -5,6 +5,34 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.0 — 2026-05-11
+
+### Breaking Changes
+- `Result::Success/Error/NotFound` replaced by single `ProtocolResponse` class composing `Net::HTTPResponse`
+- Predicates renamed: `success?` → `http_success?`, `not_found?` → `http_not_found?`, `error?` removed (use `!http_success?`)
+- Constructor keyword `ok:` → `http_success:`
+- ARC `arc_data_from` key remapping removed — `.data` returns raw API JSON with string keys (`'txid'` not `:txid`)
+- Batch broadcast `.data` returns raw JSON array (no per-item `Result` wrapping)
+- `BroadcastError`, `BroadcastResponse`, `ChainProviderError`, deprecated `BSV::Network::ARC` and `BSV::Network::WhatsOnChain` facades removed
+
+### Added
+- `ProtocolResponse` class with progressive enhancement: `.body`/`.code` (raw HTTP) → `.data` (parsed) → `.canonical` (placeholder)
+- `ProtocolResponse#with(**overrides)` for escape hatch post-processing
+- `fake_http_response` shared test helper for building real `Net::HTTPResponse` subclass instances
+- Debug logging in Protocol (`call`, `default_call`, `build_response`) and `ProtocolResponse#with`
+
+### Changed
+- `Protocol#map_response` renamed to `build_response`
+- Chain trackers raise `RuntimeError` instead of deleted `ChainProviderError`
+- `ChainTracker` doc rewritten to explain the declarative/imperative split
+- MCP tools updated: `.metadata[:status_code]` → `.code`, symbol keys → string keys
+
+### Fixed
+- `http_success?` returns `false` (not `nil`) when `http_response` is nil
+- `Ordinals#call_get_spend` rescues `TypeError` alongside `JSON::ParserError`
+- ARC malformed-2xx error messages include diagnostic detail
+- WoC `call_is_utxo` clears stale `error_message` when overriding 404 to success
+
 ## 0.18.1 — 2026-05-09
 
 ### Added
