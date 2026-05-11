@@ -47,17 +47,12 @@ module BSV
         # @param root [String] merkle root as a hex string
         # @param height [Integer] block height
         # @return [Boolean]
-        # @raise [BSV::Network::ChainProviderError] on network or API error
+        # @raise [StandardError] on network or API error
         def valid_root_for_height?(root, height)
           result = @protocol.call(:valid_root, root, height)
-          return false if result.not_found?
+          return false if result.http_not_found?
 
-          if result.error?
-            raise BSV::Network::ChainProviderError.new(
-              result.message.to_s,
-              status_code: result.metadata[:status_code]
-            )
-          end
+          raise result.message.to_s unless result.http_success?
 
           result.data == true
         end
@@ -65,15 +60,12 @@ module BSV
         # Return the current blockchain height.
         #
         # @return [Integer]
-        # @raise [BSV::Network::ChainProviderError] on network or API error
+        # @raise [StandardError] on network or API error
         def current_height
           result = @protocol.call(:current_height)
-          return result.data if result.success?
+          return result.data if result.http_success?
 
-          raise BSV::Network::ChainProviderError.new(
-            result.message.to_s,
-            status_code: result.metadata[:status_code]
-          )
+          raise result.message.to_s
         end
 
         # Wraps an injectable HTTP client to set a raw Authorization header value

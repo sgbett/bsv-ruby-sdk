@@ -11,9 +11,7 @@ module BSV
       # Extends Protocol with five endpoints and two escape hatches for broadcast
       # logic: EF format preference, rejection detection, and custom headers.
       #
-      # The protocol returns Result objects (never raises). The facade layer
-      # (Phase D) is responsible for translating Results to BroadcastResponse /
-      # BroadcastError as needed by consumer code.
+      # The protocol returns ProtocolResponse objects (never raises).
       #
       # == Example
       #
@@ -22,8 +20,8 @@ module BSV
       #     api_key: 'my-api-key'
       #   )
       #   result = arc.call(:broadcast, tx)
-      #   result.success? # => true
-      #   result.data[:txid] # => "abc123..."
+      #   result.http_success? # => true
+      #   result.data['txid'] # => "abc123..."
       #
       # @see https://docs.gorillapool.io/arc/api.html ARC API v1 documentation
       class ARC < Protocol
@@ -77,7 +75,7 @@ module BSV
         # @param callback_url [String, nil] per-call callback URL override
         # @param callback_token [String, nil] per-call callback token override
         # @param callback_batch [Boolean, nil] when truthy, sends X-CallbackBatch header
-        # @return [Result::Success, Result::Error]
+        # @return [ProtocolResponse]
         def call_broadcast(tx, wait_for: nil, skip_fee_validation: nil,
                            skip_script_validation: nil, skip_tx_validation: nil,
                            callback_url: nil, callback_token: nil, callback_batch: nil, **)
@@ -98,7 +96,7 @@ module BSV
           parse_single_broadcast_response(response)
         end
 
-        # Broadcast-many escape hatch: batch broadcast with per-item rejection detection.
+        # Broadcast-many escape hatch: batch broadcast with raw JSON array result.
         #
         # @param txs [Array<#to_ef_hex, #to_hex, String>]
         # @param wait_for [String, nil]
@@ -108,11 +106,11 @@ module BSV
         # @param callback_url [String, nil]
         # @param callback_token [String, nil]
         # @param callback_batch [Boolean, nil]
-        # @return [Result::Success, Result::Error]
+        # @return [ProtocolResponse]
         def call_broadcast_many(txs, wait_for: nil, skip_fee_validation: nil,
                                 skip_script_validation: nil, skip_tx_validation: nil,
                                 callback_url: nil, callback_token: nil, callback_batch: nil, **)
-          return Result::Success.new(data: []) if txs.empty?
+          return ProtocolResponse.new(nil, data: [], http_success: true) if txs.empty?
 
           body = JSON.generate(txs.map { |tx| { rawTx: resolve_tx_hex(tx) } })
 
@@ -188,159 +186,98 @@ module BSV
         end
 
         # Parse and validate a single-transaction ARC response.
+        #
+        # @return [ProtocolResponse]
         def parse_single_broadcast_response(response)
           code = response.code.to_i
           body = safe_parse_json(response.body)
 
           unless body.is_a?(Hash)
-            return Result::Error.new(
-              message: "HTTP #{code}",
-              retryable: retryable_code?(code),
-              metadata: { status_code: code }
-            )
+            return ProtocolResponse.new(response, http_success: false,
+                                                  error_message: "ARC returned #{body.class}, expected Hash")
           end
 
           unless (200..299).cover?(code)
-            return Result::Error.new(
-              message: body['detail'] || body['title'] || "HTTP #{code}",
-              retryable: retryable_code?(code),
-              metadata: { status_code: code, arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+            return ProtocolResponse.new(
+              response,
+              http_success: false,
+              error_message: body['detail'] || body['title'] || "HTTP #{code}"
             )
           end
 
           if rejected_status?(body)
-            return Result::Error.new(
-              message: body['detail'] || body['title'] || body['txStatus'],
-              retryable: false,
-              metadata: { status_code: code, arc_status: body['txStatus'].to_s.upcase, txid: body['txid'] }
+            return ProtocolResponse.new(
+              response,
+              http_success: false,
+              error_message: body['detail'] || body['title'] || body['txStatus'],
+              data: body
             )
           end
 
           unless body['txid']
-            return Result::Error.new(
-              message: 'ARC returned a malformed 2xx response',
-              retryable: false,
-              metadata: { status_code: code }
+            return ProtocolResponse.new(
+              response,
+              http_success: false,
+              error_message: body['detail'] || 'ARC returned a malformed 2xx response'
             )
           end
 
-          Result::Success.new(
-            data: arc_data_from(body),
-            metadata: { arc_status: body['txStatus'].to_s.upcase }
-          )
+          ProtocolResponse.new(response, data: body)
         end
 
         # Parse and validate a batch ARC response. HTTP-level errors return a
-        # single Result::Error; per-item rejections are embedded in the data array.
+        # single error ProtocolResponse; success data is a raw JSON array of hashes.
+        #
+        # @return [ProtocolResponse]
         def parse_batch_broadcast_response(response)
           code = response.code.to_i
           body = safe_parse_json(response.body)
 
           unless (200..299).cover?(code)
-            return Result::Error.new(
-              message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}",
-              retryable: retryable_code?(code),
-              metadata: { status_code: code }
+            return ProtocolResponse.new(
+              response,
+              http_success: false,
+              error_message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}"
             )
           end
 
           unless body.is_a?(Array)
-            return Result::Error.new(
-              message: 'ARC returned a malformed batch response',
-              retryable: false,
-              metadata: { status_code: code }
+            return ProtocolResponse.new(
+              response,
+              http_success: false,
+              error_message: 'ARC returned a malformed batch response'
             )
           end
 
-          items = body.map { |item| build_item_result(item) }
-          Result::Success.new(data: items, metadata: {})
+          ProtocolResponse.new(response, data: body)
         end
 
-        # Build a per-item result for a batch response entry.
-        def build_item_result(item)
-          unless item.is_a?(Hash)
-            return Result::Error.new(
-              message: 'malformed batch item',
-              retryable: false,
-              metadata: {}
-            )
-          end
-
-          if rejected_status?(item)
-            Result::Error.new(
-              message: item['detail'] || item['title'] || item['txStatus'],
-              retryable: false,
-              metadata: { status_code: 200, arc_status: item['txStatus'].to_s.upcase, txid: item['txid'] }
-            )
-          elsif !item['txid']
-            Result::Error.new(
-              message: 'ARC returned a malformed 2xx response',
-              retryable: false,
-              metadata: { status_code: 200 }
-            )
-          else
-            Result::Success.new(
-              data: arc_data_from(item),
-              metadata: { arc_status: item['txStatus'].to_s.upcase }
-            )
-          end
-        end
-
-        # Escape hatch for get_tx_status: returns a normalised data hash using the
-        # same field set as broadcast responses rather than the raw parsed JSON.
-        # Also checks for rejection status and missing txid (malformed 2xx).
+        # Escape hatch for get_tx_status: checks for rejection status and missing
+        # txid (malformed 2xx). Returns raw JSON data (string keys).
         #
         # @param txid [String] ARC API boundary: display-order hex transaction ID to query
-        # @return [Result::Success, Result::Error, Result::NotFound]
+        # @return [ProtocolResponse]
         def call_get_tx_status(txid, **)
           response = default_call(:get_tx_status, txid)
-          return response unless response.is_a?(Result::Success)
+          return response unless response.http_success?
 
           body = response.data
 
           if rejected_status?(body)
-            return Result::Error.new(
-              message: body['detail'] || body['title'] || body['txStatus'],
-              retryable: false,
-              metadata: { arc_status: body['txStatus'].to_s.upcase, txid: body['txid'], status_code: 200 }
+            return response.with(
+              http_success: false,
+              error_message: body['detail'] || body['title'] || body['txStatus']
             )
           end
 
           unless body['txid']
-            return Result::Error.new(
-              message: 'ARC returned a malformed 2xx response',
-              retryable: false,
-              metadata: { status_code: 200 }
+            return response.with(
+              http_success: false,
+              error_message: 'ARC returned a malformed 2xx response'
             )
           end
 
-          Result::Success.new(
-            data: arc_data_from(body),
-            metadata: { arc_status: body['txStatus'].to_s.upcase }
-          )
-        end
-
-        # Build the normalised ARC data hash from a parsed JSON response body.
-        # Includes all 8 fields that BroadcastResponse expects.
-        #
-        # @param body [Hash] parsed ARC JSON response
-        # @return [Hash]
-        def arc_data_from(body)
-          {
-            txid: body['txid'], # ARC API boundary: display-order hex from the ARC JSON response
-            tx_status: body['txStatus'],
-            message: body['title'],
-            extra_info: body['extraInfo'],
-            block_hash: body['blockHash'],
-            block_height: body['blockHeight'],
-            timestamp: body['timestamp'],
-            competing_txs: body['competingTxs']
-          }
-        end
-
-        # Determine whether a status code indicates a retryable failure.
-        def retryable_code?(code)
-          code == 429 || (500..599).cover?(code)
+          response
         end
 
         # Determine whether an ARC response body represents a rejected transaction.

@@ -10,21 +10,20 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
     Class.new do
       attr_reader :last_uri, :last_request
 
-      def initialize(code, body)
-        @code = code
-        @body = body
+      def initialize(response)
+        @response = response
       end
 
       def request(uri, req)
         @last_uri     = uri
         @last_request = req
-        Struct.new(:code, :body).new(@code.to_s, @body)
+        @response
       end
     end
   end
 
   def make_instance(code, body, api_key: nil)
-    http = mock_http.new(code, body)
+    http = mock_http.new(fake_http_response(code, body))
     instance = described_class.new(base_url: 'https://ordinals.gorillapool.io', api_key: api_key, http_client: http)
     [instance, http]
   end
@@ -48,7 +47,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, raw_bytes)
       result = instance.call(:get_tx, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to eq(expected_hex)
     end
 
@@ -73,12 +72,11 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq("https://ordinals.gorillapool.io/api/tx/#{txid}/raw")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_tx, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
-      expect(result.not_found?).to be(true)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -89,7 +87,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, tx_json)
       result = instance.call(:get_tx_details, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to be_a(Hash)
       expect(result.data['txid']).to eq(txid)
     end
@@ -101,11 +99,11 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq("https://ordinals.gorillapool.io/api/tx/#{txid}")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_tx_details, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -116,7 +114,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, status_json)
       result = instance.call(:get_tx_status, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data['height']).to eq(800_000)
     end
 
@@ -127,11 +125,11 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq("https://ordinals.gorillapool.io/api/tx/#{txid}/status")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_tx_status, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -142,7 +140,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, binary_proof)
       result = instance.call(:get_merkle_path, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to eq(binary_proof)
     end
 
@@ -160,18 +158,18 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq("https://ordinals.gorillapool.io/api/tx/#{txid}/proof")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_merkle_path, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
 
-    it 'returns Result::Error with retryable true on 5xx' do
+    it 'returns error with retryable true on 5xx' do
       instance, _http = make_instance(500, 'internal server error')
       result = instance.call(:get_merkle_path, txid: txid)
 
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end
@@ -188,7 +186,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, utxos_json)
       result = instance.call(:get_utxos, address: address)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to be_a(Array)
       expect(result.data.length).to eq(2)
     end
@@ -200,11 +198,11 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq("https://ordinals.gorillapool.io/api/txos/address/#{address}/unspent")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_utxos, address: address)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -216,7 +214,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, balance_body)
       result = instance.call(:get_balance, address: address)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to eq(1_000_000)
       expect(result.data).to be_a(Integer)
     end
@@ -228,11 +226,11 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq("https://ordinals.gorillapool.io/api/txos/address/#{address}/balance")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_balance, address: address)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -246,7 +244,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
         instance, _http = make_instance(200, unspent_body)
         result = instance.call(:get_spend, outpoint: outpoint)
 
-        expect(result).to be_a(BSV::Network::Result::Success)
+        expect(result).to be_http_success
         expect(result.data).to eq({ spent: false })
       end
 
@@ -266,16 +264,16 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
         instance, _http = make_instance(200, spent_body)
         result = instance.call(:get_spend, outpoint: outpoint)
 
-        expect(result).to be_a(BSV::Network::Result::Success)
+        expect(result).to be_http_success
         expect(result.data).to eq({ spent: true, spending_txid: spending_txid })
       end
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_spend, outpoint: outpoint)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -286,7 +284,7 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       instance, _http = make_instance(200, tip_json)
       result = instance.call(:get_chain_tip)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data['height']).to eq(800_000)
     end
 
@@ -297,11 +295,11 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
       expect(http.last_uri.to_s).to eq('https://ordinals.gorillapool.io/api/blocks/tip')
     end
 
-    it 'returns Result::Error with retryable true on 5xx' do
+    it 'returns error with retryable true on 5xx' do
       instance, _http = make_instance(500, 'internal server error')
       result = instance.call(:get_chain_tip)
 
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end
@@ -310,18 +308,18 @@ RSpec.describe BSV::Network::Protocols::Ordinals do
     let(:raw_bytes) { "\x01\x00\x00\x00".b }
 
     it 'raises ArgumentError when base_url: is omitted' do
-      expect { described_class.new(http_client: mock_http.new(200, raw_bytes)) }
+      expect { described_class.new(http_client: mock_http.new(fake_http_response(200, raw_bytes))) }
         .to raise_error(ArgumentError)
     end
 
     it 'uses the supplied base URL' do
-      http = mock_http.new(200, raw_bytes)
+      http = mock_http.new(fake_http_response(200, raw_bytes))
       instance = described_class.new(base_url: 'https://my.ordinals.example', http_client: http)
       expect(instance.base_url).to eq('https://my.ordinals.example')
     end
 
     it 'uses the supplied base URL when building request URLs' do
-      http = mock_http.new(200, raw_bytes)
+      http = mock_http.new(fake_http_response(200, raw_bytes))
       instance = described_class.new(base_url: 'https://my.ordinals.example', http_client: http)
       instance.call(:get_tx, txid)
       expect(http.last_uri.to_s).to start_with('https://my.ordinals.example')

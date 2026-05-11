@@ -93,7 +93,7 @@ module BSV
 
           woc = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           utxo_result = woc.call(:get_utxos_all, sender_address)
-          return Helpers.error_response("UTXO fetch failed: #{utxo_result.message}") unless utxo_result.success?
+          return Helpers.error_response("UTXO fetch failed: #{utxo_result.message}") unless utxo_result.http_success?
 
           all_utxos = utxo_result.data.map do |entry|
             BSV::Network::UTXO.new(
@@ -113,11 +113,11 @@ module BSV
 
           arc = build_arc(net_sym, server_context)
           arc_result = arc.call(:broadcast, tx)
-          return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.success?
+          return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.http_success?
 
           result = {
-            txid: arc_result.data[:txid], # MCP tool boundary: display-order hex from ARC response
-            tx_status: arc_result.data[:tx_status],
+            txid: arc_result.data['txid'], # MCP tool boundary: display-order hex from ARC response
+            tx_status: arc_result.data['txStatus'],
             hex: tx.to_hex
           }
 

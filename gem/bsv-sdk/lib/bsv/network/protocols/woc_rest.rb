@@ -21,7 +21,7 @@ module BSV
       #
       #   woc = BSV::Network::Protocols::WoCREST.new(network: :main)
       #   result = woc.call(:get_tx, 'abc123...')
-      #   puts result.data if result.success?
+      #   puts result.data if result.http_success?
       #
       # @see https://developers.whatsonchain.com/ WhatsOnChain API documentation
       class WoCREST < Protocol
@@ -169,18 +169,18 @@ module BSV
         # @param txid        [String]  WoC API boundary: display-order hex transaction ID
         # @param vout        [Integer] output index
         # @param script_hash [String, nil] ignored
-        # @return [Result::Success<Boolean>, Result::Error]
+        # @return [ProtocolResponse<Boolean>]
         def call_is_utxo(txid, vout, script_hash: nil) # rubocop:disable Lint/UnusedMethodArgument
           result = default_call(:is_utxo, txid, vout)
 
           # 404 = no spending tx found = output is unspent
-          return Result::Success.new(data: true) if result.not_found?
+          return result.with(data: true, http_success: true, error_message: nil) if result.http_not_found?
 
           # Non-success, non-404 = genuine error
-          return result unless result.success?
+          return result unless result.http_success?
 
           # 200 with spending tx details = output is spent
-          Result::Success.new(data: false)
+          result.with(data: false)
         end
 
         # Bulk-checks whether a set of outputs are unspent.
@@ -192,15 +192,15 @@ module BSV
         # Entries absent from the response (unknown outputs) are treated as spent.
         #
         # @param outpoints [Array<Hash>] array of +{ txid:, vout: }+ hashes
-        # @return [Result::Success<Hash{String => Boolean}>, Result::Error]
+        # @return [ProtocolResponse<Hash{String => Boolean}>]
         #   On success, data is a hash mapping +"txid.vout"+ keys to booleans
         #   (+true+ = unspent, +false+ = spent).
         def call_is_utxo_bulk(outpoints)
-          return Result::Success.new(data: {}) if outpoints.empty?
+          return ProtocolResponse.new(nil, data: {}, http_success: true) if outpoints.empty?
 
           body = JSON.generate(utxos: outpoints.map { |op| { 'txid' => op[:txid].to_s, 'vout' => op[:vout].to_i } })
           result = default_call(:is_utxo_bulk, body: body)
-          return result unless result.success?
+          return result unless result.http_success?
 
           # Build a lookup from the response entries
           # spentIn present and non-empty → spent (false); absent or empty → unspent (true)
@@ -219,7 +219,7 @@ module BSV
             normalised[key] = false unless normalised.key?(key)
           end
 
-          Result::Success.new(data: normalised)
+          result.with(data: normalised)
         end
 
         # Broadcasts a raw transaction to WhatsOnChain.
@@ -229,17 +229,17 @@ module BSV
         # stripped and wrapped in a Hash for caller convenience.
         #
         # @param tx [#to_hex, String] transaction object or raw hex string
-        # @return [Result::Success<{ txid: String }>, Result::Error]
+        # @return [ProtocolResponse<{ txid: String }>]
         def call_broadcast(tx)
           hex  = tx.respond_to?(:to_hex) ? tx.to_hex : tx.to_s
           body = JSON.generate(txhex: hex)
 
           result = default_call(:broadcast, body: body)
-          return result unless result.success?
+          return result unless result.http_success?
 
           # WoC returns plain-text txid — result.data is the raw body string
           # WoC API boundary: display-order hex txid returned as plain text
-          Result::Success.new(data: { txid: result.data.to_s.strip })
+          result.with(data: { txid: result.data.to_s.strip })
         end
 
         # Decodes a raw transaction hex by posting to the WoC decode endpoint.
@@ -248,7 +248,7 @@ module BSV
         # full decoded transaction object.
         #
         # @param txhex [String] raw transaction hex string
-        # @return [Result::Success<Hash>, Result::Error]
+        # @return [ProtocolResponse]
         def call_decode_tx(txhex)
           body = JSON.generate(txhex: txhex.to_s)
           default_call(:decode_tx, body: body)
@@ -259,7 +259,7 @@ module BSV
         # WoC expects +{ "txids": [...] }+ as the request body.
         #
         # @param txids [Array<String>] list of transaction IDs
-        # @return [Result::Success<Array>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_tx_hex_bulk(txids)
           body = JSON.generate(txids: txids)
           default_call(:get_tx_hex_bulk, body: body)
@@ -270,7 +270,7 @@ module BSV
         # WoC expects +{ "scripts": [...] }+ as the request body.
         #
         # @param script_hashes [Array<String>] list of script hashes
-        # @return [Result::Success<Hash>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_script_unspent_bulk(script_hashes)
           body = JSON.generate(scripts: script_hashes)
           default_call(:get_script_unspent_bulk, body: body)
@@ -281,7 +281,7 @@ module BSV
         # WoC expects +{ "txids": [...] }+ as the request body.
         #
         # @param txids [Array<String>] list of transaction IDs
-        # @return [Result::Success<Array>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_bulk_tx_details(txids)
           body = JSON.generate(txids: txids)
           default_call(:get_bulk_tx_details, body: body)
@@ -292,7 +292,7 @@ module BSV
         # WoC expects +{ "txids": [{ "txid": "...", "vouts": [0, 1] }, ...] }+ as the request body.
         #
         # @param tx_vouts [Array<Hash>] array of +{ txid:, vouts: [Integer] }+ hashes
-        # @return [Result::Success<Array>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_bulk_output_scripts(tx_vouts)
           body = JSON.generate(txids: tx_vouts.map { |tv| { 'txid' => tv[:txid].to_s, 'vouts' => tv[:vouts] } })
           default_call(:get_bulk_output_scripts, body: body)
@@ -303,7 +303,7 @@ module BSV
         # WoC expects +{ "addresses": [...] }+ as the request body.
         #
         # @param addresses [Array<String>] list of addresses
-        # @return [Result::Success<Array>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_bulk_address_utxos(addresses)
           body = JSON.generate(addresses: addresses)
           default_call(:get_bulk_address_utxos, body: body)
@@ -314,7 +314,7 @@ module BSV
         # WoC expects +{ "addresses": [...] }+ as the request body.
         #
         # @param addresses [Array<String>] list of addresses
-        # @return [Result::Success<Array>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_bulk_address_unconfirmed_utxos(addresses)
           body = JSON.generate(addresses: addresses)
           default_call(:get_bulk_address_unconfirmed_utxos, body: body)
@@ -325,7 +325,7 @@ module BSV
         # WoC expects +{ "scripts": [...] }+ as the request body.
         #
         # @param script_hashes [Array<String>] list of script hashes
-        # @return [Result::Success<Hash>, Result::Error]
+        # @return [ProtocolResponse]
         def call_get_bulk_script_unconfirmed_unspent(script_hashes)
           body = JSON.generate(scripts: script_hashes)
           default_call(:get_bulk_script_unconfirmed_unspent, body: body)
@@ -336,7 +336,7 @@ module BSV
         # WoC expects +{ "query": "..." }+ as the request body.
         #
         # @param query [String] search term
-        # @return [Result::Success<Hash>, Result::Error]
+        # @return [ProtocolResponse]
         def call_search_links(query)
           body = JSON.generate(query: query)
           default_call(:search_links, body: body)
@@ -351,7 +351,7 @@ module BSV
         #
         # @param txids [Array<String>, nil] list of transaction IDs (positional)
         # @param body  [String, nil] pre-serialised request body (keyword)
-        # @return [Result::Success<Array>, Result::Error]
+        # @return [ProtocolResponse]
         # @raise [ArgumentError] when neither txids nor body is provided
         def call_get_tx_status(txids = nil, body: nil)
           raise ArgumentError, 'provide txids array or body: keyword' if txids.nil? && body.nil?
@@ -368,13 +368,13 @@ module BSV
         #
         # @param root   [String]  expected merkle root as hex
         # @param height [Integer] block height
-        # @return [Result::Success<Boolean>, Result::Error, Result::NotFound]
+        # @return [ProtocolResponse<Boolean>]
         def call_valid_root(root, height)
           result = default_call(:valid_root, height)
-          return result unless result.success?
+          return result unless result.http_success?
 
           actual = result.data['merkleroot']
-          Result::Success.new(data: actual.to_s.downcase == root.to_s.downcase)
+          result.with(data: actual.to_s.downcase == root.to_s.downcase)
         end
       end
     end

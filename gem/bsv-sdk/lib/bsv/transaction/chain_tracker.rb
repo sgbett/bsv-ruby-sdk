@@ -2,22 +2,40 @@
 
 module BSV
   module Transaction
-    # Base class for chain trackers that verify merkle roots against the blockchain.
+    # Duck type for block header lookups used by the SDK's verify methods.
     #
-    # Chain trackers confirm that a given merkle root corresponds to a valid block
-    # at a specific height. This is essential for SPV verification — without it,
-    # merkle proofs cannot be validated against the actual blockchain.
+    # {Beef#verify}, {MerklePath#verify}, and {Transaction#verify} define
+    # what a valid structure *is* — they walk trees, check proofs, and
+    # compare roots. But they have no data source of their own. The
+    # chain tracker is the data source: an object the consumer provides
+    # that can answer "is this merkle root valid for this block height?"
     #
-    # Subclasses must implement {#valid_root_for_height?} and {#current_height}.
+    # The SDK is deliberately unopinionated about where that answer comes
+    # from. A chain tracker backed by an in-memory hash is declarative.
+    # One that fetches from the network on cache miss and writes to a
+    # database is imperative. The verify methods don't care — they just
+    # ask the question. All imperative behaviour (fetching, caching,
+    # persisting) lives in the consumer's chain tracker implementation,
+    # not in the SDK.
     #
-    # @example Implementing a custom chain tracker
-    #   class MyTracker < BSV::Transaction::ChainTracker
+    # Any object responding to +valid_root_for_height?+ and
+    # +current_height+ satisfies this interface. Inheriting from this
+    # class is optional — it exists to document the contract and provide
+    # clear error messages when methods are missing.
+    #
+    # @example In-memory chain tracker (test / declarative)
+    #   class HashTracker < BSV::Transaction::ChainTracker
+    #     def initialize(headers)  @headers = headers end
+    #     def valid_root_for_height?(root, h) @headers[h] == root end
+    #     def current_height() @headers.keys.max end
+    #   end
+    #   tracker = HashTracker.new(800_000 => 'abcd...')
+    #
+    # @example Cache-aware chain tracker (production / imperative)
+    #   class WalletChainTracker < BSV::Transaction::ChainTracker
     #     def valid_root_for_height?(root, height)
-    #       # query your block header source
-    #     end
-    #
-    #     def current_height
-    #       # return current chain tip height
+    #       header = @db.find_header(height) || fetch_and_store(height)
+    #       header.merkle_root == root
     #     end
     #   end
     class ChainTracker

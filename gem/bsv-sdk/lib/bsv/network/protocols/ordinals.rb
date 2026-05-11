@@ -88,16 +88,16 @@ module BSV
         #
         # @param pos_txid [String, nil] transaction ID (positional form)
         # @param txid     [String, nil] transaction ID (keyword form)
-        # @return [Result::Success<String>, Result::Error, Result::NotFound]
+        # @return [ProtocolResponse]
         def call_get_tx(pos_txid = nil, txid: nil)
           resolved = pos_txid || txid
           raise ArgumentError, 'txid is required' if resolved.nil? || resolved.empty?
 
           result = default_call(:get_tx, resolved)
-          return result unless result.success?
-          return Result::Error.new(message: 'empty response body') if result.data.nil? || result.data.empty?
+          return result unless result.http_success?
+          return result.with(http_success: false, error_message: 'empty response body') if result.data.nil? || result.data.empty?
 
-          Result::Success.new(data: result.data.unpack1('H*'))
+          result.with(data: result.data.unpack1('H*'))
         end
 
         # Normalises the spend status response from the Ordinals API.
@@ -111,22 +111,22 @@ module BSV
         #
         # @param pos_outpoint [String, nil] outpoint in +"txid_vout"+ format (positional form)
         # @param outpoint     [String, nil] outpoint in +"txid_vout"+ format (keyword form)
-        # @return [Result::Success<Hash>, Result::Error, Result::NotFound]
+        # @return [ProtocolResponse]
         def call_get_spend(pos_outpoint = nil, outpoint: nil)
           resolved = pos_outpoint || outpoint
           raise ArgumentError, 'outpoint is required' if resolved.nil? || resolved.empty?
 
           result = default_call(:get_spend, resolved)
-          return result unless result.success?
+          return result unless result.http_success?
 
           spending_txid = JSON.parse(result.data).to_s.strip
           if spending_txid.empty?
-            Result::Success.new(data: { spent: false })
+            result.with(data: { spent: false })
           else
-            Result::Success.new(data: { spent: true, spending_txid: spending_txid })
+            result.with(data: { spent: true, spending_txid: spending_txid })
           end
-        rescue JSON::ParserError => e
-          Result::Error.new(message: "spend response parse error: #{e.message}")
+        rescue JSON::ParserError, TypeError => e
+          result.with(http_success: false, error_message: "spend response parse error: #{e.message}")
         end
       end
     end

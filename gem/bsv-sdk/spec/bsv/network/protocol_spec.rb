@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-# Minimal fake response used in place of Net::HTTPResponse.
-ProtocolSpecFakeResponse = Struct.new(:code, :body)
-
 # Fake injectable HTTP client — records the last request, returns a canned response.
 class ProtocolSpecFakeHttpClient
   attr_reader :last_uri, :last_request
@@ -39,16 +36,16 @@ RSpec.describe 'BSV::Network::Protocol' do
     end
   end
 
-  let(:ok_response)        { ProtocolSpecFakeResponse.new('200', 'raw_body') }
-  let(:json_response)      { ProtocolSpecFakeResponse.new('200', '{"txid":"abc"}') }
-  let(:array_response)     { ProtocolSpecFakeResponse.new('200', '[{"txid":"abc"}]') }
-  let(:wrapped_array_resp) { ProtocolSpecFakeResponse.new('200', '{"result":[{"txid":"abc"}],"error":""}') }
-  let(:hash_no_result_resp) { ProtocolSpecFakeResponse.new('200', '{"address":"1abc","error":""}') }
-  let(:not_found_response) { ProtocolSpecFakeResponse.new('404', 'not found') }
-  let(:too_many_response)  { ProtocolSpecFakeResponse.new('429', 'rate limited') }
-  let(:server_error_resp)  { ProtocolSpecFakeResponse.new('500', 'server error') }
-  let(:bad_request_resp)   { ProtocolSpecFakeResponse.new('400', 'bad request') }
-  let(:bad_json_response)  { ProtocolSpecFakeResponse.new('200', 'not-json{') }
+  let(:ok_response)         { fake_http_response(200, 'raw_body') }
+  let(:json_response)       { fake_http_response(200, '{"txid":"abc"}') }
+  let(:array_response)      { fake_http_response(200, '[{"txid":"abc"}]') }
+  let(:wrapped_array_resp)  { fake_http_response(200, '{"result":[{"txid":"abc"}],"error":""}') }
+  let(:hash_no_result_resp) { fake_http_response(200, '{"address":"1abc","error":""}') }
+  let(:not_found_response)  { fake_http_response(404, 'not found') }
+  let(:too_many_response)   { fake_http_response(429, 'rate limited') }
+  let(:server_error_resp)   { fake_http_response(500, 'server error') }
+  let(:bad_request_resp)    { fake_http_response(400, 'bad request') }
+  let(:bad_json_response)   { fake_http_response(200, 'not-json{') }
 
   def make_instance(response, api_key: nil)
     http = ProtocolSpecFakeHttpClient.new(response)
@@ -185,20 +182,21 @@ RSpec.describe 'BSV::Network::Protocol' do
   end
 
   # ---------------------------------------------------------------------------
-  # HTTP dispatch (Task 3)
+  # HTTP dispatch
   # ---------------------------------------------------------------------------
 
   describe '#call — escape hatch dispatch' do
     it 'delegates to call_<name> when defined' do
       klass = Class.new(test_protocol_class) do
         def call_broadcast(*_args, **_kwargs)
-          BSV::Network::Result::Success.new(data: 'escape_hatch')
+          BSV::Network::ProtocolResponse.new(nil, data: 'escape_hatch', http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
       instance = klass.new(base_url: 'https://api.example.com', http_client: http)
       result   = instance.call(:broadcast)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to eq('escape_hatch')
     end
 
@@ -208,7 +206,7 @@ RSpec.describe 'BSV::Network::Protocol' do
         define_method(:call_get_tx) do |*args, **kwargs|
           received[:args]   = args
           received[:kwargs] = kwargs
-          BSV::Network::Result::Success.new(data: nil)
+          BSV::Network::ProtocolResponse.new(nil, http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
@@ -221,7 +219,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'accepts escape hatch command as String' do
       klass = Class.new(test_protocol_class) do
         def call_get_tx(*_args, **_kwargs)
-          BSV::Network::Result::Success.new(data: 'string_command')
+          BSV::Network::ProtocolResponse.new(nil, data: 'string_command', http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
@@ -238,7 +236,8 @@ RSpec.describe 'BSV::Network::Protocol' do
   describe '#call — falls through to HTTP' do
     it 'calls default_call when no escape hatch is defined' do
       result = make_instance(ok_response).call(:get_raw)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to eq('raw_body')
     end
 
@@ -290,7 +289,7 @@ RSpec.describe 'BSV::Network::Protocol' do
     it 'bypasses any escape hatch method' do
       klass = Class.new(test_protocol_class) do
         def call_get_raw(*_args, **_kwargs)
-          BSV::Network::Result::Success.new(data: 'escape')
+          BSV::Network::ProtocolResponse.new(nil, data: 'escape', http_success: true)
         end
       end
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
@@ -302,81 +301,98 @@ RSpec.describe 'BSV::Network::Protocol' do
   describe '#default_call — response handlers' do
     it ':raw returns body as a String' do
       result = make_instance(ok_response).default_call(:get_raw)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to eq('raw_body')
     end
 
     it ':json parses body to Hash' do
       result = make_instance(json_response).default_call(:get_info)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to eq({ 'txid' => 'abc' })
     end
 
     it ':json_array parses body to Array' do
       result = make_instance(array_response).default_call(:get_list)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first).to eq({ 'txid' => 'abc' })
     end
 
     it ':json_array unwraps Hash with result key' do
       result = make_instance(wrapped_array_resp).default_call(:get_list)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first).to eq({ 'txid' => 'abc' })
     end
 
     it ':json_array rejects Hash without result key' do
       result = make_instance(hash_no_result_resp).default_call(:get_list)
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).not_to be_http_success
       expect(result.message).to match(/expected Array, got Hash/)
     end
 
     it 'custom lambda is called with body' do
       result = make_instance(ok_response).default_call(:custom)
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
       expect(result.data).to eq('RAW_BODY')
     end
 
-    it 'JSON parse failure returns Result::Error' do
+    it 'JSON parse failure returns error ProtocolResponse' do
       result = make_instance(bad_json_response).default_call(:get_info)
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).not_to be_http_success
       expect(result.message).to match(%r{JSON/response error})
       expect(result.retryable?).to be(false)
     end
   end
 
   describe '#default_call — HTTP status mapping' do
-    it '2xx returns Result::Success' do
-      expect(make_instance(ok_response).default_call(:get_raw))
-        .to be_a(BSV::Network::Result::Success)
+    it '2xx returns successful ProtocolResponse' do
+      result = make_instance(ok_response).default_call(:get_raw)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_success
     end
 
-    it '404 returns Result::NotFound' do
-      expect(make_instance(not_found_response).default_call(:get_raw))
-        .to be_a(BSV::Network::Result::NotFound)
+    it '404 returns not_found ProtocolResponse' do
+      result = make_instance(not_found_response).default_call(:get_raw)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).to be_http_not_found
     end
 
-    it '429 returns Result::Error with retryable: true' do
+    it '429 returns retryable error ProtocolResponse' do
       result = make_instance(too_many_response).default_call(:get_raw)
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
 
-    it '5xx returns Result::Error with retryable: true' do
+    it '5xx returns retryable error ProtocolResponse' do
       result = make_instance(server_error_resp).default_call(:get_raw)
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
 
-    it 'other 4xx returns Result::Error with retryable: false' do
+    it 'other 4xx returns non-retryable error ProtocolResponse' do
       result = make_instance(bad_request_resp).default_call(:get_raw)
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).to be_a(BSV::Network::ProtocolResponse)
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(false)
     end
 
-    it 'Error message contains response body' do
+    it 'error message contains response body' do
       expect(make_instance(bad_request_resp).default_call(:get_raw).message).to eq('bad request')
+    end
+
+    it 'response code is the HTTP status code string' do
+      result = make_instance(not_found_response).default_call(:get_raw)
+      expect(result.code).to eq('404')
     end
   end
 

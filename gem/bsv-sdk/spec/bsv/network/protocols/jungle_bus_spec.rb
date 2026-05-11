@@ -12,14 +12,14 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       attr_reader :last_uri, :last_request
 
       def initialize(code, body)
-        @code = code.to_s
+        @code = code.to_i
         @body = body
       end
 
       def request(uri, req)
         @last_uri     = uri
         @last_request = req
-        Struct.new(:code, :body).new(@code, @body)
+        FakeHttpResponse.fake_http_response(@code, @body)
       end
     end
   end
@@ -74,7 +74,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_tx, genesis_txid)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data['id']).to eq(genesis_txid)
       expect(result.data['block_height']).to eq(0)
       expect(result.data['transaction']).to be_a(String)
@@ -89,13 +89,13 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       expect(http_client.last_uri.path).to end_with("/v1/transaction/get/#{genesis_txid}")
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
 
       result = proto.call(:get_tx, 'unknown')
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -116,7 +116,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_address_meta, address)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first['transaction_id']).to eq('abc123')
     end
@@ -147,7 +147,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_address_txs, address)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.first['id']).to eq('abc123')
     end
@@ -187,7 +187,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_block_header, 556_767)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data['height']).to eq(556_767)
       expect(result.data['hash']).to start_with('0000000000')
     end
@@ -201,13 +201,13 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       expect(http_client.last_uri.path).to end_with('/v1/block_header/get/556767')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       http_client = fake(404, 'not found')
       proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
 
       result = proto.call(:get_block_header, 99_999_999)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
   end
 
@@ -229,7 +229,7 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
       result = proto.call(:get_block_headers, 948_120)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to be_an(Array)
       expect(result.data.length).to eq(2)
       expect(result.data[0]['height']).to eq(948_120)

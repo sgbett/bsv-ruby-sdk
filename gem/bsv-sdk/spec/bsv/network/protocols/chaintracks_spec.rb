@@ -8,14 +8,14 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       attr_reader :last_uri, :last_request
 
       def initialize(code, body)
-        @code = code
+        @code = code.to_i
         @body = body
       end
 
       def request(uri, req)
         @last_uri     = uri
         @last_request = req
-        Struct.new(:code, :body).new(@code.to_s, @body)
+        FakeHttpResponse.fake_http_response(@code, @body)
       end
     end
   end
@@ -41,7 +41,7 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       instance, _http = make_instance(200, header_body)
       result = instance.call(:get_block_header, height: 800_000)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to eq({ 'hash' => 'abc123', 'height' => 800_000, 'merkleroot' => 'def456' })
     end
 
@@ -52,12 +52,12 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       expect(http.last_uri.to_s).to eq('https://arcade.gorillapool.io/chaintracks/v2/header/height/800000')
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:get_block_header, height: 9_999_999)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
-      expect(result.not_found?).to be(true)
+      expect(result).to be_http_not_found
+      expect(result.http_not_found?).to be(true)
     end
 
     it 'accepts height as a positional argument' do
@@ -75,7 +75,7 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       instance, _http = make_instance(200, tip_body)
       result = instance.call(:current_height)
 
-      expect(result).to be_a(BSV::Network::Result::Success)
+      expect(result).to be_http_success
       expect(result.data).to eq(825_000)
     end
 
@@ -86,18 +86,18 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
       expect(result.data).to be_an(Integer)
     end
 
-    it 'returns Result::NotFound on 404' do
+    it 'returns not_found on 404' do
       instance, _http = make_instance(404, 'not found')
       result = instance.call(:current_height)
 
-      expect(result).to be_a(BSV::Network::Result::NotFound)
+      expect(result).to be_http_not_found
     end
 
-    it 'returns Result::Error with retryable true on 5xx' do
+    it 'returns error with retryable true on 5xx' do
       instance, _http = make_instance(503, 'service unavailable')
       result = instance.call(:current_height)
 
-      expect(result).to be_a(BSV::Network::Result::Error)
+      expect(result).not_to be_http_success
       expect(result.retryable?).to be(true)
     end
   end

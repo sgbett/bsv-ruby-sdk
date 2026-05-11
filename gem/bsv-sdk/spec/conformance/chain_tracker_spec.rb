@@ -21,7 +21,7 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
   let(:tracker) { described_class.new(http_client: http_client) }
 
   def mock_response(code, body)
-    instance_double(Net::HTTPResponse, code: code.to_s, body: body)
+    fake_http_response(code, body)
   end
 
   def block_header_json(merkle_root, height: 0)
@@ -108,7 +108,7 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
       )
 
       expect { tracker.valid_root_for_height?(genesis_merkle_root, 100) }
-        .to raise_error(BSV::Network::ChainProviderError)
+        .to raise_error(RuntimeError)
     end
 
     # Go SDK: TestWhatsOnChainCurrentHeight

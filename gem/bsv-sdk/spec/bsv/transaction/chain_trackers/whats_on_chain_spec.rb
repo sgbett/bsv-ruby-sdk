@@ -25,7 +25,7 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
   end
 
   def mock_response(code, body)
-    instance_double(Net::HTTPResponse, code: code.to_s, body: body)
+    fake_http_response(code, body)
   end
 
   describe '#valid_root_for_height?' do
@@ -53,11 +53,11 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
       expect(tracker.valid_root_for_height?(merkle_root, 999_999_999)).to be false
     end
 
-    it 'raises ChainProviderError for server errors' do
+    it 'raises on server error' do
       allow(http_client).to receive(:request).and_return(mock_response(500, 'Internal Server Error'))
 
       expect { tracker.valid_root_for_height?(merkle_root, 0) }
-        .to raise_error(BSV::Network::ChainProviderError) { |e| expect(e.status_code).to eq(500) }
+        .to raise_error(RuntimeError, 'Internal Server Error')
     end
 
     it 'sends request to correct URL for mainnet' do
@@ -93,11 +93,11 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
       expect(tracker.current_height).to eq(800_123)
     end
 
-    it 'raises ChainProviderError on failure' do
+    it 'raises on failure' do
       allow(http_client).to receive(:request).and_return(mock_response(503, 'Unavailable'))
 
       expect { tracker.current_height }
-        .to raise_error(BSV::Network::ChainProviderError) { |e| expect(e.status_code).to eq(503) }
+        .to raise_error(RuntimeError, 'Unavailable')
     end
   end
 

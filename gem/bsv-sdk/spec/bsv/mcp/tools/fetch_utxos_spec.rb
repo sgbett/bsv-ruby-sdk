@@ -7,13 +7,15 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
 
   let(:mock_http_class) do
     Class.new do
+      include FakeHttpResponse
+
       def initialize(code, body)
         @code = code
         @body = body
       end
 
       def request(_uri, _req)
-        Struct.new(:code, :body).new(@code.to_s, @body)
+        fake_http_response(@code, @body)
       end
     end
   end

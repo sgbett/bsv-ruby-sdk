@@ -20,8 +20,8 @@ module BSV
     #
     # HTTP dispatch routes through +call+: if a +call_<name>+ escape hatch
     # method exists on the instance, it is called; otherwise +default_call+
-    # interpolates the URL template, makes the HTTP request, and maps the
-    # response to a +Result+.
+    # interpolates the URL template, makes the HTTP request, and wraps the
+    # response in a +ProtocolResponse+.
     #
     # == Example
     #
@@ -127,14 +127,14 @@ module BSV
       #
       # If a method named +call_<command_name>+ exists on the instance it is
       # used as an escape hatch — that method receives +args+ and +kwargs+
-      # and MUST return a +Result+. Otherwise +default_call+ is invoked.
+      # and MUST return a +ProtocolResponse+. Otherwise +default_call+ is invoked.
       #
       # Subscriptions are not callable; calling one raises +NotImplementedError+.
       #
       # @param command_name [Symbol, String] command to invoke
       # @param args   [Array]  positional arguments forwarded to path interpolation
       # @param kwargs [Hash]   keyword arguments forwarded to path interpolation
-      # @return [Result::Success, Result::Error, Result::NotFound]
+      # @return [ProtocolResponse]
       # @raise [ArgumentError] when command_name is not registered
       def call(command_name, *args, **kwargs)
         name = command_name.to_sym
@@ -146,6 +146,7 @@ module BSV
 
         escape = :"call_#{name}"
         if respond_to?(escape, true)
+          BSV.logger&.debug { "[Protocol] #{self.class.name} :#{name} → escape hatch" }
           return kwargs.empty? ? send(escape, *args) : send(escape, *args, **kwargs)
         end
 
@@ -164,7 +165,7 @@ module BSV
       # @param command_name [Symbol] registered command name
       # @param args   [Array]  positional path parameters
       # @param kwargs [Hash]   named path parameters (and optional +:body+)
-      # @return [Result::Success, Result::Error, Result::NotFound]
+      # @return [ProtocolResponse]
       # @raise [ArgumentError] when command_name is not registered or a
       #   required path parameter is missing
       def default_call(command_name, *args, **kwargs)
@@ -176,9 +177,12 @@ module BSV
         path       = interpolate_path(defn[:path], args, kwargs)
         uri        = URI("#{@base_url}#{path}")
         request    = build_request(defn[:method], uri, body)
-        response   = execute(uri, request)
 
-        map_response(response, defn[:response])
+        BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{uri}" }
+
+        response = execute(uri, request)
+
+        build_response(response, defn[:response])
       end
 
       private
@@ -313,38 +317,47 @@ module BSV
         end
       end
 
-      # Maps an HTTP response to a Result type, applying the response handler
-      # on 2xx bodies.
+      # Wraps an HTTP response in a +ProtocolResponse+, applying the response
+      # handler on 2xx bodies.
       #
-      # All non-2xx results carry +status_code:+ in their +metadata+ hash so
-      # that facades can construct domain exceptions with the original HTTP code.
+      # On 2xx responses, the handler is applied and the result stored in +data+.
+      # If the handler raises +JSON::ParserError+ or +TypeError+, the response
+      # is marked as an error with the exception message.
+      #
+      # On non-2xx responses, the raw body is stored as +error_message+.
       #
       # @param response [Net::HTTPResponse]
       # @param handler  [Symbol, #call]
-      # @return [Result::Success, Result::Error, Result::NotFound]
-      def map_response(response, handler)
-        code = response.code.to_i
+      # @return [ProtocolResponse]
+      def build_response(response, handler)
+        result = if response.is_a?(Net::HTTPSuccess)
+                   begin
+                     data = apply_handler(response.body, handler)
+                     ProtocolResponse.new(response, data: data)
+                   rescue JSON::ParserError, TypeError => e
+                     ProtocolResponse.new(response, http_success: false,
+                                                    error_message: "JSON/response error: #{e.message}")
+                   end
+                 else
+                   ProtocolResponse.new(response, error_message: response.body)
+                 end
 
-        case code
-        when 200..299
-          data = apply_handler(response.body, handler)
-          return data if data.is_a?(Result::Error)
-
-          Result::Success.new(data: data)
-        when 404
-          Result::NotFound.new(message: response.body, metadata: { status_code: code })
-        when 429, 500..599
-          Result::Error.new(message: response.body, retryable: true, metadata: { status_code: code })
-        else
-          Result::Error.new(message: response.body, retryable: false, metadata: { status_code: code })
+        BSV.logger&.debug do
+          "[Protocol] HTTP #{response.code} → http_success=#{result.http_success?}" \
+            "#{" error=#{result.error_message[0, 80]}" if result.error_message}"
         end
+
+        result
       end
 
       # Applies the response handler to a raw body string.
       #
+      # Exceptions from JSON parsing or type mismatches propagate to the caller
+      # (+build_response+) which handles them uniformly.
+      #
       # @param body    [String, nil]
       # @param handler [Symbol, #call]
-      # @return [Object, Result::Error]
+      # @return [Object]
       def apply_handler(body, handler)
         return body if body.nil?
 
@@ -365,8 +378,6 @@ module BSV
 
           handler.call(body)
         end
-      rescue JSON::ParserError, TypeError => e
-        Result::Error.new(message: "JSON/response error: #{e.message}", retryable: false)
       end
     end
   end

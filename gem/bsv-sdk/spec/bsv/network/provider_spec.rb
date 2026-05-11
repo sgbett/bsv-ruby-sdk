@@ -216,9 +216,7 @@ RSpec.describe 'BSV::Network::Provider' do
 
   describe '#call' do
     let(:mock_response) do
-      resp = double('response') # rubocop:disable RSpec/VerifiedDoubles
-      allow(resp).to receive_messages(code: '200', body: '{"txid":"abc123","txStatus":"MINED"}')
-      resp
+      fake_http_response(200, '{"txid":"abc123","txStatus":"MINED"}')
     end
 
     it 'dispatches to the correct protocol' do
@@ -233,7 +231,7 @@ RSpec.describe 'BSV::Network::Provider' do
       allow(tx).to receive(:to_ef_hex).and_return('deadbeef')
 
       result = p.call(:broadcast, tx)
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
 
     it 'raises ArgumentError for an unknown command' do
@@ -257,17 +255,8 @@ RSpec.describe 'BSV::Network::Provider' do
   # ── First-registered wins ─────────────────────────────────────────────────────
 
   describe 'first-registered-wins for duplicate commands' do
-    let(:ct_response) do
-      resp = double('response') # rubocop:disable RSpec/VerifiedDoubles
-      allow(resp).to receive_messages(code: '200', body: '{"height":1000}')
-      resp
-    end
-
-    let(:woc_response) do
-      resp = double('response') # rubocop:disable RSpec/VerifiedDoubles
-      allow(resp).to receive_messages(code: '200', body: '{"blocks":900}')
-      resp
-    end
+    let(:ct_response)  { fake_http_response(200, '{"height":1000}') }
+    let(:woc_response) { fake_http_response(200, '{"blocks":900}') }
 
     let(:ct_client)  { double('ct_http_client') } # rubocop:disable RSpec/VerifiedDoubles
     let(:woc_client) { double('woc_http_client') } # rubocop:disable RSpec/VerifiedDoubles
@@ -281,7 +270,7 @@ RSpec.describe 'BSV::Network::Provider' do
       end
 
       result = p.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       # Chaintracks returns the height integer directly; WoCREST would return 900
       expect(result.data).to eq(1000)
     end
@@ -295,7 +284,7 @@ RSpec.describe 'BSV::Network::Provider' do
       end
 
       result = p.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
       expect(result.data).to eq(900)
     end
 
@@ -321,7 +310,7 @@ RSpec.describe 'BSV::Network::Provider' do
       expect(first_instance.base_url).to eq('https://ct1.example.com')
       # Verify dispatch hits the first instance
       result = p.call(:current_height)
-      expect(result).to be_success
+      expect(result).to be_http_success
     end
   end
 
