@@ -67,12 +67,19 @@ module BSV
 
       # Derive new response with overrides (same HTTP response, different interpretation)
       def with(**overrides)
-        self.class.new(
+        derived = self.class.new(
           @http_response,
           data: overrides.fetch(:data, @data),
           http_success: overrides.fetch(:http_success, @http_success),
           error_message: overrides.fetch(:error_message, @error_message)
         )
+
+        BSV.logger&.debug do
+          changes = overrides.keys.map { |k| "#{k}=#{overrides[k].inspect[0, 40]}" }.join(' ')
+          "[ProtocolResponse] with(#{changes})"
+        end
+
+        derived
       end
     end
   end

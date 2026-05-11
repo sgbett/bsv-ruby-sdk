@@ -146,6 +146,7 @@ module BSV
 
         escape = :"call_#{name}"
         if respond_to?(escape, true)
+          BSV.logger&.debug { "[Protocol] #{self.class.name} :#{name} → escape hatch" }
           return kwargs.empty? ? send(escape, *args) : send(escape, *args, **kwargs)
         end
 
@@ -176,7 +177,10 @@ module BSV
         path       = interpolate_path(defn[:path], args, kwargs)
         uri        = URI("#{@base_url}#{path}")
         request    = build_request(defn[:method], uri, body)
-        response   = execute(uri, request)
+
+        BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{uri}" }
+
+        response = execute(uri, request)
 
         build_response(response, defn[:response])
       end
@@ -326,16 +330,24 @@ module BSV
       # @param handler  [Symbol, #call]
       # @return [ProtocolResponse]
       def build_response(response, handler)
-        if response.is_a?(Net::HTTPSuccess)
-          begin
-            data = apply_handler(response.body, handler)
-            ProtocolResponse.new(response, data: data)
-          rescue JSON::ParserError, TypeError => e
-            ProtocolResponse.new(response, http_success: false, error_message: "JSON/response error: #{e.message}")
-          end
-        else
-          ProtocolResponse.new(response, error_message: response.body)
+        result = if response.is_a?(Net::HTTPSuccess)
+                   begin
+                     data = apply_handler(response.body, handler)
+                     ProtocolResponse.new(response, data: data)
+                   rescue JSON::ParserError, TypeError => e
+                     ProtocolResponse.new(response, http_success: false,
+                                                    error_message: "JSON/response error: #{e.message}")
+                   end
+                 else
+                   ProtocolResponse.new(response, error_message: response.body)
+                 end
+
+        BSV.logger&.debug do
+          "[Protocol] HTTP #{response.code} → http_success=#{result.http_success?}" \
+            "#{" error=#{result.error_message[0, 80]}" if result.error_message}"
         end
+
+        result
       end
 
       # Applies the response handler to a raw body string.
