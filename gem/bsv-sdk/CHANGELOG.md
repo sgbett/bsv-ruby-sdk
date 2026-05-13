@@ -5,6 +5,14 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.1 — 2026-05-13
+
+### Fixed
+- `Stack#length` missing — raised `NoMethodError` in interpreter debug logging when `BSV.logger` level was DEBUG (#752)
+
+### Changed
+- `Stack#length` and `Stack#size` aliased to `Stack#depth` rather than re-implementing
+
 ## 0.19.0 — 2026-05-11
 
 ### Breaking Changes
