@@ -98,6 +98,9 @@ module BSV
         @items.length
       end
 
+      alias length depth
+      alias size depth
+
       def empty?
         @items.empty?
       end
