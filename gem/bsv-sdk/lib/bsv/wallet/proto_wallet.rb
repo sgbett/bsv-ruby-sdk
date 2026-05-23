@@ -350,13 +350,7 @@ module BSV
       def secure_compare(a, b)
         return false unless a.bytesize == b.bytesize
 
-        if OpenSSL.respond_to?(:fixed_length_secure_compare)
-          OpenSSL.fixed_length_secure_compare(a, b)
-        else
-          result = 0
-          a.bytes.zip(b.bytes) { |x, y| result |= x ^ y }
-          result.zero?
-        end
+        OpenSSL.fixed_length_secure_compare(a, b)
       end
     end
   end
