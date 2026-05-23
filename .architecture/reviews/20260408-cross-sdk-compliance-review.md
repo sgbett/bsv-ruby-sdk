@@ -474,6 +474,8 @@ Proposed deliverables (verbatim):
 >
 > "Ruby 2.7 constraint reminder: avoid `Hash#except`, pattern matching, `Data.define`. CI should actually run against 2.7 through 3.4 — the gemspec claims 2.7 but I suspect we're not testing it."
 >
+> *[Editorial note, May 2026: The minimum has since been raised to Ruby 3.3 (PR #754). The 2.7 compatibility constraint and the CI gap noted here no longer apply.]*
+>
 > "OpenSSL::PKey::EC shim: Worth a specialist follow-up on whether the shim can be retired entirely now that pure-Ruby secp256k1 exists — it's an attack surface (F2.9) and a maintenance burden."
 
 ### Cryptography Specialist (Dr. Elena Vasquez)

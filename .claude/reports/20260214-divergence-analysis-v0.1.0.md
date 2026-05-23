@@ -183,7 +183,7 @@ The Ruby SDK is primarily a **faithful translation** of reference SDK capabiliti
 |------|-------------|
 | **OpenSSL curve backend** | Only SDK to use stdlib OpenSSL for secp256k1 — all others use custom implementations or libsecp256k1 bindings. This is an architectural choice (documented in ADR), not a divergence. |
 | **BSV::Attest module** | Scaffolded module for document attestation. Not present in any reference SDK. Currently a stub. |
-| **Ruby 2.7 compatibility** | Active constraint avoiding Ruby 3.0+ features. No other SDK targets equivalent backwards compatibility. |
+| **Ruby 3.3 minimum** | Floor raised from 2.7 to 3.3 (branch `feat/754-ruby-3.3-minimum`). Ruby 3.0+ features (pattern matching, `Hash#except`, `Data.define`) are now available. No longer an unusual backwards-compatibility divergence from the other SDKs. |
 | **Script type detection** | More comprehensive type detection predicates (`p2pkh?`, `p2pk?`, `p2sh?`, `multisig?`, `op_return?`) than Go or TS SDKs. Python has template-based detection instead. |
 | **P2SH read-only detection** | Explicit "recognise but don't construct" pattern for P2SH — documented philosophy not formally adopted by other SDKs (they simply omit P2SH). |
 
