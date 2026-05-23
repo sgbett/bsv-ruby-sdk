@@ -3,7 +3,7 @@
 [![CI](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sgbett/bsv-ruby-sdk/branch/master/graph/badge.svg)](https://codecov.io/gh/sgbett/bsv-ruby-sdk)
 [![Gem Version](https://img.shields.io/gem/v/bsv-sdk)](https://rubygems.org/gems/bsv-sdk)
-[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-red)](https://rubygems.org/gems/bsv-sdk)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.3-red)](https://rubygems.org/gems/bsv-sdk)
 
 A comprehensive Ruby SDK for the BSV Blockchain, built with faithful adherence to the [BRC specifications](https://github.com/bitcoin-sv/BRCs) and cross-SDK compatibility with the official [TypeScript](https://github.com/bsv-blockchain/ts-sdk), [Go](https://github.com/bsv-blockchain/go-sdk), and [Python](https://github.com/bsv-blockchain/py-sdk) implementations. The Ruby SDK strives to be a complete, correct, and well-tested implementation that serves the Ruby community — one that developers can rely on as a reference-quality foundation for BSV application development.
 
@@ -44,7 +44,7 @@ This Ruby SDK brings maximum compatibility with the official SDK family to the R
 
 ### Requirements
 
-- Ruby >= 2.7
+- Ruby >= 3.3
 - No external dependencies beyond Ruby's standard library (`openssl` for hashing, HMAC, PBKDF2, and AES)
 
 ### Installation

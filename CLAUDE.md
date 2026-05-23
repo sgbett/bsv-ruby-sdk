@@ -28,8 +28,9 @@ cd gem/bsv-sdk && gem build bsv-sdk.gemspec  # build gem (must run from inside g
 ## Ruby Version Compatibility
 
 - **Development:** Ruby 3.4.2 (`.ruby-version`)
-- **Gem minimum:** `required_ruby_version >= 2.7` (gemspec)
-- **Constraint:** Do not use Ruby 3.0+ features (pattern matching, `Hash#except`, `Data.define`, endless methods). The gem must run on Ruby 2.7. CI should test against 2.7.
+- **Gem minimum:** `required_ruby_version >= 3.3` (gemspec)
+- **Constraint:** Do not use Ruby 3.4+ features (e.g. `it` block parameter). The gem must run on Ruby 3.3. CI tests against 3.3, 3.4, and 4.0.
+- **Available:** Pattern matching, `Hash#except`, `Data.define`, endless methods, and all Ruby 3.0–3.3 features are available and encouraged where they improve clarity.
 
 ## Architecture
 
@@ -99,7 +100,7 @@ Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base
 - Dev dependencies go in `Gemfile`, not in gemspec `add_development_dependency`
 - No `ruby` directive in Gemfile (hard Bundler constraint inappropriate for libraries)
 - All files use `# frozen_string_literal: true`
-- RuboCop targets Ruby 2.7; single-quoted strings preferred
+- RuboCop targets Ruby 3.3; single-quoted strings preferred
 ## Releasing Gems
 
 Use `/release <key>` as the canonical release mechanism. The skill guides you through pre-flight checks, version bumping, changelog generation, tagging, pushing, gem build, RubyGems push, and GitHub release creation — one gem at a time.
