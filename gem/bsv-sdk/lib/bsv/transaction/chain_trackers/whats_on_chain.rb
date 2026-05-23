@@ -22,8 +22,8 @@ module BSV
         # @param testnet [Boolean] when true, uses the testnet endpoint
         # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [WhatsOnChain]
-        def self.default(testnet: false, **opts)
-          provider = BSV::Network::Providers::WhatsOnChain.default(testnet: testnet, **opts)
+        def self.default(testnet: false, **)
+          provider = BSV::Network::Providers::WhatsOnChain.default(testnet: testnet, **)
           new(protocol: provider.protocol_for(:valid_root))
         end
 

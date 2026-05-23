@@ -3,9 +3,9 @@
 require 'spec_helper'
 
 # Constants defined at spec-file scope to avoid Lint/ConstantDefinitionInBlock.
-REGISTRY_SPEC_IDENTITY_KEY   = "02#{'ab' * 32}"
+REGISTRY_SPEC_IDENTITY_KEY   = "02#{'ab' * 32}".freeze
 REGISTRY_SPEC_TXID           = 'cd' * 32
-REGISTRY_SPEC_LOCKING_HEX    = "76a914#{'ff' * 20}88ac"
+REGISTRY_SPEC_LOCKING_HEX    = "76a914#{'ff' * 20}88ac".freeze
 REGISTRY_SPEC_BEEF_BYTES     = 'fake_beef_bytes'
 
 RSpec.describe 'BSV::Registry::Client' do

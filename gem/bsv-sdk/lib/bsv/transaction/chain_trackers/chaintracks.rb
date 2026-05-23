@@ -21,8 +21,8 @@ module BSV
         # @param testnet [Boolean] when true, uses the testnet endpoint
         # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [Chaintracks]
-        def self.default(testnet: false, **opts)
-          provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **opts)
+        def self.default(testnet: false, **)
+          provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **)
           protocol = provider.protocol_for(:current_height)
           new(protocol: protocol)
         end

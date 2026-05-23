@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
-
 module BSV
   module Network
     # Provider is a named configuration container that hosts one or more Protocol
@@ -58,8 +56,8 @@ module BSV
       # @param klass  [Class]  a Protocol subclass
       # @param kwargs [Hash]   keyword arguments forwarded to +klass.new+
       # @return [Protocol] the newly created protocol instance
-      def protocol(klass, **kwargs)
-        instance = klass.new(**kwargs)
+      def protocol(klass, **)
+        instance = klass.new(**)
         @protocols << instance
         klass.commands.each do |cmd|
           @command_index[cmd] ||= instance
@@ -126,12 +124,12 @@ module BSV
       # @param kwargs [Hash]   keyword arguments forwarded to the protocol
       # @return [ProtocolResponse]
       # @raise [ArgumentError] when no registered protocol serves the command
-      def call(command_name, *args, **kwargs)
+      def call(command_name, *, **)
         sym      = command_name.to_sym
         instance = @command_index[sym]
         raise ArgumentError, "#{@name} does not provide command :#{sym}" unless instance
 
-        instance.call(sym, *args, **kwargs)
+        instance.call(sym, *, **)
       end
 
       private

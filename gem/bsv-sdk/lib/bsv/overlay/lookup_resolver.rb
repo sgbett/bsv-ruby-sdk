@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
 require 'uri'
 
 module BSV

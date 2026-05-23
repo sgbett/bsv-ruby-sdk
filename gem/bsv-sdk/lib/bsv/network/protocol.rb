@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
 require 'net/http'
 require 'json'
 require 'uri'
@@ -136,7 +135,7 @@ module BSV
       # @param kwargs [Hash]   keyword arguments forwarded to path interpolation
       # @return [ProtocolResponse]
       # @raise [ArgumentError] when command_name is not registered
-      def call(command_name, *args, **kwargs)
+      def call(command_name, *, **kwargs)
         name = command_name.to_sym
 
         if self.class.subscriptions.key?(name)
@@ -147,10 +146,10 @@ module BSV
         escape = :"call_#{name}"
         if respond_to?(escape, true)
           BSV.logger&.debug { "[Protocol] #{self.class.name} :#{name} → escape hatch" }
-          return kwargs.empty? ? send(escape, *args) : send(escape, *args, **kwargs)
+          return kwargs.empty? ? send(escape, *) : send(escape, *, **kwargs)
         end
 
-        default_call(name, *args, **kwargs)
+        default_call(name, *, **kwargs)
       end
 
       # Dispatches a command directly via HTTP, bypassing any escape hatch.

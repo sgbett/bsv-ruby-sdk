@@ -338,7 +338,7 @@ RSpec.describe BSV::Auth::Certificate do
     # itself never calls toBinary on this object. Binary round-trip tests use
     # properly-generated 32-byte type and serial_number values instead.
     it 'parses all fields and reconstructs a matching hash' do
-      expect(ts_cert.to_h.reject { |k, _| k == 'signature' }).to eq(CERT_TS_VECTOR.reject { |k, _| k == 'signature' })
+      expect(ts_cert.to_h.except('signature')).to eq(CERT_TS_VECTOR.except('signature'))
     end
   end
 

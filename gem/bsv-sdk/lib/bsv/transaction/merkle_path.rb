@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
-
 module BSV
   module Transaction
     # A BRC-74 merkle path (BUMP — Bitcoin Unified Merkle Path).

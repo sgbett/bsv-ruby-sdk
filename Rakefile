@@ -65,7 +65,7 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
   task :protocols do # rubocop:disable Metrics/BlockLength
     require 'fileutils'
 
-    protocols_src = Dir['gem/bsv-sdk/lib/bsv/network/protocols/*.rb'].sort
+    protocols_src = Dir['gem/bsv-sdk/lib/bsv/network/protocols/*.rb']
     output_dir    = 'docs/network/protocols'
     FileUtils.mkdir_p(output_dir)
 
@@ -214,7 +214,7 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
   task providers: :protocols do # rubocop:disable Metrics/BlockLength
     require 'fileutils'
 
-    providers_src = Dir['gem/bsv-sdk/lib/bsv/network/providers/*.rb'].sort
+    providers_src = Dir['gem/bsv-sdk/lib/bsv/network/providers/*.rb']
     output_dir    = 'docs/network/protocols'
     FileUtils.mkdir_p(output_dir)
 

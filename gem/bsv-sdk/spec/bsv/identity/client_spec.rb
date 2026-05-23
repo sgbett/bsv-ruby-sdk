@@ -4,8 +4,8 @@ require 'spec_helper'
 
 # Constants used across the describe blocks — defined at spec-file scope
 # to avoid Lint/ConstantDefinitionInBlock.
-IDENTITY_CLIENT_SPEC_PUBKEY = "02#{'ab' * 32}"
-IDENTITY_CLIENT_SPEC_CERTIFIER = "03#{'cd' * 32}"
+IDENTITY_CLIENT_SPEC_PUBKEY = "02#{'ab' * 32}".freeze
+IDENTITY_CLIENT_SPEC_CERTIFIER = "03#{'cd' * 32}".freeze
 
 RSpec.describe 'BSV::Identity::Client' do
   subject(:client) { described_class.new(wallet: wallet) }

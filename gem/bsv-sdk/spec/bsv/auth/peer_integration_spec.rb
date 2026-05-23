@@ -445,7 +445,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
           # intentionally drops all messages
         end
 
-        def on_data(&_block)
+        def on_data(&)
           # never delivers
         end
       end.new
@@ -470,7 +470,7 @@ RSpec.describe 'BSV::Auth::Peer integration' do # rubocop:disable RSpec/Describe
           raise 'transport unavailable'
         end
 
-        def on_data(&_block)
+        def on_data(&)
           # no-op
         end
       end.new

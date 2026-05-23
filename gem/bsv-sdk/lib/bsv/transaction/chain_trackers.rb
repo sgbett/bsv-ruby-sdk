@@ -12,8 +12,8 @@ module BSV
       # @param testnet [Boolean] use the testnet endpoint when true
       # @param opts [Hash] forwarded to the underlying tracker (e.g. +api_key:+)
       # @return [Chaintracks]
-      def self.default(testnet: false, **opts)
-        Chaintracks.default(testnet: testnet, **opts)
+      def self.default(testnet: false, **)
+        Chaintracks.default(testnet: testnet, **)
       end
     end
   end

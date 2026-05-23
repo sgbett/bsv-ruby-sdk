@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
   spec.homepage    = 'https://github.com/sgbett/bsv-ruby-sdk'
   spec.license     = 'LicenseRef-OpenBSV'
 
-  spec.required_ruby_version = '>= 2.7'
+  spec.required_ruby_version = '>= 3.3'
 
   spec.metadata = {
     'homepage_uri' => spec.homepage,

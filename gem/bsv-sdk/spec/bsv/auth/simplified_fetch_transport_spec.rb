@@ -353,7 +353,7 @@ RSpec.describe 'BSV::Auth::SimplifiedFetchTransport' do
     end
 
     it 'raises when required auth headers are missing from the general response' do
-      incomplete = auth_response_headers.reject { |k, _| k == 'x-bsv-auth-signature' }
+      incomplete = auth_response_headers.except('x-bsv-auth-signature')
       resp       = make_response_with_headers(incomplete, body: 'oops', code: '200')
       mock_http_client.configure(->(_req) { resp })
 
