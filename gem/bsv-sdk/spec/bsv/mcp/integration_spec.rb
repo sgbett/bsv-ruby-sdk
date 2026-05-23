@@ -21,8 +21,6 @@ RSpec.describe 'BSV MCP server — protocol integration' do
 
   # Build a well-formed JSON-RPC 2.0 request hash.
   # +req_id+ defaults to 1 and can be varied to avoid id collisions in examples.
-  # Ruby 2.7 interprets a trailing symbol-keyed hash as keyword args, so
-  # +req_id+ is positional (with a default) to avoid the ambiguity.
   def rpc(method, params = nil, req_id = 1)
     req = { jsonrpc: '2.0', id: req_id, method: method }
     req[:params] = params if params
