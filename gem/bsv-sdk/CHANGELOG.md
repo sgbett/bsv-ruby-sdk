@@ -5,6 +5,13 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.20.0 — 2026-05-24
+
+### Changed
+- Raise minimum Ruby version from 2.7 to 3.3; add Ruby 4.0 to CI matrix
+- Remove Ruby 2.7 compatibility workarounds (Point#add fallback, OpenSSL.fixed_length_secure_compare fallback)
+- Apply RuboCop modernisations unlocked by Ruby 3.3 target (anonymous forwarding, redundant `require 'set'`, `Hash#except`)
+
 ## 0.19.1 — 2026-05-13
 
 ### Fixed
