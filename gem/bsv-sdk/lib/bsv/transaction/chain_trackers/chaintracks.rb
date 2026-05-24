@@ -19,7 +19,7 @@ module BSV
         # Returns a Chaintracks instance using the GorillaPool provider default.
         #
         # @param testnet [Boolean] when true, uses the testnet endpoint
-        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
+        # @param ** [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [Chaintracks]
         def self.default(testnet: false, **)
           provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **)

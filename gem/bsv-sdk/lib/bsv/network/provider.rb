@@ -54,7 +54,7 @@ module BSV
       # execution.
       #
       # @param klass  [Class]  a Protocol subclass
-      # @param kwargs [Hash]   keyword arguments forwarded to +klass.new+
+      # @param **     [Hash]   keyword arguments forwarded to +klass.new+
       # @return [Protocol] the newly created protocol instance
       def protocol(klass, **)
         instance = klass.new(**)
@@ -120,8 +120,8 @@ module BSV
       # Dispatches a command to the first-registered protocol that serves it.
       #
       # @param command_name [Symbol, String] command to invoke
-      # @param args   [Array]  positional arguments forwarded to the protocol
-      # @param kwargs [Hash]   keyword arguments forwarded to the protocol
+      # @param *      [Array]  positional arguments forwarded to the protocol
+      # @param **     [Hash]   keyword arguments forwarded to the protocol
       # @return [ProtocolResponse]
       # @raise [ArgumentError] when no registered protocol serves the command
       def call(command_name, *, **)

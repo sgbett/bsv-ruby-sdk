@@ -20,7 +20,7 @@ module BSV
         # Returns a WhatsOnChain chain tracker using the provider default.
         #
         # @param testnet [Boolean] when true, uses the testnet endpoint
-        # @param opts [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
+        # @param ** [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [WhatsOnChain]
         def self.default(testnet: false, **)
           provider = BSV::Network::Providers::WhatsOnChain.default(testnet: testnet, **)

@@ -131,7 +131,7 @@ module BSV
       # Subscriptions are not callable; calling one raises +NotImplementedError+.
       #
       # @param command_name [Symbol, String] command to invoke
-      # @param args   [Array]  positional arguments forwarded to path interpolation
+      # @param *      [Array]  positional arguments forwarded to path interpolation
       # @param kwargs [Hash]   keyword arguments forwarded to path interpolation
       # @return [ProtocolResponse]
       # @raise [ArgumentError] when command_name is not registered
