@@ -98,21 +98,11 @@ module BSV
 
       # Add two curve points together.
       #
-      # Uses +Point#add+ where available (Ruby 3.0+ / OpenSSL 3), falling
-      # back to multi-scalar multiplication for Ruby 2.7 compatibility.
-      #
       # @param point_a [OpenSSL::PKey::EC::Point] first point
       # @param point_b [OpenSSL::PKey::EC::Point] second point
       # @return [OpenSSL::PKey::EC::Point] the sum of the two points
       def add_points(point_a, point_b)
-        if point_a.respond_to?(:add)
-          point_a.add(point_b)
-        else
-          # Ruby 2.7 / OpenSSL < 3: use multi-scalar mul
-          # point_a.mul(bns, points) = bns[0]*point_a + bns[1]*points[0] + ...
-          one = OpenSSL::BN.new('1')
-          point_a.mul([one, one], [point_b])
-        end
+        point_a.add(point_b)
       end
 
       # Extract the x-coordinate from a curve point as a big number.

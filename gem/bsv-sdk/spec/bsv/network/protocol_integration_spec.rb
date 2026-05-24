@@ -37,8 +37,8 @@ class TestIntegrationProtocol < BSV::Network::Protocol
   subscription :on_item_change, '/ws/items'
 
   # Escape hatch: delegates to the default GET path then augments the result.
-  def call_transform_item(*args, **kwargs)
-    result = default_call(:get_item, *args, **kwargs)
+  def call_transform_item(*, **)
+    result = default_call(:get_item, *, **)
     return result unless result.http_success?
 
     result.with(data: result.data.upcase)

@@ -15,16 +15,6 @@ require 'tmpdir'
 # rubocop:disable RSpec/InstanceVariable, RSpec/BeforeAfterAll
 RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
   before(:context) do
-    # OpenSSL::PKey::EC::Point#add was added in the openssl gem v3.0
-    # (bundled with Ruby 3.1+). The harness invokes a fresh subprocess
-    # using *stock* OpenSSL (not the shim), so we have to check the Ruby
-    # version directly — querying Point.method_defined?(:add) here would
-    # see the *shim's* implementation of #add, not stock OpenSSL's.
-    # The shim itself has direct unit-test coverage in
-    # spec/bsv/primitives/secp256k1_spec.rb that runs on every supported
-    # Ruby version.
-    skip 'requires openssl gem >= 3.0 (Ruby 3.1+)' if RUBY_VERSION < '3.1'
-
     @harness      = File.expand_path('integration_harness.rb', __dir__)
     @project_root = File.expand_path('../../..', __dir__)
     @openssl_dir  = Dir.mktmpdir('openssl_compliance_')

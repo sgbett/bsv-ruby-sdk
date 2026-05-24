@@ -224,9 +224,9 @@ implementation:
     ruby:
       style_guide: "RuboCop"
       idioms: "Idiomatic Ruby, snake_case, question-mark predicates, blocks"
-      minimum_version: "2.7"
+      minimum_version: "3.3"
       development_version: "3.4"
-      constraints: "No Ruby 3.0+ features (pattern matching, Hash#except, Data.define, endless methods)"
+      constraints: "No Ruby 3.4+ features (e.g. `it` block parameter); pattern matching, Hash#except, Data.define, and endless methods are available"
       dependencies: "Zero runtime gems; all cryptography via stdlib OpenSSL"
 
   testing:

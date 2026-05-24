@@ -334,7 +334,7 @@ module BSV
       }.freeze
 
       # Reverse lookup: opcode → hash type symbol (excludes :raw).
-      RPUZZLE_OP_TO_TYPE = RPUZZLE_HASH_OPS.reject { |k, _| k == :raw }.invert.freeze
+      RPUZZLE_OP_TO_TYPE = RPUZZLE_HASH_OPS.except(:raw).invert.freeze
 
       # The fixed opcode prefix shared by all RPuzzle locking scripts.
       # OP_OVER OP_3 OP_SPLIT OP_NIP OP_1 OP_SPLIT OP_SWAP OP_SPLIT OP_DROP

@@ -90,7 +90,7 @@ This document outlines the core architectural principles that guide all design d
 - Method signatures and class hierarchies should mirror reference SDKs where sensible
 - Use Ruby conventions: snake_case, question-mark predicates, blocks, enumerables
 - All cryptography through stdlib `OpenSSL` — no external gems
-- Maintain Ruby 2.7 compatibility (no pattern matching, `Hash#except`, `Data.define`, endless methods)
+- Maintain Ruby 3.3 compatibility (no Ruby 3.4+ features, e.g. `it` block parameter; pattern matching, `Hash#except`, `Data.define`, and endless methods are available)
 - When reference SDKs disagree, prefer the Go SDK as canonical
 - When reference SDKs lack coverage or are ambiguous, consult the [BSV Hub protocol documentation](https://hub.bsvblockchain.org/bitcoin-protocol-documentation) as the canonical protocol reference
 

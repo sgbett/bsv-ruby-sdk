@@ -194,14 +194,14 @@ members:
       - "API surface design"
       - "cross-version compatibility"
     skillsets:
-      - "Ruby 2.7 through 3.4"
+      - "Ruby 3.3 through 4.0"
       - "RSpec testing patterns"
       - "OpenSSL::PKey::EC and digest classes"
     domains:
       - "library/gem development"
       - "binary data serialisation"
       - "autoload and module structure"
-    perspective: "Evaluates whether the SDK uses idiomatic Ruby while maintaining compatibility back to Ruby 2.7. Focuses on gem packaging, public API ergonomics, and correct use of stdlib OpenSSL for all cryptographic operations."
+    perspective: "Evaluates whether the SDK uses idiomatic Ruby while maintaining compatibility back to Ruby 3.3. Focuses on gem packaging, public API ergonomics, and correct use of stdlib OpenSSL for all cryptographic operations."
 
   - id: cryptography_specialist
     name: "Dr. Elena Vasquez"

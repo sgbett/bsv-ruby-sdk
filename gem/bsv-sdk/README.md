@@ -3,7 +3,7 @@
 [![CI](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/sgbett/bsv-ruby-sdk/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sgbett/bsv-ruby-sdk/branch/master/graph/badge.svg)](https://codecov.io/gh/sgbett/bsv-ruby-sdk)
 [![Gem Version](https://img.shields.io/gem/v/bsv-sdk)](https://rubygems.org/gems/bsv-sdk)
-[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-red)](https://rubygems.org/gems/bsv-sdk)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.3-red)](https://rubygems.org/gems/bsv-sdk)
 
 Welcome to the BSV Blockchain Libraries Project, the comprehensive Ruby SDK designed to provide an updated and unified layer for developing scalable applications on the BSV Blockchain. This SDK addresses the limitations of previous tools by offering a fresh, peer-to-peer approach, adhering to SPV, and ensuring privacy and scalability.
 
@@ -44,7 +44,7 @@ Elliptic curve operations (secp256k1) are provided by the [`secp256k1-native`](h
 
 ### Requirements
 
-- Ruby >= 2.7
+- Ruby >= 3.3
 - No external dependencies beyond Ruby's standard library (`openssl` for hashing, HMAC, PBKDF2, and AES)
 
 ### Installation

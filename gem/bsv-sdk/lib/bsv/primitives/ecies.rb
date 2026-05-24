@@ -210,14 +210,7 @@ module BSV
         def secure_compare(mac, expected)
           return false unless mac.bytesize == expected.bytesize
 
-          if OpenSSL.respond_to?(:fixed_length_secure_compare)
-            OpenSSL.fixed_length_secure_compare(mac, expected)
-          else
-            # Constant-time comparison for Ruby < 3.2
-            result = 0
-            mac.bytes.zip(expected.bytes) { |x, y| result |= x ^ y }
-            result.zero?
-          end
+          OpenSSL.fixed_length_secure_compare(mac, expected)
         end
 
         def derive_keys(private_key, public_key)

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
-
 module BSV
   module Transaction
     # Background Evaluation Extended Format (BEEF) for SPV-ready transaction

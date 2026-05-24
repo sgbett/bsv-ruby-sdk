@@ -37,7 +37,7 @@ module BSV
       #
       # @yieldparam message [Hash] the incoming auth message
       # @return [void]
-      def on_data(&_block)
+      def on_data(&)
         raise NotImplementedError, "#{self.class}#on_data not implemented"
       end
     end

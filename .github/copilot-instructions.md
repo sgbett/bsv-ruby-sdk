@@ -78,7 +78,7 @@ Secondary threats:
 
 ## What NOT to Flag
 
-- **Ruby 2.7 compatibility warnings**: The gem targets Ruby >= 2.7. Pattern matching, `Hash#except`, endless methods, and `Data.define` are intentionally avoided.
+- **Ruby 3.3 compatibility warnings**: The gem targets Ruby >= 3.3. Only Ruby 3.4+ features are intentionally avoided (e.g. `it` block parameter). Pattern matching, `Hash#except`, `Data.define`, and endless methods are all available and correct to use.
 - **`is_authenticated` naming**: The `is_` prefix is the BRC-100 wire protocol method name and cannot be renamed.
 - **`'anyone'` counterparty in signatures**: BRC-43 explicitly supports `'anyone'` for publicly verifiable signatures. The derived key still requires the signer's private key.
 - **Auth/Peer TOFU model**: BRC-31 is Trust-on-First-Use by design. The responder marking `is_authenticated = true` before initiator proves key possession matches all reference SDKs.
