@@ -26,7 +26,7 @@ Style/NumericPredicate:
 
 Metrics/BlockLength:
   Exclude:
-    - 'gem/bsv-sdk/lib/bsv/auth/**/*'
+    - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
 
 Naming/FileName:
