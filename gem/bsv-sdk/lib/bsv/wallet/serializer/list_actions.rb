@@ -10,15 +10,15 @@ module BSV
       # Args:
       #   [string_slice]     labels
       #   [1 byte]           label_query_mode: 0x01=any, 0x02=all, 0xFF=absent
-      #   [go_optional_bool] include_labels
-      #   [go_optional_bool] include_inputs
-      #   [go_optional_bool] include_input_source_locking_scripts
-      #   [go_optional_bool] include_input_unlocking_scripts
-      #   [go_optional_bool] include_outputs
-      #   [go_optional_bool] include_output_locking_scripts
+      #   [optional_bool] include_labels
+      #   [optional_bool] include_inputs
+      #   [optional_bool] include_input_source_locking_scripts
+      #   [optional_bool] include_input_unlocking_scripts
+      #   [optional_bool] include_outputs
+      #   [optional_bool] include_output_locking_scripts
       #   [optional_uint32]  limit
       #   [optional_uint32]  offset
-      #   [go_optional_bool] seek_permission
+      #   [optional_bool] seek_permission
       #
       # Result:
       #   [varint]           total_actions
@@ -26,7 +26,7 @@ module BSV
       #     [32 bytes]       txid (display order — reversed from wire storage)
       #     [varint]         satoshis (int64 as varint)
       #     [1 byte]         status code
-      #     [go_optional_bool ptr] is_outgoing (written as optional_bool pointer in Go)
+      #     [optional_bool ptr] is_outgoing (written as optional_bool pointer in Go)
       #     [string]         description
       #     [string_slice]   labels
       #     [varint]         version
@@ -46,7 +46,7 @@ module BSV
       #   [varint]   output_index
       #   [varint]   satoshis
       #   [int_bytes_optional] locking_script
-      #   [go_optional_bool ptr] spendable
+      #   [optional_bool ptr] spendable
       #   [string]   output_description
       #   [string]   basket
       #   [string_slice] tags
@@ -73,16 +73,16 @@ module BSV
             w.write_byte(0xFF)
           end
 
-          w.write_go_optional_bool(args[:include_labels])
-          w.write_go_optional_bool(args[:include_inputs])
-          w.write_go_optional_bool(args[:include_input_source_locking_scripts])
-          w.write_go_optional_bool(args[:include_input_unlocking_scripts])
-          w.write_go_optional_bool(args[:include_outputs])
-          w.write_go_optional_bool(args[:include_output_locking_scripts])
+          w.write_optional_bool(args[:include_labels])
+          w.write_optional_bool(args[:include_inputs])
+          w.write_optional_bool(args[:include_input_source_locking_scripts])
+          w.write_optional_bool(args[:include_input_unlocking_scripts])
+          w.write_optional_bool(args[:include_outputs])
+          w.write_optional_bool(args[:include_output_locking_scripts])
 
           w.write_optional_uint32(args[:limit])
           w.write_optional_uint32(args[:offset])
-          w.write_go_optional_bool(args[:seek_permission])
+          w.write_optional_bool(args[:seek_permission])
 
           w.buf
         end
@@ -104,17 +104,17 @@ module BSV
           result[:labels]           = labels           unless labels.nil?
           result[:label_query_mode] = label_query_mode unless label_query_mode.nil?
 
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:include_labels] = v unless v.nil?
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:include_inputs] = v unless v.nil?
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:include_input_source_locking_scripts] = v unless v.nil?
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:include_input_unlocking_scripts] = v unless v.nil?
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:include_outputs] = v unless v.nil?
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:include_output_locking_scripts] = v unless v.nil?
 
           lim = r.read_optional_uint32
@@ -122,7 +122,7 @@ module BSV
           off = r.read_optional_uint32
           result[:offset] = off unless off.nil?
 
-          v = r.read_go_optional_bool
+          v = r.read_optional_bool
           result[:seek_permission] = v unless v.nil?
 
           result

@@ -61,7 +61,7 @@ module BSV
 
         # Encode privileged flag + privileged_reason.
         #
-        # Wire format: optional_bool (0=nil, 1=false, 2=true) + reason as varint-len string,
+        # Wire format: optional_bool (0xFF=nil, 0x00=false, 0x01=true) + reason as varint-len string,
         # or 0xFF if reason is nil/empty (NegativeOneByte sentinel).
         def write_privileged_params(writer, privileged, privileged_reason)
           writer.write_optional_bool(privileged)

@@ -21,7 +21,7 @@ module BSV
       #       [string_slice] tags
       #   [string_slice]   labels
       #   [string]         description
-      #   [go_optional_bool] seek_permission
+      #   [optional_bool] seek_permission
       #
       # Result wire layout: empty (success is implicit from the frame error byte).
       module InternalizeActionArgs
@@ -46,7 +46,7 @@ module BSV
 
           w.write_string_slice(args[:labels])
           w.write_string(args[:description].to_s)
-          w.write_go_optional_bool(args[:seek_permission])
+          w.write_optional_bool(args[:seek_permission])
 
           w.buf
         end
@@ -64,7 +64,7 @@ module BSV
 
           labels         = r.read_string_slice
           description    = r.read_string
-          seek_permission = r.read_go_optional_bool
+          seek_permission = r.read_optional_bool
 
           result = { tx: tx, outputs: outputs, description: description }
           result[:labels] = labels unless labels.nil?

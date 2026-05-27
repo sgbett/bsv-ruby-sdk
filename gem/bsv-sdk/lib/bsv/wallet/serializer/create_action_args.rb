@@ -31,15 +31,15 @@ module BSV
       #   [string_slice] tags
       #
       # Options block (after 0x01 presence byte):
-      #   [go_optional_bool] sign_and_process
-      #   [go_optional_bool] accept_delayed_broadcast
+      #   [optional_bool] sign_and_process
+      #   [optional_bool] accept_delayed_broadcast
       #   [0x01 or 0xFF]     trust_self (1=known, 0xFF=absent)
       #   [txid_slice]       known_txids
-      #   [go_optional_bool] return_txid_only
-      #   [go_optional_bool] no_send
+      #   [optional_bool] return_txid_only
+      #   [optional_bool] no_send
       #   [optional_bytes]   no_send_change (encoded outpoints, NegativeOne = nil)
       #   [txid_slice]       send_with
-      #   [go_optional_bool] randomize_outputs
+      #   [optional_bool] randomize_outputs
       module CreateActionArgs
         TRUST_SELF_KNOWN = 1
 
@@ -145,8 +145,8 @@ module BSV
           end
 
           writer.write_byte(1)
-          writer.write_go_optional_bool(opts[:sign_and_process])
-          writer.write_go_optional_bool(opts[:accept_delayed_broadcast])
+          writer.write_optional_bool(opts[:sign_and_process])
+          writer.write_optional_bool(opts[:accept_delayed_broadcast])
 
           if opts[:trust_self] == :known
             writer.write_byte(TRUST_SELF_KNOWN)
@@ -155,14 +155,14 @@ module BSV
           end
 
           writer.write_txid_slice(opts[:known_txids])
-          writer.write_go_optional_bool(opts[:return_txid_only])
-          writer.write_go_optional_bool(opts[:no_send])
+          writer.write_optional_bool(opts[:return_txid_only])
+          writer.write_optional_bool(opts[:no_send])
 
           no_send_change_bytes = Common.encode_outpoints(opts[:no_send_change])
           writer.write_int_bytes(no_send_change_bytes)
 
           writer.write_txid_slice(opts[:send_with])
-          writer.write_go_optional_bool(opts[:randomize_outputs])
+          writer.write_optional_bool(opts[:randomize_outputs])
         end
 
         def deserialize_inputs(reader)
@@ -218,21 +218,21 @@ module BSV
 
           opts = {}
 
-          sign_and_process         = reader.read_go_optional_bool
-          accept_delayed_broadcast = reader.read_go_optional_bool
+          sign_and_process         = reader.read_optional_bool
+          accept_delayed_broadcast = reader.read_optional_bool
 
           trust_byte = reader.read_byte
           trust_self = trust_byte == TRUST_SELF_KNOWN ? :known : nil
 
           known_txids = reader.read_txid_slice
-          return_txid_only = reader.read_go_optional_bool
-          no_send          = reader.read_go_optional_bool
+          return_txid_only = reader.read_optional_bool
+          no_send          = reader.read_optional_bool
 
           no_send_change_bytes = reader.read_int_bytes
           no_send_change = Common.decode_outpoints(no_send_change_bytes.empty? ? nil : no_send_change_bytes)
 
           send_with          = reader.read_txid_slice
-          randomize_outputs  = reader.read_go_optional_bool
+          randomize_outputs  = reader.read_optional_bool
 
           opts[:sign_and_process]          = sign_and_process         unless sign_and_process.nil?
           opts[:accept_delayed_broadcast]  = accept_delayed_broadcast unless accept_delayed_broadcast.nil?

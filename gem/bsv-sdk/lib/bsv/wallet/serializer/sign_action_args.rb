@@ -14,9 +14,9 @@ module BSV
       #   [int_bytes]  reference
       #   [1 byte]     options present flag (0=absent, 1=present)
       #   If options present:
-      #     [go_optional_bool] accept_delayed_broadcast
-      #     [go_optional_bool] return_txid_only
-      #     [go_optional_bool] no_send
+      #     [optional_bool] accept_delayed_broadcast
+      #     [optional_bool] return_txid_only
+      #     [optional_bool] no_send
       #     [txid_slice]       send_with
       module SignActionArgs
         module_function
@@ -40,9 +40,9 @@ module BSV
           opts = args[:options]
           if opts
             w.write_byte(1)
-            w.write_go_optional_bool(opts[:accept_delayed_broadcast])
-            w.write_go_optional_bool(opts[:return_txid_only])
-            w.write_go_optional_bool(opts[:no_send])
+            w.write_optional_bool(opts[:accept_delayed_broadcast])
+            w.write_optional_bool(opts[:return_txid_only])
+            w.write_optional_bool(opts[:no_send])
             w.write_txid_slice(opts[:send_with])
           else
             w.write_byte(0)
@@ -72,11 +72,11 @@ module BSV
           options_present = r.read_byte
           options = if options_present == 1
                       opts = {}
-                      v = r.read_go_optional_bool
+                      v = r.read_optional_bool
                       opts[:accept_delayed_broadcast] = v unless v.nil?
-                      v = r.read_go_optional_bool
+                      v = r.read_optional_bool
                       opts[:return_txid_only] = v unless v.nil?
-                      v = r.read_go_optional_bool
+                      v = r.read_optional_bool
                       opts[:no_send] = v unless v.nil?
                       sw = r.read_txid_slice
                       opts[:send_with] = sw unless sw.nil?

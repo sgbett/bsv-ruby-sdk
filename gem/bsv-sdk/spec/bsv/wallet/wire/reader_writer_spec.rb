@@ -49,14 +49,14 @@ RSpec.describe 'BSV::Wallet::Wire Reader/Writer' do # rubocop:disable RSpec/Desc
   # --- optional_bool ---
 
   describe 'write_optional_bool / read_optional_bool' do
-    { nil => 0, false => 1, true => 2 }.each do |value, byte|
-      it "#{value.inspect} encodes as byte #{byte}" do
+    { nil => 0xFF, false => 0x00, true => 0x01 }.each do |value, byte|
+      it "#{value.inspect} encodes as byte 0x#{byte.to_s(16).upcase.rjust(2, '0')}" do
         round_trip { |w| w.write_optional_bool(value) }
         raw_byte = BSV::Wallet::Wire::Reader.new(writer.buf).read_byte
         expect(raw_byte).to eq(byte)
       end
 
-      it "byte #{byte} decodes back to #{value.inspect}" do
+      it "byte 0x#{byte.to_s(16).upcase.rjust(2, '0')} decodes back to #{value.inspect}" do
         reader = round_trip { |w| w.write_optional_bool(value) }
         expect(reader.read_optional_bool).to eq(value)
       end
@@ -172,6 +172,52 @@ RSpec.describe 'BSV::Wallet::Wire Reader/Writer' do # rubocop:disable RSpec/Desc
     it 'raises ArgumentError when reading more bytes than available' do
       reader = BSV::Wallet::Wire::Reader.new("\x01\x02")
       expect { reader.read_bytes(10) }.to raise_error(ArgumentError, /need 10 bytes/)
+    end
+  end
+
+  # --- optional_bool wire conformance (Go/BRC-103 encoding) ---
+  #
+  # Byte-level assertions pinning the canonical BRC-103 wire encoding for
+  # optional bool. This catches any future regression at the wire layer rather
+  # than in a higher-level conformance suite.
+
+  describe 'optional_bool wire conformance' do
+    it 'nil writes the byte 0xFF' do
+      writer.write_optional_bool(nil)
+      expect(writer.buf.getbyte(0)).to eq(0xFF)
+    end
+
+    it 'false writes the byte 0x00' do
+      writer.write_optional_bool(false)
+      expect(writer.buf.getbyte(0)).to eq(0x00)
+    end
+
+    it 'true writes the byte 0x01' do
+      writer.write_optional_bool(true)
+      expect(writer.buf.getbyte(0)).to eq(0x01)
+    end
+
+    it 'reads 0xFF as nil' do
+      expect(BSV::Wallet::Wire::Reader.new("\xFF".b).read_optional_bool).to be_nil
+    end
+
+    it 'reads 0x00 as false' do
+      expect(BSV::Wallet::Wire::Reader.new("\x00".b).read_optional_bool).to be(false)
+    end
+
+    it 'reads 0x01 as true' do
+      expect(BSV::Wallet::Wire::Reader.new("\x01".b).read_optional_bool).to be(true)
+    end
+
+    it 'round-trips nil / false / true in sequence' do
+      writer.write_optional_bool(nil)
+      writer.write_optional_bool(false)
+      writer.write_optional_bool(true)
+      reader = BSV::Wallet::Wire::Reader.new(writer.buf)
+      expect(reader.read_optional_bool).to be_nil
+      expect(reader.read_optional_bool).to be(false)
+      expect(reader.read_optional_bool).to be(true)
+      expect(reader.remaining).to eq(0)
     end
   end
 end

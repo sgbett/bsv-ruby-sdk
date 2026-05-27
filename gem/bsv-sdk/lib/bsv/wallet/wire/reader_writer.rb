@@ -41,13 +41,13 @@ module BSV
           write_bytes(bytes)
         end
 
-        # Write an optional boolean as a single byte.
-        # nil → 0x00, false → 0x01, true → 0x02
+        # Write an optional boolean as a single byte (Go/BRC-103 convention).
+        # nil → 0xFF, false → 0x00, true → 0x01
         def write_optional_bool(value)
           byte = case value
-                 when nil   then 0
-                 when false then 1
-                 else            2
+                 when nil   then 0xFF
+                 when false then 0x00
+                 else            0x01
                  end
           write_byte(byte)
         end
@@ -154,18 +154,6 @@ module BSV
           end
         end
 
-        # Write Go-compatible optional bool (for struct option fields).
-        # nil → 0xFF (NegativeOneByte), false → 0x00, true → 0x01.
-        # @param value [Boolean, nil]
-        def write_go_optional_bool(value)
-          byte = case value
-                 when nil   then 0xFF
-                 when false then 0x00
-                 else            0x01
-                 end
-          write_byte(byte)
-        end
-
         # Write a txid slice (array of 32-byte wire-order txids).
         # nil → NegativeOne; else varint count + 32 raw bytes per txid.
         # Txids are passed as 64-char display-order hex; reversed to wire order here.
@@ -248,16 +236,14 @@ module BSV
           read_bytes(len).force_encoding('UTF-8')
         end
 
-        # Read an optional boolean byte.
-        # 0x00 → nil, 0x01 → false, 0x02 → true
+        # Read an optional boolean byte (Go/BRC-103 convention).
+        # 0xFF → nil, 0x00 → false, 0x01 → true
         # @return [Boolean, nil]
         def read_optional_bool
           byte = read_byte
-          case byte
-          when 0 then nil
-          when 1 then false
-          else        true
-          end
+          return nil if byte == 0xFF
+
+          byte == 0x01
         end
 
         # Read 8-byte little-endian uint64 satoshi amount.
@@ -347,20 +333,10 @@ module BSV
           Base64.strict_encode64(raw)
         end
 
-        # Read an optional bool using Go wire encoding:
-        # 0xFF → nil, 0x00 → false, 0x01 → true.
-        # @return [Boolean, nil]
-        def read_go_optional_bool
-          byte = read_byte
-          return nil if byte == 0xFF
-
-          byte == 0x01
-        end
-
         # Read privileged params (Go decodePrivilegedParams).
         # @return [Array(Boolean|nil, String|nil)]
         def read_privileged_params
-          privileged = read_go_optional_bool
+          privileged = read_optional_bool
           first_byte = read_byte
           if first_byte == 0xFF
             [privileged, nil]
