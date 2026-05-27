@@ -23,8 +23,8 @@ module BSV
             BSV::Wallet::Wire::Validation.key_id_string_1_to_800!('key_id', args[:key_id])
             BSV::Wallet::Wire::Validation.wallet_counterparty!('counterparty', args[:counterparty])
 
-            data = args[:data]
-            hash = args[:hash_to_directly_sign]
+            data = args[:data] && Common.to_binary(args[:data])
+            hash = args[:hash_to_directly_sign] && Common.to_binary(args[:hash_to_directly_sign])
 
             if data && hash
               raise BSV::Wallet::InvalidParameterError.new(
@@ -81,7 +81,7 @@ module BSV
           module_function
 
           def serialize(result)
-            (result[:signature] || ''.b).b
+            Common.to_binary(result[:signature])
           end
 
           def deserialize(bytes)

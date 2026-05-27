@@ -30,7 +30,7 @@ module BSV
               privileged: args[:privileged],
               privileged_reason: args[:privileged_reason]
             )
-            data = args.fetch(:data, ''.b)
+            data = Common.to_binary(args[:data])
             w.write_varint(data.bytesize)
             w.write_bytes(data)
             w.write_optional_bool(args[:seek_permission])
@@ -53,10 +53,10 @@ module BSV
           module_function
 
           def serialize(result)
-            hmac = result[:hmac] || ''.b
+            hmac = Common.to_binary(result[:hmac])
             raise ArgumentError, "HMAC must be #{HMAC_SIZE} bytes, got #{hmac.bytesize}" unless hmac.bytesize == HMAC_SIZE
 
-            hmac.b
+            hmac
           end
 
           def deserialize(bytes)

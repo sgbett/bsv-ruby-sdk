@@ -14,6 +14,18 @@ module BSV
 
         module_function
 
+        # Coerce a byte payload to a binary String (ASCII-8BIT encoding).
+        #
+        # Accepts either an Array<Integer> (as returned by ProtoWallet) or a
+        # String. Serialisers use this so they remain compatible with both the
+        # in-process wallet interface (Arrays) and the wire interface (Strings).
+        def to_binary(bytes)
+          return ''.b if bytes.nil?
+          return bytes.pack('C*').b if bytes.is_a?(Array)
+
+          bytes.b
+        end
+
         # Encode a BRC-43 protocol ID: [security_level (0-2), protocol_name].
         #
         # Wire format: 1-byte security level + varint-len string.

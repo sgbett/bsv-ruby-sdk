@@ -66,10 +66,10 @@ module BSV
             w.write_bytes(pubkey_bytes(result[:verifier]))
             w.write_bytes(pubkey_bytes(result[:counterparty]))
             w.write_str_with_varint_len(result[:revelation_time].to_s)
-            encrypted_linkage = result[:encrypted_linkage] || ''.b
+            encrypted_linkage = Common.to_binary(result[:encrypted_linkage])
             w.write_varint(encrypted_linkage.bytesize)
             w.write_bytes(encrypted_linkage)
-            encrypted_linkage_proof = result[:encrypted_linkage_proof] || ''.b
+            encrypted_linkage_proof = Common.to_binary(result[:encrypted_linkage_proof])
             w.write_varint(encrypted_linkage_proof.bytesize)
             w.write_bytes(encrypted_linkage_proof)
             w.buf

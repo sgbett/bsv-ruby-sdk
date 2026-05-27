@@ -25,9 +25,9 @@ module BSV
             BSV::Wallet::Wire::Validation.key_id_string_1_to_800!('key_id', args[:key_id])
             BSV::Wallet::Wire::Validation.wallet_counterparty!('counterparty', args[:counterparty])
 
-            data = args[:data]
-            hash = args[:hash_to_directly_verify]
-            sig  = args[:signature]
+            data = args[:data] && Common.to_binary(args[:data])
+            hash = args[:hash_to_directly_verify] && Common.to_binary(args[:hash_to_directly_verify])
+            sig  = args[:signature] && Common.to_binary(args[:signature])
 
             if data && hash
               raise BSV::Wallet::InvalidParameterError.new(
@@ -50,9 +50,8 @@ module BSV
 
             w.write_optional_bool(args[:for_self])
 
-            sig_bytes = sig.b
-            w.write_varint(sig_bytes.bytesize)
-            w.write_bytes(sig_bytes)
+            w.write_varint(sig.bytesize)
+            w.write_bytes(sig)
 
             if data
               w.write_byte(1)

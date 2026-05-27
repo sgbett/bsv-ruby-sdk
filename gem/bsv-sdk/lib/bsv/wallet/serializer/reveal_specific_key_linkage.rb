@@ -72,10 +72,10 @@ module BSV
             key_id_bytes = result[:key_id].to_s.b
             w.write_varint(key_id_bytes.bytesize)
             w.write_bytes(key_id_bytes)
-            encrypted_linkage = result[:encrypted_linkage] || ''.b
+            encrypted_linkage = Common.to_binary(result[:encrypted_linkage])
             w.write_varint(encrypted_linkage.bytesize)
             w.write_bytes(encrypted_linkage)
-            encrypted_linkage_proof = result[:encrypted_linkage_proof] || ''.b
+            encrypted_linkage_proof = Common.to_binary(result[:encrypted_linkage_proof])
             w.write_varint(encrypted_linkage_proof.bytesize)
             w.write_bytes(encrypted_linkage_proof)
             w.write_byte(result[:proof_type].to_i)

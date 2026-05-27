@@ -74,7 +74,7 @@ module BSV
 
           def serialize(result)
             pubkey = result[:public_key] || ''.b
-            pubkey.b
+            pubkey.bytesize == PUBKEY_SIZE ? pubkey.b : [pubkey.to_s].pack('H*')
           end
 
           def deserialize(bytes)

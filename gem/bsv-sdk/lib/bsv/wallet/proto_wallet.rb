@@ -226,6 +226,8 @@ module BSV
       def reveal_counterparty_key_linkage(counterparty:, verifier:,
                                           privileged: false, privileged_reason: nil,
                                           originator: nil)
+        counterparty = normalise_pubkey_hex(counterparty)
+        verifier     = normalise_pubkey_hex(verifier)
         raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')
@@ -281,6 +283,8 @@ module BSV
       def reveal_specific_key_linkage(counterparty:, verifier:, protocol_id:, key_id:,
                                       privileged: false, privileged_reason: nil,
                                       originator: nil)
+        counterparty = normalise_pubkey_hex(counterparty)
+        verifier     = normalise_pubkey_hex(verifier)
         raise InvalidParameterError.new('counterparty', 'a specific public key hex, not "anyone"') if counterparty == 'anyone'
 
         Validators.validate_pub_key_hex!(verifier, 'verifier')
@@ -340,7 +344,16 @@ module BSV
       end
 
       def bytes_to_string(bytes)
-        bytes.pack('C*')
+        bytes.is_a?(String) ? bytes.b : bytes.pack('C*')
+      end
+
+      # Normalise a public key argument to a 66-character compressed hex string.
+      # Accepts either a 33-byte binary string or a 66-character hex string.
+      def normalise_pubkey_hex(value)
+        return value if value.is_a?(String) && value.length == 66
+        return value.unpack1('H*') if value.is_a?(String) && value.bytesize == 33
+
+        value
       end
 
       def string_to_bytes(str)

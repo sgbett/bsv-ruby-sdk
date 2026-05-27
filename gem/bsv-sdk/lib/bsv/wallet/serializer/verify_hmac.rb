@@ -22,7 +22,7 @@ module BSV
             BSV::Wallet::Wire::Validation.key_id_string_1_to_800!('key_id', args[:key_id])
             BSV::Wallet::Wire::Validation.wallet_counterparty!('counterparty', args[:counterparty])
 
-            hmac = args[:hmac] || ''.b
+            hmac = Common.to_binary(args[:hmac])
             raise BSV::Wallet::InvalidParameterError.new('hmac', "exactly #{HMAC_SIZE} bytes") unless hmac.bytesize == HMAC_SIZE
 
             w = BSV::Wallet::Wire::Writer.new
@@ -35,7 +35,7 @@ module BSV
               privileged_reason: args[:privileged_reason]
             )
             w.write_bytes(hmac)
-            data = args.fetch(:data, ''.b)
+            data = Common.to_binary(args[:data])
             w.write_varint(data.bytesize)
             w.write_bytes(data)
             w.write_optional_bool(args[:seek_permission])

@@ -28,7 +28,7 @@ module BSV
               privileged: args[:privileged],
               privileged_reason: args[:privileged_reason]
             )
-            plaintext = args.fetch(:plaintext, ''.b)
+            plaintext = Common.to_binary(args[:plaintext])
             w.write_varint(plaintext.bytesize)
             w.write_bytes(plaintext)
             w.write_optional_bool(args[:seek_permission])
@@ -51,7 +51,7 @@ module BSV
           module_function
 
           def serialize(result)
-            (result[:ciphertext] || ''.b).b
+            Common.to_binary(result[:ciphertext])
           end
 
           def deserialize(bytes)
