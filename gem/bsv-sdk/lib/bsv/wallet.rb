@@ -8,6 +8,9 @@ module BSV
     require_relative 'wallet/errors'
     require_relative 'wallet/interface'
 
+    # Wire layer — BRC-103 frame codec, call enum, validators, reader/writer.
+    require_relative 'wallet/wire'
+
     # ProtoWallet — minimal crypto-only BRC-100 implementation.
     # Its internals (KeyDeriver, Validators) are scoped under ProtoWallet::
     # to avoid collision with bsv-wallet's own KeyDeriver.
