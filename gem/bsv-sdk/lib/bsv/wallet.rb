@@ -18,5 +18,10 @@ module BSV
     # Its internals (KeyDeriver, Validators) are scoped under ProtoWallet::
     # to avoid collision with bsv-wallet's own KeyDeriver.
     require_relative 'wallet/proto_wallet'
+
+    # BRC-103 transport layer.
+    autoload :WalletWire,             'bsv/wallet/wallet_wire'
+    autoload :WalletWireTransceiver,  'bsv/wallet/wallet_wire_transceiver'
+    autoload :WalletWireProcessor,    'bsv/wallet/wallet_wire_processor'
   end
 end
