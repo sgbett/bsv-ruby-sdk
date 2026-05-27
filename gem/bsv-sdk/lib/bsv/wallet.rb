@@ -23,5 +23,11 @@ module BSV
     autoload :WalletWire,             'bsv/wallet/wallet_wire'
     autoload :WalletWireTransceiver,  'bsv/wallet/wallet_wire_transceiver'
     autoload :WalletWireProcessor,    'bsv/wallet/wallet_wire_processor'
+
+    # BRC-103 transport substrates.
+    module Substrates
+      autoload :HTTPWalletWire, 'bsv/wallet/substrates/http_wallet_wire'
+      autoload :HTTPWalletJSON, 'bsv/wallet/substrates/http_wallet_json'
+    end
   end
 end
