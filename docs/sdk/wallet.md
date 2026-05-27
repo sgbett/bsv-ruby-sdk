@@ -249,3 +249,94 @@ ProtoWallet          — 12 BRC-100 methods (crypto only, in bsv-sdk)
 If your use case only requires signing, encryption, or HMAC — for example, implementing the
 Auth module or a message authentication layer — `ProtoWallet` is sufficient and keeps your
 dependency footprint small.
+
+## Wire layer
+
+The BRC-103 wire layer lets you call any BRC-100 wallet over a binary transport. The SDK
+provides client, server, and HTTP substrate classes, all in the `BSV::Wallet` namespace.
+
+For a full walkthrough with examples, see the **[BRC-103 wire layer guide](../guides/brc-103-wire.md)**.
+
+### WalletWire
+
+`BSV::Wallet::WalletWire` is the transport abstraction — a module with a single method:
+
+```
+def transmit_to_wallet(message)  # binary String in, binary String out
+```
+
+Include it in any class and implement `transmit_to_wallet` to produce a concrete transport.
+
+### WalletWireTransceiver
+
+The client. Wraps any `WalletWire` and exposes the full BRC-100 interface as Ruby methods.
+Every call serialises its keyword arguments to a binary request frame, transmits via the wire,
+and deserialises the binary result frame back to a Ruby hash.
+
+```ruby
+# @param wire [#transmit_to_wallet] any WalletWire implementation
+client = BSV::Wallet::WalletWireTransceiver.new(wire)
+client.get_public_key(identity_key: true)  # => { public_key: "..." }
+```
+
+### WalletWireProcessor
+
+The server. Wraps any `Interface::BRC100` wallet and processes binary request frames,
+returning binary result frames. It also includes `WalletWire`, so it can be passed directly
+to a `WalletWireTransceiver` for in-process loopback.
+
+```ruby
+# @param wallet [Interface::BRC100] any BRC-100 wallet
+processor = BSV::Wallet::WalletWireProcessor.new(proto_wallet)
+```
+
+Error boundary: `NotImplementedError` → code 2 (`UnsupportedActionError`);
+`BSV::Wallet::Error` subclasses → framed with their code; any other `StandardError` → code 1.
+
+### Substrates::HTTPWalletWire
+
+HTTP transport using binary frames (`Content-Type: application/octet-stream`).
+Posts to `{base_url}/wallet`.
+
+```ruby
+# Direct construction
+wire   = BSV::Wallet::Substrates::HTTPWalletWire.new(base_url: 'https://wallet.example')
+client = BSV::Wallet::WalletWireTransceiver.new(wire)
+
+# Convenience factory — returns a WalletWireTransceiver directly
+client = BSV::Wallet::Substrates::HTTPWalletWire.client(base_url: 'https://wallet.example')
+
+# With extra headers (e.g. auth)
+client = BSV::Wallet::Substrates::HTTPWalletWire.client(
+  base_url: 'https://wallet.example',
+  headers:  { 'Authorization' => 'Bearer token' }
+)
+```
+
+### Wire layer errors
+
+All wallet errors inherit from `BSV::Wallet::Error` and carry a numeric `code`. When the server
+returns an error frame, the client raises the matching subclass automatically.
+
+| Class | Code | Raised when |
+|-------|------|-------------|
+| `BSV::Wallet::Error` | 1 | Generic operation failure; network errors on the client side |
+| `BSV::Wallet::UnsupportedActionError` | 2 | Method not supported by this wallet implementation (`NotImplementedError`) |
+| `BSV::Wallet::InvalidHmacError` | 3 | `verify_hmac` — HMAC does not match |
+| `BSV::Wallet::InvalidSignatureError` | 4 | `verify_signature` — signature does not verify |
+| `BSV::Wallet::InsufficientFundsError` | 5 | Wallet has insufficient funds for the operation |
+| `BSV::Wallet::InvalidParameterError` | 6 | A required parameter is missing or invalid |
+| `BSV::Wallet::ReviewActionsError` | 7 | Actions require user review before processing |
+
+Use `BSV::Wallet.error_from_wire(code, message, stack)` to manually rehydrate an error frame into
+the correct subclass. The transceiver calls this automatically when it reads an error frame.
+
+```ruby
+begin
+  client.create_action(description: 'pay invoice', outputs: [])
+rescue BSV::Wallet::InsufficientFundsError => e
+  # e.code == 5, e.message is the original server message
+rescue BSV::Wallet::Error => e
+  # catch-all for codes 1–7
+end
+```

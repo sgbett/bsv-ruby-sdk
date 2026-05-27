@@ -25,6 +25,7 @@ module BSV
     class WalletWireTransceiver
       include Interface::BRC100
 
+      # @param wire [#transmit_to_wallet] any object that includes {WalletWire}
       def initialize(wire)
         @wire = wire
       end

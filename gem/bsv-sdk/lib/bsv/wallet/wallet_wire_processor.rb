@@ -19,6 +19,7 @@ module BSV
     class WalletWireProcessor
       include WalletWire
 
+      # @param wallet [Interface::BRC100] any BRC-100 wallet implementation
       def initialize(wallet)
         @wallet = wallet
       end
