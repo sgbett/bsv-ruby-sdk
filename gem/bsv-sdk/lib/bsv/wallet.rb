@@ -11,6 +11,9 @@ module BSV
     # Wire layer — BRC-103 frame codec, call enum, validators, reader/writer.
     require_relative 'wallet/wire'
 
+    # Per-call BRC-103 serialisers and dispatch tables.
+    autoload :Serializer, 'bsv/wallet/serializer'
+
     # ProtoWallet — minimal crypto-only BRC-100 implementation.
     # Its internals (KeyDeriver, Validators) are scoped under ProtoWallet::
     # to avoid collision with bsv-wallet's own KeyDeriver.
