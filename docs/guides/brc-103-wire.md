@@ -19,10 +19,10 @@ The Ruby SDK implements both sides:
 | Substrate | Use case |
 |-----------|----------|
 | `Substrates::HTTPWalletWire` | Binary frames over HTTP/HTTPS (`Content-Type: application/octet-stream`). High-throughput inter-service calls or any server that speaks the BRC-103 binary protocol. |
-| `Substrates::HTTPWalletJSON` | JSON-RPC over HTTP/HTTPS (`Content-Type: application/json`). Matches MetaNet Desktop conventions; camelCase field names on the wire. *(Coming soon.)* |
+| `Substrates::HTTPWalletJSON` | JSON over HTTP/HTTPS (`Content-Type: application/json`). Posts to `/v1/wallet/{camelCaseMethodName}`; matches MetaNet Desktop conventions. Does not use the binary frame codec. |
 | In-process loopback (`WalletWireProcessor`) | Testing, or calling a wallet in the same Ruby process without serialisation overhead. |
 
-If you are building something new and control both client and server, prefer `HTTPWalletWire` — it is more compact and avoids JSON parsing overhead. If you are connecting to MetaNet Desktop or any existing server that speaks JSON-RPC, use `HTTPWalletJSON`.
+If you are building something new and control both client and server, prefer `HTTPWalletWire` — it is more compact and avoids JSON parsing overhead. If you are connecting to MetaNet Desktop or any existing server that speaks JSON over HTTP, use `HTTPWalletJSON`.
 
 ## End-to-end example: HTTPWalletWire
 
@@ -57,6 +57,35 @@ Pass `headers:` when you need bearer tokens or other per-request metadata:
 ```ruby
 client = BSV::Wallet::Substrates::HTTPWalletWire.client(
   base_url: 'https://wallet.example',
+  headers:  { 'Authorization' => 'Bearer eyJ...' }
+)
+```
+
+## End-to-end example: HTTPWalletJSON
+
+`HTTPWalletJSON` posts JSON to `{base_url}/v1/wallet/{methodName}`, where `methodName` is
+the camelCase BRC-100 name (e.g. `getPublicKey`, `createAction`). It implements
+`Interface::BRC100` directly — there is no binary frame layer.
+
+```ruby
+require 'bsv-sdk'
+
+client = BSV::Wallet::Substrates::HTTPWalletJSON.new(
+  base_url: 'https://wallet.example.com'
+)
+
+result = client.get_network
+puts result[:network]  # 'mainnet'
+
+result = client.get_public_key(identity_key: true)
+puts result[:public_key]  # "02abc..."
+```
+
+With authentication headers (e.g. connecting to MetaNet Desktop):
+
+```ruby
+client = BSV::Wallet::Substrates::HTTPWalletJSON.new(
+  base_url: 'https://wallet.example.com',
   headers:  { 'Authorization' => 'Bearer eyJ...' }
 )
 ```

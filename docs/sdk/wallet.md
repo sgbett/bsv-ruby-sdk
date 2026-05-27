@@ -313,6 +313,20 @@ client = BSV::Wallet::Substrates::HTTPWalletWire.client(
 )
 ```
 
+### Substrates::HTTPWalletJSON
+
+JSON-over-HTTP substrate. Directly implements `Interface::BRC100` — does not use the binary
+frame codec. Posts to `{base_url}/v1/wallet/{camelCaseMethodName}` with
+`Content-Type: application/json`. Request and response hashes are automatically converted
+between Ruby snake_case and camelCase.
+
+```ruby
+client = BSV::Wallet::Substrates::HTTPWalletJSON.new(
+  base_url: 'https://wallet.example.com'
+)
+client.get_network  # => { network: 'mainnet' }
+```
+
 ### Wire layer errors
 
 All wallet errors inherit from `BSV::Wallet::Error` and carry a numeric `code`. When the server

@@ -8,7 +8,7 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## Unreleased
 
 ### Added
-- BRC-103 wire layer: `WalletWire` transport abstraction, `WalletWireTransceiver` (client), `WalletWireProcessor` (server), and `Substrates::HTTPWalletWire` (binary HTTP transport)
+- BRC-103 wire layer: `WalletWire` transport abstraction, `WalletWireTransceiver` (client), `WalletWireProcessor` (server), `Substrates::HTTPWalletWire` (binary HTTP transport), and `Substrates::HTTPWalletJSON` (JSON-over-HTTP, MetaNet Desktop compatible)
 - Full BRC-103 serialisers for all 28 BRC-100 methods; wire format compatible with go-sdk byte-for-byte
 - `BSV::Wallet.error_from_wire` helper rehydrates error frames into typed `BSV::Wallet::Error` subclasses (codes 1–7)
 - New guide: `docs/guides/brc-103-wire.md` — end-to-end walkthrough of the wire layer
