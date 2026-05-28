@@ -34,10 +34,14 @@ module BSV
           map[ruby_method] = BSV::WireFormat.snake_to_camel(snake)
         end.freeze
 
-        def initialize(base_url:, http_client: Net::HTTP, headers: {})
+        # @param base_url [String] wallet base URL (e.g. 'https://wallet.example')
+        # @param http_client [#request, nil] injectable HTTP client for testing;
+        #   must respond to +#request(uri, net_http_request)+. Defaults to +Net::HTTP+.
+        # @param headers [Hash] additional headers merged into every request
+        def initialize(base_url:, http_client: nil, headers: {})
           @base_url    = base_url.to_s.chomp('/')
           @http_client = http_client
-          @headers     = headers
+          @headers     = headers.transform_keys(&:to_s)
         end
 
         Wire::Calls::CALL_TO_METHOD.each_value do |method_name|
@@ -59,15 +63,25 @@ module BSV
 
         def _post(url, body)
           req = Net::HTTP::Post.new(url)
+          @headers.each { |k, v| req[k] = v }
           req['Content-Type'] = 'application/json'
           req['Accept']       = 'application/json'
-          @headers.each { |k, v| req[k] = v }
           req.body = body.to_json
 
-          @http_client.start(url.host, url.port,
-                             use_ssl: url.scheme == 'https') { |conn| conn.request(req) }
+          _execute_request(url, req)
+        rescue BSV::Wallet::Error
+          raise
         rescue StandardError => e
           raise BSV::Wallet::Error.new("HTTP request failed: #{e.message}", code: 1)
+        end
+
+        def _execute_request(url, req)
+          if @http_client
+            @http_client.request(url, req)
+          else
+            Net::HTTP.start(url.host, url.port,
+                            use_ssl: url.scheme == 'https') { |conn| conn.request(req) }
+          end
         end
 
         def _handle_response(response)
