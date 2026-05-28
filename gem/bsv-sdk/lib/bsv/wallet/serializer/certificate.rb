@@ -12,7 +12,7 @@ module BSV
       #   [32 bytes: serial_number (raw bytes decoded from Base64)]
       #   [33 bytes: subject compressed pubkey]
       #   [33 bytes: certifier compressed pubkey]
-      #   [36 bytes: revocation_outpoint (32-byte wire txid + 4-byte LE vout)]
+      #   [32 bytes + varint: revocation_outpoint (display-order txid + varint vout)]
       #   [varint: field_count]
       #   per field: [varint-len name][varint-len value]
       #   [remaining: DER signature bytes (absent if no signature)]

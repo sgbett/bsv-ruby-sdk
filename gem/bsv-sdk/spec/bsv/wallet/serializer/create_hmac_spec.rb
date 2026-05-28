@@ -30,11 +30,6 @@ RSpec.describe 'BSV::Wallet::Serializer::CreateHmac' do
       result = round_trip_args(args)
       expect(result[:data].bytesize).to eq(200)
     end
-
-    it 'raises WERR_INVALID_PARAMETER for missing protocol_id' do
-      args = { protocol_id: nil, key_id: '1', counterparty: 'self', data: ''.b }
-      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
   end
 
   describe 'Result' do

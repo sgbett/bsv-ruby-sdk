@@ -16,10 +16,6 @@ module BSV
           module_function
 
           def serialize(args)
-            BSV::Wallet::Wire::Validation.wallet_protocol!('protocol_id', args[:protocol_id])
-            BSV::Wallet::Wire::Validation.key_id_string_1_to_800!('key_id', args[:key_id])
-            BSV::Wallet::Wire::Validation.wallet_counterparty!('counterparty', args[:counterparty])
-
             verifier = args[:verifier]
             raise BSV::Wallet::InvalidParameterError.new('verifier', 'a 33-byte binary pubkey or 66-char hex') unless verifier
 

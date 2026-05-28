@@ -57,16 +57,18 @@ module BSV
           @buf << [n].pack('Q<')
         end
 
-        # Write an outpoint: 32-byte wire-order txid (reversed from display hex)
-        # followed by 4-byte little-endian vout.
+        # Write an outpoint: 32-byte display-order txid followed by varint vout.
+        #
+        # Go encodeOutpoint calls WriteBytesReverse(Txid[:]) which writes the
+        # wire-order (chainhash) bytes reversed — i.e. display order on the wire.
+        # The vout is a varint, not a fixed 4-byte LE integer.
         #
         # @param txid_hex [String] 64-char display-order hex txid
         # @param vout [Integer] output index
         def write_outpoint(txid_hex, vout)
           BSV::Primitives::Hex.validate_dtxid_hex!(txid_hex)
-          wtxid = [txid_hex].pack('H*').reverse
-          @buf << wtxid
-          @buf << [vout].pack('V')
+          @buf << [txid_hex].pack('H*')
+          write_varint(vout)
         end
 
         # Write the NegativeOne sentinel (MaxUint64 as a 9-byte varint: 9 × 0xFF).
@@ -154,16 +156,17 @@ module BSV
           end
         end
 
-        # Write a txid slice (array of 32-byte wire-order txids).
+        # Write a txid slice (array of 32-byte txids in wire order).
         # nil → NegativeOne; else varint count + 32 raw bytes per txid.
-        # Txids are passed as 64-char display-order hex; reversed to wire order here.
+        # Txids are passed as 64-char display-order hex; written as-is (no byte reversal)
+        # to match Go WriteTxidSlice which writes txID[:] (wire-order bytes directly).
         # @param txids [Array<String>, nil] 64-char display-order hex strings
         def write_txid_slice(txids)
           if txids.nil?
             write_negative_one
           else
             write_varint(txids.length)
-            txids.each { |hex| write_bytes([hex].pack('H*').reverse) }
+            txids.each { |hex| write_bytes([hex].pack('H*')) }
           end
         end
 
@@ -252,13 +255,12 @@ module BSV
           read_bytes(8).unpack1('Q<')
         end
 
-        # Read a 36-byte outpoint (32-byte wire-order txid + 4-byte LE vout).
+        # Read an outpoint: 32-byte display-order txid + varint vout.
         # @return [Hash] { txid_hex: String, vout: Integer }
         def read_outpoint
-          wtxid = read_bytes(32)
-          vout = read_bytes(4).unpack1('V')
-          txid_hex = wtxid.reverse.unpack1('H*')
-          { txid_hex: txid_hex, vout: vout }
+          txid_bytes = read_bytes(32)
+          vout = read_varint
+          { txid_hex: txid_bytes.unpack1('H*'), vout: vout }
         end
 
         # Remaining bytes.
@@ -348,14 +350,14 @@ module BSV
           end
         end
 
-        # Read a txid slice: NegativeOne → nil; else varint count + 32-byte wire-order txids.
-        # Returns display-order hex strings.
+        # Read a txid slice: NegativeOne → nil; else varint count + 32 bytes per txid.
+        # Go stores txids in wire order (txID[:]) — returned as hex without reversal.
         # @return [Array<String>, nil]
         def read_txid_slice
           count = read_varint
           return nil if count == 0xFFFF_FFFF_FFFF_FFFF
 
-          count.times.map { read_bytes(32).reverse.unpack1('H*') }
+          count.times.map { read_bytes(32).unpack1('H*') }
         end
 
         # Read optional bytes with a 1-byte flag prefix (Go BytesOptionWithFlag).

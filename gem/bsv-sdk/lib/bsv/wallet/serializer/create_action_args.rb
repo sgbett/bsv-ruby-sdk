@@ -51,7 +51,12 @@ module BSV
           w = Wire::Writer.new
 
           w.write_string(args[:description].to_s)
-          w.write_int_bytes(args[:input_beef])
+          input_beef = args[:input_beef]
+          if input_beef.nil? || input_beef.b.empty?
+            w.write_negative_one
+          else
+            w.write_int_bytes(input_beef)
+          end
 
           serialize_inputs(w, args[:inputs])
           serialize_outputs(w, args[:outputs])
@@ -105,7 +110,7 @@ module BSV
           writer.write_varint(inputs.length)
           inputs.each do |inp|
             txid_hex, vout = inp[:outpoint].split('.')
-            writer.write_bytes([txid_hex].pack('H*').reverse)
+            writer.write_bytes([txid_hex].pack('H*'))
             writer.write_varint(vout.to_i)
 
             script = inp[:unlocking_script]
@@ -170,7 +175,7 @@ module BSV
           return nil if count == 0xFFFF_FFFF_FFFF_FFFF
 
           count.times.map do
-            txid_hex = reader.read_bytes(32).reverse.unpack1('H*')
+            txid_hex = reader.read_bytes(32).unpack1('H*')
             vout     = reader.read_varint
             outpoint = "#{txid_hex}.#{vout}"
 

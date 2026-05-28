@@ -52,8 +52,8 @@ RSpec.describe 'BSV::Wallet::Serializer::Certificate' do
       r.read_bytes(32)  # serial
       r.read_bytes(33)  # subject
       r.read_bytes(33)  # certifier
-      r.read_bytes(32)  # txid wire order
-      r.read_bytes(4)   # vout
+      r.read_bytes(32)  # txid display order
+      r.read_varint     # vout (varint)
       count = r.read_varint
       expect(count).to eq(2)
       first_name = r.read_str_with_varint_len

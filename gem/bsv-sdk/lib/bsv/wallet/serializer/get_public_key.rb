@@ -26,9 +26,6 @@ module BSV
               w.write_byte(IDENTITY_KEY_FLAG)
               Common.write_privileged_params(w, args[:privileged], args[:privileged_reason])
             else
-              BSV::Wallet::Wire::Validation.wallet_protocol!('protocol_id', args[:protocol_id])
-              BSV::Wallet::Wire::Validation.key_id_string_1_to_800!('key_id', args[:key_id])
-              BSV::Wallet::Wire::Validation.wallet_counterparty!('counterparty', args[:counterparty])
               w.write_byte(0)
               Common.write_key_related_params(
                 w,

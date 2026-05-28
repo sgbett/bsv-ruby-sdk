@@ -96,16 +96,16 @@ RSpec.describe 'BSV::Wallet::Wire Reader/Writer' do # rubocop:disable RSpec/Desc
       expect(result[:vout]).to eq(3)
     end
 
-    it 'writes the txid in wire order (reversed from display hex)' do
+    it 'writes the txid in display order (Go encodeOutpoint WriteBytesReverse convention)' do
       writer.write_outpoint(display_txid, 0)
       wire_txid_hex = writer.buf.byteslice(0, 32).unpack1('H*')
-      expect(wire_txid_hex).to eq(display_txid.scan(/../).reverse.join)
+      expect(wire_txid_hex).to eq(display_txid)
     end
 
-    it 'writes vout as 4-byte little-endian' do
+    it 'writes vout as a varint (not 4-byte LE)' do
       writer.write_outpoint(display_txid, 0x0102)
-      vout_bytes = writer.buf.byteslice(32, 4).unpack1('H*')
-      expect(vout_bytes).to eq('02010000')
+      vout_bytes = writer.buf.byteslice(32, 9).unpack1('H*')
+      expect(vout_bytes).to eq('fd0201')
     end
 
     it 'rejects invalid display txid' do

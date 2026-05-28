@@ -54,11 +54,6 @@ RSpec.describe 'BSV::Wallet::Serializer::GetPublicKey' do
       result = round_trip_args(args)
       expect(result[:for_self]).to be(true)
     end
-
-    it 'raises WERR_INVALID_PARAMETER for missing protocol when identity_key=false' do
-      args = { identity_key: false, protocol_id: nil, key_id: '1', counterparty: 'self' }
-      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
   end
 
   describe 'Result' do

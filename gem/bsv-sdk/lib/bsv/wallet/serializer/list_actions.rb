@@ -154,7 +154,7 @@ module BSV
 
           actions.each do |action|
             txid_hex = action[:txid].to_s
-            w.write_bytes([txid_hex].pack('H*').reverse)
+            w.write_bytes([txid_hex].pack('H*'))
             w.write_varint(action[:satoshis].to_i)
 
             code = ACTION_STATUS_CODES.fetch(action[:status]) do
@@ -184,7 +184,7 @@ module BSV
 
           total = r.read_varint
           actions = total.times.map do
-            txid_hex = r.read_bytes(32).reverse.unpack1('H*')
+            txid_hex = r.read_bytes(32).unpack1('H*')
             satoshis = r.read_varint
             code     = r.read_byte
             status   = ACTION_CODE_STATUSES.fetch(code) do
@@ -227,7 +227,7 @@ module BSV
           writer.write_varint(inputs.length)
           inputs.each do |inp|
             txid_hex, vout = inp[:source_outpoint].split('.')
-            writer.write_bytes([txid_hex].pack('H*').reverse)
+            writer.write_bytes([txid_hex].pack('H*'))
             writer.write_varint(vout.to_i)
 
             writer.write_varint(inp[:source_satoshis].to_i)
@@ -282,7 +282,7 @@ module BSV
           return nil if count == 0xFFFF_FFFF_FFFF_FFFF
 
           count.times.map do
-            txid_hex = reader.read_bytes(32).reverse.unpack1('H*')
+            txid_hex = reader.read_bytes(32).unpack1('H*')
             vout     = reader.read_varint
             source_outpoint = "#{txid_hex}.#{vout}"
 

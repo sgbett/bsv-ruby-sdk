@@ -134,7 +134,7 @@ module BSV
           w.write_varint(outpoints.length)
           outpoints.each do |op|
             txid_hex, vout = op.split('.')
-            w.write_bytes([txid_hex].pack('H*').reverse)
+            w.write_bytes([txid_hex].pack('H*'))
             w.write_varint(vout.to_i)
           end
           w.buf
@@ -151,7 +151,7 @@ module BSV
           return nil if count == 0xFFFF_FFFF_FFFF_FFFF
 
           count.times.map do
-            txid_hex = r.read_bytes(32).reverse.unpack1('H*')
+            txid_hex = r.read_bytes(32).unpack1('H*')
             vout = r.read_varint
             "#{txid_hex}.#{vout}"
           end

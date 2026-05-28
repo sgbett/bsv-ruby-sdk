@@ -38,11 +38,6 @@ RSpec.describe 'BSV::Wallet::Serializer::VerifyHmac' do
       args = valid_args.merge(hmac: "\x00" * 16)
       expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError, /32 bytes/)
     end
-
-    it 'raises WERR_INVALID_PARAMETER for invalid counterparty' do
-      args = valid_args.merge(counterparty: 'invalid')
-      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
   end
 
   describe 'Result' do

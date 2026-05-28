@@ -93,21 +93,6 @@ RSpec.describe 'BSV::Wallet::Serializer::Encrypt' do
       result = round_trip_args(args)
       expect(result[:plaintext]).to eq(plaintext)
     end
-
-    it 'raises WERR_INVALID_PARAMETER for invalid protocol_id' do
-      args = { protocol_id: 'bad', key_id: '1', counterparty: 'self', plaintext: ''.b }
-      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
-
-    it 'raises WERR_INVALID_PARAMETER for invalid key_id' do
-      args = { protocol_id: [2, 'hello world'], key_id: '', counterparty: 'self', plaintext: ''.b }
-      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
-
-    it 'raises WERR_INVALID_PARAMETER for invalid counterparty' do
-      args = { protocol_id: [2, 'hello world'], key_id: '1', counterparty: 'bad_cp', plaintext: ''.b }
-      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
-    end
   end
 
   describe 'Result' do

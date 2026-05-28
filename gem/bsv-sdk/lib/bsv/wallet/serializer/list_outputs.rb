@@ -116,7 +116,7 @@ module BSV
             else
               w.write_negative_one
             end
-            w.write_str_with_varint_len(output[:custom_instructions].to_s)
+            w.write_optional_string(output[:custom_instructions])
             w.write_string_slice(output[:tags])
             w.write_string_slice(output[:labels])
           end
@@ -144,7 +144,7 @@ module BSV
                              else
                                r.read_bytes(locking_script_len)
                              end
-            custom_instructions = r.read_str_with_varint_len
+            custom_instructions = r.read_optional_string
             tags   = r.read_string_slice
             labels = r.read_string_slice
 
@@ -152,7 +152,7 @@ module BSV
               outpoint: outpoint,
               satoshis: satoshis,
               locking_script: locking_script,
-              custom_instructions: custom_instructions.empty? ? nil : custom_instructions,
+              custom_instructions: custom_instructions,
               tags: tags,
               labels: labels,
               spendable: true

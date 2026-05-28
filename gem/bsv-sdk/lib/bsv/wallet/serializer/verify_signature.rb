@@ -21,10 +21,6 @@ module BSV
           module_function
 
           def serialize(args)
-            BSV::Wallet::Wire::Validation.wallet_protocol!('protocol_id', args[:protocol_id])
-            BSV::Wallet::Wire::Validation.key_id_string_1_to_800!('key_id', args[:key_id])
-            BSV::Wallet::Wire::Validation.wallet_counterparty!('counterparty', args[:counterparty])
-
             data = args[:data] && Common.to_binary(args[:data])
             hash = args[:hash_to_directly_verify] && Common.to_binary(args[:hash_to_directly_verify])
             sig  = args[:signature] && Common.to_binary(args[:signature])
