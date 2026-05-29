@@ -16,7 +16,7 @@ require 'spec_helper'
 # so the wallet stays funded across runs.
 RSpec.describe 'Testnet integration', :testnet do
   def arc_url
-    ENV.fetch('BSV_TESTNET_ARC_URL', 'https://testnet.arcade.gorillapool.io')
+    ENV.fetch('BSV_TESTNET_ARCADE_URL', 'https://testnet.arcade.gorillapool.io')
   end
 
   def dust_limit
@@ -41,7 +41,7 @@ RSpec.describe 'Testnet integration', :testnet do
   end
 
   let(:arc_protocol) do
-    BSV::Network::Protocols::ARC.new(base_url: arc_url)
+    BSV::Network::Protocols::Arcade.new(base_url: arc_url)
   end
 
   def arc_broadcast!(tx)
@@ -101,8 +101,9 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
+      # Arcade does not return txid on fresh submission — txid is locally computable
       expect(result).to be_http_success
-      expect(result.data['txid']).to eq(tx.txid_hex)
+      expect(result.data['status']).to be_in(['submitted', 'already submitted'])
 
       status = arc_status!(tx.txid_hex)
       expect(status).to be_http_success
@@ -125,8 +126,9 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
+      # Arcade does not return txid on fresh submission
       expect(result).to be_http_success
-      expect(result.data['txid']).to eq(tx.txid_hex)
+      expect(result.data['status']).to be_in(['submitted', 'already submitted'])
     end
   end
 

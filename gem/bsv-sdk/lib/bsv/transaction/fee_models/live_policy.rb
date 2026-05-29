@@ -34,15 +34,17 @@ module BSV
 
         DEFAULT_FALLBACK_RATE = 100
 
-        # Returns a LivePolicy with sensible defaults (GorillaPool ARC,
-        # 100 sat/kB fallback, 5-minute cache).
+        # TAAL still runs a public ARC instance that serves /v1/policy.
+        # Full policy access may require a TAAL API key.
+        TAAL_ARC_URL = 'https://arc.taal.com'
+
+        # Returns a LivePolicy using TAAL ARC for fee policy, 100 sat/kB fallback,
+        # and a 5-minute cache.
         #
-        # @param api_key [String, nil] optional ARC API key
+        # @param api_key [String, nil] optional TAAL API key for authenticated policy access
         # @return [LivePolicy]
         def self.default(api_key: nil)
-          provider = BSV::Network::Providers::GorillaPool.mainnet
-          arc_protocol = provider.protocol_for(:broadcast)
-          new(arc_url: arc_protocol.base_url, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
+          new(arc_url: TAAL_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
         end
 
         # @param arc_url [String] ARC base URL (e.g. 'https://arcade.gorillapool.io')

@@ -4,17 +4,16 @@ module BSV
   module Network
     module Providers
       # GorillaPool returns pre-configured Provider instances using the GorillaPool
-      # ARCADE infrastructure for ARC and Chaintracks, the GorillaPool Ordinals
-      # API for transaction and merkle path lookups, and JungleBus for indexed
-      # transaction data and block headers.
+      # Arcade infrastructure for broadcasting, the GorillaPool Ordinals API for
+      # transaction and merkle path lookups, and JungleBus for indexed transaction
+      # data and block headers.
       #
-      # Mainnet composes four protocols:
-      # - ARC at +https://arcade.gorillapool.io+
-      # - Chaintracks at +https://arcade.gorillapool.io+
+      # Mainnet composes three protocols:
+      # - Arcade at +https://arcade.gorillapool.io+
       # - Ordinals at +https://ordinals.gorillapool.io+
       # - JungleBus at +https://junglebus.gorillapool.io+
       #
-      # Testnet provides ARC and Chaintracks at +https://testnet.arcade.gorillapool.io+.
+      # Testnet provides Arcade at +https://testnet.arcade.gorillapool.io+.
       #
       # == Example
       #
@@ -30,9 +29,9 @@ module BSV
         # Default requests-per-second limit for unauthenticated use.
         DEFAULT_RATE_LIMIT = 3
 
-        # Returns a mainnet Provider configured with ARC, Chaintracks, Ordinals, and JungleBus.
+        # Returns a mainnet Provider configured with Arcade, Ordinals, and JungleBus.
         #
-        # Auth is forwarded to all four protocols so each can authenticate independently.
+        # Auth is forwarded to all three protocols so each can authenticate independently.
         #
         # @param auth       [Hash, Symbol, nil] auth config forwarded to Provider and all protocols
         # @param rate_limit [Numeric, nil] requests per second; defaults to +DEFAULT_RATE_LIMIT+
@@ -42,16 +41,14 @@ module BSV
           resolved_auth = auth || (opts[:api_key] ? { bearer: opts[:api_key] } : :none)
           common = opts.slice(:api_key, :http_client).merge(auth: auth)
           Provider.new('GorillaPool', auth: resolved_auth, rate_limit: rate_limit) do |p|
-            p.protocol Protocols::ARC,         base_url: 'https://arcade.gorillapool.io', auth: auth, **opts
-            p.protocol Protocols::Chaintracks, base_url: 'https://arcade.gorillapool.io', **common
-            p.protocol Protocols::Ordinals,    base_url: 'https://ordinals.gorillapool.io', **common
-            p.protocol Protocols::JungleBus,   base_url: 'https://junglebus.gorillapool.io', **common
+            p.protocol Protocols::Arcade,    base_url: 'https://arcade.gorillapool.io', auth: auth, **opts
+            # TODO: re-register chaintracks_server at separate URL/port — see issue #778
+            p.protocol Protocols::Ordinals,  base_url: 'https://ordinals.gorillapool.io', **common
+            p.protocol Protocols::JungleBus, base_url: 'https://junglebus.gorillapool.io', **common
           end
         end
 
-        # Returns a testnet Provider configured with ARC and Chaintracks.
-        #
-        # Auth is forwarded to both protocols.
+        # Returns a testnet Provider configured with Arcade only.
         #
         # @param auth       [Hash, Symbol, nil] auth config forwarded to Provider and all protocols
         # @param rate_limit [Numeric, nil] requests per second; defaults to +DEFAULT_RATE_LIMIT+
@@ -59,10 +56,9 @@ module BSV
         # @return [Provider]
         def self.testnet(auth: nil, rate_limit: DEFAULT_RATE_LIMIT, **opts)
           resolved_auth = auth || (opts[:api_key] ? { bearer: opts[:api_key] } : :none)
-          common = opts.slice(:api_key, :http_client).merge(auth: auth)
           Provider.new('GorillaPool', auth: resolved_auth, rate_limit: rate_limit) do |p|
-            p.protocol Protocols::ARC,         base_url: 'https://testnet.arcade.gorillapool.io', auth: auth, **opts
-            p.protocol Protocols::Chaintracks, base_url: 'https://testnet.arcade.gorillapool.io', **common
+            p.protocol Protocols::Arcade, base_url: 'https://testnet.arcade.gorillapool.io', auth: auth, **opts
+            # TODO: re-register chaintracks_server at separate URL/port — see issue #778
           end
         end
 

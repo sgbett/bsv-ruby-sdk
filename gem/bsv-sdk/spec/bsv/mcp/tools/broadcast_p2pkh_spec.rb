@@ -46,11 +46,17 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
+  # Arcade returns {"status":"submitted"} on fresh broadcast — no txid on first submission.
   let(:arc_success_body) do
+    { 'status' => 'submitted' }.to_json
+  end
+
+  # Arcade returns {"status":"already submitted","txid":...,"state":...} on re-submission.
+  let(:arc_resubmit_body) do
     {
+      'status' => 'already submitted',
       'txid' => 'deadbeef' * 8,
-      'txStatus' => 'SEEN_ON_NETWORK',
-      'title' => 'Added to mempool'
+      'state' => 'SEEN_ON_NETWORK'
     }.to_json
   end
 
@@ -74,6 +80,12 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
   end
 
+  def stub_arc_resubmit
+    http = mock_http_class.new(200, arc_resubmit_body)
+    provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
+    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
+  end
+
   describe '.call with sufficient funds' do
     before do
       stub_woc(200, utxo_response_body)
@@ -90,20 +102,20 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect(response.error?).to be false
     end
 
-    it 'returns the txid from ARC' do
+    it 'returns nil txid on fresh Arcade submission (txid absent in response)' do
       result = JSON.parse(
         tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
         symbolize_names: true
       )
-      expect(result[:txid]).to eq('deadbeef' * 8)
+      expect(result).not_to have_key(:txid)
     end
 
-    it 'returns the tx_status from ARC' do
+    it 'returns tx_status from Arcade status field' do
       result = JSON.parse(
         tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
         symbolize_names: true
       )
-      expect(result[:tx_status]).to eq('SEEN_ON_NETWORK')
+      expect(result[:tx_status]).to eq('submitted')
     end
 
     it 'returns a hex string' do
@@ -114,9 +126,9 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect(result[:hex]).to match(/\A[0-9a-f]+\z/)
     end
 
-    it 'includes structured_content' do
+    it 'includes structured_content with tx_status' do
       response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
-      expect(response.structured_content[:txid]).to eq('deadbeef' * 8)
+      expect(response.structured_content[:tx_status]).to eq('submitted')
     end
   end
 
@@ -170,6 +182,34 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
+  describe '.call when Arcade returns already submitted (idempotent re-submission)' do
+    before do
+      stub_woc(200, utxo_response_body)
+      stub_arc_resubmit
+    end
+
+    it 'returns a success response' do
+      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
+      expect(response.error?).to be false
+    end
+
+    it 'surfaces the txid from the re-submission response' do
+      result = JSON.parse(
+        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
+        symbolize_names: true
+      )
+      expect(result[:txid]).to eq('deadbeef' * 8)
+    end
+
+    it 'surfaces the state from the re-submission response' do
+      result = JSON.parse(
+        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
+        symbolize_names: true
+      )
+      expect(result[:state]).to eq('SEEN_ON_NETWORK')
+    end
+  end
+
   describe '.call when ARC rejects the broadcast' do
     before do
       stub_woc(200, utxo_response_body)
@@ -201,12 +241,10 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     let(:testnet_wif) { testnet_key.to_wif(network: :testnet) }
     let(:testnet_recipient) { testnet_key.public_key.address(network: :testnet) }
 
-    it 'uses testnet for WhatsOnChain and ARC' do
-      result = JSON.parse(
-        tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet').content.first.text,
-        symbolize_names: true
-      )
-      expect(result[:txid]).to eq('deadbeef' * 8)
+    it 'uses testnet for WhatsOnChain and Arcade' do
+      response = tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
+      result = JSON.parse(response.content.first.text, symbolize_names: true)
+      expect(result[:tx_status]).to eq('submitted')
     end
   end
 end

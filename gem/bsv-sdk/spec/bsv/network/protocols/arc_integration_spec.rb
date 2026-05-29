@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Integration tests that hit the live GorillaPool ARC API.
+# Integration tests that hit the live TAAL ARC API.
 #
 # Gated on BSV_INTEGRATION env var to avoid hitting the live API during
 # regular CI runs.
@@ -18,7 +18,7 @@
 RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/DescribeClass
   subject(:protocol) do
     BSV::Network::Protocols::ARC.new(
-      base_url: 'https://arcade.gorillapool.io'
+      base_url: 'https://arc.taal.com'
     )
   end
 
@@ -30,40 +30,29 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   # Health
   # ---------------------------------------------------------------------------
 
-  # ARC health and policy endpoints may require authentication or may be
-  # unavailable from CI runners (rate-limited, IP-blocked). These tests
-  # assert success when the endpoint responds, but skip gracefully on 404/401.
-
-  it 'health returns a healthy status or is unavailable' do
+  it 'health returns a healthy status' do
     result = protocol.call(:health)
 
-    if result.http_success?
-      expect(result.data['healthy']).to be(true)
-    else
-      # ARC may return 404 from some networks/IPs — not a test failure
-      expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
-    end
+    expect(result).to be_http_success
+    expect(result.data['healthy']).to be(true)
   end
 
   # ---------------------------------------------------------------------------
   # Policy
   # ---------------------------------------------------------------------------
 
-  it 'get_policy returns mining policy or is unavailable' do
+  it 'get_policy returns a valid mining policy' do
     result = protocol.call(:get_policy)
 
-    if result.http_success?
-      expect(result.data).to have_key('policy')
-      policy = result.data['policy']
-      expect(policy).to be_a(Hash)
-      expect(policy['maxscriptsizepolicy']).to be_a(Integer)
-      expect(policy['maxscriptsizepolicy']).to be_positive
-      expect(policy['miningFee']).to be_a(Hash)
-      expect(policy['miningFee']).to have_key('bytes')
-      expect(policy['miningFee']).to have_key('satoshis')
-    else
-      expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
-    end
+    expect(result).to be_http_success
+    expect(result.data).to have_key('policy')
+    policy = result.data['policy']
+    expect(policy).to be_a(Hash)
+    expect(policy['maxscriptsizepolicy']).to be_a(Integer)
+    expect(policy['maxscriptsizepolicy']).to be_positive
+    expect(policy['miningFee']).to be_a(Hash)
+    expect(policy['miningFee']).to have_key('bytes')
+    expect(policy['miningFee']).to have_key('satoshis')
   end
 
   # ---------------------------------------------------------------------------

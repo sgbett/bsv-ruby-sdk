@@ -15,28 +15,24 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.name).to eq('GorillaPool')
     end
 
-    it 'registers four protocols' do
-      expect(provider.protocols.length).to eq(4)
+    it 'registers three protocols' do
+      expect(provider.protocols.length).to eq(3)
     end
 
-    it 'registers ARC as first protocol' do
-      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::ARC)
+    it 'registers Arcade as first protocol' do
+      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::Arcade)
     end
 
-    it 'registers Chaintracks as second protocol' do
-      expect(provider.protocols[1]).to be_a(BSV::Network::Protocols::Chaintracks)
+    it 'registers Ordinals as second protocol' do
+      expect(provider.protocols[1]).to be_a(BSV::Network::Protocols::Ordinals)
     end
 
-    it 'registers Ordinals as third protocol' do
-      expect(provider.protocols[2]).to be_a(BSV::Network::Protocols::Ordinals)
+    it 'registers JungleBus as third protocol' do
+      expect(provider.protocols[2]).to be_a(BSV::Network::Protocols::JungleBus)
     end
 
-    it 'serves :broadcast via ARC' do
-      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
-    end
-
-    it 'serves :current_height via Chaintracks' do
-      expect(provider.protocol_for(:current_height)).to be_a(BSV::Network::Protocols::Chaintracks)
+    it 'serves :broadcast via Arcade' do
+      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::Arcade)
     end
 
     it 'serves :get_merkle_path via Ordinals' do
@@ -51,27 +47,23 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.commands).to include(:broadcast)
     end
 
-    it 'includes :current_height in commands' do
-      expect(provider.commands).to include(:current_height)
+    it 'does not include :current_height in commands (Chaintracks removed)' do
+      expect(provider.commands).not_to include(:current_height)
     end
 
     it 'includes :get_tx in commands' do
       expect(provider.commands).to include(:get_tx)
     end
 
-    it 'sets ARC base_url to arcade.gorillapool.io' do
+    it 'sets Arcade base_url to arcade.gorillapool.io' do
       expect(provider.protocols[0].base_url).to eq('https://arcade.gorillapool.io')
     end
 
-    it 'sets Chaintracks base_url to arcade.gorillapool.io' do
-      expect(provider.protocols[1].base_url).to eq('https://arcade.gorillapool.io')
-    end
-
     it 'sets Ordinals base_url to ordinals.gorillapool.io' do
-      expect(provider.protocols[2].base_url).to eq('https://ordinals.gorillapool.io')
+      expect(provider.protocols[1].base_url).to eq('https://ordinals.gorillapool.io')
     end
 
-    it 'forwards api_key to ARC protocol' do
+    it 'forwards api_key to Arcade protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(api_key: 'test-key', http_client: http_client)
       expect(p.protocols[0].api_key).to eq('test-key')
     end
@@ -84,26 +76,21 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.name).to eq('GorillaPool')
     end
 
-    it 'registers two protocols' do
-      expect(provider.protocols.length).to eq(2)
+    it 'registers one protocol' do
+      expect(provider.protocols.length).to eq(1)
     end
 
-    it 'registers ARC and Chaintracks' do
-      classes = provider.protocols.map(&:class)
-      expect(classes).to include(BSV::Network::Protocols::ARC, BSV::Network::Protocols::Chaintracks)
+    it 'registers Arcade only' do
+      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::Arcade)
     end
 
-    it 'serves :broadcast via ARC' do
-      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
+    it 'serves :broadcast via Arcade' do
+      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::Arcade)
     end
 
-    it 'serves :current_height via Chaintracks' do
-      expect(provider.protocol_for(:current_height)).to be_a(BSV::Network::Protocols::Chaintracks)
-    end
-
-    it 'sets ARC base_url to testnet.arcade.gorillapool.io' do
-      arc = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::ARC) }
-      expect(arc.base_url).to eq('https://testnet.arcade.gorillapool.io')
+    it 'sets Arcade base_url to testnet.arcade.gorillapool.io' do
+      arcade = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::Arcade) }
+      expect(arcade.base_url).to eq('https://testnet.arcade.gorillapool.io')
     end
   end
 
@@ -354,24 +341,19 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(p.authenticated?).to be(true)
     end
 
-    it 'forwards auth: to ARC protocol' do
+    it 'forwards auth: to Arcade protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
       expect(p.protocols[0].auth).to eq({ bearer: 'tok' })
     end
 
-    it 'forwards auth: to Chaintracks protocol' do
+    it 'forwards auth: to Ordinals protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
       expect(p.protocols[1].auth).to eq({ bearer: 'tok' })
     end
 
-    it 'forwards auth: to Ordinals protocol' do
-      p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
-      expect(p.protocols[2].auth).to eq({ bearer: 'tok' })
-    end
-
     it 'forwards auth: to JungleBus protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
-      expect(p.protocols[3].auth).to eq({ bearer: 'tok' })
+      expect(p.protocols[2].auth).to eq({ bearer: 'tok' })
     end
 
     it 'rate_limit: override replaces default' do

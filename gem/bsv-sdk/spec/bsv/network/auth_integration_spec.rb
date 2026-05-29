@@ -26,10 +26,13 @@ end
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Builds a fake HTTP client that returns a minimal successful ARC JSON response
+# Builds a fake HTTP client that returns a minimal successful Arcade JSON response
 # and records the request for header inspection.
+# GorillaPool now uses Arcade (not ARC); Arcade returns {"status":"submitted"} on broadcast.
+# TAAL still uses ARC so this helper serves both via duck typing — the auth header check
+# does not depend on the response body shape.
 def arc_fake_http
-  body = '{"txid":"deadbeef","txStatus":"MINED"}'
+  body = '{"status":"submitted"}'
   AuthIntegrationFakeHttpClient.new(AuthIntegrationFakeResponse.new('200', body))
 end
 
@@ -105,9 +108,9 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
     end
   end
 
-  # ── Scenario 2: GorillaPool ARC with auth: { bearer: } ─────────────────────
+  # ── Scenario 2: GorillaPool Arcade with auth: { bearer: } ─────────────────────
   #
-  # GorillaPool ARC uses Bearer token auth.
+  # GorillaPool Arcade uses Bearer token auth. The request now hits /tx (not /v1/tx).
 
   describe 'GorillaPool with auth: { bearer: }' do
     it 'provider.auth is the bearer hash' do
@@ -126,13 +129,13 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
       expect(p.authenticated?).to be(true)
     end
 
-    it 'ARC protocol receives auth: { bearer: }' do
+    it 'Arcade protocol receives auth: { bearer: }' do
       p = BSV::Network::Providers::GorillaPool.mainnet(
         auth: { bearer: 'gp-bearer-token' },
         http_client: arc_fake_http
       )
-      arc = p.protocols.find { |pr| pr.is_a?(BSV::Network::Protocols::ARC) }
-      expect(arc.auth).to eq({ bearer: 'gp-bearer-token' })
+      arcade = p.protocols.find { |pr| pr.is_a?(BSV::Network::Protocols::Arcade) }
+      expect(arcade.auth).to eq({ bearer: 'gp-bearer-token' })
     end
 
     it 'HTTP request has Authorization: Bearer gp-bearer-token' do
@@ -145,9 +148,20 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
       p.call(:broadcast, tx)
       expect(http.last_request['Authorization']).to eq('Bearer gp-bearer-token')
     end
+
+    it 'HTTP request hits /tx path (Arcade broadcast endpoint)' do
+      http = arc_fake_http
+      p = BSV::Network::Providers::GorillaPool.mainnet(
+        auth: { bearer: 'gp-bearer-token' },
+        http_client: http
+      )
+      tx = dummy_tx
+      p.call(:broadcast, tx)
+      expect(http.last_request.path).to eq('/tx')
+    end
   end
 
-  # ── Scenario 3: GorillaPool ARC with custom header auth ─────────────────────
+  # ── Scenario 3: GorillaPool Arcade with custom header auth ─────────────────────
   #
   # Custom header: auth: { api_key: 'key', header: 'Api-Key' } → Api-Key: key
 
