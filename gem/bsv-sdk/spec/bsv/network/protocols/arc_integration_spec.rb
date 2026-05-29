@@ -35,7 +35,6 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   # assert success when the endpoint responds, but skip gracefully on 404/401.
 
   it 'health returns a healthy status or is unavailable' do
-    pending 'ARC endpoint unreachable from CI — timeouts against arcade.gorillapool.io'
     result = protocol.call(:health)
 
     if result.http_success?
@@ -51,7 +50,6 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   # ---------------------------------------------------------------------------
 
   it 'get_policy returns mining policy or is unavailable' do
-    pending 'ARC endpoint unreachable from CI — timeouts against arcade.gorillapool.io'
     result = protocol.call(:get_policy)
 
     if result.http_success?
@@ -73,7 +71,6 @@ RSpec.describe 'ARC integration', :integration do # rubocop:disable RSpec/Descri
   # ---------------------------------------------------------------------------
 
   it 'get_tx_status returns not_found for a historical txid not retained by ARC' do
-    pending 'ARC endpoint unreachable from CI — timeouts against arcade.gorillapool.io'
     result = protocol.call(:get_tx_status, genesis_txid)
 
     expect(result).to be_http_not_found

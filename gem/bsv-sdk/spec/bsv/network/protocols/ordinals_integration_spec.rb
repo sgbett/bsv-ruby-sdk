@@ -96,7 +96,6 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   # ---------------------------------------------------------------------------
 
   it 'get_tx_status returns confirmation status for a known confirmed tx' do
-    pending 'known_txid pruned from Ordinals index — tx data no longer available'
     result = protocol.call(:get_tx_status, known_txid)
 
     expect(result).to be_http_success
@@ -111,7 +110,6 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   # ---------------------------------------------------------------------------
 
   it 'get_merkle_path returns binary proof data for a known confirmed tx' do
-    pending 'known_txid pruned from Ordinals index — tx data no longer available'
     result = protocol.call(:get_merkle_path, known_txid)
 
     expect(result).to be_http_success
@@ -146,7 +144,6 @@ RSpec.describe 'Ordinals integration', :integration do # rubocop:disable RSpec/D
   # ---------------------------------------------------------------------------
 
   it 'get_chain_tip returns a JSON hash with a positive block height' do
-    pending 'Ordinals API returning nil data for chain tip endpoint'
     result = protocol.call(:get_chain_tip)
 
     expect(result).to be_http_success
