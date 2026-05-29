@@ -7,6 +7,7 @@ module BSV
     # JungleBus, Ordinals, TAALBinary, and WoCREST.
     module Protocols
       autoload :ARC,         'bsv/network/protocols/arc'
+      autoload :Arcade,      'bsv/network/protocols/arcade'
       autoload :Chaintracks, 'bsv/network/protocols/chaintracks'
       autoload :JungleBus,   'bsv/network/protocols/jungle_bus'
       autoload :Ordinals,    'bsv/network/protocols/ordinals'
