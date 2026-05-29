@@ -258,11 +258,12 @@ RSpec.describe BSV::Wallet::Substrates::HTTPWalletWire do
   # -------------------------------------------------------------------------
 
   describe 'live wallet integration', :integration do
-    let(:live_client) do
-      described_class.client(base_url: ENV.fetch('BSV_WALLET_URL', 'http://localhost:3301'))
-    end
+    let(:wallet_url) { ENV.fetch('BSV_WALLET_URL', nil) }
 
     it 'get_network returns a valid network symbol from a real wallet' do
+      skip 'BSV_WALLET_URL not set' unless wallet_url
+
+      live_client = described_class.client(base_url: wallet_url)
       result  = live_client.get_network
       network = result[:network]
       expect(network).to be(:mainnet).or be(:testnet)
