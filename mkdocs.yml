@@ -47,6 +47,7 @@ nav:
   - Home: index.md
   - Guides:
       - Getting Started: guides/getting-started.md
+      - BRC-103 Wire Layer: guides/brc-103-wire.md
   - SDK:
       - Primitives: sdk/primitives.md
       - Script: sdk/script.md

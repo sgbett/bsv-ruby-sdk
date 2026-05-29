@@ -16,6 +16,10 @@ Gemfile.lock
 docs/reference/
 doc/
 .yardoc/
+/site/
+
+# Local data archives
+data.tar.gz
 
 # Claude Code
 .claude/settings.local.json
