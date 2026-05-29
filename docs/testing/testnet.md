@@ -59,7 +59,7 @@ tx.add_output(payment)
 tx.add_output(change)
 tx.sign_all(private_key)
 
-response = arcade.broadcast(tx)
+response = arcade.call(:broadcast, tx)
 response.http_success?       # => true
 response.data['status']      # => "submitted"
 ```

@@ -47,7 +47,7 @@ module BSV
           new(arc_url: TAAL_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
         end
 
-        # @param arc_url [String] ARC base URL (e.g. 'https://arcade.gorillapool.io')
+        # @param arc_url [String] ARC base URL (e.g. 'https://arc.taal.com')
         # @param fallback_rate [Integer] sat/kB to use when fetch fails (default: 100)
         # @param cache_ttl [Integer] seconds to cache a fetched rate (default: 300)
         # @param api_key [String, nil] optional Bearer token for ARC authentication

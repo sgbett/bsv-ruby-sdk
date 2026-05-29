@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module BSV
   module Network
     # Shared utility methods for protocol implementations.

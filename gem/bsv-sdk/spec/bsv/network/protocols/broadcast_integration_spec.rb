@@ -34,7 +34,7 @@ RSpec.describe 'Live broadcast', :integration do # rubocop:disable RSpec/Describ
     else
       woc = BSV::Network::Providers::WhatsOnChain.mainnet
       result = woc.call(:get_utxos, address)
-      skip 'WoC rate-limited — set BSV_LIVE_TEST_PREVOUT to bypass' if result.http_response.code == '429'
+      skip 'WoC rate-limited — set BSV_LIVE_TEST_PREVOUT to bypass' if result.code == '429'
       raise "WoC UTXO fetch failed: #{result.error_message}" unless result.http_success?
 
       candidates = result.data.select { |u| u['value'] >= 1000 }
@@ -70,30 +70,25 @@ RSpec.describe 'Live broadcast', :integration do # rubocop:disable RSpec/Describ
 
   before { skip 'set BSV_LIVE_TEST_WIF to run' unless wif }
 
-  it 'broadcasts via TAAL ARC' do
-    result = taal.call(:broadcast, tx)
-    expect(result).to be_http_success
-    expect(result.data['txStatus']).to be_in(%w[SEEN_ON_NETWORK RECEIVED MINED])
-  end
+  it 'broadcasts via both providers and round-trips the txid' do
+    taal_result = taal.call(:broadcast, tx)
+    expect(taal_result).to be_http_success
+    expect(taal_result.data['txStatus']).to be_in(%w[SEEN_ON_NETWORK RECEIVED MINED])
 
-  it 'broadcasts the same tx via GorillaPool Arcade (idempotent re-broadcast)' do
-    taal.call(:broadcast, tx)
-
-    result = gorilla_pool.call(:broadcast, tx)
-    expect(result).to be_http_success
-    expect(result.data['status']).to be_in(['submitted', 'already submitted'])
-  end
-
-  it 'TAAL get_tx_status round-trips a freshly-broadcast txid' do
-    broadcast = taal.call(:broadcast, tx)
-    expect(broadcast).to be_http_success
+    arcade_result = gorilla_pool.call(:broadcast, tx)
+    expect(arcade_result).to be_http_success
+    expect(arcade_result.data['status']).to be_in(['submitted', 'already submitted'])
 
     txid = tx.txid_hex
     sleep 2
 
-    status = taal.call(:get_tx_status, txid)
-    expect(status).to be_http_success
-    expect(status.data['txid']).to eq(txid)
-    expect(status.data['txStatus']).to be_in(%w[RECEIVED SEEN_ON_NETWORK MINED])
+    taal_status = taal.call(:get_tx_status, txid)
+    expect(taal_status).to be_http_success
+    expect(taal_status.data['txid']).to eq(txid)
+    expect(taal_status.data['txStatus']).to be_in(%w[RECEIVED SEEN_ON_NETWORK MINED])
+
+    arcade_status = gorilla_pool.call(:get_tx_status, txid)
+    expect(arcade_status).to be_http_success
+    expect(arcade_status.data['txStatus']).to be_in(%w[RECEIVED SEEN_ON_NETWORK SEEN_ON_MULTIPLE_NODES MINED IMMUTABLE])
   end
 end
