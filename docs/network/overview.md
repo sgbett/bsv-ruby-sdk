@@ -30,15 +30,46 @@ A protocol knows nothing about URLs or credentials — it only knows path templa
 HTTP methods, and response formats. Complex commands use escape hatches (`call_<name>`
 methods) for custom logic like the ARC broadcast's Extended Format negotiation.
 
-The SDK ships five protocols:
+The SDK ships six protocols:
 
 | Protocol | Commands | Used by |
 |----------|----------|---------|
-| `Protocols::ARC` | broadcast, broadcast_many, get_tx_status, get_policy, health | GorillaPool, TAAL |
+| `Protocols::ARC` | broadcast, broadcast_many, get_tx_status, get_policy, health | TAAL |
+| `Protocols::Arcade` | broadcast, get_tx_status, health | GorillaPool |
 | `Protocols::WoCREST` | get_tx, get_utxos, is_utxo, current_height, valid_root, get_merkle_path, + 20 more | WhatsOnChain |
-| `Protocols::Chaintracks` | get_block_header, current_height | GorillaPool |
+| `Protocols::Chaintracks` | get_block_header, current_height | (follow-up: see #778) |
 | `Protocols::Ordinals` | get_tx, get_merkle_path | GorillaPool |
 | `Protocols::TAALBinary` | broadcast | TAAL |
+
+#### ARC vs Arcade
+
+`Protocols::ARC` and `Protocols::Arcade` are distinct protocols backed by different
+open-source implementations:
+
+- **ARC** (`bitcoin-sv/arc`) — run by TAAL at `arc.taal.com`. Accepts EF-format
+  transactions, returns `{"txid": "...", "txStatus": "SEEN_ON_NETWORK", ...}`, and
+  exposes `/v1/policy` for live fee-rate queries. Full status taxonomy:
+  `RECEIVED`, `SEEN_ON_NETWORK`, `MINED`, `REJECTED`, `DOUBLE_SPEND_ATTEMPTED`,
+  `INVALID`, `MALFORMED`, `MINED_IN_STALE_BLOCK`.
+
+- **Arcade** (`bsv-blockchain/arcade`) — run by GorillaPool at
+  `arcade.gorillapool.io`. The Teranode-era reimplementation. Path prefix is `/`
+  (not `/v1/`). Broadcast success returns `{"status": "submitted"}` (not `txid`).
+  Status taxonomy: `RECEIVED`, `SEEN_ON_NETWORK`, `SEEN_ON_MULTIPLE_NODES`,
+  `MINED`, `IMMUTABLE`, `REJECTED` — narrower than ARC. No `/v1/policy` endpoint.
+
+Both services document some of the same header names (`X-CallbackUrl`,
+`X-CallbackToken`, `X-SkipFeeValidation`, `X-SkipScriptValidation`), but their
+request paths, response body shapes, and status taxonomies diverge enough that they
+must be treated as distinct protocols. Response parsing is not shared.
+
+**Important:** Arcade's `:get_tx_status` only tracks transactions that were
+submitted through that Arcade instance. It returns 404 for arbitrary txids, even
+known-mined ones. Use TAAL ARC or WhatsOnChain for general blockchain queries.
+
+GorillaPool's chaintracks_server is a separate service on a separate port — it is
+not wired in the current `Providers::GorillaPool` registration. See issue #778 for
+the follow-up.
 
 ### Providers
 
@@ -46,7 +77,7 @@ Providers are configuration — a named entity (company/service) that hosts one 
 protocols at specific URLs. The SDK ships three provider defaults:
 
 ```ruby
-BSV::Network::Providers::GorillaPool.default   # ARC + Chaintracks + Ordinals
+BSV::Network::Providers::GorillaPool.default   # Arcade + Ordinals + JungleBus
 BSV::Network::Providers::WhatsOnChain.default   # WoCREST (30+ endpoints)
 BSV::Network::Providers::TAAL.default           # ARC + TAALBinary
 ```

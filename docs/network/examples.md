@@ -48,18 +48,14 @@ protocols and exposes all their commands through a single `call` interface.
 ```ruby
 gp = BSV::Network::Providers::GorillaPool.default
 
-# Broadcasting (via ARC protocol)
+# Broadcasting (via Arcade protocol — response shape differs from ARC)
 result = gp.call(:broadcast, tx)
-puts result.data[:txid] if result.success?
-
-# Chain height (via Chaintracks protocol)
-result = gp.call(:current_height)
-puts result.data if result.success?
+puts result.data['status'] if result.http_success?  # => "submitted"
 
 # See what commands are available
 puts gp.commands.to_a.sort
-# => [:broadcast, :broadcast_many, :current_height, :get_block_header,
-#     :get_merkle_path, :get_policy, :get_tx, :get_tx_status, :health]
+# => [:broadcast, :get_chain_tip, :get_merkle_path, :get_tx,
+#     :get_tx_status, :health, ...]
 ```
 
 ### WhatsOnChain provider
@@ -84,15 +80,15 @@ gp = BSV::Network::Providers::GorillaPool.default
 
 # Which protocol handles a specific command?
 proto = gp.protocol_for(:broadcast)
-puts proto.class  # => BSV::Network::Protocols::ARC
+puts proto.class  # => BSV::Network::Protocols::Arcade
 
 # Capability matrix — what each protocol serves
 gp.capability_matrix.each do |proto, commands|
   puts "#{proto.class.name.split('::').last}: #{commands.join(', ')}"
 end
-# ARC: broadcast, broadcast_many, get_policy, get_tx_status, health
-# Chaintracks: current_height, get_block_header
+# Arcade: broadcast, get_tx_status, health
 # Ordinals: get_merkle_path, get_tx
+# JungleBus: ...
 ```
 
 ## Custom Providers
@@ -129,14 +125,14 @@ result = my_provider.call(:is_utxo, txid, 0)  # → WoC
 ### Mix providers for failover
 
 ```ruby
-# Primary: GorillaPool for everything
-# Fallback: TAAL for broadcasting only
+# Primary: GorillaPool Arcade for broadcasting
+# Fallback: TAAL ARC (note: response shapes differ — ARC returns txStatus, Arcade returns status)
 primary = BSV::Network::Providers::GorillaPool.default
 fallback = BSV::Network::Providers::TAAL.default
 
 result = primary.call(:broadcast, tx)
-if result.error? && result.retryable?
-  result = fallback.call(:broadcast, tx)  # try TAAL
+if !result.http_success? && result.retryable?
+  result = fallback.call(:broadcast, tx)  # try TAAL ARC
 end
 ```
 
@@ -161,13 +157,22 @@ useful for testing or when building custom infrastructure.
 ### Instantiate a protocol
 
 ```ruby
+# TAAL ARC
 arc = BSV::Network::Protocols::ARC.new(
-  base_url: 'https://arcade.gorillapool.io',
-  api_key: 'my-key'
+  base_url: 'https://arc.taal.com',
+  api_key: 'my-taal-key'
 )
 
 result = arc.call(:broadcast, tx)
-# result is a Result::Success, Result::Error, or Result::NotFound
+# result is a ProtocolResponse; result.data['txStatus'] => "SEEN_ON_NETWORK"
+
+# GorillaPool Arcade — distinct protocol, different response shape
+arcade = BSV::Network::Protocols::Arcade.new(
+  base_url: 'https://arcade.gorillapool.io'
+)
+
+result = arcade.call(:broadcast, tx)
+# result.data['status'] => "submitted"  (not txStatus)
 ```
 
 ### Result types
@@ -224,7 +229,7 @@ in at construction time.
 ### Bearer token
 
 Use `auth: { bearer: 'token' }` for services that expect `Authorization: Bearer <token>`.
-This is the standard form for GorillaPool ARC and TAAL ARC.
+This is the standard form for GorillaPool Arcade and TAAL ARC.
 
 ```ruby
 # GorillaPool with a bearer token
