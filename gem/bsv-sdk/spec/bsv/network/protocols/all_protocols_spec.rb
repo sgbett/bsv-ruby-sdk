@@ -4,7 +4,7 @@
 require 'spec_helper'
 
 RSpec.describe 'BSV::Network::Protocols integration' do
-  # Verify all 6 protocol classes load correctly via autoload.
+  # Verify all 7 protocol classes load correctly via autoload.
   describe 'autoloads' do
     it 'loads ARC' do
       expect(BSV::Network::Protocols::ARC).to be < BSV::Network::Protocol
@@ -14,12 +14,12 @@ RSpec.describe 'BSV::Network::Protocols integration' do
       expect(BSV::Network::Protocols::Arcade).to be < BSV::Network::Protocol
     end
 
-    it 'loads WoCREST' do
-      expect(BSV::Network::Protocols::WoCREST).to be < BSV::Network::Protocol
-    end
-
     it 'loads Chaintracks' do
       expect(BSV::Network::Protocols::Chaintracks).to be < BSV::Network::Protocol
+    end
+
+    it 'loads JungleBus' do
+      expect(BSV::Network::Protocols::JungleBus).to be < BSV::Network::Protocol
     end
 
     it 'loads Ordinals' do
@@ -28,6 +28,10 @@ RSpec.describe 'BSV::Network::Protocols integration' do
 
     it 'loads TAALBinary' do
       expect(BSV::Network::Protocols::TAALBinary).to be < BSV::Network::Protocol
+    end
+
+    it 'loads WoCREST' do
+      expect(BSV::Network::Protocols::WoCREST).to be < BSV::Network::Protocol
     end
   end
 
