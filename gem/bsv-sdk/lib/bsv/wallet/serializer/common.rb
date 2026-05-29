@@ -87,16 +87,15 @@ module BSV
 
         def read_privileged_params(reader)
           privileged = reader.read_optional_bool
-          peek = reader.read_byte
-          if peek == 0xFF
+          # 0xFF as the leading byte is the nil-reason sentinel. Otherwise the
+          # bytes start a Bitcoin varint length prefix (which can be 0xFD or
+          # 0xFE for reasons >= 253 bytes; 0xFF would only collide if the
+          # reason exceeded 4 GiB, which the protocol does not permit).
+          if reader.peek_byte == 0xFF
+            reader.read_byte
             [privileged, nil]
           else
-            # The peek byte is the first byte of a varint-prefixed string.
-            # Re-read it as part of the varint by constructing the full length.
-            # Since peek < 0xFD, it IS the varint directly (single-byte varint).
-            len = peek
-            reason = reader.read_bytes(len).force_encoding('UTF-8')
-            [privileged, reason]
+            [privileged, reader.read_str_with_varint_len]
           end
         end
 

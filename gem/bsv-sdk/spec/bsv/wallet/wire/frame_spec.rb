@@ -30,25 +30,46 @@ RSpec.describe BSV::Wallet::Wire::Frame do
       expect(result[:originator]).to eq(originator)
     end
 
-    it 'round-trips with 255-byte originator (absolute max)' do
-      originator = 'x' * 255
+    it 'round-trips with 250-byte originator (absolute max per BRC-100)' do
+      originator = 'x' * 250
       bytes = described_class.write_request(call: 1, originator: originator)
       result = described_class.read_request(bytes)
       expect(result[:originator]).to eq(originator)
     end
 
-    it 'rejects originator longer than 255 bytes' do
+    it 'rejects originator longer than 250 bytes' do
       expect do
-        described_class.write_request(call: 1, originator: 'x' * 256)
-      end.to raise_error(ArgumentError, /255 bytes/)
+        described_class.write_request(call: 1, originator: 'x' * 251)
+      end.to raise_error(ArgumentError, /250 bytes/)
     end
 
     it 'measures originator length in bytes, not characters (UTF-8 multi-byte)' do
-      # 2-byte UTF-8 char × 127 = 254 bytes → allowed
-      originator_254 = "\xC3\xA9" * 127 # 'é' repeated
-      bytes = described_class.write_request(call: 1, originator: originator_254)
+      # 2-byte UTF-8 char × 125 = 250 bytes → allowed
+      originator_250 = "\xC3\xA9" * 125 # 'é' repeated
+      bytes = described_class.write_request(call: 1, originator: originator_250)
       result = described_class.read_request(bytes)
-      expect(result[:originator].bytesize).to eq(254)
+      expect(result[:originator].bytesize).to eq(250)
+    end
+
+    it 'rejects request frames with invalid UTF-8 in the originator' do
+      # call=1, originator_len=2, bytes \xC3\x28 (invalid UTF-8 continuation)
+      bytes = [1, 2].pack('CC') + "\xC3\x28".b
+      expect { described_class.read_request(bytes) }
+        .to raise_error(ArgumentError, /originator is not valid UTF-8/)
+    end
+
+    it 'rejects result error frames with invalid UTF-8 in message' do
+      # code=1, msg_len=2, message=\xC3\x28, stack_len=0
+      bytes = "\x01".b + described_class.encode_varint(2) + "\xC3\x28".b + described_class.encode_varint(0)
+      expect { described_class.read_result(bytes) }
+        .to raise_error(ArgumentError, /error message is not valid UTF-8/)
+    end
+
+    it 'rejects result error frames with invalid UTF-8 in stack' do
+      bytes = "\x01".b + described_class.encode_varint(2) + 'OK'.b +
+              described_class.encode_varint(2) + "\xC3\x28".b
+      expect { described_class.read_result(bytes) }
+        .to raise_error(ArgumentError, /stack is not valid UTF-8/)
     end
 
     it 'produces correct wire layout for a known vector' do

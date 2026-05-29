@@ -214,6 +214,14 @@ module BSV
           byte
         end
 
+        # Look at the next byte without consuming it.
+        # @return [Integer]
+        def peek_byte
+          raise ArgumentError, 'unexpected end of data peeking byte' if @pos >= @data.bytesize
+
+          @data.getbyte(@pos)
+        end
+
         # Read +n+ raw bytes.
         # @return [String] binary string
         def read_bytes(n)

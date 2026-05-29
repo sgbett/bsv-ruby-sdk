@@ -18,17 +18,19 @@ module BSV
       #     [VarInt: stack_len][stack bytes]
       module Frame
         # Maximum originator byte length enforced at write time.
-        MAX_ORIGINATOR_BYTES = 255
+        # Matches the BRC-100 +OriginatorDomainNameStringUnder250Bytes+ branded
+        # type used by +Wire::Validation.originator_domain!+.
+        MAX_ORIGINATOR_BYTES = 250
 
         module_function
 
         # Encode a request frame.
         #
         # @param call [Integer] call byte (1..28)
-        # @param originator [String] originator domain (0..255 bytes UTF-8)
+        # @param originator [String] originator domain (0..250 bytes UTF-8)
         # @param params [String, nil] binary params payload
         # @return [String] binary frame (ASCII-8BIT encoding)
-        # @raise [ArgumentError] if originator exceeds 255 bytes
+        # @raise [ArgumentError] if originator exceeds 250 bytes
         def write_request(call:, originator:, params: nil)
           originator_bytes = originator.to_s.b
           if originator_bytes.bytesize > MAX_ORIGINATOR_BYTES
@@ -63,6 +65,8 @@ module BSV
           end
 
           originator = data.byteslice(2, originator_len).force_encoding('UTF-8')
+          raise ArgumentError, 'frame originator is not valid UTF-8' unless originator.valid_encoding?
+
           params = data.byteslice(2 + originator_len, data.bytesize - 2 - originator_len) || ''.b
 
           { call: call, originator: originator, params: params }
@@ -118,6 +122,8 @@ module BSV
           raise ArgumentError, 'result frame truncated: message' if data.bytesize < offset + msg_len
 
           message = data.byteslice(offset, msg_len).force_encoding('UTF-8')
+          raise ArgumentError, 'result frame error message is not valid UTF-8' unless message.valid_encoding?
+
           offset += msg_len
 
           stack_len, vi = decode_varint(data, offset)
@@ -126,6 +132,7 @@ module BSV
           raise ArgumentError, 'result frame truncated: stack' if data.bytesize < offset + stack_len
 
           stack = data.byteslice(offset, stack_len).force_encoding('UTF-8')
+          raise ArgumentError, 'result frame stack is not valid UTF-8' unless stack.valid_encoding?
 
           raise BSV::Wallet.error_from_wire(code, message, stack)
         end

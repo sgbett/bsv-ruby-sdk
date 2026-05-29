@@ -75,6 +75,21 @@ RSpec.describe 'BSV::Wallet::Serializer::Encrypt' do
       expect(result[:privileged_reason]).to be_nil
     end
 
+    it 'round-trips a privileged_reason whose length needs a multi-byte varint (>= 253 bytes)' do
+      # Regression: the reader previously assumed a single-byte varint length
+      # prefix, which mis-decoded reasons of 253 bytes or more (where Bitcoin
+      # varints use the 0xFD/0xFE prefix). See PR #774 Copilot review.
+      long_reason = 'r' * 300
+      args = {
+        protocol_id: [2, 'hello world'], key_id: '1', counterparty: 'self', plaintext: ''.b,
+        privileged: true, privileged_reason: long_reason, seek_permission: false
+      }
+      result = round_trip_args(args)
+      expect(result[:privileged_reason]).to eq(long_reason)
+      # Subsequent field must also decode correctly — proves alignment wasn't lost.
+      expect(result[:seek_permission]).to be(false)
+    end
+
     it 'round-trips seek_permission' do
       args = { protocol_id: [2, 'hello world'], key_id: '1', counterparty: 'self', plaintext: ''.b, seek_permission: true }
       result = round_trip_args(args)
