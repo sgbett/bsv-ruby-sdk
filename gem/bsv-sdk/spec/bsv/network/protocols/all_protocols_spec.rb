@@ -4,18 +4,22 @@
 require 'spec_helper'
 
 RSpec.describe 'BSV::Network::Protocols integration' do
-  # Verify all 5 protocol classes load correctly via autoload.
+  # Verify all 7 protocol classes load correctly via autoload.
   describe 'autoloads' do
     it 'loads ARC' do
       expect(BSV::Network::Protocols::ARC).to be < BSV::Network::Protocol
     end
 
-    it 'loads WoCREST' do
-      expect(BSV::Network::Protocols::WoCREST).to be < BSV::Network::Protocol
+    it 'loads Arcade' do
+      expect(BSV::Network::Protocols::Arcade).to be < BSV::Network::Protocol
     end
 
     it 'loads Chaintracks' do
       expect(BSV::Network::Protocols::Chaintracks).to be < BSV::Network::Protocol
+    end
+
+    it 'loads JungleBus' do
+      expect(BSV::Network::Protocols::JungleBus).to be < BSV::Network::Protocol
     end
 
     it 'loads Ordinals' do
@@ -24,6 +28,10 @@ RSpec.describe 'BSV::Network::Protocols integration' do
 
     it 'loads TAALBinary' do
       expect(BSV::Network::Protocols::TAALBinary).to be < BSV::Network::Protocol
+    end
+
+    it 'loads WoCREST' do
+      expect(BSV::Network::Protocols::WoCREST).to be < BSV::Network::Protocol
     end
   end
 
@@ -38,6 +46,22 @@ RSpec.describe 'BSV::Network::Protocols integration' do
 
       it 'includes the expected commands' do
         expect(commands).to include(:broadcast, :broadcast_many, :get_tx_status, :get_policy, :health)
+      end
+
+      it 'has no duplicate command names' do
+        expect(commands.size).to eq(commands.to_a.uniq.size)
+      end
+    end
+
+    describe 'Arcade' do
+      subject(:commands) { BSV::Network::Protocols::Arcade.commands }
+
+      it 'has 3 commands' do
+        expect(commands.size).to eq(3)
+      end
+
+      it 'includes exactly the expected commands' do
+        expect(commands).to eq(Set.new(%i[broadcast get_tx_status health]))
       end
 
       it 'has no duplicate command names' do
@@ -164,14 +188,15 @@ RSpec.describe 'BSV::Network::Protocols integration' do
 
   # Verify that protocols sharing a command name are distinct classes.
   describe 'shared command names across protocols' do
-    it ':broadcast is declared by ARC, WoCREST, and TAALBinary as distinct classes' do
+    it ':broadcast is declared by ARC, Arcade, WoCREST, and TAALBinary as distinct classes' do
       classes = [
         BSV::Network::Protocols::ARC,
+        BSV::Network::Protocols::Arcade,
         BSV::Network::Protocols::WoCREST,
         BSV::Network::Protocols::TAALBinary
       ]
       expect(classes.all? { |klass| klass.commands.include?(:broadcast) }).to be(true)
-      expect(classes.uniq.size).to eq(3)
+      expect(classes.uniq.size).to eq(4)
     end
 
     it ':current_height is declared by WoCREST and Chaintracks as distinct classes' do

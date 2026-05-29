@@ -14,6 +14,46 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - New guide: `docs/guides/brc-103-wire.md` — end-to-end walkthrough of the wire layer
 - Wire layer reference section added to `docs/sdk/wallet.md`
 
+## 0.21.0 — 2026-05-29
+
+### Added
+- `Protocols::Arcade` for `bsv-blockchain/arcade` services (run by GorillaPool at
+  `arcade.gorillapool.io`). Commands: `broadcast` (`POST /tx`), `get_tx_status`
+  (`GET /tx/{txid}`), `health` (`GET /health`). Distinct from `Protocols::ARC` —
+  paths, response bodies, and status taxonomies do not overlap. (#775)
+- Shared `BSV::Network::Util` helpers: `safe_parse_json`, `resolve_tx_hex` —
+  available to all protocol classes without copy-paste. (#775)
+
+### Changed
+- `ARC#call_broadcast` and `ARC#call_broadcast_many` now read their broadcast and
+  batch-broadcast paths from the endpoint table rather than hardcoding `/v1/tx` and
+  `/v1/txs`. Behaviour is unchanged; subclasses can now declare a different path. (#775)
+- `LivePolicy.default` now points at `https://arc.taal.com` for fee-policy queries
+  rather than GorillaPool's Arcade endpoint, which does not expose `/v1/policy`. (#775)
+- `broadcast_p2pkh` MCP tool updated to handle Arcade's `{"status": "submitted"}`
+  response shape from GorillaPool. (#775)
+
+### Breaking Changes
+- **`Providers::GorillaPool` no longer registers `Protocols::ARC` or
+  `Protocols::Chaintracks`.** Mainnet now registers `Protocols::Arcade` instead.
+  Consumers calling `provider.call(:broadcast, ...)` against GorillaPool and
+  expecting an ARC-shaped response (`{txid, txStatus, ...}`) must migrate to
+  Arcade's response shape (`{status: "submitted"}`). No compatibility shim is
+  provided — pre-1.0 clean break. (#775)
+- **`BSV_TESTNET_ARC_URL` environment variable renamed to `BSV_TESTNET_ARCADE_URL`.**
+  Update any scripts or CI configuration that set this variable. Default value:
+  `https://testnet.arcade.gorillapool.io`. (#775, #779)
+- **`Providers::GorillaPool` no longer provides `:current_height` or
+  `:get_block_header` commands** (previously routed through the broken
+  `Protocols::Chaintracks` registration). A follow-up issue (#778) tracks correctly
+  wiring GorillaPool's chaintracks_server at its actual separate URL/port.
+
+### Removed
+- `Protocols::Chaintracks` registration from `Providers::GorillaPool` (mainnet and
+  testnet). The registration was broken — GorillaPool's chaintracks_server runs as
+  a separate service on a separate port; the `/chaintracks/v2/` paths were returning
+  404. See #778 for the follow-up to wire it correctly.
+
 ## 0.20.0 — 2026-05-24
 
 ### Changed

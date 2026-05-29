@@ -8,5 +8,6 @@ module BSV
     autoload :Providers,          'bsv/network/providers'
     autoload :Provider,           'bsv/network/provider'
     autoload :UTXO,               'bsv/network/utxo'
+    autoload :Util,               'bsv/network/util'
   end
 end

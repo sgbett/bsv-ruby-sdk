@@ -3,7 +3,7 @@
 module BSV
   module Transaction
     module ChainTrackers
-      # Chain tracker that verifies merkle roots using the Chaintracks API (Arcade/GorillaPool).
+      # Chain tracker that verifies merkle roots using the Chaintracks API.
       #
       # Delegates all HTTP communication to {BSV::Network::Protocols::Chaintracks}.
       # The constructor signature and {ChainTracker} contract are preserved.
@@ -16,18 +16,21 @@ module BSV
       #   tracker = BSV::Transaction::ChainTrackers::Chaintracks.new(api_key: 'my-key')
       #   tracker.current_height
       class Chaintracks < ChainTracker
-        # Returns a Chaintracks instance using the GorillaPool provider default.
+        # GorillaPool Chaintracks endpoint. Separate service from Arcade broadcast.
+        # Re-wiring this URL as a Protocols::Chaintracks registration is tracked in issue #778.
+        DEFAULT_CHAINTRACKS_URL = 'https://chaintracks.gorillapool.io'
+
+        # Returns a Chaintracks instance pointed at the default GorillaPool Chaintracks endpoint.
         #
-        # @param testnet [Boolean] when true, uses the testnet endpoint
+        # @param testnet [Boolean] when true, raises — no testnet chaintracks URL is known yet (#778)
         # @param ** [Hash] forwarded to the underlying protocol (e.g. +api_key:+, +http_client:+)
         # @return [Chaintracks]
         def self.default(testnet: false, **)
-          provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **)
-          protocol = provider.protocol_for(:current_height)
-          new(protocol: protocol)
+          url = testnet ? raise(NotImplementedError, 'Testnet Chaintracks URL not yet wired — see issue #778') : DEFAULT_CHAINTRACKS_URL
+          new(url: url, **)
         end
 
-        # @param url [String, nil] base URL (legacy compat — prefer .default or protocol:)
+        # @param url [String, nil] base URL; defaults to +DEFAULT_CHAINTRACKS_URL+
         # @param api_key [String, nil] optional Bearer API key
         # @param http_client [#request, nil] injectable HTTP client for testing
         # @param protocol [BSV::Network::Protocols::Chaintracks, nil] pre-configured protocol
@@ -35,17 +38,13 @@ module BSV
           super()
           if protocol
             @protocol = protocol
-          elsif url
-            @url = url.chomp('/')
-            @api_key = api_key
+          else
+            base = (url || DEFAULT_CHAINTRACKS_URL).chomp('/')
             @protocol = BSV::Network::Protocols::Chaintracks.new(
-              base_url: @url,
+              base_url: base,
               api_key: api_key,
               http_client: http_client
             )
-          else
-            provider = BSV::Network::Providers::GorillaPool.default(api_key: api_key, http_client: http_client)
-            @protocol = provider.protocol_for(:current_height)
           end
         end
 

@@ -68,7 +68,7 @@ RSpec.describe BSV::Transaction::ChainTrackers::Chaintracks do
       tracker.valid_root_for_height?(merkle_root, 100)
 
       expect(http_client).to have_received(:request) do |uri, _req|
-        expect(uri.to_s).to eq('https://arcade.gorillapool.io/chaintracks/v2/header/height/100')
+        expect(uri.to_s).to eq('https://chaintracks.gorillapool.io/chaintracks/v2/header/height/100')
       end
     end
 
@@ -116,16 +116,21 @@ RSpec.describe BSV::Transaction::ChainTrackers::Chaintracks do
       tracker.current_height
 
       expect(http_client).to have_received(:request) do |uri, _req|
-        expect(uri.to_s).to eq('https://arcade.gorillapool.io/chaintracks/v2/tip')
+        expect(uri.to_s).to eq('https://chaintracks.gorillapool.io/chaintracks/v2/tip')
       end
     end
   end
 
   describe 'URL configuration' do
-    it 'defaults to a working instance' do
-      tracker = described_class.new
-      expect(tracker).to respond_to(:valid_root_for_height?)
-      expect(tracker).to respond_to(:current_height)
+    it 'defaults to DEFAULT_CHAINTRACKS_URL when no url: given' do
+      tracker = described_class.new(http_client: http_client)
+      allow(http_client).to receive(:request).and_return(mock_response(200, { 'height' => 1, 'hash' => 'abc' }.to_json))
+
+      tracker.current_height
+
+      expect(http_client).to have_received(:request) do |uri, _req|
+        expect(uri.host).to eq(URI(BSV::Transaction::ChainTrackers::Chaintracks::DEFAULT_CHAINTRACKS_URL).host)
+      end
     end
 
     it 'accepts a custom URL' do
@@ -147,14 +152,13 @@ RSpec.describe BSV::Transaction::ChainTrackers do
       expect(described_class.default).to be_a(BSV::Transaction::ChainTrackers::Chaintracks)
     end
 
-    it 'returns a functional tracker by default' do
+    it 'returns a functional tracker by default (uses DEFAULT_CHAINTRACKS_URL)' do
       tracker = described_class.default
       expect(tracker).to respond_to(:valid_root_for_height?)
     end
 
-    it 'returns a functional tracker for testnet' do
-      tracker = described_class.default(testnet: true)
-      expect(tracker).to respond_to(:valid_root_for_height?)
+    it 'raises NotImplementedError for testnet (not yet wired — see issue #778)' do
+      expect { described_class.default(testnet: true) }.to raise_error(NotImplementedError, /#778/)
     end
 
     it 'accepts api_key option' do

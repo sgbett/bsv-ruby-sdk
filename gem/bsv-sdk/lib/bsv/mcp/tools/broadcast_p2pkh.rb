@@ -115,11 +115,13 @@ module BSV
           arc_result = arc.call(:broadcast, tx)
           return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.http_success?
 
+          data = arc_result.data || {}
           result = {
-            txid: arc_result.data['txid'], # MCP tool boundary: display-order hex from ARC response
-            tx_status: arc_result.data['txStatus'],
+            txid: data['txid'], # MCP tool boundary: display-order hex from Arcade response (present on re-submission)
+            tx_status: data['status'],
+            state: data['state'],
             hex: tx.to_hex
-          }
+          }.compact
 
           ::MCP::Tool::Response.new(
             [::MCP::Content::Text.new(result.to_json)],

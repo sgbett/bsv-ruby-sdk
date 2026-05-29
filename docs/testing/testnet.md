@@ -2,8 +2,8 @@
 
 The SDK includes an integration test suite that exercises the full transaction
 lifecycle against the live BSV testnet — key derivation, transaction building,
-signing, broadcasting via ARC, status polling, and round-trip serialisation
-verification via WhatsOnChain.
+signing, broadcasting via Arcade (GorillaPool), status polling, and round-trip
+serialisation verification via WhatsOnChain.
 
 These tests are tagged `:testnet` and skipped by default. They require a funded
 testnet wallet.
@@ -30,10 +30,10 @@ testnet wallet.
 BSV_TESTNET_WIF='cXxx...' bundle exec rspec --tag testnet
 ```
 
-Optionally override the ARC endpoint:
+Optionally override the Arcade endpoint:
 
 ```bash
-BSV_TESTNET_ARC_URL='https://testnet.arcade.gorillapool.io' \
+BSV_TESTNET_ARCADE_URL='https://testnet.arcade.gorillapool.io' \
   BSV_TESTNET_WIF='cXxx...' \
   bundle exec rspec --tag testnet
 ```
@@ -48,8 +48,8 @@ verifies the address format and UTXO availability.
 ### P2PKH transfer
 
 Builds a pay-to-public-key-hash transaction sending the dust limit (546 sats)
-back to the same address, with change. Signs, broadcasts via ARC, and confirms
-the status response contains the expected txid.
+back to the same address, with change. Signs, broadcasts via Arcade, and confirms
+the status response contains the expected status.
 
 ```ruby
 # The core flow, simplified
@@ -59,9 +59,9 @@ tx.add_output(payment)
 tx.add_output(change)
 tx.sign_all(private_key)
 
-response = arc.broadcast(tx)
-response.success?  # => true
-response.txid      # => "a1b2c3..."
+response = arcade.call(:broadcast, tx)
+response.http_success?       # => true
+response.data['status']      # => "submitted"
 ```
 
 ### OP_RETURN attestation

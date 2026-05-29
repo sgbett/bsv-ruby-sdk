@@ -563,6 +563,29 @@ RSpec.describe BSV::Network::Protocols::ARC do
     end
   end
 
+  describe 'endpoint-driven path routing' do
+    let(:custom_arc_class) do
+      Class.new(BSV::Network::Protocols::ARC) do
+        endpoint :broadcast, :post, '/custom/tx', response: :json
+      end
+    end
+
+    it 'routes broadcast to a custom path declared via the endpoint macro' do
+      instance = custom_arc_class.new(
+        base_url: 'https://arc.example.com',
+        deployment_id: 'test-deployment',
+        http_client: http_client
+      )
+      stub_json_response(200, { 'txid' => 'abc123', 'txStatus' => 'RECEIVED' })
+
+      instance.call(:broadcast, 'deadbeef')
+
+      expect(http_client).to have_received(:request) do |uri, _req|
+        expect(uri.path).to eq('/custom/tx')
+      end
+    end
+  end
+
   describe 'constructor' do
     it 'assigns a random deployment_id when none is provided' do
       arc1 = described_class.new(base_url: 'https://arc.example.com', http_client: http_client)
