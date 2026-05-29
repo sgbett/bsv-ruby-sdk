@@ -105,11 +105,11 @@ module BSV
         def build_broadcast_headers(callback_url:, callback_token:, full_status_updates:,
                                     skip_fee_validation:, skip_script_validation:)
           headers = {}
-          headers['X-CallbackUrl']          = callback_url if callback_url
-          headers['X-CallbackToken']        = callback_token if callback_token
-          headers['X-FullStatusUpdates']    = 'true'                if full_status_updates
-          headers['X-SkipFeeValidation']    = 'true'                if skip_fee_validation
-          headers['X-SkipScriptValidation'] = 'true'                if skip_script_validation
+          headers['X-CallbackUrl']          = callback_url    if callback_url
+          headers['X-CallbackToken']        = callback_token  if callback_token
+          headers['X-FullStatusUpdates']    = 'true'          if full_status_updates
+          headers['X-SkipFeeValidation']    = 'true'          if skip_fee_validation
+          headers['X-SkipScriptValidation'] = 'true'          if skip_script_validation
           headers
         end
 

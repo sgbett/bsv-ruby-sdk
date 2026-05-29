@@ -16,7 +16,7 @@ module BSV
       #
       # @example
       #   model = BSV::Transaction::FeeModels::LivePolicy.new(
-      #     arc_url: 'https://arcade.gorillapool.io',
+      #     arc_url: 'https://arc.taal.com',
       #     fallback_rate: 50
       #   )
       #   fee = model.compute_fee(transaction)
