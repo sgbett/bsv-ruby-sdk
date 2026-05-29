@@ -25,7 +25,7 @@ RSpec.describe 'BSV::Wallet::Serializer::RelinquishOutput' do
       end.to raise_error(BSV::Wallet::InvalidParameterError)
     end
 
-    it 'encodes basket as varint-prefixed string followed by 36-byte outpoint' do
+    it 'encodes basket as varint-prefixed string followed by an outpoint (32-byte txid + varint vout)' do
       bytes = mod.serialize_args(basket: 'abc', output: "#{txid}.0")
       r = BSV::Wallet::Wire::Reader.new(bytes)
       expect(r.read_str_with_varint_len).to eq('abc')

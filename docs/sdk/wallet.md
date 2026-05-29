@@ -276,7 +276,9 @@ and deserialises the binary result frame back to a Ruby hash.
 ```ruby
 # @param wire [#transmit_to_wallet] any WalletWire implementation
 client = BSV::Wallet::WalletWireTransceiver.new(wire)
-client.get_public_key(identity_key: true)  # => { public_key: "..." }
+result = client.get_public_key(identity_key: true)
+# result[:public_key] is a 33-byte compressed pubkey as a binary string.
+# To inspect it as hex: result[:public_key].unpack1('H*')  # => "0279be..."
 ```
 
 ### WalletWireProcessor

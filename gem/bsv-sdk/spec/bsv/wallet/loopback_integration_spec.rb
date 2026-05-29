@@ -36,6 +36,11 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
     it 'includes Interface::BRC100' do
       expect(client).to be_a(BSV::Wallet::Interface::BRC100)
     end
+
+    it 'rejects oversize originators before serialisation' do
+      expect { client.get_public_key(identity_key: true, originator: 'x' * 251) }
+        .to raise_error(BSV::Wallet::InvalidParameterError, /at most 250 bytes/)
+    end
   end
 
   # -------------------------------------------------------------------------

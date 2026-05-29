@@ -34,7 +34,8 @@ client = BSV::Wallet::Substrates::HTTPWalletWire.client(base_url: 'https://walle
 
 # All 28 BRC-100 methods are available as Ruby methods.
 result = client.get_public_key(identity_key: true)
-puts result[:public_key]  # "02abc..." — 33-byte compressed pubkey, binary
+# result[:public_key] is a 33-byte compressed pubkey as a binary string.
+puts result[:public_key].unpack1('H*')  # "0279be..." — hex form for display
 
 result = client.get_network
 puts result[:network]     # :mainnet or :testnet
@@ -169,5 +170,6 @@ The full error class table is in the [error reference](../sdk/wallet.md#wire-lay
 ## Cross-SDK conformance
 
 The wire format matches the go-sdk byte-for-byte. Conformance vectors covering all 28 call
-types live under `spec/conformance/` in the SDK source. A Ruby server (`WalletWireProcessor`)
-can serve a go-sdk client and vice versa without any conversion layer.
+types live under `gem/bsv-sdk/spec/bsv/wallet/conformance/brc103/` in the SDK source. A Ruby
+server (`WalletWireProcessor`) can serve a go-sdk client and vice versa without any conversion
+layer.

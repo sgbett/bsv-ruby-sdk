@@ -706,7 +706,7 @@ RSpec.describe 'BRC-103 cross-SDK wire conformance (go-sdk vectors)' do
 
   # ---- getNetwork ----
   describe 'getNetwork result' do
-    subject { frame_res(BSV::Wallet::Serializer::GetNetwork::Result.serialize(network: 'mainnet')) }
+    subject { frame_res(BSV::Wallet::Serializer::GetNetwork::Result.serialize(network: :mainnet)) }
 
     it_behaves_like 'matches go wire', 'getNetwork-simple-result'
   end

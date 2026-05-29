@@ -7,7 +7,7 @@ module BSV
       #
       # Args wire layout:
       #   [varint-str: basket]
-      #   [32-byte wire txid][4-byte LE vout]
+      #   [32-byte wire txid][varint vout]
       #
       # Result wire layout:
       #   [empty — relinquished is implicit from the frame error byte]

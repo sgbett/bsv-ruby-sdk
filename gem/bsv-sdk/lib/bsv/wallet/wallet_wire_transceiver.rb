@@ -49,6 +49,7 @@ module BSV
 
       def _dispatch(call_byte, args)
         originator = args[:originator].to_s
+        Wire::Validation.originator_domain!('originator', originator) unless originator.empty?
         params  = Serializer::SERIALIZE_ARGS.fetch(call_byte).call(args)
         frame   = Wire::Frame.write_request(call: call_byte, originator: originator, params: params)
         reply   = @wire.transmit_to_wallet(frame)

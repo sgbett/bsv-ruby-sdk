@@ -242,9 +242,13 @@ module BSV
 
         # Read a varint-prefixed UTF-8 string.
         # @return [String]
+        # @raise [ArgumentError] if the bytes are not valid UTF-8
         def read_str_with_varint_len
           len = read_varint
-          read_bytes(len).force_encoding('UTF-8')
+          str = read_bytes(len).force_encoding('UTF-8')
+          raise ArgumentError, 'varint-prefixed string is not valid UTF-8' unless str.valid_encoding?
+
+          str
         end
 
         # Read an optional boolean byte (Go/BRC-103 convention).

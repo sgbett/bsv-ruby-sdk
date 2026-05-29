@@ -39,9 +39,14 @@ RSpec.describe 'BSV::Wallet::Serializer::GetNetwork' do
       end
     end
 
-    it 'defaults unknown network symbol to mainnet (0x00)' do
-      bytes = mod_result.serialize({ network: :unknown })
-      expect(bytes).to eq("\x00".b)
+    it 'raises on an unknown network symbol when serialising' do
+      expect { mod_result.serialize({ network: :unknown }) }
+        .to raise_error(BSV::Wallet::InvalidParameterError, /:mainnet or :testnet/)
+    end
+
+    it 'raises on a nil network when serialising' do
+      expect { mod_result.serialize({ network: nil }) }
+        .to raise_error(BSV::Wallet::InvalidParameterError)
     end
 
     it 'raises on empty payload' do
@@ -50,6 +55,11 @@ RSpec.describe 'BSV::Wallet::Serializer::GetNetwork' do
 
     it 'raises on 2-byte payload' do
       expect { mod_result.deserialize("\x00\x01") }.to raise_error(BSV::Wallet::InvalidParameterError)
+    end
+
+    it 'raises on an unknown byte when deserialising' do
+      expect { mod_result.deserialize("\x02".b) }
+        .to raise_error(BSV::Wallet::InvalidParameterError, /0x00 \(mainnet\) or 0x01 \(testnet\), got 0x02/)
     end
 
     context 'with go-sdk reference vectors' do

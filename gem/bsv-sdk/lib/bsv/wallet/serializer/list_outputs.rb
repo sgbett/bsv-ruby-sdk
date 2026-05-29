@@ -21,7 +21,7 @@ module BSV
       #   [varint: total_outputs]
       #   [varint: beef_len, or NegativeOne if nil][beef bytes]
       #   per output:
-      #     [32-byte wire txid][4-byte LE vout]
+      #     [32-byte wire txid][varint vout]
       #     [varint: satoshis]
       #     [varint: locking_script_len, or NegativeOne][script bytes]
       #     [varint-str: custom_instructions]  0-length string if nil
