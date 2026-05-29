@@ -92,7 +92,7 @@ module BSV
             callback_batch: callback_batch
           )
 
-          response = post_with_headers('/v1/tx', body, extra_headers)
+          response = post_with_headers(self.class.endpoints[:broadcast][:path], body, extra_headers)
           parse_single_broadcast_response(response)
         end
 
@@ -124,7 +124,7 @@ module BSV
             callback_batch: callback_batch
           )
 
-          response = post_with_headers('/v1/txs', body, extra_headers)
+          response = post_with_headers(self.class.endpoints[:broadcast_many][:path], body, extra_headers)
           parse_batch_broadcast_response(response)
         end
 
@@ -135,30 +135,8 @@ module BSV
           request
         end
 
-        # Coerce a transaction input to hex for the ARC JSON body.
-        #
-        # Accepts (in order of preference):
-        # 1. Hex string — pass-through, zero conversion
-        # 2. Binary string — convert to hex
-        # 3. Transaction object — prefer EF hex (BRC-30), fall back to raw hex
-        #
-        # Detection uses content, not encoding: a string is hex if it has even
-        # length and contains only hex characters. This handles hex strings
-        # tagged as ASCII-8BIT (e.g. read from IO in binary mode).
-        #
-        # @param tx [String, #to_ef_hex, #to_hex] transaction in any supported form
-        # @return [String] hex-encoded transaction
         def resolve_tx_hex(tx)
-          if tx.is_a?(String)
-            return tx if tx.match?(/\A[0-9a-fA-F]*\z/) && tx.length.even?
-
-            return tx.unpack1('H*')
-          end
-
-          tx.to_ef_hex
-        rescue ArgumentError => e
-          BSV.logger&.debug { "[ARC] EF serialisation failed: #{e.message} — falling back to raw hex" }
-          tx.to_hex
+          BSV::Network::Util.resolve_tx_hex(tx)
         end
 
         # Build the hash of ARC-specific extra headers.
@@ -296,12 +274,8 @@ module BSV
           false
         end
 
-        # Parse JSON, returning a hash with a 'detail' key on parse failure.
-        # When the raw input is nil or empty the detail is nil (not an empty string).
         def safe_parse_json(raw)
-          JSON.parse(raw.to_s)
-        rescue JSON::ParserError
-          { 'detail' => (raw.to_s.empty? ? nil : raw.to_s) }
+          BSV::Network::Util.safe_parse_json(raw)
         end
       end
     end
