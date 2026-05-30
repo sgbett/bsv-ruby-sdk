@@ -83,7 +83,9 @@ module BSV
         raise result.error_message.to_s unless result.http_success?
 
         actual = normalise_merkle_root(result.data)
-        actual && actual.downcase == root.downcase
+        return false unless actual
+
+        actual.casecmp(root).zero?
       end
 
       # Return the current blockchain height.

@@ -103,6 +103,16 @@ RSpec.describe BSV::Transaction::ChainTracker do
         expect(tracker.valid_root_for_height?('abc', 800_000)).to be false
       end
 
+      it 'returns false when header response lacks any merkle-root field' do
+        stub_header('hash' => 'xyz', 'height' => 800_000)
+        expect(tracker.valid_root_for_height?('abc', 800_000)).to be false
+      end
+
+      it 'returns false when header response data is not a Hash' do
+        stub_header('not a hash')
+        expect(tracker.valid_root_for_height?('abc', 800_000)).to be false
+      end
+
       it 'raises on non-success non-404 response' do
         stub_error('internal server error')
         expect { tracker.valid_root_for_height?('abc', 800_000) }
