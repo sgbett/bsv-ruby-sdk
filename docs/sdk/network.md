@@ -1,7 +1,7 @@
 # Network
 
 The `BSV::Network` module handles broadcasting transactions and querying the blockchain.
-The `BSV::Transaction::ChainTrackers` module provides SPV verification against block headers.
+The `BSV::Transaction::ChainTracker` class provides SPV verification against block headers.
 
 For the underlying architecture (Protocols, Providers, Commands), see the
 [Network Architecture Overview](network/overview.md) and [Examples](network/examples.md).
@@ -116,8 +116,9 @@ arc = BSV::Network::ARC.default(
 A chain tracker verifies that a merkle root corresponds to a valid block at a specific height. This is essential for BEEF (BRC-62) SPV verification.
 
 ```ruby
-# Default tracker uses Arcade's Chaintracks API
-tracker = BSV::Transaction::ChainTrackers.default
+# Default tracker routes through GorillaPool (JungleBus for current_height,
+# Arcade for get_block_header)
+tracker = BSV::Transaction::ChainTracker.default
 
 # Verify a merkle root
 tracker.valid_root_for_height?('4a5e1e4b...', 0)  #=> true
@@ -129,22 +130,22 @@ tracker.current_height  #=> 800_123
 For testnet:
 
 ```ruby
-tracker = BSV::Transaction::ChainTrackers.default(testnet: true)
+tracker = BSV::Transaction::ChainTracker.default(testnet: true)
 ```
 
 ### Available Trackers
 
 | Tracker | Endpoint | Usage |
 |---------|----------|-------|
-| `ChainTrackers::Chaintracks` | Arcade Chaintracks v2 API | `ChainTrackers.default` |
-| `ChainTrackers::WhatsOnChain` | WhatsOnChain API | `WhatsOnChain.new(network: :main)` |
+| `ChainTracker` | Any Provider exposing `:get_block_header` and `:current_height` | `ChainTracker.default` (uses GorillaPool + JungleBus) |
+| `ChainTrackers::WhatsOnChain` | WhatsOnChain API | `ChainTrackers::WhatsOnChain.new(network: :main)` |
 
 ### BEEF Verification
 
 Combine a chain tracker with `Beef#verify` for full SPV verification:
 
 ```ruby
-tracker = BSV::Transaction::ChainTrackers.default
+tracker = BSV::Transaction::ChainTracker.default
 
 beef = BSV::Transaction::Beef.from_binary(beef_bytes)
 

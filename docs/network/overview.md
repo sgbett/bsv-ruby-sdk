@@ -137,7 +137,7 @@ utxos = woc.fetch_utxos(address)
 tx = woc.fetch_transaction(txid)
 
 # SPV verification (WoCREST protocol via WhatsOnChain)
-tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.default
+tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.new(network: :main)
 tracker.valid_root_for_height?(merkle_root, height)
 ```
 
@@ -146,6 +146,45 @@ but return domain objects (UTXO, Transaction, BroadcastResponse) and raise excep
 (BroadcastError, ChainProviderError) that consumers expect. The protocol layer speaks
 Result types (Success, Error, NotFound); facades translate these into the imperative
 contracts that application code uses.
+
+> **Note on `ChainTrackers`:** `ChainTrackers::WhatsOnChain` is a legacy facade that
+> wraps WhatsOnChain's chain-info endpoint directly. It continues to work unchanged.
+> `ChainTrackers::Chaintracks` (the former Arcade Chaintracks wrapper) has been removed
+> and replaced by the provider-routed porcelain described below. If you were using
+> `ChainTrackers::Chaintracks` or `ChainTrackers.default`, migrate to
+> `ChainTracker.default`.
+
+## Provider-routed Semantic Operations
+
+The Network module distinguishes **wire protocols** (Arcade, ARC, JungleBus, WoCREST,
+Ordinals, TAALBinary) from **semantic capabilities** (verify merkle root, broadcast tx,
+fetch fee policy). A wire protocol knows how to speak to one class of service. A
+semantic operation — like "what is the current chain height?" — may be satisfiable by
+several different wire protocols depending on which provider is in use.
+
+`BSV::Transaction::ChainTracker` is the first example of this pattern. Rather than
+binding to a single wire protocol (Chaintracks, WoCREST, or otherwise), it accepts any
+`Provider` and routes `:get_block_header` and `:current_height` through that provider's
+registered protocols:
+
+```ruby
+# Default: GorillaPool provider (JungleBus for :current_height,
+# Arcade for :get_block_header). No credentials required.
+tracker = BSV::Transaction::ChainTracker.default
+
+# Testnet:
+tracker = BSV::Transaction::ChainTracker.default(testnet: true)
+
+# Custom provider — any provider that exposes :get_block_header and :current_height
+own = BSV::Network::Provider.new('local') do |p|
+  p.protocol BSV::Network::Protocols::Chaintracks, base_url: 'http://my-chaintracks-server'
+end
+tracker = BSV::Transaction::ChainTracker.new(own)
+```
+
+The same pattern will extend to broadcast, transaction fetch, and fee model in future —
+each becoming a porcelain that routes through `Provider#call` rather than committing
+to one wire format at construction time.
 
 ## Design Principles
 
@@ -164,16 +203,18 @@ endpoint URLs. No magic strings in protocols, facades, or application code.
 **Facades preserve the public API.** `ARC.default`, `WhatsOnChain.new`, and
 `ChainTrackers::WhatsOnChain.new` continue to work as they always have. The internal
 implementation changed from imperative HTTP code to protocol delegation, but the
-public contract is unchanged.
+public contract is unchanged. New porcelain classes (`ChainTracker`) route through
+a `Provider` rather than a fixed protocol, enabling provider substitution at
+construction time.
 
 ## How It Fits Together
 
 ```
 Application code
     ↓ calls
-Facades (ARC, WhatsOnChain, ChainTrackers)
+Facades / Porcelain (ARC, WhatsOnChain, ChainTrackers::WhatsOnChain, ChainTracker)
     ↓ delegates to
-Protocols (ARC, WoCREST, Chaintracks, ...)
+Protocols (ARC, WoCREST, Chaintracks, JungleBus, ...)
     ↓ hosted by
 Providers (GorillaPool, WhatsOnChain, TAAL)
     ↓ dispatches via
