@@ -133,14 +133,14 @@ RSpec.describe 'BSV::Network::Protocols integration' do
     describe 'JungleBus' do
       subject(:commands) { BSV::Network::Protocols::JungleBus.commands }
 
-      it 'has 5 commands' do
-        expect(commands.size).to eq(5)
+      it 'has 6 commands' do
+        expect(commands.size).to eq(6)
       end
 
       it 'includes the expected commands' do
         expect(commands).to include(
           :get_tx, :get_address_meta, :get_address_txs,
-          :get_block_header, :get_block_headers
+          :get_block_header, :get_block_headers, :current_height
         )
       end
 
@@ -199,22 +199,24 @@ RSpec.describe 'BSV::Network::Protocols integration' do
       expect(classes.uniq.size).to eq(4)
     end
 
-    it ':current_height is declared by WoCREST and Chaintracks as distinct classes' do
+    it ':current_height is declared by WoCREST, Chaintracks, and JungleBus as distinct classes' do
       classes = [
         BSV::Network::Protocols::WoCREST,
-        BSV::Network::Protocols::Chaintracks
+        BSV::Network::Protocols::Chaintracks,
+        BSV::Network::Protocols::JungleBus
       ]
       expect(classes.all? { |klass| klass.commands.include?(:current_height) }).to be(true)
-      expect(classes.uniq.size).to eq(2)
+      expect(classes.uniq.size).to eq(3)
     end
 
-    it ':get_block_header is declared by WoCREST and Chaintracks as distinct classes' do
+    it ':get_block_header is declared by WoCREST, Chaintracks, and JungleBus as distinct classes' do
       classes = [
         BSV::Network::Protocols::WoCREST,
-        BSV::Network::Protocols::Chaintracks
+        BSV::Network::Protocols::Chaintracks,
+        BSV::Network::Protocols::JungleBus
       ]
       expect(classes.all? { |klass| klass.commands.include?(:get_block_header) }).to be(true)
-      expect(classes.uniq.size).to eq(2)
+      expect(classes.uniq.size).to eq(3)
     end
   end
 end

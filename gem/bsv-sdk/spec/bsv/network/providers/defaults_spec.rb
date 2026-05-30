@@ -47,8 +47,8 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.commands).to include(:broadcast)
     end
 
-    it 'does not include :current_height in commands (Chaintracks removed)' do
-      expect(provider.commands).not_to include(:current_height)
+    it 'includes :current_height in commands (via JungleBus)' do
+      expect(provider.commands).to include(:current_height)
     end
 
     it 'includes :get_tx in commands' do
