@@ -5,6 +5,28 @@ require 'spec_helper'
 RSpec.describe BSV::Transaction::ChainTracker do
   let(:provider) { instance_double(BSV::Network::Provider) }
 
+  describe '.default' do
+    it 'returns a ChainTracker instance' do
+      tracker = described_class.default
+      expect(tracker).to be_a(described_class)
+    end
+
+    it 'returns a ChainTracker backed by a GorillaPool mainnet provider' do
+      tracker = described_class.default
+      expect(tracker.instance_variable_get(:@provider).name).to eq('GorillaPool')
+    end
+
+    it 'returns a testnet ChainTracker when testnet: true' do
+      tracker = described_class.default(testnet: true)
+      expect(tracker).to be_a(described_class)
+    end
+
+    it 'testnet tracker is backed by a GorillaPool provider' do
+      tracker = described_class.default(testnet: true)
+      expect(tracker.instance_variable_get(:@provider).name).to eq('GorillaPool')
+    end
+  end
+
   describe '.new' do
     it 'constructs with no arguments' do
       expect { described_class.new }.not_to raise_error

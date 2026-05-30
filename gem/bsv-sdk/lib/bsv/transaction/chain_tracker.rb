@@ -13,7 +13,7 @@ module BSV
     # This class is a working default implementation that wraps a
     # {BSV::Network::Provider} and dispatches via {Provider#call}. The
     # provider must serve the +:get_block_header+ and +:current_height+
-    # commands (e.g. a provider configured with {Protocols::Chaintracks}).
+    # commands (e.g. a provider configured with {Protocols::JungleBus}).
     #
     # Subclasses may override either or both methods to supply their own
     # data source (in-memory hash, database cache, etc.) without touching
@@ -43,12 +43,21 @@ module BSV
     #   end
     #
     # @example Provider-backed (default impl)
-    #   provider = BSV::Network::Provider.new('GorillaPool') do |p|
-    #     p.protocol BSV::Network::Protocols::Chaintracks, base_url: 'https://chaintracks.gorillapool.io'
-    #   end
-    #   tracker = BSV::Transaction::ChainTracker.new(provider)
+    #   tracker = BSV::Transaction::ChainTracker.default
     #   tracker.valid_root_for_height?('abcd...', 800_000)
+    #
+    # @example Testnet
+    #   tracker = BSV::Transaction::ChainTracker.default(testnet: true)
+    #   tracker.current_height
     class ChainTracker
+      # Return a default ChainTracker backed by the GorillaPool provider.
+      #
+      # @param testnet [Boolean] when true, uses the testnet provider
+      # @return [ChainTracker]
+      def self.default(testnet: false)
+        new(BSV::Network::Providers::GorillaPool.default(testnet: testnet))
+      end
+
       # @param provider [BSV::Network::Provider, nil] provider serving +:get_block_header+
       #   and +:current_height+. Optional when the subclass overrides both methods.
       def initialize(provider = nil)
