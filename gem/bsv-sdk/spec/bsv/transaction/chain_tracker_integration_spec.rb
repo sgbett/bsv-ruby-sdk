@@ -30,17 +30,4 @@ RSpec.describe 'ChainTracker integration', :integration do # rubocop:disable RSp
   it 'rejects a wrong merkle root at a stable height' do
     expect(tracker.valid_root_for_height?('00' * 32, stable_height)).to be(false)
   end
-
-  # Optional: genesis (height 0) — some indexers don't serve it.
-  # JungleBus may 404 (return false) or return the genesis header (return true).
-  # Either outcome is acceptable — we're not asserting indexer completeness here.
-  it 'gracefully handles genesis if available' do
-    result = tracker.valid_root_for_height?(
-      '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
-      0
-    )
-    expect(result).to be(true).or be(false)
-  rescue StandardError => e
-    skip "Genesis not served by this provider: #{e.message}"
-  end
 end

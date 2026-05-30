@@ -50,6 +50,9 @@ module BSV
     #   tracker = BSV::Transaction::ChainTracker.default(testnet: true)
     #   tracker.current_height
     class ChainTracker
+      # @return [BSV::Network::Provider, nil] the underlying provider, if any
+      attr_reader :provider
+
       # Return a default ChainTracker backed by the GorillaPool provider.
       #
       # @param testnet [Boolean] when true, uses the testnet provider
@@ -106,6 +109,9 @@ module BSV
 
       private
 
+      # Field-name diversity belongs at the Protocols::* layer; this is a
+      # transitional shim until the wire protocols return canonical shapes.
+      # See #791.
       def normalise_merkle_root(body)
         return nil unless body.is_a?(Hash)
 
