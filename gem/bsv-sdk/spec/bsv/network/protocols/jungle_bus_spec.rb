@@ -36,14 +36,14 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
 
   describe '.commands' do
     it 'declares all expected commands' do
-      expected = %i[get_tx get_address_meta get_address_txs get_block_header get_block_headers]
+      expected = %i[get_tx get_address_meta get_address_txs get_block_header get_block_headers current_height]
       expected.each do |cmd|
         expect(described_class.commands).to include(cmd)
       end
     end
 
-    it 'has 5 commands' do
-      expect(described_class.commands.size).to eq(5)
+    it 'has 6 commands' do
+      expect(described_class.commands.size).to eq(6)
     end
   end
 
@@ -242,6 +242,41 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       proto.call(:get_block_headers, 948_120)
 
       expect(http_client.last_uri.path).to end_with('/v1/block_header/list/948120')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # current_height — chain tip height
+  # ---------------------------------------------------------------------------
+
+  describe '#call(:current_height)' do
+    let(:tip_json) do
+      {
+        'hash' => '000000000000000001d956714215d96ffc00e0afda4cd0a96c96f8d802b1662b',
+        'height' => 951_235,
+        'merkleroot' => 'da2b9eb7e8a3619734a17b55c47bdd6fd855b0afa9c7e14e3a164a279e51bba9',
+        'time' => 1_778_200_000
+      }.to_json
+    end
+
+    it 'returns the tip height as an Integer' do
+      http_client = fake(200, tip_json)
+      proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
+
+      result = proto.call(:current_height)
+
+      expect(result).to be_http_success
+      expect(result.data).to be_an(Integer)
+      expect(result.data).to eq(951_235)
+    end
+
+    it 'sends GET to /v1/block_header/tip' do
+      http_client = fake(200, tip_json)
+      proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
+
+      proto.call(:current_height)
+
+      expect(http_client.last_uri.path).to end_with('/v1/block_header/tip')
     end
   end
 end

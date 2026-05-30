@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module BSV
   module Network
     module Protocols
@@ -38,6 +40,10 @@ module BSV
 
         # Block headers from a given height (supports ?limit=N, max 10000)
         endpoint :get_block_headers, :get, '/v1/block_header/list/{height}', response: :json_array
+
+        # Current chain tip height
+        endpoint :current_height, :get, '/v1/block_header/tip',
+                 response: ->(body) { JSON.parse(body)['height'] }
 
         # @param base_url    [String] base URL for the JungleBus API
         # @param api_key     [String, nil] legacy API key shorthand — use +auth:+ for new code

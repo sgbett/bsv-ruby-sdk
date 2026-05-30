@@ -10,18 +10,21 @@ module BSV
     # chain tracker is the data source: an object the consumer provides
     # that can answer "is this merkle root valid for this block height?"
     #
-    # The SDK is deliberately unopinionated about where that answer comes
-    # from. A chain tracker backed by an in-memory hash is declarative.
-    # One that fetches from the network on cache miss and writes to a
-    # database is imperative. The verify methods don't care — they just
-    # ask the question. All imperative behaviour (fetching, caching,
-    # persisting) lives in the consumer's chain tracker implementation,
-    # not in the SDK.
+    # This class is a working default implementation that wraps a
+    # {BSV::Network::Provider} and dispatches via {Provider#call}. The
+    # provider must serve the +:get_block_header+ and +:current_height+
+    # commands (e.g. a provider configured with {Protocols::JungleBus}).
+    #
+    # Subclasses may override either or both methods to supply their own
+    # data source (in-memory hash, database cache, etc.) without touching
+    # the provider at all. The +provider+ argument is optional precisely to
+    # preserve this pattern — a subclass that overrides both methods never
+    # reaches the provider-dispatch path.
     #
     # Any object responding to +valid_root_for_height?+ and
     # +current_height+ satisfies this interface. Inheriting from this
     # class is optional — it exists to document the contract and provide
-    # clear error messages when methods are missing.
+    # a ready-to-use provider-backed implementation.
     #
     # @example In-memory chain tracker (test / declarative)
     #   class HashTracker < BSV::Transaction::ChainTracker
@@ -38,23 +41,81 @@ module BSV
     #       header.merkle_root == root
     #     end
     #   end
+    #
+    # @example Provider-backed (default impl)
+    #   tracker = BSV::Transaction::ChainTracker.default
+    #   tracker.valid_root_for_height?('abcd...', 800_000)
+    #
+    # @example Testnet
+    #   tracker = BSV::Transaction::ChainTracker.default(testnet: true)
+    #   tracker.current_height
     class ChainTracker
+      # @return [BSV::Network::Provider, nil] the underlying provider, if any
+      attr_reader :provider
+
+      # Return a default ChainTracker backed by the GorillaPool provider.
+      #
+      # @param testnet [Boolean] when true, uses the testnet provider
+      # @return [ChainTracker]
+      def self.default(testnet: false)
+        new(BSV::Network::Providers::GorillaPool.default(testnet: testnet))
+      end
+
+      # @param provider [BSV::Network::Provider, nil] provider serving +:get_block_header+
+      #   and +:current_height+. Optional when the subclass overrides both methods.
+      def initialize(provider = nil)
+        @provider = provider
+      end
+
       # Verify that a merkle root is valid for the given block height.
+      #
+      # Dispatches +:get_block_header+ to the configured provider. Returns +false+
+      # on 404 (block not found). Normalises the merkle root field name from any
+      # of +merkleroot+, +merkleRoot+, or +merkle_root+.
       #
       # @param root [String] merkle root as a hex string
       # @param height [Integer] block height
       # @return [Boolean] true if the root matches the block at the given height
-      # @raise [NotImplementedError] if not overridden by a subclass
-      def valid_root_for_height?(_root, _height)
-        raise NotImplementedError, "#{self.class}#valid_root_for_height? must be implemented"
+      # @raise [RuntimeError] when no provider is configured
+      # @raise [RuntimeError] on network or API error
+      def valid_root_for_height?(root, height)
+        raise 'ChainTracker requires a provider when used directly' if @provider.nil?
+
+        result = @provider.call(:get_block_header, height)
+        return false if result.http_not_found?
+        raise result.error_message.to_s unless result.http_success?
+
+        actual = normalise_merkle_root(result.data)
+        return false unless actual
+
+        actual.casecmp(root).zero?
       end
 
       # Return the current blockchain height.
       #
+      # Dispatches +:current_height+ to the configured provider.
+      #
       # @return [Integer] the height of the chain tip
-      # @raise [NotImplementedError] if not overridden by a subclass
+      # @raise [RuntimeError] when no provider is configured
+      # @raise [RuntimeError] on network or API error
       def current_height
-        raise NotImplementedError, "#{self.class}#current_height must be implemented"
+        raise 'ChainTracker requires a provider when used directly' if @provider.nil?
+
+        result = @provider.call(:current_height)
+        return result.data if result.http_success?
+
+        raise result.error_message.to_s
+      end
+
+      private
+
+      # Field-name diversity belongs at the Protocols::* layer; this is a
+      # transitional shim until the wire protocols return canonical shapes.
+      # See #791.
+      def normalise_merkle_root(body)
+        return nil unless body.is_a?(Hash)
+
+        body['merkleroot'] || body['merkleRoot'] || body['merkle_root']
       end
     end
   end

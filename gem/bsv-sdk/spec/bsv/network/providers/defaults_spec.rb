@@ -47,8 +47,8 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.commands).to include(:broadcast)
     end
 
-    it 'does not include :current_height in commands (Chaintracks removed)' do
-      expect(provider.commands).not_to include(:current_height)
+    it 'includes :current_height in commands (via JungleBus)' do
+      expect(provider.commands).to include(:current_height)
     end
 
     it 'includes :get_tx in commands' do
@@ -76,21 +76,38 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.name).to eq('GorillaPool')
     end
 
-    it 'registers one protocol' do
-      expect(provider.protocols.length).to eq(1)
+    it 'registers two protocols' do
+      expect(provider.protocols.length).to eq(2)
     end
 
-    it 'registers Arcade only' do
+    it 'registers Arcade as first protocol' do
       expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::Arcade)
+    end
+
+    it 'registers JungleBus as second protocol' do
+      expect(provider.protocols[1]).to be_a(BSV::Network::Protocols::JungleBus)
     end
 
     it 'serves :broadcast via Arcade' do
       expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::Arcade)
     end
 
+    it 'serves :current_height via JungleBus' do
+      expect(provider.protocol_for(:current_height)).to be_a(BSV::Network::Protocols::JungleBus)
+    end
+
+    it 'includes :current_height in commands' do
+      expect(provider.commands).to include(:current_height)
+    end
+
     it 'sets Arcade base_url to testnet.arcade.gorillapool.io' do
       arcade = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::Arcade) }
       expect(arcade.base_url).to eq('https://testnet.arcade.gorillapool.io')
+    end
+
+    it 'sets JungleBus base_url to testnet.junglebus.gorillapool.io' do
+      jb = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::JungleBus) }
+      expect(jb.base_url).to eq('https://testnet.junglebus.gorillapool.io')
     end
   end
 

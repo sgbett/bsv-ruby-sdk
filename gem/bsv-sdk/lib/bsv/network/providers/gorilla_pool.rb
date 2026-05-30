@@ -13,7 +13,9 @@ module BSV
       # - Ordinals at +https://ordinals.gorillapool.io+
       # - JungleBus at +https://junglebus.gorillapool.io+
       #
-      # Testnet provides Arcade at +https://testnet.arcade.gorillapool.io+.
+      # Testnet composes two protocols:
+      # - Arcade at +https://testnet.arcade.gorillapool.io+
+      # - JungleBus at +https://testnet.junglebus.gorillapool.io+
       #
       # == Example
       #
@@ -56,8 +58,10 @@ module BSV
         # @return [Provider]
         def self.testnet(auth: nil, rate_limit: DEFAULT_RATE_LIMIT, **opts)
           resolved_auth = auth || (opts[:api_key] ? { bearer: opts[:api_key] } : :none)
+          common = opts.slice(:api_key, :http_client).merge(auth: auth)
           Provider.new('GorillaPool', auth: resolved_auth, rate_limit: rate_limit) do |p|
-            p.protocol Protocols::Arcade, base_url: 'https://testnet.arcade.gorillapool.io', auth: auth, **opts
+            p.protocol Protocols::Arcade,    base_url: 'https://testnet.arcade.gorillapool.io', auth: auth, **opts
+            p.protocol Protocols::JungleBus, base_url: 'https://testnet.junglebus.gorillapool.io', **common
             # TODO: re-register chaintracks_server at separate URL/port — see issue #778
           end
         end

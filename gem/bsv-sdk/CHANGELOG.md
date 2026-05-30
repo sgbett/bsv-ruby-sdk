@@ -13,6 +13,39 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `BSV::Wallet.error_from_wire` helper rehydrates error frames into typed `BSV::Wallet::Error` subclasses (codes 1–7)
 - New guide: `docs/guides/brc-103-wire.md` — end-to-end walkthrough of the wire layer
 - Wire layer reference section added to `docs/sdk/wallet.md`
+- `BSV::Transaction::ChainTracker.default(testnet: false)` — provider-routed chain tracker backed by GorillaPool + JungleBus by default; no credentials required (closes #783)
+- `BSV::Network::Protocols::JungleBus` declares `:current_height` so the GorillaPool provider can satisfy chain-tip queries (#784)
+- `BSV::Network::Providers::GorillaPool.testnet` now registers `Protocols::JungleBus` alongside `Protocols::Arcade` so chain-header lookups work on testnet
+
+### Changed
+- `BSV::Transaction::ChainTracker` is now a working default implementation when constructed with a `Provider`; subclasses that override `valid_root_for_height?` and `current_height` continue to work unchanged (constructor now accepts an optional positional `provider` argument: `ChainTracker.new(provider)`, with `provider = nil` preserved for subclass-only use)
+
+### Removed (breaking)
+- **`BSV::Transaction::ChainTrackers::Chaintracks`** is removed. Migrate to
+  `BSV::Transaction::ChainTracker.default` for general use (GorillaPool), or construct
+  a single-protocol Provider explicitly for own-server use:
+
+  ```ruby
+  own = BSV::Network::Provider.new('local') do |p|
+    p.protocol BSV::Network::Protocols::Chaintracks, base_url: 'http://my-server'
+  end
+  tracker = BSV::Transaction::ChainTracker.new(own)
+  ```
+
+- **`BSV::Transaction::ChainTrackers.default`** (the namespace-level factory method) is
+  removed. Use `BSV::Transaction::ChainTracker.default` (the singular class-level
+  method) instead. The `ChainTrackers` namespace is now a pure autoload container for
+  concrete protocol-specific wrappers; `ChainTracker` (singular) is the porcelain entry
+  point.
+
+- Closes #778 — GorillaPool chaintracks connectivity: chain data is now reachable
+  through the provider via JungleBus; the open question dissolves.
+
+### Note
+- The default `ChainTracker` in the Ruby SDK resolves against GorillaPool/JungleBus,
+  which diverges from the TS SDK (WhatsOnChain) and Go/Python SDK defaults. This
+  reflects the broader pattern of GorillaPool being the default broadcast provider in
+  the Ruby SDK.
 
 ## 0.21.0 — 2026-05-29
 
