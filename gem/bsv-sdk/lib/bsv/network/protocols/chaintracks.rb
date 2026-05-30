@@ -16,15 +16,18 @@ module BSV
       #
       # == Usage
       #
-      #   ct = BSV::Network::Protocols::Chaintracks.new(base_url: 'https://arcade.gorillapool.io')
+      #   ct = BSV::Network::Protocols::Chaintracks.new(base_url: 'http://localhost:8080')
       #   result = ct.call(:current_height)
       #   result.data  # => 800000
       #
       #   result = ct.call(:get_block_header, 800_000)
       #   result.data  # => { 'hash' => '...', 'height' => 800000, 'merkleRoot' => '...' }
       #
-      # @note Chaintracks is an internal GorillaPool service; no public API documentation
-      #   is available.
+      # @note No public Chaintracks instance is hosted by major providers — GorillaPool
+      #   serves chain data via JungleBus instead. For general chain-tracking against
+      #   GorillaPool, use the porcelain interface:
+      #   +BSV::Transaction::ChainTracker.new(BSV::Network::Providers::GorillaPool.mainnet)+
+      #   which routes through JungleBus automatically.
       class Chaintracks < Protocol
         endpoint :get_block_header, :get, '/chaintracks/v2/header/height/{height}', response: :json
         endpoint :current_height,   :get, '/chaintracks/v2/tip',
