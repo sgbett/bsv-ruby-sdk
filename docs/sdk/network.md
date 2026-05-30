@@ -116,8 +116,8 @@ arc = BSV::Network::ARC.default(
 A chain tracker verifies that a merkle root corresponds to a valid block at a specific height. This is essential for BEEF (BRC-62) SPV verification.
 
 ```ruby
-# Default tracker routes through GorillaPool (JungleBus for current_height,
-# Arcade for get_block_header)
+# Default tracker routes through GorillaPool's JungleBus protocol,
+# which serves both :current_height and :get_block_header.
 tracker = BSV::Transaction::ChainTracker.default
 
 # Verify a merkle root

@@ -18,7 +18,7 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `BSV::Network::Providers::GorillaPool.testnet` now registers `Protocols::JungleBus` alongside `Protocols::Arcade` so chain-header lookups work on testnet
 
 ### Changed
-- `BSV::Transaction::ChainTracker` is now a working default implementation when constructed with a `Provider`; subclasses that override `valid_root_for_height?` and `current_height` continue to work unchanged (constructor now accepts an optional `provider:` keyword)
+- `BSV::Transaction::ChainTracker` is now a working default implementation when constructed with a `Provider`; subclasses that override `valid_root_for_height?` and `current_height` continue to work unchanged (constructor now accepts an optional positional `provider` argument: `ChainTracker.new(provider)`, with `provider = nil` preserved for subclass-only use)
 
 ### Removed (breaking)
 - **`BSV::Transaction::ChainTrackers::Chaintracks`** is removed. Migrate to
