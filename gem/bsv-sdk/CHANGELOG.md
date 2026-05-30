@@ -5,7 +5,7 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.22.0 — 2026-05-30
 
 ### Added
 - BRC-103 wire layer: `WalletWire` transport abstraction, `WalletWireTransceiver` (client), `WalletWireProcessor` (server), `Substrates::HTTPWalletWire` (binary HTTP transport), and `Substrates::HTTPWalletJSON` (JSON-over-HTTP, MetaNet Desktop compatible)
@@ -47,7 +47,7 @@ and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   reflects the broader pattern of GorillaPool being the default broadcast provider in
   the Ruby SDK.
 
-## 0.21.0 — 2026-05-29
+## 0.21.0 — 2026-05-29 (not separately released — see 0.22.0)
 
 ### Added
 - `Protocols::Arcade` for `bsv-blockchain/arcade` services (run by GorillaPool at
