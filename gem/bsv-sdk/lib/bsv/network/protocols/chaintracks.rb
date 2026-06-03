@@ -46,8 +46,8 @@ module BSV
         # Block-header escape hatch: normalises Chaintracks's +merkleRoot+ field
         # to the canonical +merkle_root+ key. See issue #791 for the cross-protocol
         # rationale.
-        def call_get_block_header(*args, **kwargs)
-          response = default_call(:get_block_header, *args, **kwargs)
+        def call_get_block_header(*, **)
+          response = default_call(:get_block_header, *, **)
           return response unless response.http_success?
 
           response.with(data: normalize_block_header(response.data))

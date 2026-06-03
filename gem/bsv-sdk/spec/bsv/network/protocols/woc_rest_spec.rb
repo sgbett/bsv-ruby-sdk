@@ -212,6 +212,16 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data['height']).to eq(800_000)
     end
 
+    it 'normalises merkleroot to canonical merkle_root key' do
+      http_client = fake(200, header_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_header, 800_000)
+
+      expect(result.data['merkle_root']).to eq('deadbeef00000000' * 4)
+      expect(result.data).not_to have_key('merkleroot')
+    end
+
     it 'sends GET to /block/{height}/header' do
       http_client = fake(200, header_json)
       protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
@@ -928,6 +938,16 @@ RSpec.describe BSV::Network::Protocols::WoCREST do # rubocop:disable RSpec/SpecF
       expect(result.data).to be_an(Array)
       expect(result.data.length).to eq(2)
       expect(result.data[0]['height']).to eq(800_000)
+    end
+
+    it 'normalises merkleroot on each header in the array' do
+      http_client = fake(200, headers_json)
+      protocol = described_class.new(base_url: 'https://api.whatsonchain.com/v1/bsv/main', network: :main, http_client: http_client)
+
+      result = protocol.call(:get_block_headers)
+
+      expect(result.data.map { |h| h['merkle_root'] }).to eq(%w[dead beef])
+      expect(result.data).to all(satisfy { |h| !h.key?('merkleroot') })
     end
 
     it 'sends GET to /block/headers' do
