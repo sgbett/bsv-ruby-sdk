@@ -58,15 +58,15 @@ module BSV
         # Block-header escape hatch: normalises JungleBus's +merkleroot+ field
         # to the canonical +merkle_root+ key. See issue #791 for the cross-protocol
         # rationale.
-        def call_get_block_header(height, **)
-          response = default_call(:get_block_header, height)
+        def call_get_block_header(*args, **kwargs)
+          response = default_call(:get_block_header, *args, **kwargs)
           return response unless response.http_success?
 
           response.with(data: normalize_block_header(response.data))
         end
 
-        def call_get_block_headers(height, **)
-          response = default_call(:get_block_headers, height)
+        def call_get_block_headers(*args, **kwargs)
+          response = default_call(:get_block_headers, *args, **kwargs)
           return response unless response.http_success?
           return response unless response.data.is_a?(Array)
 

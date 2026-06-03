@@ -21,7 +21,7 @@ module BSV
       #   result.data  # => 800000
       #
       #   result = ct.call(:get_block_header, 800_000)
-      #   result.data  # => { 'hash' => '...', 'height' => 800000, 'merkleRoot' => '...' }
+      #   result.data  # => { 'hash' => '...', 'height' => 800000, 'merkle_root' => '...' }
       #
       # @note No public Chaintracks instance is hosted by major providers — GorillaPool
       #   serves chain data via JungleBus instead. For general chain-tracking against
@@ -39,6 +39,26 @@ module BSV
         # @param http_client [Object, nil] injectable HTTP client for testing
         def initialize(base_url:, api_key: nil, auth: nil, http_client: nil)
           super
+        end
+
+        private
+
+        # Block-header escape hatch: normalises Chaintracks's +merkleRoot+ field
+        # to the canonical +merkle_root+ key. See issue #791 for the cross-protocol
+        # rationale.
+        def call_get_block_header(*args, **kwargs)
+          response = default_call(:get_block_header, *args, **kwargs)
+          return response unless response.http_success?
+
+          response.with(data: normalize_block_header(response.data))
+        end
+
+        def normalize_block_header(data)
+          return data unless data.is_a?(Hash) && data.key?('merkleRoot')
+
+          data = data.dup
+          data['merkle_root'] = data.delete('merkleRoot')
+          data
         end
       end
     end
