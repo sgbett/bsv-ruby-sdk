@@ -5,6 +5,30 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.23.0 — 2026-06-03
+
+### Changed (breaking)
+- **Canonical block-header response shape across protocols.** `Protocols::JungleBus`,
+  `Protocols::Chaintracks`, and `Protocols::WoCREST` now emit the merkle root as
+  `'merkle_root'` (lowercase snake_case) in their `:get_block_header` and
+  `:get_block_headers` responses, replacing the upstream-specific names
+  (`'merkleroot'` for JungleBus/WoCREST, `'merkleRoot'` for Chaintracks). Consumers
+  reading the raw field directly from `provider.call(:get_block_header).data` must
+  migrate to the canonical key. Wire protocols stay honest about other fields;
+  only the merkle-root key is renamed. No shim. (#791)
+- `WoCREST#:valid_root` now reads the normalised `merkle_root` key internally
+  (no behaviour change — same comparison output).
+- `BSV::Transaction::ChainTracker#valid_root_for_height?` reads
+  `result.data['merkle_root']` directly; the previous private
+  `normalise_merkle_root` helper is removed. Subclass-override pattern unchanged.
+
+### Note
+- This is the "Pattern A" normalisation from #791 — push cosmetic field-name
+  divergence down into the wire-protocol classes where the data is semantically
+  identical across upstreams. Pattern B (broadcast / get_tx_status with
+  structurally divergent shapes) stays at the consumer layer and is not part of
+  this release.
+
 ## 0.22.0 — 2026-05-30
 
 ### Added

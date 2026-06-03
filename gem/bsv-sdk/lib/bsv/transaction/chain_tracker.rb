@@ -108,7 +108,6 @@ module BSV
 
         raise result.error_message.to_s
       end
-
     end
   end
 end
