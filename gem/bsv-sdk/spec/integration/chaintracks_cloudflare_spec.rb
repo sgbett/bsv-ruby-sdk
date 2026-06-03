@@ -30,6 +30,11 @@ RSpec.describe 'Custom Provider: chaintracks-cloudflare', :chaintracks_live do
   # -------------------------------------------------------------------
   # Define a custom Protocol subclass using the DSL — this is the code
   # under test, exercising endpoint declaration and response handlers.
+  #
+  # Note: this is an ad-hoc protocol class, NOT BSV::Network::Protocols::Chaintracks.
+  # The custom lambda response handlers do no key normalisation, so reads of
+  # `data['merkleRoot']` below use the raw upstream key — not the canonical
+  # `merkle_root` produced by Protocols::Chaintracks (see #791).
   # -------------------------------------------------------------------
 
   let(:protocol_class) do

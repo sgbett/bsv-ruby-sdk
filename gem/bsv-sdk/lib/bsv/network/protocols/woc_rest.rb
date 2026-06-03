@@ -373,8 +373,35 @@ module BSV
           result = default_call(:valid_root, height)
           return result unless result.http_success?
 
-          actual = result.data['merkleroot']
+          data = normalize_block_header(result.data)
+          actual = data['merkle_root']
           result.with(data: actual.to_s.downcase == root.to_s.downcase)
+        end
+
+        # Block-header escape hatch: normalises WoCREST's +merkleroot+ field
+        # to the canonical +merkle_root+ key. See issue #791 for the cross-protocol
+        # rationale.
+        def call_get_block_header(*, **)
+          response = default_call(:get_block_header, *, **)
+          return response unless response.http_success?
+
+          response.with(data: normalize_block_header(response.data))
+        end
+
+        def call_get_block_headers(*, **)
+          response = default_call(:get_block_headers, *, **)
+          return response unless response.http_success?
+          return response unless response.data.is_a?(Array)
+
+          response.with(data: response.data.map { |h| normalize_block_header(h) })
+        end
+
+        def normalize_block_header(data)
+          return data unless data.is_a?(Hash) && data.key?('merkleroot')
+
+          data = data.dup
+          data['merkle_root'] = data.delete('merkleroot')
+          data
         end
       end
     end

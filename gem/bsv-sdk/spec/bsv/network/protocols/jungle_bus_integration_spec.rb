@@ -80,7 +80,7 @@ RSpec.describe 'JungleBus integration', :integration do # rubocop:disable RSpec/
       expect(result.data).to be_a(Hash)
       expect(result.data['hash']).to eq(fork_block_hash)
       expect(result.data['height']).to eq(fork_block_height)
-      expect(result.data['merkleroot']).to be_a(String)
+      expect(result.data['merkle_root']).to be_a(String)
     else
       expect(result).to be_http_not_found.or(satisfy { |r| !r.http_success? })
     end

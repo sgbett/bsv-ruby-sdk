@@ -71,29 +71,25 @@ RSpec.describe BSV::Transaction::ChainTracker do
         allow(provider).to receive(:call).with(:get_block_header, anything).and_return(response)
       end
 
-      it 'returns true when root matches (lowercase field name)' do
-        stub_header('merkleroot' => 'abc')
-        expect(tracker.valid_root_for_height?('ABC', 800_000)).to be true
-      end
-
-      it 'returns true when root matches (camelCase field name)' do
-        stub_header('merkleRoot' => 'abc')
-        expect(tracker.valid_root_for_height?('ABC', 800_000)).to be true
-      end
-
-      it 'returns true when root matches (snake_case field name)' do
+      it 'returns true when root matches canonical merkle_root key' do
         stub_header('merkle_root' => 'abc')
         expect(tracker.valid_root_for_height?('ABC', 800_000)).to be true
       end
 
       it 'returns true when root matches with identical casing' do
-        stub_header('merkleroot' => 'abc123')
+        stub_header('merkle_root' => 'abc123')
         expect(tracker.valid_root_for_height?('abc123', 800_000)).to be true
       end
 
       it 'returns false when root does not match' do
-        stub_header('merkleroot' => 'abc')
+        stub_header('merkle_root' => 'abc')
         expect(tracker.valid_root_for_height?('zzz', 800_000)).to be false
+      end
+
+      it 'returns false when given a raw (un-normalised) merkleroot key' do
+        # Wire protocols are expected to normalise; the porcelain trusts canonical only.
+        stub_header('merkleroot' => 'abc')
+        expect(tracker.valid_root_for_height?('abc', 800_000)).to be false
       end
 
       it 'returns false on 404' do

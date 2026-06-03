@@ -34,15 +34,16 @@ RSpec.describe BSV::Network::Protocols::Chaintracks do
 
   describe ':get_block_header' do
     let(:header_body) do
-      { 'hash' => 'abc123', 'height' => 800_000, 'merkleroot' => 'def456' }.to_json
+      { 'hash' => 'abc123', 'height' => 800_000, 'merkleRoot' => 'def456' }.to_json
     end
 
-    it 'returns parsed JSON on success' do
+    it 'returns parsed JSON on success with merkleRoot normalised to merkle_root' do
       instance, _http = make_instance(200, header_body)
       result = instance.call(:get_block_header, height: 800_000)
 
       expect(result).to be_http_success
-      expect(result.data).to eq({ 'hash' => 'abc123', 'height' => 800_000, 'merkleroot' => 'def456' })
+      expect(result.data).to eq({ 'hash' => 'abc123', 'height' => 800_000, 'merkle_root' => 'def456' })
+      expect(result.data).not_to have_key('merkleRoot')
     end
 
     it 'builds the correct URL' do

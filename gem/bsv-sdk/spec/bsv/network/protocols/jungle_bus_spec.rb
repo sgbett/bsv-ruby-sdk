@@ -192,6 +192,16 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
       expect(result.data['hash']).to start_with('0000000000')
     end
 
+    it 'normalises merkleroot to canonical merkle_root key' do
+      http_client = fake(200, header_json)
+      proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
+
+      result = proto.call(:get_block_header, 556_767)
+
+      expect(result.data['merkle_root']).to eq('da2b9eb7e8a3619734a17b55c47bdd6fd855b0afa9c7e14e3a164a279e51bba9')
+      expect(result.data).not_to have_key('merkleroot')
+    end
+
     it 'sends GET to /v1/block_header/get/{height}' do
       http_client = fake(200, header_json)
       proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
@@ -218,9 +228,19 @@ RSpec.describe BSV::Network::Protocols::JungleBus do
   describe '#call(:get_block_headers)' do
     let(:headers_json) do
       [
-        { 'hash' => 'abc', 'height' => 948_120, 'time' => 1_778_184_660 },
-        { 'hash' => 'def', 'height' => 948_121, 'time' => 1_778_185_691 }
+        { 'hash' => 'abc', 'height' => 948_120, 'time' => 1_778_184_660, 'merkleroot' => 'aaa' },
+        { 'hash' => 'def', 'height' => 948_121, 'time' => 1_778_185_691, 'merkleroot' => 'bbb' }
       ].to_json
+    end
+
+    it 'normalises merkleroot on each header in the array' do
+      http_client = fake(200, headers_json)
+      proto = described_class.new(base_url: 'https://junglebus.gorillapool.io', http_client: http_client)
+
+      result = proto.call(:get_block_headers, 948_120)
+
+      expect(result.data.map { |h| h['merkle_root'] }).to eq(%w[aaa bbb])
+      expect(result.data).to all(satisfy { |h| !h.key?('merkleroot') })
     end
 
     it 'returns an array of block headers' do

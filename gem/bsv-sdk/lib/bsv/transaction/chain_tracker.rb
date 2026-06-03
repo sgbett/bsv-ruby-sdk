@@ -70,8 +70,11 @@ module BSV
       # Verify that a merkle root is valid for the given block height.
       #
       # Dispatches +:get_block_header+ to the configured provider. Returns +false+
-      # on 404 (block not found). Normalises the merkle root field name from any
-      # of +merkleroot+, +merkleRoot+, or +merkle_root+.
+      # on 404 (block not found). Relies on the wire-protocol classes that expose
+      # +:get_block_header+ (+Protocols::JungleBus+, +Protocols::Chaintracks+,
+      # +Protocols::WoCREST+) to emit the canonical +merkle_root+ key — see
+      # issue #791 for the Pattern A normalisation that absorbed the previous
+      # field-name shim.
       #
       # @param root [String] merkle root as a hex string
       # @param height [Integer] block height
@@ -85,7 +88,7 @@ module BSV
         return false if result.http_not_found?
         raise result.error_message.to_s unless result.http_success?
 
-        actual = normalise_merkle_root(result.data)
+        actual = result.data.is_a?(Hash) ? result.data['merkle_root'] : nil
         return false unless actual
 
         actual.casecmp(root).zero?
@@ -105,17 +108,6 @@ module BSV
         return result.data if result.http_success?
 
         raise result.error_message.to_s
-      end
-
-      private
-
-      # Field-name diversity belongs at the Protocols::* layer; this is a
-      # transitional shim until the wire protocols return canonical shapes.
-      # See #791.
-      def normalise_merkle_root(body)
-        return nil unless body.is_a?(Hash)
-
-        body['merkleroot'] || body['merkleRoot'] || body['merkle_root']
       end
     end
   end
