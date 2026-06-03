@@ -70,10 +70,11 @@ module BSV
       # Verify that a merkle root is valid for the given block height.
       #
       # Dispatches +:get_block_header+ to the configured provider. Returns +false+
-      # on 404 (block not found). Relies on the wire-protocol classes
-      # (+Protocols::ARC+, +Protocols::JungleBus+, etc.) to emit the canonical
-      # +merkle_root+ key — see issue #791 / PR for the Pattern A normalisation
-      # that absorbed the previous field-name shim.
+      # on 404 (block not found). Relies on the wire-protocol classes that expose
+      # +:get_block_header+ (+Protocols::JungleBus+, +Protocols::Chaintracks+,
+      # +Protocols::WoCREST+) to emit the canonical +merkle_root+ key — see
+      # issue #791 for the Pattern A normalisation that absorbed the previous
+      # field-name shim.
       #
       # @param root [String] merkle root as a hex string
       # @param height [Integer] block height
