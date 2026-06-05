@@ -140,7 +140,7 @@ RSpec.describe BSV::Wallet::Substrates::HTTPWalletWire do
 
       expect { wire.transmit_to_wallet("\x1b\x00".b) }
         .to raise_error(BSV::Wallet::Error) do |err|
-          expect(err.message).to match(/connection/i)
+          expect(err.message).to include('connection')
         end
     end
   end

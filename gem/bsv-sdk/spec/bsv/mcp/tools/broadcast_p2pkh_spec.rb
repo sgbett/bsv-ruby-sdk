@@ -162,7 +162,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
         tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
         symbolize_names: true
       )
-      expect(result[:error]).to match(/no utxos/i)
+      expect(result[:error]).to include('No UTXOs')
     end
   end
 
