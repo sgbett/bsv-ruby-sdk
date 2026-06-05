@@ -259,6 +259,12 @@ RSpec.describe BSV::Network::Protocols::ARC do
         expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
       end
+
+      it 'preserves the parsed body in data so callers can read it' do
+        stub_json_response(400, { 'txStatus' => 'REJECTED', 'extraInfo' => 'orphaned input', 'detail' => 'bad request' })
+        result = arc.call(:broadcast, tx)
+        expect(result.data).to eq('txStatus' => 'REJECTED', 'extraInfo' => 'orphaned input', 'detail' => 'bad request')
+      end
     end
 
     context 'with custom headers' do
@@ -401,6 +407,22 @@ RSpec.describe BSV::Network::Protocols::ARC do
         result = arc.call(:broadcast_many, [tx_with_ef])
         expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
+      end
+
+      it 'preserves the parsed body in data so callers can read it' do
+        result = arc.call(:broadcast_many, [tx_with_ef])
+        expect(result.data).to eq('detail' => 'server error')
+      end
+    end
+
+    context 'when HTTP returns non-2xx with a per-tx status array body' do
+      before { stub_json_response(422, [{ 'txid' => 'tx1', 'txStatus' => 'REJECTED', 'extraInfo' => 'double spend' }]) }
+
+      it 'surfaces the per-tx status array via data so callers can reconstruct outcomes' do
+        result = arc.call(:broadcast_many, [tx_with_ef])
+        expect(result).not_to be_http_success
+        expect(result.data).to be_an(Array)
+        expect(result.data.first['txStatus']).to eq('REJECTED')
       end
     end
 

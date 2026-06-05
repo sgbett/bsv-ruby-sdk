@@ -165,6 +165,22 @@ RSpec.describe BSV::Network::Protocols::Arcade do
         result = arcade.call(:broadcast, 'deadbeef')
         expect(result.retryable?).to be(false)
       end
+
+      it 'preserves the parsed body in data so callers can read it' do
+        result = arcade.call(:broadcast, 'deadbeef')
+        expect(result.data).to eq('reason' => 'transaction is invalid')
+      end
+    end
+
+    context 'when Arcade returns 4xx with txStatus and extraInfo (terminal rejection shape)' do
+      before { stub_json_response(400, { 'txStatus' => 'REJECTED', 'extraInfo' => 'double spend' }) }
+
+      it 'exposes txStatus and extraInfo via data so callers can detect rejection' do
+        result = arcade.call(:broadcast, 'deadbeef')
+        expect(result).not_to be_http_success
+        expect(result.data['txStatus']).to eq('REJECTED')
+        expect(result.data['extraInfo']).to eq('double spend')
+      end
     end
 
     context 'when Arcade returns 503 with Retry-After header' do

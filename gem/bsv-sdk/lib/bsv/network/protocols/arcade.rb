@@ -127,7 +127,8 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body.is_a?(Hash) ? (body['reason'] || body['detail'] || "HTTP #{code}") : "HTTP #{code}"
+              error_message: body.is_a?(Hash) ? (body['reason'] || body['detail'] || "HTTP #{code}") : "HTTP #{code}",
+              data: body.is_a?(Hash) ? body : nil
             )
           end
 
