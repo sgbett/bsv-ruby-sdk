@@ -114,7 +114,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'parses transactions with expected structure' do
       beef.transactions.each do |beef_tx|
-        expect(beef_tx.transaction).to be_a(BSV::Transaction::Transaction)
+        expect(beef_tx.transaction).to be_a(BSV::Transaction::Tx)
         expect(beef_tx.transaction.inputs).not_to be_empty
         expect(beef_tx.transaction.outputs).not_to be_empty
       end
@@ -329,12 +329,12 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
-  describe 'Transaction.from_beef / Transaction#to_beef' do
-    it 'round-trips Transaction.from_beef through the V2 vector' do
+  describe 'Tx.from_beef / Tx#to_beef' do
+    it 'round-trips Tx.from_beef through the V2 vector' do
       beef_data = [beef_set_hex].pack('H*')
-      tx = BSV::Transaction::Transaction.from_beef(beef_data)
+      tx = BSV::Transaction::Tx.from_beef(beef_data)
 
-      expect(tx).to be_a(BSV::Transaction::Transaction)
+      expect(tx).to be_a(BSV::Transaction::Tx)
       # Subject tx is the last one in the bundle
       beef = described_class.from_hex(beef_set_hex)
       expected_wtxid = beef.transactions.last.transaction.wtxid
@@ -342,19 +342,19 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'round-trips via from_beef_hex' do
-      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
-      expect(tx).to be_a(BSV::Transaction::Transaction)
+      tx = BSV::Transaction::Tx.from_beef_hex(beef_set_hex)
+      expect(tx).to be_a(BSV::Transaction::Tx)
     end
 
     it 'wires source transactions on the returned transaction' do
-      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      tx = BSV::Transaction::Tx.from_beef_hex(beef_set_hex)
       wired = tx.inputs.select(&:source_transaction)
       expect(wired).not_to be_empty
     end
 
     it 'builds a BEEF from a transaction with ancestry' do
       # Parse the BEEF to get a transaction with wired sources
-      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      tx = BSV::Transaction::Tx.from_beef_hex(beef_set_hex)
 
       # Rebuild BEEF from that transaction
       beef_binary = tx.to_beef
@@ -371,7 +371,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
 
     it 'to_beef_hex returns a hex string' do
-      tx = BSV::Transaction::Transaction.from_beef_hex(beef_set_hex)
+      tx = BSV::Transaction::Tx.from_beef_hex(beef_set_hex)
       hex = tx.to_beef_hex
       expect(hex).to match(/\A[0-9a-f]+\z/)
       expect([hex].pack('H*').byteslice(0, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V1)
@@ -383,7 +383,7 @@ RSpec.describe BSV::Transaction::Beef do
       lock = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
       pe = BSV::Transaction::MerklePath::PathElement
 
-      ancestor_a = BSV::Transaction::Transaction.new
+      ancestor_a = BSV::Transaction::Tx.new
       ancestor_a.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 5000, locking_script: lock))
       ancestor_a.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: 800_000,
@@ -391,7 +391,7 @@ RSpec.describe BSV::Transaction::Beef do
                 pe.new(offset: 1, hash: ['aa' * 32].pack('H*'))]]
       )
 
-      ancestor_b = BSV::Transaction::Transaction.new(version: 2)
+      ancestor_b = BSV::Transaction::Tx.new(version: 2)
       ancestor_b.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 3000, locking_script: lock))
       ancestor_b.merkle_path = BSV::Transaction::MerklePath.new(
         block_height: 800_000,
@@ -400,7 +400,7 @@ RSpec.describe BSV::Transaction::Beef do
       )
 
       # Build a child spending both
-      child = BSV::Transaction::Transaction.new
+      child = BSV::Transaction::Tx.new
       input_a = BSV::Transaction::TransactionInput.new(prev_wtxid: ancestor_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = ancestor_a
       input_a.source_satoshis = 5000
@@ -446,7 +446,7 @@ RSpec.describe BSV::Transaction::Beef do
     # Build a synthetic 4-leaf merkle tree so two single-leaf BUMPs for
     # different leaves can share the same merkle root and collapse under
     # merge_bump. The txid-flagged leaves use the real txids of the
-    # synthetic transactions below so that Transaction#to_beef's extract
+    # synthetic transactions below so that Tx#to_beef's extract
     # pass finds them.
     let(:mp_class) { BSV::Transaction::MerklePath }
     let(:pe) { mp_class::PathElement }
@@ -454,12 +454,12 @@ RSpec.describe BSV::Transaction::Beef do
 
     # Proven ancestors at offsets 1 and 2 of the synthetic 4-leaf block.
     let(:tx_a) do
-      t = BSV::Transaction::Transaction.new
+      t = BSV::Transaction::Tx.new
       t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
       t
     end
     let(:tx_b) do
-      t = BSV::Transaction::Transaction.new(version: 2)
+      t = BSV::Transaction::Tx.new(version: 2)
       t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 200, locking_script: lock))
       t
     end
@@ -505,7 +505,7 @@ RSpec.describe BSV::Transaction::Beef do
       tx_a.merkle_path = path_a
       tx_b.merkle_path = path_b
 
-      child = BSV::Transaction::Transaction.new
+      child = BSV::Transaction::Tx.new
       input_a = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_a.wtxid, prev_tx_out_index: 0)
       input_a.source_transaction = tx_a
       child.add_input(input_a)
@@ -577,7 +577,7 @@ RSpec.describe BSV::Transaction::Beef do
       expect(parsed.bumps.length).to eq(1)
     end
 
-    it 'serialises exactly one BUMP via Transaction#to_beef' do
+    it 'serialises exactly one BUMP via Tx#to_beef' do
       child = attach_paths_and_build_child
 
       parsed = described_class.from_binary(child.to_beef)
@@ -593,10 +593,10 @@ RSpec.describe BSV::Transaction::Beef do
   # resulting stored BUMP entry in LocalProofStore carries txid-flagged leaves
   # for every txid in the original compound — including ones unrelated to
   # the tx being stored. When a subsequent tx spends those UTXOs and calls
-  # Transaction#to_beef, the phantom flags were previously propagated into
+  # Tx#to_beef, the phantom flags were previously propagated into
   # the emitted BEEF, which ARC rejects.
   #
-  # The fix is in Transaction#to_beef (which now groups ancestors by block,
+  # The fix is in Tx#to_beef (which now groups ancestors by block,
   # combines their merkle paths, and calls MerklePath#extract with the bundle
   # txids to produce clean BUMPs) backed by MerklePath#extract and #trim.
   describe 'phantom txid leaves in to_beef (issue #302)' do
@@ -607,7 +607,7 @@ RSpec.describe BSV::Transaction::Beef do
 
       # The real proven ancestor — sits at offset 0 in the block merkle tree.
       let(:tx_real) do
-        t = BSV::Transaction::Transaction.new
+        t = BSV::Transaction::Tx.new
         t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: lock))
         t
       end
@@ -649,7 +649,7 @@ RSpec.describe BSV::Transaction::Beef do
       let(:child) do
         tx_real.merkle_path = contaminated_bump
 
-        c = BSV::Transaction::Transaction.new
+        c = BSV::Transaction::Tx.new
         input = BSV::Transaction::TransactionInput.new(prev_wtxid: tx_real.wtxid, prev_tx_out_index: 0)
         input.source_transaction = tx_real
         c.add_input(input)
@@ -811,7 +811,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.from_hex(beef_set_hex)
       last_tx = beef.transactions.last.transaction
       found = beef.find_transaction_for_signing(last_tx.wtxid)
-      expect(found).to be_a(BSV::Transaction::Transaction)
+      expect(found).to be_a(BSV::Transaction::Tx)
       expect(found.wtxid).to eq(last_tx.wtxid)
     end
 
@@ -826,7 +826,7 @@ RSpec.describe BSV::Transaction::Beef do
       beef = described_class.from_hex(beef_set_hex)
       last_tx = beef.transactions.last.transaction
       found = beef.find_atomic_transaction(last_tx.wtxid)
-      expect(found).to be_a(BSV::Transaction::Transaction)
+      expect(found).to be_a(BSV::Transaction::Tx)
       expect(found.wtxid).to eq(last_tx.wtxid)
     end
   end
@@ -906,21 +906,21 @@ RSpec.describe BSV::Transaction::Beef do
 
   describe 'BeefTx initialisation invariants' do
     it 'raises when ProvenTxEntry is constructed without a bump_index' do
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       expect do
         described_class::ProvenTxEntry.new(transaction: tx, bump_index: nil)
       end.to raise_error(ArgumentError, /ProvenTxEntry requires a bump_index/)
     end
 
     it 'accepts ProvenTxEntry with a bump_index' do
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       expect do
         described_class::ProvenTxEntry.new(transaction: tx, bump_index: 0)
       end.not_to raise_error
     end
 
     it 'accepts RawTxEntry without a bump_index' do
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       expect do
         described_class::RawTxEntry.new(transaction: tx)
       end.not_to raise_error
@@ -1010,7 +1010,7 @@ RSpec.describe BSV::Transaction::Beef do
       # a bump_index that doesn't exist in @bumps.
       source = described_class.from_hex(brc62_hex)
       bogus_entry = described_class::ProvenTxEntry.new(
-        transaction: BSV::Transaction::Transaction.new(version: 99), # unique txid
+        transaction: BSV::Transaction::Tx.new(version: 99), # unique txid
         bump_index: source.bumps.length + 42
       )
       source.transactions << bogus_entry
@@ -1056,7 +1056,7 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns false when an unproven transaction has missing ancestors' do
       # Create a BEEF with a raw tx (no BUMP) whose input references a txid not in the bundle
       beef = described_class.new
-      tx = BSV::Transaction::Transaction.from_hex(
+      tx = BSV::Transaction::Tx.from_hex(
         '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
         '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
         '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
@@ -1156,7 +1156,7 @@ RSpec.describe BSV::Transaction::Beef do
     it 'returns false when a FORMAT_RAW_TX_AND_BUMP entry has no BUMP' do
       # Construct a BeefTx that claims RAW_TX_AND_BUMP but the bumps array is empty
       beef = described_class.new
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
       # Add a real BUMP (from the brc62 vector) so BeefTx construction succeeds,
       # but the BUMP won't contain the fresh tx's txid — compute_root will raise.
@@ -1185,7 +1185,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'returns false for a structurally invalid bundle' do
       bad_beef = described_class.new
-      tx = BSV::Transaction::Transaction.from_hex(
+      tx = BSV::Transaction::Tx.from_hex(
         '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d25072326510000000000ffffffff' \
         '02404b4c00000000001976a91404ff367be719efa79d76e4416ffb072cd53b208888acde94a905000000001976a914' \
         '04d03f746652cfcb6cb55119ab473a045137d26588ac00000000'
@@ -1240,8 +1240,8 @@ RSpec.describe BSV::Transaction::Beef do
       input_a = instance_double(BSV::Transaction::TransactionInput, prev_wtxid: wtxid_b)
       input_b = instance_double(BSV::Transaction::TransactionInput, prev_wtxid: wtxid_a)
 
-      tx_a = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_a, inputs: [input_a])
-      tx_b = instance_double(BSV::Transaction::Transaction, wtxid: wtxid_b, inputs: [input_b])
+      tx_a = instance_double(BSV::Transaction::Tx, wtxid: wtxid_a, inputs: [input_a])
+      tx_b = instance_double(BSV::Transaction::Tx, wtxid: wtxid_b, inputs: [input_b])
 
       beef = described_class.new
       beef.transactions << described_class::RawTxEntry.new(transaction: tx_a)
@@ -1289,7 +1289,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'upgrades existing FORMAT_RAW_TX entries to FORMAT_RAW_TX_AND_BUMP when BUMP arrives' do
       beef = described_class.new
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 500, locking_script: BSV::Script::Script.new))
 
       # Add as raw tx first
@@ -1331,7 +1331,7 @@ RSpec.describe BSV::Transaction::Beef do
     let(:lock) { BSV::Script::Script.new }
 
     def make_tx
-      t = BSV::Transaction::Transaction.new
+      t = BSV::Transaction::Tx.new
       t.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: lock))
       t
     end
@@ -1426,7 +1426,7 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'finds a BUMP via @bumps when there is no transaction-table entry' do
       beef = described_class.new
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 100, locking_script: BSV::Script::Script.new))
 
       sibling = BSV::Primitives::Digest.sha256('sibling')
@@ -1485,7 +1485,7 @@ RSpec.describe BSV::Transaction::Beef do
       trailing = "\xFF".b * 10
       data = binary + trailing
 
-      tx, consumed = BSV::Transaction::Transaction.from_binary_with_offset(data)
+      tx, consumed = BSV::Transaction::Tx.from_binary_with_offset(data)
       expect(consumed).to eq(binary.bytesize)
       expect(tx.inputs.length).to eq(1)
       expect(tx.outputs.length).to eq(2)
@@ -1498,8 +1498,8 @@ RSpec.describe BSV::Transaction::Beef do
             'd26588ac00000000'
       binary = [hex].pack('H*')
 
-      tx1 = BSV::Transaction::Transaction.from_binary(binary)
-      tx2, _consumed = BSV::Transaction::Transaction.from_binary_with_offset(binary)
+      tx1 = BSV::Transaction::Tx.from_binary(binary)
+      tx2, _consumed = BSV::Transaction::Tx.from_binary_with_offset(binary)
 
       expect(tx2.to_hex).to eq(tx1.to_hex)
       expect(tx2.wtxid).to eq(tx1.wtxid)

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BSV::Transaction::Transaction do
+RSpec.describe BSV::Transaction::Tx do
   # Go SDK test vector: 1 input, 2 outputs
   let(:vector1_hex) do
     '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \
@@ -780,7 +780,7 @@ RSpec.describe BSV::Transaction::Transaction do
     #
     # PathElement hashes must be in wire byte order (MerklePath serialisation).
     def proven_tx(satoshis: 1000, block_height: 800_000, offset: 0)
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: lock))
       sibling_hash = BSV::Primitives::Digest.sha256("sibling_#{offset}") # 32 raw bytes
       tx.merkle_path = BSV::Transaction::MerklePath.new(

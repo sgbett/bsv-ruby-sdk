@@ -67,8 +67,8 @@ RSpec.describe 'BSV::Registry::Client' do
     before do
       allow(BSV::Script::PushDropTemplate).to receive(:new).and_return(mock_template)
       allow(wallet).to receive(:create_action).and_return({ tx: REGISTRY_SPEC_BEEF_BYTES })
-      allow(BSV::Transaction::Transaction).to receive(:from_beef)
-        .and_return(instance_double(BSV::Transaction::Transaction, txid_hex: REGISTRY_SPEC_TXID))
+      allow(BSV::Transaction::Tx).to receive(:from_beef)
+        .and_return(instance_double(BSV::Transaction::Tx, txid_hex: REGISTRY_SPEC_TXID))
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 
@@ -177,8 +177,8 @@ RSpec.describe 'BSV::Registry::Client' do
     before do
       allow(BSV::Script::PushDropTemplate).to receive(:new).and_return(mock_template)
       allow(wallet).to receive(:create_action).and_return({ tx: REGISTRY_SPEC_BEEF_BYTES })
-      allow(BSV::Transaction::Transaction).to receive(:from_beef)
-        .and_return(instance_double(BSV::Transaction::Transaction, txid_hex: REGISTRY_SPEC_TXID))
+      allow(BSV::Transaction::Tx).to receive(:from_beef)
+        .and_return(instance_double(BSV::Transaction::Tx, txid_hex: REGISTRY_SPEC_TXID))
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 
@@ -254,7 +254,7 @@ RSpec.describe 'BSV::Registry::Client' do
         locking_script: mock_locking_script,
         satoshis: 1
       )
-      instance_double(BSV::Transaction::Transaction,
+      instance_double(BSV::Transaction::Tx,
                       txid_hex: REGISTRY_SPEC_TXID,
                       outputs: [tx_output])
     end
@@ -423,7 +423,7 @@ RSpec.describe 'BSV::Registry::Client' do
     end
 
     let(:mock_tx) do
-      instance_double(BSV::Transaction::Transaction,
+      instance_double(BSV::Transaction::Tx,
                       txid_hex: REGISTRY_SPEC_TXID,
                       outputs: [mock_tx_output])
     end
@@ -533,17 +533,17 @@ RSpec.describe 'BSV::Registry::Client' do
       )
     end
 
-    let(:partial_tx) { instance_double(BSV::Transaction::Transaction) }
-    let(:signed_tx)  { instance_double(BSV::Transaction::Transaction) }
+    let(:partial_tx) { instance_double(BSV::Transaction::Tx) }
+    let(:signed_tx)  { instance_double(BSV::Transaction::Tx) }
     let(:mock_unlock_script) { instance_double(BSV::Script::Script, to_hex: '00' * 107) }
     let(:mock_unlocker) { instance_double(BSV::Script::PushDropTemplate::Unlocker, sign: mock_unlock_script) }
     let(:mock_template_revoke) { instance_double(BSV::Script::PushDropTemplate, unlock: mock_unlocker) }
 
     before do
       allow(BSV::Script::PushDropTemplate).to receive(:new).and_return(mock_template_revoke)
-      allow(BSV::Transaction::Transaction).to receive(:from_beef).with(REGISTRY_SPEC_BEEF_BYTES).and_return(partial_tx)
+      allow(BSV::Transaction::Tx).to receive(:from_beef).with(REGISTRY_SPEC_BEEF_BYTES).and_return(partial_tx)
       allow(wallet).to receive_messages(create_action: { signable_transaction: { tx: REGISTRY_SPEC_BEEF_BYTES, reference: 'REF456' } }, sign_action: { tx: 'signed_beef' })
-      allow(BSV::Transaction::Transaction).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
+      allow(BSV::Transaction::Tx).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 
@@ -636,8 +636,8 @@ RSpec.describe 'BSV::Registry::Client' do
       )
     end
 
-    let(:partial_tx) { instance_double(BSV::Transaction::Transaction) }
-    let(:signed_tx)  { instance_double(BSV::Transaction::Transaction) }
+    let(:partial_tx) { instance_double(BSV::Transaction::Tx) }
+    let(:signed_tx)  { instance_double(BSV::Transaction::Tx) }
     let(:mock_unlock_script) { instance_double(BSV::Script::Script, to_hex: '00' * 107) }
     let(:mock_unlocker) { instance_double(BSV::Script::PushDropTemplate::Unlocker, sign: mock_unlock_script) }
     let(:mock_template_update) { instance_double(BSV::Script::PushDropTemplate, lock: mock_script, unlock: mock_unlocker) }
@@ -653,9 +653,9 @@ RSpec.describe 'BSV::Registry::Client' do
         end
       end
 
-      allow(BSV::Transaction::Transaction).to receive(:from_beef).with(REGISTRY_SPEC_BEEF_BYTES).and_return(partial_tx)
+      allow(BSV::Transaction::Tx).to receive(:from_beef).with(REGISTRY_SPEC_BEEF_BYTES).and_return(partial_tx)
       allow(wallet).to receive(:sign_action).and_return({ tx: 'signed_beef' })
-      allow(BSV::Transaction::Transaction).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
+      allow(BSV::Transaction::Tx).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 

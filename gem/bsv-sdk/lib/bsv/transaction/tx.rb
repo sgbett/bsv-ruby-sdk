@@ -10,12 +10,12 @@ module BSV
     # estimation.
     #
     # @example Build, sign, and serialise a transaction
-    #   tx = BSV::Transaction::Transaction.new
+    #   tx = BSV::Transaction::Tx.new
     #   tx.add_input(input)
     #   tx.add_output(output)
     #   tx.sign(0, private_key)
     #   tx.to_hex #=> "0100000001..."
-    class Transaction
+    class Tx
       # Estimated size of an unsigned P2PKH input in bytes.
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
@@ -144,7 +144,7 @@ module BSV
       # Deserialise a transaction from binary data.
       #
       # @param data [String] raw binary transaction
-      # @return [Transaction] the parsed transaction
+      # @return [Tx] the parsed transaction
       def self.from_binary(data)
         raise ArgumentError, "truncated transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
 
@@ -182,7 +182,7 @@ module BSV
       # Deserialise a transaction from a hex string.
       #
       # @param hex [String] hex-encoded transaction
-      # @return [Transaction] the parsed transaction
+      # @return [Tx] the parsed transaction
       def self.from_hex(hex)
         from_binary(BSV::Primitives::Hex.decode(hex, name: 'transaction hex'))
       end
@@ -190,7 +190,7 @@ module BSV
       # Deserialise a transaction from Extended Format (BRC-30) binary data.
       #
       # @param data [String] raw EF binary
-      # @return [Transaction] the parsed transaction with source data on inputs
+      # @return [Tx] the parsed transaction with source data on inputs
       # @raise [ArgumentError] if the EF marker is invalid
       def self.from_ef(data)
         raise ArgumentError, "truncated EF transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
@@ -250,7 +250,7 @@ module BSV
       # Deserialise a transaction from an Extended Format hex string.
       #
       # @param hex [String] hex-encoded EF transaction
-      # @return [Transaction] the parsed transaction with source data on inputs
+      # @return [Tx] the parsed transaction with source data on inputs
       def self.from_ef_hex(hex)
         from_ef(BSV::Primitives::Hex.decode(hex, name: 'EF transaction hex'))
       end
@@ -260,7 +260,7 @@ module BSV
       #
       # @param data [String] binary data containing the transaction
       # @param offset [Integer] byte offset to start reading from
-      # @return [Array(Transaction, Integer)] the transaction and bytes consumed
+      # @return [Array(Tx, Integer)] the transaction and bytes consumed
       def self.from_binary_with_offset(data, offset = 0)
         if data.bytesize < offset + 10
           raise ArgumentError, "truncated transaction: need at least 10 bytes at offset #{offset}, got #{data.bytesize - offset}"
@@ -331,7 +331,7 @@ module BSV
         bump_index_by_height = build_beef_bumps(beef, ancestors)
         BSV.logger&.debug do
           proven = ancestors.count(&:merkle_path)
-          "[Transaction] BEEF: #{ancestors.length} ancestors, #{proven} proven " \
+          "[Tx] BEEF: #{ancestors.length} ancestors, #{proven} proven " \
             "across #{bump_index_by_height.length} block heights"
         end
 
@@ -370,7 +370,7 @@ module BSV
       # +wire_source_transactions+ pass in +Beef.from_binary+.
       #
       # @param data [String] raw BEEF binary
-      # @return [Transaction, nil] the subject transaction with ancestry wired,
+      # @return [Tx, nil] the subject transaction with ancestry wired,
       #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef(data)
         beef = Beef.from_binary(data)
@@ -384,7 +384,7 @@ module BSV
       # Parse a BEEF hex string and return the subject transaction.
       #
       # @param hex [String] hex-encoded BEEF
-      # @return [Transaction, nil] the subject transaction with ancestry wired,
+      # @return [Tx, nil] the subject transaction with ancestry wired,
       #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef_hex(hex)
         from_beef(BSV::Primitives::Hex.decode(hex, name: 'BEEF hex'))
@@ -400,7 +400,7 @@ module BSV
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
         id = BSV::Primitives::Digest.sha256d(to_binary)
-        BSV.logger&.debug { "[Transaction] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
+        BSV.logger&.debug { "[Tx] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
         id
       end
 
@@ -729,7 +729,7 @@ module BSV
       # @return [Integer] estimated fee in satoshis (rounded up)
       def estimated_fee(satoshis_per_byte: 0.1)
         unless self.class.instance_variable_get(:@_estimated_fee_warned)
-          warn '[DEPRECATION] BSV::Transaction::Transaction#estimated_fee is deprecated. ' \
+          warn '[DEPRECATION] BSV::Transaction::Tx#estimated_fee is deprecated. ' \
                'Use BSV::Transaction::FeeModels::SatoshisPerKilobyte.new.compute_fee(tx) instead.', uplevel: 1
           self.class.instance_variable_set(:@_estimated_fee_warned, true)
         end
@@ -913,12 +913,12 @@ module BSV
 
         if tx.merkle_path
           BSV.logger&.debug do
-            "[Transaction] ancestor: #{tx.dtxid_hex} proven at height #{tx.merkle_path.block_height} (leaf stop)"
+            "[Tx] ancestor: #{tx.dtxid_hex} proven at height #{tx.merkle_path.block_height} (leaf stop)"
           end
         else
           tx.inputs.each_with_index do |input, idx|
             unless input.source_transaction
-              BSV.logger&.debug { "[Transaction] ancestor: #{tx.dtxid_hex} input #{idx} has no source_transaction (skipped)" }
+              BSV.logger&.debug { "[Tx] ancestor: #{tx.dtxid_hex} input #{idx} has no source_transaction (skipped)" }
               next
             end
 

@@ -7,7 +7,7 @@ RSpec.describe BSV::Transaction::FeeModel do
 
   describe '#compute_fee' do
     it 'raises NotImplementedError' do
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       expect { model.compute_fee(tx) }
         .to raise_error(NotImplementedError, /compute_fee must be implemented/)
     end

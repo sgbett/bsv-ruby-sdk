@@ -81,7 +81,7 @@ module BSV
 
         raise "Register failed: could not create #{definition_type} registration transaction" if create_result[:tx].nil?
 
-        tx = BSV::Transaction::Transaction.from_beef(normalise_beef(create_result[:tx]))
+        tx = BSV::Transaction::Tx.from_beef(normalise_beef(create_result[:tx]))
         broadcaster_for(definition_type).broadcast(tx)
       end
 
@@ -465,7 +465,7 @@ module BSV
       # @return [BSV::Overlay::OverlayBroadcastResult]
       def sign_and_broadcast(definition_type, create_result)
         signable   = create_result[:signable_transaction]
-        partial_tx = BSV::Transaction::Transaction.from_beef(normalise_beef(signable[:tx]))
+        partial_tx = BSV::Transaction::Tx.from_beef(normalise_beef(signable[:tx]))
 
         template = BSV::Script::PushDropTemplate.new(wallet: @wallet, originator: @originator)
         unlocker = template.unlock(
@@ -488,7 +488,7 @@ module BSV
 
         raise 'Revoke failed: could not sign transaction' if sign_result[:tx].nil?
 
-        signed_tx = BSV::Transaction::Transaction.from_beef(normalise_beef(sign_result[:tx]))
+        signed_tx = BSV::Transaction::Tx.from_beef(normalise_beef(sign_result[:tx]))
         broadcaster_for(definition_type).broadcast(signed_tx)
       end
 

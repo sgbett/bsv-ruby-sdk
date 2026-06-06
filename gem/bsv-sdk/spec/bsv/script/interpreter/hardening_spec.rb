@@ -195,7 +195,7 @@ RSpec.describe 'A6 Interpreter Hardening' do
       pub = priv.public_key
       lock_script = BSV::Script::Script.p2pk_lock(pub.compressed)
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: "\x00" * 32,
         prev_tx_out_index: 0

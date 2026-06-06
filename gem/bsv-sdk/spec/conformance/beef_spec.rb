@@ -259,16 +259,16 @@ RSpec.describe BSV::Transaction::Beef do
 
   describe 'Transaction.from_beef / Transaction#to_beef' do
     it 'from_beef returns the subject (last) transaction' do
-      tx = BSV::Transaction::Transaction.from_beef_hex(go_beef_set_hex)
+      tx = BSV::Transaction::Tx.from_beef_hex(go_beef_set_hex)
       beef = described_class.from_hex(go_beef_set_hex)
       expect(tx.wtxid).to eq(beef.transactions.last.wtxid)
     end
 
     it 'to_beef produces valid BEEF that round-trips' do
-      original = BSV::Transaction::Transaction.from_beef_hex(go_beef_set_hex)
+      original = BSV::Transaction::Tx.from_beef_hex(go_beef_set_hex)
       rebuilt_hex = original.to_beef_hex
 
-      tx2 = BSV::Transaction::Transaction.from_beef_hex(rebuilt_hex)
+      tx2 = BSV::Transaction::Tx.from_beef_hex(rebuilt_hex)
       expect(tx2.wtxid).to eq(original.wtxid)
     end
   end

@@ -228,8 +228,8 @@ RSpec.describe 'BSV::Identity::Client' do
         prove_certificate: { keyring_for_verifier: keyring },
         create_action: { tx: beef_bytes, txid: 'ab' * 32 }
       )
-      allow(BSV::Transaction::Transaction).to receive(:from_beef)
-        .and_return(instance_double(BSV::Transaction::Transaction, txid_hex: 'ab' * 32))
+      allow(BSV::Transaction::Tx).to receive(:from_beef)
+        .and_return(instance_double(BSV::Transaction::Tx, txid_hex: 'ab' * 32))
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 
@@ -321,7 +321,7 @@ RSpec.describe 'BSV::Identity::Client' do
 
     # Minimal BEEF-like stub: just needs to respond to .transactions.last.transaction
     let(:mock_output) { instance_double(BSV::Transaction::TransactionOutput) }
-    let(:inner_tx) { instance_double(BSV::Transaction::Transaction, txid_hex: 'deadbeef01', outputs: [mock_output]) }
+    let(:inner_tx) { instance_double(BSV::Transaction::Tx, txid_hex: 'deadbeef01', outputs: [mock_output]) }
     let(:beef_tx) { instance_double(BSV::Transaction::Beef::RawTxEntry, transaction: inner_tx) }
     let(:beef_obj) { instance_double(BSV::Transaction::Beef, transactions: [beef_tx]) }
     let(:beef_bytes) { 'fake_beef' }
@@ -329,8 +329,8 @@ RSpec.describe 'BSV::Identity::Client' do
     let(:output) { { 'beef' => beef_bytes, 'outputIndex' => 0 } }
     let(:answer) { BSV::Overlay::LookupAnswer.new(type: 'output-list', outputs: [output]) }
 
-    let(:partial_tx) { instance_double(BSV::Transaction::Transaction) }
-    let(:signed_tx) { instance_double(BSV::Transaction::Transaction) }
+    let(:partial_tx) { instance_double(BSV::Transaction::Tx) }
+    let(:signed_tx) { instance_double(BSV::Transaction::Tx) }
     let(:mock_script) { instance_double(BSV::Script::Script, to_hex: '00' * 107) }
     let(:mock_unlocker) { instance_double(BSV::Script::PushDropTemplate::Unlocker, sign: mock_script) }
     let(:mock_template) { instance_double(BSV::Script::PushDropTemplate, unlock: mock_unlocker) }
@@ -351,9 +351,9 @@ RSpec.describe 'BSV::Identity::Client' do
         end
       end
 
-      allow(BSV::Transaction::Transaction).to receive(:from_beef).with(beef_bytes).and_return(partial_tx)
+      allow(BSV::Transaction::Tx).to receive(:from_beef).with(beef_bytes).and_return(partial_tx)
       allow(wallet).to receive(:sign_action).and_return({ tx: 'signed_beef', txid: 'de' * 32 })
-      allow(BSV::Transaction::Transaction).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
+      allow(BSV::Transaction::Tx).to receive(:from_beef).with('signed_beef').and_return(signed_tx)
       allow(broadcaster).to receive(:broadcast).and_return(broadcast_result)
     end
 

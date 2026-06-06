@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BSV::Transaction::Transaction do
+RSpec.describe BSV::Transaction::Tx do
   describe '#fee' do
     let(:priv) { BSV::Primitives::PrivateKey.generate }
     let(:lock_script) { BSV::Script::Script.p2pkh_lock(priv.public_key.hash160) }

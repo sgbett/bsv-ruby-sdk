@@ -72,10 +72,10 @@ module BSV
 
       # A BEEF entry containing a raw transaction without a merkle proof.
       class RawTxEntry < BeefTx
-        # @return [Transaction] the transaction
+        # @return [Tx] the transaction
         attr_reader :transaction
 
-        # @param transaction [Transaction] the transaction
+        # @param transaction [Tx] the transaction
         # @raise [ArgumentError] if transaction is nil
         def initialize(transaction:)
           raise ArgumentError, 'RawTxEntry requires a transaction' if transaction.nil?
@@ -97,13 +97,13 @@ module BSV
 
       # A BEEF entry containing a raw transaction with an associated BUMP index.
       class ProvenTxEntry < BeefTx
-        # @return [Transaction] the transaction
+        # @return [Tx] the transaction
         attr_reader :transaction
 
         # @return [Integer] index into the BEEF bumps array
         attr_reader :bump_index
 
-        # @param transaction [Transaction] the transaction
+        # @param transaction [Tx] the transaction
         # @param bump_index [Integer] index into the bumps array
         # @raise [ArgumentError] if transaction or bump_index is nil
         def initialize(transaction:, bump_index:)
@@ -320,7 +320,7 @@ module BSV
       # Find a transaction in the bundle by its wire-order transaction ID.
       #
       # @param wtxid [String] 32-byte wire-order wtxid
-      # @return [Transaction, nil] the matching transaction, or nil
+      # @return [Tx, nil] the matching transaction, or nil
       def find_transaction(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         BSV.logger&.debug { "[Beef] find_transaction: #{wtxid.reverse.unpack1('H*')} in #{@transactions.length} entries" }
@@ -353,7 +353,7 @@ module BSV
       # Find a transaction with all source_transactions wired for signing.
       #
       # @param wtxid [String] 32-byte wire-order wtxid
-      # @return [Transaction, nil] the transaction with wired inputs, or nil
+      # @return [Tx, nil] the transaction with wired inputs, or nil
       def find_transaction_for_signing(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
@@ -367,7 +367,7 @@ module BSV
       # and merkle paths) for atomic proof validation.
       #
       # @param wtxid [String] 32-byte wire-order wtxid
-      # @return [Transaction, nil] the transaction with full proof tree, or nil
+      # @return [Tx, nil] the transaction with full proof tree, or nil
       def find_atomic_transaction(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
@@ -440,7 +440,7 @@ module BSV
       # (same txid) are upgraded if a stronger format is now available (F5.7):
       # TXID_ONLY → RAW_TX or RAW_TX_AND_BUMP; RAW_TX → RAW_TX_AND_BUMP.
       #
-      # @param tx [Transaction] the transaction to merge
+      # @param tx [Tx] the transaction to merge
       # @return [BeefTx] the (possibly existing or upgraded) BeefTx entry
       def merge_transaction(tx)
         wtxid = tx.wtxid
@@ -479,7 +479,7 @@ module BSV
       # @param bump_index [Integer, nil] optional BUMP index
       # @return [BeefTx] the new or upgraded BeefTx entry
       def merge_raw_tx(raw_bytes, bump_index: nil)
-        tx = Transaction.from_binary(raw_bytes)
+        tx = Tx.from_binary(raw_bytes)
 
         if bump_index
           unless bump_index.is_a?(Integer) && bump_index >= 0 && bump_index < @bumps.length
@@ -740,7 +740,7 @@ module BSV
             case format
             when FORMAT_TXID_ONLY
               # Wire stores txid in internal (little-endian / wire) byte order;
-              # store as-is in known_wtxid so it matches Transaction#wtxid.
+              # store as-is in known_wtxid so it matches Tx#wtxid.
               raise ArgumentError, 'truncated BEEF: not enough bytes for TXID_ONLY entry' if offset + 32 > data.bytesize
 
               known_wtxid = data.byteslice(offset, 32)
@@ -749,12 +749,12 @@ module BSV
             when FORMAT_RAW_TX_AND_BUMP
               bump_index, vi_size = VarInt.decode(data, offset)
               offset += vi_size
-              tx, consumed = Transaction.from_binary_with_offset(data, offset)
+              tx, consumed = Tx.from_binary_with_offset(data, offset)
               offset += consumed
               tx.merkle_path = beef.bumps[bump_index] if bump_index < beef.bumps.length
               beef.transactions << ProvenTxEntry.new(transaction: tx, bump_index: bump_index)
             when FORMAT_RAW_TX
-              tx, consumed = Transaction.from_binary_with_offset(data, offset)
+              tx, consumed = Tx.from_binary_with_offset(data, offset)
               offset += consumed
               beef.transactions << RawTxEntry.new(transaction: tx)
             end
@@ -768,7 +768,7 @@ module BSV
           offset += vi_size
 
           num_txs.times do
-            tx, consumed = Transaction.from_binary_with_offset(data, offset)
+            tx, consumed = Tx.from_binary_with_offset(data, offset)
             offset += consumed
 
             has_bump = data.getbyte(offset)
@@ -821,7 +821,7 @@ module BSV
       #   RAW_TX    → RAW_TX_AND_BUMP (if bump now available)
       #
       # @param existing [BeefTx] the current entry in @transactions
-      # @param tx [Transaction, nil] the raw transaction (may be nil for TXID_ONLY → TXID_ONLY)
+      # @param tx [Tx, nil] the raw transaction (may be nil for TXID_ONLY → TXID_ONLY)
       # @param bump_index [Integer, nil] a BUMP index already validated against @bumps
       # @return [BeefTx, nil] the upgraded entry, or nil when no upgrade is needed
       def upgrade_beef_tx(existing, tx, bump_index: nil)

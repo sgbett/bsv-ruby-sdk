@@ -40,7 +40,7 @@ BENFORD_CHI_SQUARED_CRITICAL_P01 = 20.09
 
 RSpec.describe 'Benford change distribution — statistical validation' do # rubocop:disable RSpec/DescribeClass
   # Expose the private helper via a thin wrapper so we can test it directly.
-  let(:tx_class) { BSV::Transaction::Transaction }
+  let(:tx_class) { BSV::Transaction::Tx }
 
   def benford_number(min, max, rng = nil)
     allow(Random).to(receive(:rand).and_wrap_original { |_m, *args| rng.rand(*args) }) if rng

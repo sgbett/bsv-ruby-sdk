@@ -298,7 +298,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
       satoshis = 1_000
 
       # Source transaction: contains the locked output.
-      source_tx = BSV::Transaction::Transaction.new
+      source_tx = BSV::Transaction::Tx.new
       dummy_input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: "\x00" * 32,
         prev_tx_out_index: 0
@@ -312,7 +312,7 @@ RSpec.describe BSV::Overlay::AdminTokenTemplate do
       )
 
       # Spending transaction: spends the locked output.
-      spend_tx = BSV::Transaction::Transaction.new
+      spend_tx = BSV::Transaction::Tx.new
       spend_input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: source_tx.wtxid,
         prev_tx_out_index: 0,

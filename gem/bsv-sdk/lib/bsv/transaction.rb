@@ -3,7 +3,7 @@
 module BSV
   # Transaction building, signing, serialisation, and verification.
   #
-  # Provides the {Transaction::Transaction} class for constructing and signing
+  # Provides the {Transaction::Tx} class for constructing and signing
   # transactions, {Transaction::Beef} for BEEF (BRC-62/95/96) serialisation,
   # {Transaction::MerklePath} for BRC-74 merkle proofs, and
   # {Transaction::Sighash} constants for BIP-143 sighash computation.
@@ -21,6 +21,6 @@ module BSV
     autoload :Beef,                     'bsv/transaction/beef'
     autoload :UnlockingScriptTemplate,  'bsv/transaction/unlocking_script_template'
     autoload :P2PKH,                    'bsv/transaction/p2pkh'
-    autoload :Transaction,              'bsv/transaction/transaction'
+    autoload :Tx,                       'bsv/transaction/tx'
   end
 end

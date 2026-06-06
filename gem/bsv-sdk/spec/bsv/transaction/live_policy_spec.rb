@@ -132,7 +132,7 @@ RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
 
   describe '#compute_fee' do
     it 'computes fee using the live rate' do
-      tx = instance_double(BSV::Transaction::Transaction, estimated_size: 250)
+      tx = instance_double(BSV::Transaction::Tx, estimated_size: 250)
       fee = model.compute_fee(tx)
       # 250 / 1000 * 50 = 12.5, ceil = 13
       expect(fee).to eq(13)

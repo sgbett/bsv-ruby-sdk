@@ -28,7 +28,7 @@ RSpec.describe BSV::Overlay::TopicBroadcaster do
   let(:mock_txid) { "#{'aabbcc' * 10}aabb" }
 
   let(:mock_tx) do
-    tx = instance_double(BSV::Transaction::Transaction)
+    tx = instance_double(BSV::Transaction::Tx)
     allow(tx).to receive_messages(to_beef: "\xbe\xef\x01", txid_hex: mock_txid)
     tx
   end

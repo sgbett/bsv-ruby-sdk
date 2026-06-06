@@ -29,7 +29,7 @@ RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do # rubocop:dis
       { size: 374, rate: 50, expected: 19, desc: 'typical 1-in-2-out P2PKH at 50 sat/kB' }
     ].each do |v|
       it "computes #{v[:expected]} sat for #{v[:desc]}" do
-        tx = instance_double(BSV::Transaction::Transaction, estimated_size: v[:size])
+        tx = instance_double(BSV::Transaction::Tx, estimated_size: v[:size])
         model = described_class.new(value: v[:rate])
 
         fee = model.compute_fee(tx)
@@ -45,7 +45,7 @@ RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do # rubocop:dis
   end
 
   it 'returns an Integer' do
-    tx = instance_double(BSV::Transaction::Transaction, estimated_size: 250)
+    tx = instance_double(BSV::Transaction::Tx, estimated_size: 250)
     expect(described_class.new.compute_fee(tx)).to be_an(Integer)
   end
 
@@ -54,7 +54,7 @@ RSpec.describe BSV::Transaction::FeeModels::SatoshisPerKilobyte do # rubocop:dis
   end
 end
 
-RSpec.describe BSV::Transaction::Transaction do
+RSpec.describe BSV::Transaction::Tx do
   describe '#fee conformance' do
     let(:priv) { BSV::Primitives::PrivateKey.generate }
     let(:lock_script) { BSV::Script::Script.p2pkh_lock(priv.public_key.hash160) }

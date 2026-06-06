@@ -235,7 +235,7 @@ RSpec.describe 'BSV::Script::PushDropTemplate' do
   # Sets +source_locking_script+ and +source_satoshis+ on the input so the
   # sighash computation has everything it needs.
   def build_spending_tx(lock_script, satoshis:)
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0

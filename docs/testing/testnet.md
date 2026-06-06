@@ -53,7 +53,7 @@ the status response contains the expected status.
 
 ```ruby
 # The core flow, simplified
-tx = BSV::Transaction::Transaction.new
+tx = BSV::Transaction::Tx.new
 tx.add_input(input)
 tx.add_output(payment)
 tx.add_output(change)

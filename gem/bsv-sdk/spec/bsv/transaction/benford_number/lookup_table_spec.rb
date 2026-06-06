@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BSV::Transaction::Transaction do
+RSpec.describe BSV::Transaction::Tx do
   describe '#benford_number(min, max)' do
     def ts_sdk_reference_benford_number_scaler(min, max, rnd)
       # from: src/transaction/Transaction.ts private benfordNumber (min: number, max: number): number

@@ -450,7 +450,7 @@ module BSV
       # that the extracted path computes the same merkle root as the
       # source.
       #
-      # The primary use case is +Transaction#to_beef+: when a BUMP loaded
+      # The primary use case is +Tx#to_beef+: when a BUMP loaded
       # from a proof store carries +txid: true+ flags for transactions
       # that are not part of the current BEEF bundle, extracting only the
       # bundled txids strips the phantom flags (and the now-unneeded

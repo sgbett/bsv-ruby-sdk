@@ -57,7 +57,7 @@ RSpec.describe 'Live broadcast', :integration do # rubocop:disable RSpec/Describ
 
     output = BSV::Transaction::TransactionOutput.new(satoshis: change, locking_script: lock_script)
 
-    t = BSV::Transaction::Transaction.new
+    t = BSV::Transaction::Tx.new
     t.add_input(input)
     t.add_output(output)
     t.sign_all(private_key)

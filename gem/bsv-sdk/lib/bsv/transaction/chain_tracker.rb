@@ -4,7 +4,7 @@ module BSV
   module Transaction
     # Duck type for block header lookups used by the SDK's verify methods.
     #
-    # {Beef#verify}, {MerklePath#verify}, and {Transaction#verify} define
+    # {Beef#verify}, {MerklePath#verify}, and {Tx#verify} define
     # what a valid structure *is* — they walk trees, check proofs, and
     # compare roots. But they have no data source of their own. The
     # chain tracker is the data source: an object the consumer provides

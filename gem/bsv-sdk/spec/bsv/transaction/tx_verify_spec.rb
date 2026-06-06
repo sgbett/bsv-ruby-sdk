@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BSV::Transaction::Transaction do
+RSpec.describe BSV::Transaction::Tx do
   describe '#verify' do
     let(:priv) { BSV::Primitives::PrivateKey.generate }
     let(:pub) { priv.public_key }

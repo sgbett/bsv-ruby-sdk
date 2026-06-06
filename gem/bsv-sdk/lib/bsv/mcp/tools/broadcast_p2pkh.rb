@@ -150,7 +150,7 @@ module BSV
         # Build, fee-compute, and sign the transaction.
         # @api private
         def self.build_transaction(selected_utxos, satoshis, to_address, sender_address, private_key)
-          tx = BSV::Transaction::Transaction.new
+          tx = BSV::Transaction::Tx.new
 
           # Wire inputs with EF metadata (source_satoshis + source_locking_script)
           selected_utxos.each do |utxo|
