@@ -179,7 +179,8 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body['detail'] || body['title'] || "HTTP #{code}"
+              error_message: body['detail'] || body['title'] || "HTTP #{code}",
+              data: body
             )
           end
 
@@ -215,7 +216,8 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}"
+              error_message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}",
+              data: body.is_a?(Hash) || body.is_a?(Array) ? body : nil
             )
           end
 

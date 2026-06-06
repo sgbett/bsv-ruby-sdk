@@ -333,7 +333,7 @@ RSpec.describe 'BSV::Network::Protocol' do
       result = make_instance(hash_no_result_resp).default_call(:get_list)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
       expect(result).not_to be_http_success
-      expect(result.message).to match(/expected Array, got Hash/)
+      expect(result.message).to include('expected Array, got Hash')
     end
 
     it 'custom lambda is called with body' do
@@ -347,7 +347,7 @@ RSpec.describe 'BSV::Network::Protocol' do
       result = make_instance(bad_json_response).default_call(:get_info)
       expect(result).to be_a(BSV::Network::ProtocolResponse)
       expect(result).not_to be_http_success
-      expect(result.message).to match(%r{JSON/response error})
+      expect(result.message).to include('JSON/response error')
       expect(result.retryable?).to be(false)
     end
   end

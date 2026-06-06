@@ -119,7 +119,7 @@ RSpec.describe BSV::Overlay::TopicBroadcaster do
 
     it 'includes a human-readable message with host count' do
       result = broadcaster.broadcast(mock_tx)
-      expect(result.message).to match(/1 Overlay Service host/)
+      expect(result.message).to include('1 Overlay Service host')
     end
   end
 
@@ -206,7 +206,7 @@ RSpec.describe BSV::Overlay::TopicBroadcaster do
     it 'returns an error result without raising' do
       result = broadcaster.broadcast(mock_tx)
       expect(result.status).to eq('error')
-      expect(result.description).to match(/no inputs/)
+      expect(result.description).to include('no inputs')
     end
   end
 
