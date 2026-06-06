@@ -37,15 +37,22 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   # First 17KB OP_RETURN — Through the Looking-Glass by Lewis Carroll
   let(:opreturn_txid) { '21a5c896f23bea81ae5018dfeb8801ddc68691d0186a7e2d8c011e65e0a396d9' }
 
-  # Test address with a known UTXO (1,000,000 sats at block 948120)
+  # Test address with a known UTXO (re-funded after the previous funding tx
+  # was drained; the script_hash is stable across re-fundings since it is
+  # derived from the address P2PKH locking script).
   let(:test_address) { '1AzDmXHX891VQovic5A7iqrW3AnikSf6tm' }
   let(:test_script_hash) { '2673c96e7c5ab126b5f99251882d74c84997a52df85ae6c8ddbd843a7d322ad1' }
-  let(:test_utxo_txid) { 'c9995d65d0bc5d3e85c5db33ccef1ead1646d6838868b1afbd7eba18e870e636' }
+  # Current funding tx — vout 0 carries the 1,000,000 sat UTXO at this address.
+  let(:test_utxo_txid) { '0ef8e04418151d397847cff41471e76b18e69c25caa25c9f4ece70f00f62e675' }
+  # Permanently-spent reference (previous funding tx; both vouts are now spent).
+  # Used for is_utxo / is_utxo_bulk "spent" assertions that need to stay true
+  # regardless of any re-funding of test_address.
+  let(:spent_outpoint_txid) { 'c9995d65d0bc5d3e85c5db33ccef1ead1646d6838868b1afbd7eba18e870e636' }
 
   # Satoshi's address (genesis coinbase, provably unspendable)
   let(:satoshi_address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
 
-  # A known confirmed tx for merkle proof testing (block 948120)
+  # A known confirmed tx for merkle proof testing
   let(:confirmed_txid) { test_utxo_txid }
 
   # ---------------------------------------------------------------------------
@@ -188,16 +195,16 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
   end
 
   it 'is_utxo returns true for a known unspent output' do
-    # vout 1 of test_utxo_txid is the unspent 1M sat output
-    result = protocol.call(:is_utxo, test_utxo_txid, 1)
+    # vout 0 of test_utxo_txid is the unspent 1M sat output
+    result = protocol.call(:is_utxo, test_utxo_txid, 0)
 
     expect(result).to be_http_success
     expect(result.data).to be(true)
   end
 
   it 'is_utxo returns false for a known spent output' do
-    # vout 0 of test_utxo_txid is spent
-    result = protocol.call(:is_utxo, test_utxo_txid, 0)
+    # vout 0 of spent_outpoint_txid is permanently spent
+    result = protocol.call(:is_utxo, spent_outpoint_txid, 0)
 
     expect(result).to be_http_success
     expect(result.data).to be(false)
@@ -205,13 +212,13 @@ RSpec.describe 'WoCREST integration', :integration do # rubocop:disable RSpec/De
 
   it 'is_utxo_bulk returns spent status for multiple outpoints' do
     result = protocol.call(:is_utxo_bulk, [
-                             { txid: test_utxo_txid, vout: 0 },
-                             { txid: test_utxo_txid, vout: 1 }
+                             { txid: spent_outpoint_txid, vout: 0 },
+                             { txid: test_utxo_txid, vout: 0 }
                            ])
 
     expect(result).to be_http_success
-    expect(result.data["#{test_utxo_txid}.0"]).to be(false) # spent
-    expect(result.data["#{test_utxo_txid}.1"]).to be(true)  # unspent
+    expect(result.data["#{spent_outpoint_txid}.0"]).to be(false) # spent
+    expect(result.data["#{test_utxo_txid}.0"]).to be(true)       # unspent
   end
 
   it 'valid_root validates the genesis block merkle root' do
