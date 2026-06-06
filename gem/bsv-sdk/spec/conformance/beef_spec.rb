@@ -257,7 +257,7 @@ RSpec.describe BSV::Transaction::Beef do
 
   # --- Transaction convenience method conformance ---
 
-  describe 'Transaction.from_beef / Transaction#to_beef' do
+  describe 'Tx.from_beef / Tx#to_beef' do
     it 'from_beef returns the subject (last) transaction' do
       tx = BSV::Transaction::Tx.from_beef_hex(go_beef_set_hex)
       beef = described_class.from_hex(go_beef_set_hex)

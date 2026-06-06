@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# Protocol conformance: SPV verification (Transaction#verify)
+# Protocol conformance: SPV verification (Tx#verify)
 #
 # Cross-validates the Ruby SDK's SPV verification against the patterns
 # used by all three reference SDKs.

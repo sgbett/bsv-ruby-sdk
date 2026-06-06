@@ -70,7 +70,7 @@ module BSV
 
       # Verify a transaction input by evaluating its scripts.
       #
-      # @param tx [Transaction::Transaction] the transaction being verified
+      # @param tx [Transaction::Tx] the transaction being verified
       # @param input_index [Integer] the input index within the transaction
       # @param unlock_script [Script] the input's unlocking script
       # @param lock_script [Script] the previous output's locking script

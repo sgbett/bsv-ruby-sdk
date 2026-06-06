@@ -3,10 +3,10 @@
 require 'spec_helper'
 require 'base64'
 
-# Protocol conformance: BEEF-based SPV verification (Transaction#verify)
+# Protocol conformance: BEEF-based SPV verification (Tx#verify)
 #
 # Parses real BEEF bundles from the reference SDK test vectors and runs
-# Transaction#verify against them. This validates end-to-end cross-SDK
+# Tx#verify against them. This validates end-to-end cross-SDK
 # conformance for SPV verification using actual BEEF-encoded data rather
 # than hand-built mocked transactions.
 #

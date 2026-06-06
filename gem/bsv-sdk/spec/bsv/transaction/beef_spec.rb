@@ -1475,7 +1475,7 @@ RSpec.describe BSV::Transaction::Beef do
     end
   end
 
-  describe 'Transaction.from_binary_with_offset' do
+  describe 'Tx.from_binary_with_offset' do
     it 'returns correct bytes consumed' do
       hex = '010000000193a35408b6068499e0d5abd799d3e827d9bfe70c9b75ebe209c91d2507232651' \
             '0000000000ffffffff02404b4c00000000001976a91404ff367be719efa79d76e4416ffb07' \

@@ -197,7 +197,7 @@ RSpec.describe BSV::Script::Interpreter do
     end
   end
 
-  describe 'Transaction#verify_input' do
+  describe 'Tx#verify_input' do
     it 'verifies a P2PKH input' do
       ctx = build_p2pkh_tx
       expect(ctx[:tx].verify_input(0)).to be true
