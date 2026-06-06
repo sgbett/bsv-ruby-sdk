@@ -5,6 +5,16 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.23.1 — 2026-06-06
+
+### Fixed
+- `Protocols::Arcade#parse_broadcast_response`, `Protocols::ARC#parse_single_broadcast_response`,
+  and `Protocols::ARC#parse_batch_broadcast_response` now preserve the parsed response body as
+  `data:` on non-2xx responses. Previously the body was parsed only to extract an `error_message`,
+  then discarded — leaving callers with `data: nil` and no way to read `txStatus` / `extraInfo`
+  from synchronous broadcast failures (the terminal-rejection shape). Additive change; the 2xx
+  success path and ARC's existing 2xx-REJECTED branch are unchanged. (#793)
+
 ## 0.23.0 — 2026-06-03
 
 ### Changed (breaking)
