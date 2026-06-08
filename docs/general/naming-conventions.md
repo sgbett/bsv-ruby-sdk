@@ -85,7 +85,7 @@ For generating new instances (not from data), use `new` or `generate`:
 
 ```ruby
 BSV::Primitives::PrivateKey.generate      # random new key
-BSV::Transaction::Tx.new          # empty transaction
+BSV::Transaction::Tx.new                  # empty transaction
 ```
 
 ### 7. Options objects become keyword arguments
