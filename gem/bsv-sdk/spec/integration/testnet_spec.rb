@@ -59,7 +59,7 @@ RSpec.describe 'Testnet integration', :testnet do
   end
 
   def build_and_sign(inputs, outputs)
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     inputs.each { |i| tx.add_input(i) }
     outputs.each { |o| tx.add_output(o) }
     tx.sign_all(@private_key)
@@ -160,7 +160,7 @@ RSpec.describe 'Testnet integration', :testnet do
 
       expect(fetched_hex).to eq(original_hex)
 
-      parsed = BSV::Transaction::Transaction.from_hex(fetched_hex)
+      parsed = BSV::Transaction::Tx.from_hex(fetched_hex)
       expect(parsed.txid_hex).to eq(original_txid)
       expect(parsed.to_hex).to eq(original_hex)
     end

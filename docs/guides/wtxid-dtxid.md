@@ -29,7 +29,7 @@ This SDK eliminates the ambiguity by making the byte order explicit in every nam
 ### Examples
 
 ```ruby
-tx = BSV::Transaction::Transaction.from_hex(raw_hex)
+tx = BSV::Transaction::Tx.from_hex(raw_hex)
 
 # Wire order — for computation, storage, binary protocols
 tx.wtxid            # => 32-byte binary string

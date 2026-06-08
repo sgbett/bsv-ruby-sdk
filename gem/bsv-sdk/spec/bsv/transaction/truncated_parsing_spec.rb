@@ -67,7 +67,7 @@ RSpec.describe 'truncated binary parsing' do # rubocop:disable RSpec/DescribeCla
     end
   end
 
-  describe BSV::Transaction::Transaction do
+  describe BSV::Transaction::Tx do
     describe '.from_binary' do
       it 'raises on empty data' do
         expect { described_class.from_binary(''.b) }.to raise_error(ArgumentError, /truncated transaction/)

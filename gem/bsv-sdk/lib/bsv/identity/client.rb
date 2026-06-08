@@ -169,7 +169,7 @@ module BSV
 
         raise 'Public reveal failed: failed to create action!' if create_result[:tx].nil?
 
-        tx = BSV::Transaction::Transaction.from_beef(create_result[:tx])
+        tx = BSV::Transaction::Tx.from_beef(create_result[:tx])
         broadcaster_for_action.broadcast(tx)
       end
 
@@ -232,7 +232,7 @@ module BSV
         raise 'Revoke failed: failed to create signable transaction' if create_result[:signable_transaction].nil?
 
         signable = create_result[:signable_transaction]
-        partial_tx = BSV::Transaction::Transaction.from_beef(signable[:tx])
+        partial_tx = BSV::Transaction::Tx.from_beef(signable[:tx])
 
         # Unlock via PushDrop
         template = BSV::Script::PushDropTemplate.new(wallet: @wallet, originator: @originator)
@@ -255,7 +255,7 @@ module BSV
 
         raise 'Revoke failed: failed to sign transaction' if sign_result[:tx].nil?
 
-        signed_tx = BSV::Transaction::Transaction.from_beef(sign_result[:tx])
+        signed_tx = BSV::Transaction::Tx.from_beef(sign_result[:tx])
         broadcaster_for_action.broadcast(signed_tx)
       end
 

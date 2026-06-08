@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# Protocol conformance: SPV verification (Transaction#verify)
+# Protocol conformance: SPV verification (Tx#verify)
 #
 # Cross-validates the Ruby SDK's SPV verification against the patterns
 # used by all three reference SDKs.
@@ -12,7 +12,7 @@ require 'spec_helper'
 #   Go SDK:  spv/verify.go (Verify function)
 #   Python:  transaction.py (verify method, lines 405-457)
 
-RSpec.describe BSV::Transaction::Transaction do # rubocop:disable RSpec/MultipleDescribes
+RSpec.describe BSV::Transaction::Tx do # rubocop:disable RSpec/MultipleDescribes
   describe 'SPV verify conformance' do
     let(:priv) { BSV::Primitives::PrivateKey.generate }
     let(:pub) { priv.public_key }
@@ -212,7 +212,7 @@ RSpec.describe BSV::Transaction::FeeModel do
     let(:chain_tracker) { instance_double(BSV::Transaction::ChainTracker) }
 
     it 'SatoshisPerKilobyte integrates with verify' do
-      source_tx = BSV::Transaction::Transaction.new
+      source_tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: BSV::Primitives::Digest.sha256d('fee-test'),
         prev_tx_out_index: 0
@@ -229,7 +229,7 @@ RSpec.describe BSV::Transaction::FeeModel do
                                               block_height: 800_000,
                                               verify: true)
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       spend_input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: source_tx.wtxid,
         prev_tx_out_index: 0

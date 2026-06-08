@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe BSV::Transaction::Transaction do
+RSpec.describe BSV::Transaction::Tx do
   describe 'Extended Format (EF) serialisation' do
     # Go SDK test vector — a signed P2PKH transaction with 1 input, 1 output
     let(:go_sdk_ef_hex) do

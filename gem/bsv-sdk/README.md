@@ -86,7 +86,7 @@ pubkey_hash = priv_key.public_key.hash160
 locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
 
 # Create a transaction spending a UTXO
-tx = BSV::Transaction::Transaction.new
+tx = BSV::Transaction::Tx.new
 
 # Add an input referencing a previous transaction output
 input = BSV::Transaction::TransactionInput.new(

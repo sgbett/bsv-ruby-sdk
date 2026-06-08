@@ -93,7 +93,7 @@ module BSV
         # the wallet's derived key, then returns a P2PKH unlock wrapped in a
         # PushDrop unlock (which is a pass-through).
         #
-        # @param tx [BSV::Transaction::Transaction] the spending transaction
+        # @param tx [BSV::Transaction::Tx] the spending transaction
         # @param input_index [Integer] which input to sign
         # @return [BSV::Script::Script] the unlocking script
         def sign(tx, input_index)
@@ -125,7 +125,7 @@ module BSV
 
         # Estimated byte length of the unlocking script.
         #
-        # @param _tx [BSV::Transaction::Transaction] unused
+        # @param _tx [BSV::Transaction::Tx] unused
         # @param _input_index [Integer] unused
         # @return [Integer]
         def estimated_length(_tx, _input_index)

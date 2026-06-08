@@ -23,7 +23,7 @@ RSpec.describe BSV::Network::Protocols::Arcade do
   end
 
   def make_tx(ef_hex: nil, hex: 'deadbeef')
-    tx = instance_double(BSV::Transaction::Transaction)
+    tx = instance_double(BSV::Transaction::Tx)
     if ef_hex
       allow(tx).to receive(:to_ef_hex).and_return(ef_hex)
     else

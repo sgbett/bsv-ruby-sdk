@@ -21,7 +21,7 @@ module BSV
 
         # Convert a Transaction to a hash suitable for JSON responses.
         #
-        # @param tx [BSV::Transaction::Transaction]
+        # @param tx [BSV::Transaction::Tx]
         # @return [Hash]
         def self.transaction_to_h(tx)
           {

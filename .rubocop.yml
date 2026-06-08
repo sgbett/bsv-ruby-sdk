@@ -115,7 +115,7 @@ Metrics/ClassLength:
   Exclude:
     - 'gem/bsv-sdk/lib/bsv/primitives/**/*'
     - 'gem/bsv-sdk/lib/bsv/script/**/*'
-    - 'gem/bsv-sdk/lib/bsv/transaction/transaction.rb'
+    - 'gem/bsv-sdk/lib/bsv/transaction/tx.rb'
     - 'gem/bsv-sdk/lib/bsv/transaction/merkle_path.rb'
     - 'gem/bsv-sdk/lib/bsv/transaction/beef.rb'
     - 'gem/bsv-sdk/lib/bsv/network/**/*'

@@ -28,7 +28,7 @@ RSpec.describe 'Sighash vectors (TS SDK)' do
       raw_tx_hex, script_hex, input_index, hash_type, expected_hex = vec
 
       begin
-        tx = BSV::Transaction::Transaction.from_hex(raw_tx_hex)
+        tx = BSV::Transaction::Tx.from_hex(raw_tx_hex)
         subscript = BSV::Script::Script.from_hex(script_hex)
 
         # TS SDK vectors assume source_satoshis = 0 for sighash computation

@@ -31,7 +31,7 @@ module LookupResolverSpecHelpers
   def slap_beef(domain:, service:)
     script = slap_script(domain: domain, service: service)
     tx_out = BSV::Transaction::TransactionOutput.new(satoshis: 1, locking_script: script)
-    tx     = BSV::Transaction::Transaction.new
+    tx     = BSV::Transaction::Tx.new
     tx.add_output(tx_out)
     beef = BSV::Transaction::Beef.new
     beef.merge_transaction(tx)
@@ -43,7 +43,7 @@ module LookupResolverSpecHelpers
   def plain_beef
     script = dummy_lock_script
     tx_out = BSV::Transaction::TransactionOutput.new(satoshis: 1, locking_script: script)
-    tx     = BSV::Transaction::Transaction.new
+    tx     = BSV::Transaction::Tx.new
     tx.add_output(tx_out)
     beef = BSV::Transaction::Beef.new
     beef.merge_transaction(tx)
@@ -202,7 +202,7 @@ RSpec.describe 'BSV::Overlay::LookupResolver' do
         BSV::Script::Script.p2pkh_lock(("\x00" * 20).b)
       )
       tx_out = BSV::Transaction::TransactionOutput.new(satoshis: 1, locking_script: ship_script_val)
-      tx     = BSV::Transaction::Transaction.new
+      tx     = BSV::Transaction::Tx.new
       tx.add_output(tx_out)
       beef = BSV::Transaction::Beef.new
       beef.merge_transaction(tx)

@@ -44,7 +44,7 @@ data_output = BSV::Transaction::TransactionOutput.new(
 ### Assembling
 
 ```ruby
-tx = BSV::Transaction::Transaction.new
+tx = BSV::Transaction::Tx.new
 tx.add_input(input)
 tx.add_output(output)
 tx.add_output(data_output)
@@ -126,11 +126,11 @@ binary = tx.to_binary  # raw transaction bytes
 ### Parsing
 
 ```ruby
-tx = BSV::Transaction::Transaction.from_hex('0100000001...')
-tx = BSV::Transaction::Transaction.from_binary(raw_bytes)
+tx = BSV::Transaction::Tx.from_hex('0100000001...')
+tx = BSV::Transaction::Tx.from_binary(raw_bytes)
 
 # Parse with offset tracking (for embedded transactions)
-tx, bytes_consumed = BSV::Transaction::Transaction.from_binary_with_offset(data, offset)
+tx, bytes_consumed = BSV::Transaction::Tx.from_binary_with_offset(data, offset)
 ```
 
 ### Transaction ID
@@ -195,7 +195,7 @@ BEEF automatically wires source transactions: inputs that reference other transa
 `Transaction.from_beef` returns the subject transaction with full ancestry wired, including late-bound BUMP attachment for ancestors stored as raw transactions alongside a separately-bundled merkle proof:
 
 ```ruby
-tx = BSV::Transaction::Transaction.from_beef(beef_bytes)
+tx = BSV::Transaction::Tx.from_beef(beef_bytes)
 
 # Source data is derived from the wired ancestry — no need to set
 # source_satoshis or source_locking_script explicitly.
@@ -283,7 +283,7 @@ sender_lock = BSV::Script::Script.p2pkh_lock(sender.public_key.hash160)
 recipient_lock = BSV::Script::Script.p2pkh_lock(recipient.public_key.hash160)
 
 # Build
-tx = BSV::Transaction::Transaction.new
+tx = BSV::Transaction::Tx.new
 
 input = BSV::Transaction::TransactionInput.new(
   prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo_txid),

@@ -3,10 +3,10 @@
 require 'spec_helper'
 require 'base64'
 
-# Protocol conformance: BEEF-based SPV verification (Transaction#verify)
+# Protocol conformance: BEEF-based SPV verification (Tx#verify)
 #
 # Parses real BEEF bundles from the reference SDK test vectors and runs
-# Transaction#verify against them. This validates end-to-end cross-SDK
+# Tx#verify against them. This validates end-to-end cross-SDK
 # conformance for SPV verification using actual BEEF-encoded data rather
 # than hand-built mocked transactions.
 #
@@ -46,7 +46,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
   # --- Happy-path verification with always-true chain tracker ---
 
   describe 'BRC62Hex (V1 BEEF)' do
-    subject(:tx) { BSV::Transaction::Transaction.from_beef_hex(brc62_hex) }
+    subject(:tx) { BSV::Transaction::Tx.from_beef_hex(brc62_hex) }
 
     it 'parses successfully and verifies with always-true chain tracker' do
       expect(tx.verify(chain_tracker: always_true_tracker)).to be true
@@ -56,7 +56,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
   describe 'BEEF base64 (V1 multi-transaction BEEF)' do
     subject(:tx) do
       data = Base64.strict_decode64(beef_base64)
-      BSV::Transaction::Transaction.from_beef(data)
+      BSV::Transaction::Tx.from_beef(data)
     end
 
     it 'parses successfully and verifies with always-true chain tracker' do
@@ -65,7 +65,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
   end
 
   describe 'BEEFSet (V2 BEEF)' do
-    subject(:tx) { BSV::Transaction::Transaction.from_beef_hex(beef_set_hex) }
+    subject(:tx) { BSV::Transaction::Tx.from_beef_hex(beef_set_hex) }
 
     it 'parses successfully and verifies with always-true chain tracker' do
       expect(tx.verify(chain_tracker: always_true_tracker)).to be true
@@ -73,7 +73,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
   end
 
   describe 'Issue96BeefHex (V1 BEEF — regression for "no leaves at height: 1")' do
-    subject(:tx) { BSV::Transaction::Transaction.from_beef_hex(issue96_hex) }
+    subject(:tx) { BSV::Transaction::Tx.from_beef_hex(issue96_hex) }
 
     it 'parses successfully and verifies with always-true chain tracker' do
       expect(tx.verify(chain_tracker: always_true_tracker)).to be true
@@ -83,7 +83,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
   # --- Fee model integration (Go SDK: TestSPVVerifyWithSufficientFee / TestSPVVerifyWithInsufficientFee) ---
 
   describe 'fee model integration using BRC62Hex' do
-    subject(:tx) { BSV::Transaction::Transaction.from_beef_hex(brc62_hex) }
+    subject(:tx) { BSV::Transaction::Tx.from_beef_hex(brc62_hex) }
 
     it 'verifies when fee model rate is low (passes)' do
       # 1 sat/kB is effectively zero — any real transaction fee will exceed this
@@ -106,7 +106,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
 
   describe 'corrupt merkle proof' do
     it 'raises VerificationError(:invalid_merkle_proof) when a BUMP hash is flipped' do
-      tx = BSV::Transaction::Transaction.from_beef_hex(brc62_hex)
+      tx = BSV::Transaction::Tx.from_beef_hex(brc62_hex)
 
       # Find a mined ancestor (one that has a merkle_path attached)
       mined_tx = nil
@@ -177,7 +177,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
       )
 
       # Re-parse a fresh copy so the source_locking_script population is clean
-      tx2 = BSV::Transaction::Transaction.from_beef_hex(brc62_hex)
+      tx2 = BSV::Transaction::Tx.from_beef_hex(brc62_hex)
       mined_tx2 = nil
       queue2 = [tx2]
       visited2 = {}
@@ -208,7 +208,7 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
 
   describe 'tampered subject transaction' do
     it 'fails verification when an output amount is modified' do
-      tx = BSV::Transaction::Transaction.from_beef_hex(brc62_hex)
+      tx = BSV::Transaction::Tx.from_beef_hex(brc62_hex)
 
       # Corrupt the subject transaction's first output satoshi value.
       # This will cause the output ≤ input check or script verification to fail,

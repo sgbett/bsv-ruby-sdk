@@ -193,7 +193,7 @@ RSpec.describe 'BSV MCP server — protocol integration' do
         '00000000'
     end
 
-    # Verified by parsing with BSV::Transaction::Transaction.from_hex.
+    # Verified by parsing with BSV::Transaction::Tx.from_hex.
     let(:expected_txid) { '45200ad773a26a07189cb2390853f608ff7237e092fe182aa896ea0a013dc2eb' }
 
     let(:call_request) do

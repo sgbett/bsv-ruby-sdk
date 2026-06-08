@@ -59,7 +59,7 @@ module BSV
             return Helpers.error_response(msg)
           end
 
-          tx = BSV::Transaction::Transaction.from_hex(fetch_result.data)
+          tx = BSV::Transaction::Tx.from_hex(fetch_result.data)
 
           result = {
             hex: tx.to_hex,

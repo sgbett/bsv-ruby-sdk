@@ -15,7 +15,7 @@ require 'spec_helper'
 #
 #   1. The vectors are Bitcoin Core BIP-143 vectors; their hashType values
 #      are 32-bit signed integers that only sometimes include the FORKID bit
-#      (0x40). `BSV::Transaction::Transaction#sighash_preimage` correctly
+#      (0x40). `BSV::Transaction::Tx#sighash_preimage` correctly
 #      raises `ArgumentError` for non-FORKID hashTypes, matching BSV
 #      consensus (all BSV sighashes must set FORKID post-UAHF).
 #

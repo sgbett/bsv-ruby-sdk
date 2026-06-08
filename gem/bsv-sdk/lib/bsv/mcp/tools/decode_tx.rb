@@ -48,7 +48,7 @@ module BSV
         )
 
         def self.call(hex:, **)
-          tx = BSV::Transaction::Transaction.from_hex(hex)
+          tx = BSV::Transaction::Tx.from_hex(hex)
           result = Helpers.transaction_to_h(tx)
 
           ::MCP::Tool::Response.new(

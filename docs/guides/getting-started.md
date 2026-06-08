@@ -66,7 +66,7 @@ pubkey_hash = private_key.public_key.hash160
 locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
 
 # Create the transaction
-tx = BSV::Transaction::Transaction.new
+tx = BSV::Transaction::Tx.new
 
 # Add an input (referencing a previous UTXO)
 input = BSV::Transaction::TransactionInput.new(
@@ -106,7 +106,7 @@ puts response.txid  # display-order hex (ARC API boundary)
 For transactions with multiple inputs, use unlocking script templates. This lets `sign_all` handle each input automatically:
 
 ```ruby
-tx = BSV::Transaction::Transaction.new
+tx = BSV::Transaction::Tx.new
 
 # Create inputs with templates
 input = BSV::Transaction::TransactionInput.new(

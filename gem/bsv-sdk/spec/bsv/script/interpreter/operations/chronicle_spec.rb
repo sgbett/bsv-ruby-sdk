@@ -14,7 +14,7 @@ RSpec.describe 'Chronicle opcodes' do
   # OP_VER / OP_VERIF / OP_VERNOTIF scripts need no signatures — the transaction
   # just needs inputs and outputs to satisfy the Transaction structure.
   def build_ver_tx(version:)
-    tx = BSV::Transaction::Transaction.new(version: version)
+    tx = BSV::Transaction::Tx.new(version: version)
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0

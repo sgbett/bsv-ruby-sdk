@@ -74,7 +74,7 @@ module BSV
 
       # Broadcast a transaction to all interested overlay hosts.
       #
-      # @param tx [BSV::Transaction::Transaction] the transaction to broadcast
+      # @param tx [BSV::Transaction::Tx] the transaction to broadcast
       # @return [OverlayBroadcastResult]
       def broadcast(tx)
         beef = serialise_beef(tx)

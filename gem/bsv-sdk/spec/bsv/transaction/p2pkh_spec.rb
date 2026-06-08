@@ -8,7 +8,7 @@ RSpec.describe BSV::Transaction::P2PKH do
   let(:locking_script) { BSV::Script::Script.p2pkh_lock(pubkey_hash) }
 
   let(:tx) do
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x01".b * 32,
       prev_tx_out_index: 0
@@ -39,9 +39,9 @@ RSpec.describe BSV::Transaction::P2PKH do
       expect(chunks[1].data.bytesize).to eq(33)
     end
 
-    it 'produces the same result as Transaction#sign' do
+    it 'produces the same result as Tx#sign' do
       # Sign with direct method
-      direct_tx = BSV::Transaction::Transaction.new
+      direct_tx = BSV::Transaction::Tx.new
       input1 = BSV::Transaction::TransactionInput.new(
         prev_wtxid: "\x01".b * 32,
         prev_tx_out_index: 0

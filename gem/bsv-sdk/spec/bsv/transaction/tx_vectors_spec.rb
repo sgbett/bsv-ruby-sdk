@@ -31,7 +31,7 @@ RSpec.describe 'Transaction serialisation vectors (TS SDK)' do
         next unless tx_hex.is_a?(String) && tx_hex.length > 10
 
         begin
-          tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+          tx = BSV::Transaction::Tx.from_hex(tx_hex)
           round_tripped = tx.to_hex
 
           if round_tripped == tx_hex
@@ -65,7 +65,7 @@ RSpec.describe 'Transaction serialisation vectors (TS SDK)' do
         next unless tx_hex.is_a?(String) && tx_hex.length > 10
 
         begin
-          tx = BSV::Transaction::Transaction.from_hex(tx_hex)
+          tx = BSV::Transaction::Tx.from_hex(tx_hex)
           txid = tx.txid_hex
 
           # txid should be 64 hex chars (32 bytes)

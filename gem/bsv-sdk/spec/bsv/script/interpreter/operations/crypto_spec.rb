@@ -20,7 +20,7 @@ RSpec.describe BSV::Script::Interpreter do
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pkh_lock(pub.hash160)
 
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0
@@ -43,7 +43,7 @@ RSpec.describe BSV::Script::Interpreter do
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pk_lock(pub.compressed)
 
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0
@@ -184,7 +184,7 @@ RSpec.describe BSV::Script::Interpreter do
       # Lock: <pubkey> CHECKSIGVERIFY OP_1
       lock_script = BSV::Script::Script.from_asm("#{pub.to_hex} OP_CHECKSIGVERIFY OP_1")
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x00" * 32, prev_tx_out_index: 0)
       input.source_locking_script = lock_script
       input.source_satoshis = 100_000
@@ -219,7 +219,7 @@ RSpec.describe BSV::Script::Interpreter do
       lock_script = BSV::Script::Script.p2ms_lock(1,
                                                   [pub1.compressed, pub2.compressed])
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: "\x00" * 32, prev_tx_out_index: 0
       )
@@ -257,7 +257,7 @@ RSpec.describe BSV::Script::Interpreter do
       lock_script = BSV::Script::Script.p2ms_lock(2,
                                                   [pub1.compressed, pub2.compressed])
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: "\x00" * 32, prev_tx_out_index: 0
       )
@@ -295,7 +295,7 @@ RSpec.describe BSV::Script::Interpreter do
       lock_script = BSV::Script::Script.p2ms_lock(2,
                                                   [pub1.compressed, pub2.compressed])
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(
         prev_wtxid: "\x00" * 32, prev_tx_out_index: 0
       )
@@ -333,7 +333,7 @@ RSpec.describe BSV::Script::Interpreter do
       pub = priv.public_key
       lock_script = BSV::Script::Script.p2ms_lock(1, [pub.compressed])
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x00" * 32, prev_tx_out_index: 0)
       input.source_locking_script = lock_script
       input.source_satoshis = 100_000

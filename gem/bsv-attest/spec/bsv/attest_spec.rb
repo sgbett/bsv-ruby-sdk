@@ -131,7 +131,7 @@ RSpec.describe BSV::Attest do
       digest = BSV::Primitives::Digest.sha256(data_to_attest)
       script = BSV::Script::Script.op_return(digest)
       output = BSV::Transaction::TransactionOutput.new(satoshis: 0, locking_script: script)
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       tx.add_output(output)
 
       Class.new do
@@ -163,7 +163,7 @@ RSpec.describe BSV::Attest do
       prefix = 'ATTEST'.b
       script = BSV::Script::Script.op_return(prefix, digest)
       output = BSV::Transaction::TransactionOutput.new(satoshis: 0, locking_script: script)
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       tx.add_output(output)
 
       provider = Class.new do

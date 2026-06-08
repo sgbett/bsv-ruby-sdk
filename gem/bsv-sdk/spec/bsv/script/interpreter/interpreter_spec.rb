@@ -15,7 +15,7 @@ RSpec.describe BSV::Script::Interpreter do
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pkh_lock(pub.hash160)
 
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0
@@ -38,7 +38,7 @@ RSpec.describe BSV::Script::Interpreter do
     pub = priv.public_key
     lock_script = BSV::Script::Script.p2pk_lock(pub.compressed)
 
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0
@@ -65,7 +65,7 @@ RSpec.describe BSV::Script::Interpreter do
     pubkeys = keys.map { |k| k.public_key.compressed }
     lock_script = BSV::Script::Script.p2ms_lock(2, pubkeys)
 
-    tx = BSV::Transaction::Transaction.new
+    tx = BSV::Transaction::Tx.new
     input = BSV::Transaction::TransactionInput.new(
       prev_wtxid: "\x00" * 32,
       prev_tx_out_index: 0
@@ -197,7 +197,7 @@ RSpec.describe BSV::Script::Interpreter do
     end
   end
 
-  describe 'Transaction#verify_input' do
+  describe 'Tx#verify_input' do
     it 'verifies a P2PKH input' do
       ctx = build_p2pkh_tx
       expect(ctx[:tx].verify_input(0)).to be true
@@ -267,7 +267,7 @@ RSpec.describe BSV::Script::Interpreter do
         "OP_IF #{pub.to_hex} OP_CHECKSIG OP_ELSE OP_0 OP_ENDIF"
       )
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x00" * 32, prev_tx_out_index: 0)
       input.source_locking_script = lock_script
       input.source_satoshis = 100_000
@@ -300,7 +300,7 @@ RSpec.describe BSV::Script::Interpreter do
         "OP_IF #{pub.to_hex} OP_CHECKSIG OP_ELSE OP_0 OP_ENDIF"
       )
 
-      tx = BSV::Transaction::Transaction.new
+      tx = BSV::Transaction::Tx.new
       input = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x00" * 32, prev_tx_out_index: 0)
       input.source_locking_script = lock_script
       input.source_satoshis = 100_000
