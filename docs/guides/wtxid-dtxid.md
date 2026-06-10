@@ -126,6 +126,25 @@ If you're writing code that touches transaction IDs, the decision is simple:
 
 There is no third case. If you find yourself reaching for `txid` without either prefix, stop and determine which of the two you actually need.
 
+## The principle generalises
+
+The wire-order-by-default rule isn't specific to transaction IDs. Wherever a value has a natural binary form and a hex display form, the SDK keeps binary internally and converts to hex only at JSON or human boundaries.
+
+### Public keys
+
+A compressed secp256k1 public key is 33 binary bytes. JSON contexts represent it as a 66-character hex string (BRC-100 calls this `PubKeyHex`). The same rule applies:
+
+- **Internal** — binary 33 bytes (`PublicKey#compressed`, parameters and return values between SDK classes, storage)
+- **JSON or human boundary** — hex via `.unpack1('H*')` or `PublicKey#to_hex`
+
+### `Interface::BRC100` is a Ruby method-shape contract
+
+The BRC-100 *specification* describes a JSON wire format with hex-typed fields (`PubKeyHex`, `TXIDHexString`, etc.). `BSV::Wallet::Interface::BRC100` — the *Ruby module* shipped by the SDK — describes the matching method signatures and result-hash key names. Representation of the values inside those result hashes is not the interface's concern; it's the consumer's choice at whichever boundary they're actually crossing.
+
+This is what "the SDK is declarative" means in practice. The SDK ships the interface and the primitives (`PublicKey`, `Digest`, `Hex`, …); consumers build the imperative ecosystem layer (HTTP, JSON, storage) on top, applying the conversion rule at their boundary.
+
+A wire transceiver returning 33 binary bytes for `prover` / `verifier` / `counterparty` isn't a BRC-100 violation — it's the same call as returning `wtxid` rather than `dtxid_hex`. The consumer converts when they hit JSON, exactly as they would for a transaction ID.
+
 ## Runtime validation
 
 Because `wtxid` and `dtxid` have distinct physical formats — 32-byte binary vs 64-character hex — the SDK validates at every entry point. Pass a hex string where binary is expected and you get an immediate `ArgumentError` with a diagnostic message:
