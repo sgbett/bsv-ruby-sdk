@@ -34,6 +34,13 @@ module BSV
             raise BSV::Wallet::InvalidParameterError.new('data or hash_to_directly_verify', 'present') unless data || hash
             raise BSV::Wallet::InvalidParameterError.new('signature', 'present') unless sig
 
+            if hash && hash.bytesize != HASH_SIZE
+              raise BSV::Wallet::InvalidParameterError.new(
+                'hash_to_directly_verify',
+                "exactly #{HASH_SIZE} bytes, got #{hash.bytesize}"
+              )
+            end
+
             w = BSV::Wallet::Wire::Writer.new
             Common.write_key_related_params(
               w,

@@ -103,6 +103,31 @@ RSpec.describe BSV::Wallet::ProtoWallet do
         )
       end.to raise_error(BSV::Wallet::InvalidSignatureError)
     end
+
+    # Regression guards for #805 — pre-fix any-length hash was signed
+    # without complaint, producing a meaningless signature.
+    it 'rejects a non-32-byte hash_to_directly_sign' do
+      expect do
+        wallet.create_signature(
+          hash_to_directly_sign: ("\xAB" * 31).b,
+          protocol_id: protocol_id,
+          key_id: key_id,
+          counterparty: 'anyone'
+        )
+      end.to raise_error(BSV::Wallet::InvalidParameterError, /32 bytes/)
+    end
+
+    it 'rejects a non-32-byte hash_to_directly_verify' do
+      expect do
+        wallet.verify_signature(
+          hash_to_directly_verify: ("\xAB" * 33).b,
+          signature: [0x30, 0x00],
+          protocol_id: protocol_id,
+          key_id: key_id,
+          counterparty: 'anyone'
+        )
+      end.to raise_error(BSV::Wallet::InvalidParameterError, /32 bytes/)
+    end
   end
 
   # -------------------------------------------------------------------------
