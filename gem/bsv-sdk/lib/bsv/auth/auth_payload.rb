@@ -34,6 +34,11 @@ module BSV
       # @param body [String, nil] request body bytes; nil encodes as ABSENT
       # @return [String] binary payload (ASCII-8BIT encoding)
       def serialize_request(request_nonce:, method:, path:, query:, headers:, body:)
+        unless request_nonce.is_a?(String) && request_nonce.bytesize == 32
+          got = request_nonce.respond_to?(:bytesize) ? "#{request_nonce.class}/#{request_nonce.bytesize}" : request_nonce.class
+          raise ArgumentError, "request_nonce must be a 32-byte binary string, got #{got}"
+        end
+
         buf = ''.b
 
         # 32-byte request nonce — written raw, no length prefix
