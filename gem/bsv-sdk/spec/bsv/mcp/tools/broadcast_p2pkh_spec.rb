@@ -180,6 +180,14 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect(result[:error]).to be_a(String)
       expect(result[:error]).not_to be_empty
     end
+
+    # Regression guard for #801: previously only ArgumentError was rescued,
+    # so a nil WIF raised NoMethodError out of the tool handler and crashed
+    # the MCP server response cycle.
+    it 'returns a structured error for nil WIF (not just ArgumentError)' do
+      response = tool.call(wif: nil, to_address: recipient_address, satoshis: 10_000)
+      expect(response.error?).to be true
+    end
   end
 
   describe '.call when Arcade returns already submitted (idempotent re-submission)' do
