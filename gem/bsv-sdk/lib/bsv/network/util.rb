@@ -29,7 +29,7 @@ module BSV
       # @return [String] hex-encoded transaction
       def self.resolve_tx_hex(tx)
         if tx.is_a?(String)
-          return tx if tx.match?(/\A[0-9a-fA-F]*\z/) && tx.length.even?
+          return tx if tx.match?(/\A[0-9a-fA-F]+\z/) && tx.length.even?
 
           return tx.unpack1('H*')
         end
