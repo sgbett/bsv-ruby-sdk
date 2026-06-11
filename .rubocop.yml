@@ -175,6 +175,7 @@ RSpec/MultipleExpectations:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/spec/bsv/storage/**/*'
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
@@ -191,6 +192,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
+    - 'gem/bsv-sdk/spec/bsv/storage/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/*/spec/support/**/*'
 
@@ -208,6 +210,7 @@ RSpec/ExampleLength:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/spec/bsv/storage/**/*'
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'

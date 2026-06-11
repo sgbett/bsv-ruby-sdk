@@ -8,6 +8,9 @@ module BSV
   # is Base58Check-encoded with the `\xCE\x00` prefix to produce a stable,
   # self-verifying URL.
   module Storage
-    autoload :Utils, 'bsv/storage/utils'
+    autoload :Utils,          'bsv/storage/utils'
+    autoload :DownloadResult, 'bsv/storage/downloader'
+    autoload :Downloader,     'bsv/storage/downloader'
+    autoload :DownloadError,  'bsv/storage/errors'
   end
 end
