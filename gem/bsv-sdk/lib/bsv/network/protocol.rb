@@ -2,6 +2,7 @@
 
 require 'net/http'
 require 'json'
+require 'openssl'
 require 'uri'
 
 module BSV
@@ -179,7 +180,17 @@ module BSV
 
         BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{uri}" }
 
-        response = execute(uri, request)
+        begin
+          response = execute(uri, request)
+        rescue SocketError, Errno::ECONNREFUSED, Errno::ETIMEDOUT,
+               Errno::EHOSTUNREACH, Errno::ENETUNREACH,
+               Net::OpenTimeout, Net::ReadTimeout,
+               Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError,
+               OpenSSL::SSL::SSLError => e
+          BSV.logger&.debug { "[Protocol] transport error: #{e.class}: #{e.message}" }
+          return ProtocolResponse.new(nil, http_success: false,
+                                           error_message: "transport error: #{e.class}: #{e.message}")
+        end
 
         build_response(response, defn[:response])
       end
