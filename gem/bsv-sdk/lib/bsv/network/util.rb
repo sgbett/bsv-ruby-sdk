@@ -25,19 +25,27 @@ module BSV
       # length and contains only hex characters. This handles hex strings
       # tagged as ASCII-8BIT (e.g. read from IO in binary mode).
       #
+      # Empty input is rejected — an empty transaction cannot meaningfully
+      # be broadcast and any downstream `rawTx: ''` body is a sign of a
+      # caller bug, not valid traffic.
+      #
       # @param tx [String, #to_ef_hex, #to_hex] transaction in any supported form
       # @return [String] hex-encoded transaction
+      # @raise [ArgumentError] if `tx` is an empty string
       def self.resolve_tx_hex(tx)
         if tx.is_a?(String)
+          raise ArgumentError, 'tx cannot be empty — refusing to construct an empty broadcast' if tx.empty?
           return tx if tx.match?(/\A[0-9a-fA-F]+\z/) && tx.length.even?
 
           return tx.unpack1('H*')
         end
 
-        tx.to_ef_hex
-      rescue ArgumentError => e
-        BSV.logger&.debug { "[Network::Util] EF serialisation failed: #{e.message} — falling back to raw hex" }
-        tx.to_hex
+        begin
+          tx.to_ef_hex
+        rescue ArgumentError => e
+          BSV.logger&.debug { "[Network::Util] EF serialisation failed: #{e.message} — falling back to raw hex" }
+          tx.to_hex
+        end
       end
     end
   end

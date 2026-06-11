@@ -35,11 +35,13 @@ RSpec.describe BSV::Network::Util do
       expect(described_class.resolve_tx_hex(binary)).to eq(hex)
     end
 
-    it 'treats an empty string as binary and converts to empty hex' do
+    it 'raises ArgumentError for an empty string' do
       # Regression guard for #799: previously the regex was /\A[0-9a-fA-F]*\z/
-      # which matched zero-length, causing empty strings to be returned as-is
-      # rather than going through the binary→hex conversion path.
-      expect(described_class.resolve_tx_hex('')).to eq('')
+      # (zero-or-more), so an empty string passed both checks and was returned
+      # as-is — broadcasters then sent `rawTx: ''` to ARC/Arcade/TAALBinary.
+      # Reject at this boundary so the protocol layer surfaces a clear error
+      # instead of silently constructing an empty broadcast body.
+      expect { described_class.resolve_tx_hex('') }.to raise_error(ArgumentError, /empty/)
     end
 
     it 'treats a non-hex string as binary and converts via unpack1' do
