@@ -112,6 +112,48 @@ module BSV
         end
       end
 
+      # Resolves basket registry definitions.
+      #
+      # Thin wrapper around {#resolve} for cross-SDK parity with the Go SDK's
+      # +ResolveBasket+ method.
+      #
+      # @param query [Hash] optional filter criteria:
+      #   - +:basket_id+ [String] exact basket identifier
+      #   - +:name+ [String] human-readable basket name
+      #   - +:registry_operators+ [Array<String>] operator public key hexes
+      # @return [Array<RegisteredDefinition>] matching registered basket definitions
+      def resolve_basket(query = {})
+        resolve(DefinitionType::BASKET, query)
+      end
+
+      # Resolves protocol registry definitions.
+      #
+      # Thin wrapper around {#resolve} for cross-SDK parity with the Go SDK's
+      # +ResolveProtocol+ method.
+      #
+      # @param query [Hash] optional filter criteria:
+      #   - +:name+ [String] human-readable protocol name
+      #   - +:protocol_id+ [Array] BRC-43 two-element protocol ID, e.g. +[1, 'protomap']+
+      #   - +:registry_operators+ [Array<String>] operator public key hexes
+      # @return [Array<RegisteredDefinition>] matching registered protocol definitions
+      def resolve_protocol(query = {})
+        resolve(DefinitionType::PROTOCOL, query)
+      end
+
+      # Resolves certificate type registry definitions.
+      #
+      # Thin wrapper around {#resolve} for cross-SDK parity with the Go SDK's
+      # +ResolveCertificate+ method.
+      #
+      # @param query [Hash] optional filter criteria:
+      #   - +:type+ [String] Base64-encoded certificate type identifier
+      #   - +:name+ [String] human-readable certificate type name
+      #   - +:registry_operators+ [Array<String>] operator public key hexes
+      # @return [Array<RegisteredDefinition>] matching registered certificate type definitions
+      def resolve_certificate(query = {})
+        resolve(DefinitionType::CERTIFICATE, query)
+      end
+
       # Lists the registry operator's own published definitions for the given type.
       #
       # Queries the wallet for spendable outputs in the appropriate basket,
