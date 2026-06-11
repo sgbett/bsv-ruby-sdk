@@ -48,23 +48,24 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
   # -------------------------------------------------------------------------
 
   describe '#get_public_key' do
-    it 'returns the identity public key through the wire (as 33-byte binary)' do
-      direct_hex = proto.get_public_key(identity_key: true)[:public_key]
-      wire       = client.get_public_key(identity_key: true)
-      # Wire layer normalises to 33-byte compressed binary; compare as hex
-      expect(wire[:public_key].unpack1('H*')).to eq(direct_hex)
+    # Per ADR-001 the Ruby return shape is hex (BRC-100 PubKeyHex);
+    # wire bytes remain 33-byte compressed binary.
+    it 'returns the identity public key as hex matching ProtoWallet' do
+      direct = proto.get_public_key(identity_key: true)[:public_key]
+      wire   = client.get_public_key(identity_key: true)
+      expect(wire[:public_key]).to eq(direct)
     end
 
-    it 'returns a derived public key through the wire (as 33-byte binary)' do
-      direct_hex = proto.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')[:public_key]
-      wire       = client.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')
-      expect(wire[:public_key].unpack1('H*')).to eq(direct_hex)
+    it 'returns a derived public key as hex matching ProtoWallet' do
+      direct = proto.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')[:public_key]
+      wire   = client.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')
+      expect(wire[:public_key]).to eq(direct)
     end
 
-    it 'returns a 33-byte binary public key' do
+    it 'returns a 66-char compressed-pubkey hex string' do
       wire = client.get_public_key(identity_key: true)
       expect(wire[:public_key]).to be_a(String)
-      expect(wire[:public_key].bytesize).to eq(33)
+      expect(wire[:public_key]).to match(/\A0[23][0-9a-fA-F]{64}\z/)
     end
   end
 

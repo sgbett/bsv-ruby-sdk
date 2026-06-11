@@ -61,7 +61,9 @@ RSpec.describe 'BSV::Wallet::Serializer::GetPublicKey' do
       result = { public_key: GPK_PUBKEY_33 }
       bytes = mod::Result.serialize(result)
       back = mod::Result.deserialize(bytes)
-      expect(back[:public_key]).to eq(GPK_PUBKEY_33)
+      # ADR-001: pubkey returned as 66-char hex on the Ruby side;
+      # wire bytes remain 33-byte compressed binary.
+      expect(back[:public_key]).to eq(GPK_PUBKEY_33.unpack1('H*'))
     end
 
     it 'raises ArgumentError when result is too short' do

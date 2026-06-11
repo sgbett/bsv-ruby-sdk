@@ -75,11 +75,14 @@ module BSV
             w.buf
           end
 
+          # Pubkey fields are returned as 66-char hex per the BRC-100 PubKeyHex
+          # contract (ADR-001 — pubkeys are the documented hex exception to
+          # binary-internal). Wire bytes stay 33-byte compressed binary.
           def deserialize(bytes)
             r = BSV::Wallet::Wire::Reader.new(bytes)
-            prover       = r.read_bytes(PUBKEY_SIZE)
-            verifier     = r.read_bytes(PUBKEY_SIZE)
-            counterparty = r.read_bytes(PUBKEY_SIZE)
+            prover       = r.read_bytes(PUBKEY_SIZE).unpack1('H*')
+            verifier     = r.read_bytes(PUBKEY_SIZE).unpack1('H*')
+            counterparty = r.read_bytes(PUBKEY_SIZE).unpack1('H*')
             revelation_time = r.read_str_with_varint_len
             el_len = r.read_varint
             encrypted_linkage = r.read_bytes(el_len)

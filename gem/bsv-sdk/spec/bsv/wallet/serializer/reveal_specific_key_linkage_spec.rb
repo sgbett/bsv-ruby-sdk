@@ -57,10 +57,14 @@ RSpec.describe 'BSV::Wallet::Serializer::RevealSpecificKeyLinkage' do
       }
     end
 
-    it 'round-trips the full result' do
+    it 'round-trips the full result with hex pubkey fields (ADR-001)' do
       bytes = mod::Result.serialize(full_result)
       back = mod::Result.deserialize(bytes)
-      expect(back[:prover]).to eq(prover_bin)
+      # Pubkey fields are hex on the Ruby return shape (BRC-100 PubKeyHex);
+      # serialize accepts binary OR hex input via pubkey_bytes.
+      expect(back[:prover]).to eq(prover_hex)
+      expect(back[:verifier]).to eq(verifier_hex)
+      expect(back[:counterparty]).to eq(counterparty_hex)
       expect(back[:protocol_id]).to eq([2, 'hello world'])
       expect(back[:key_id]).to eq('1')
       expect(back[:proof_type]).to eq(1)

@@ -55,15 +55,25 @@ RSpec.describe 'BSV::Wallet::Serializer::RevealCounterpartyKeyLinkage' do
       }
     end
 
-    it 'round-trips the full result' do
+    it 'round-trips the full result with hex pubkey fields (ADR-001)' do
       bytes = mod::Result.serialize(full_result)
       back = mod::Result.deserialize(bytes)
-      expect(back[:prover]).to eq(prover_bin)
-      expect(back[:verifier]).to eq(verifier_bin)
-      expect(back[:counterparty]).to eq(counterparty_bin)
+      # Pubkey fields are hex on the Ruby return shape (BRC-100 PubKeyHex);
+      # serialize accepts binary OR hex input via pubkey_bytes.
+      expect(back[:prover]).to eq(prover_hex)
+      expect(back[:verifier]).to eq(verifier_hex)
+      expect(back[:counterparty]).to eq(counterparty_hex)
       expect(back[:revelation_time]).to eq('2024-01-01T00:00:00Z')
       expect(back[:encrypted_linkage]).to eq("\xAB\xCD".b)
       expect(back[:encrypted_linkage_proof]).to eq("\xEF".b)
+    end
+
+    it 'accepts hex-encoded pubkeys on serialize and round-trips to hex' do
+      result_with_hex = full_result.merge(prover: prover_hex, verifier: verifier_hex, counterparty: counterparty_hex)
+      back = mod::Result.deserialize(mod::Result.serialize(result_with_hex))
+      expect(back[:prover]).to eq(prover_hex)
+      expect(back[:verifier]).to eq(verifier_hex)
+      expect(back[:counterparty]).to eq(counterparty_hex)
     end
 
     it 'round-trips empty encrypted linkage' do
