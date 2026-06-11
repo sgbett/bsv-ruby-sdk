@@ -138,7 +138,7 @@ Metrics/ParameterLists:
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
-    - 'gem/*/spec/**/*'
+    - 'gem/bsv-sdk/spec/bsv/kv_store/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
