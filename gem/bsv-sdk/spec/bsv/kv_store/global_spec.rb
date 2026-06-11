@@ -206,6 +206,24 @@ RSpec.describe BSV::KVStore::Global do
       end
     end
 
+    context 'with a negative outputIndex (untrusted overlay response)' do
+      before do
+        good_script   = raw_old_format_script
+        good_output   = overlay_output(locking_script: good_script)
+        negative      = good_output.merge('outputIndex' => -1)
+        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(resolver).to receive(:query).and_return(
+          lookup_answer([negative, good_output])
+        )
+      end
+
+      it 'silently skips the entry rather than reading the wrong output via negative indexing' do
+        entries = global.get({ key: 'my-key' })
+        expect(entries.length).to eq(1)
+        expect(entries.first.key).to eq('my-key')
+      end
+    end
+
     context 'with signature verification failing on one output' do
       let(:good_script) { raw_old_format_script(key: 'good') }
       let(:bad_script)  { raw_old_format_script(key: 'bad') }

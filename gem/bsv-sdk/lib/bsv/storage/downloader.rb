@@ -97,6 +97,7 @@ module BSV
         beef_data    = output['beef'] || output[:beef]
         output_index = (output['outputIndex'] || output[:output_index] || 0).to_i
         return nil if beef_data.nil?
+        return nil if output_index.negative?
 
         beef   = parse_beef(beef_data)
         return nil unless beef

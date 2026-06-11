@@ -74,6 +74,16 @@ RSpec.describe BSV::Storage::Utils do
         .to raise_error(ArgumentError)
     end
 
+    it 'raises ArgumentError on nil' do
+      expect { described_class.get_hash_from_url(nil) }
+        .to raise_error(ArgumentError, /URL must be a String/)
+    end
+
+    it 'raises ArgumentError on a non-String input' do
+      expect { described_class.get_hash_from_url(123) }
+        .to raise_error(ArgumentError, /URL must be a String/)
+    end
+
     it 'raises on a URL with wrong decoded length' do
       expect { described_class.get_hash_from_url('SomeBase58CheckTooShortOrTooLong') }
         .to raise_error(StandardError)
@@ -142,6 +152,14 @@ RSpec.describe BSV::Storage::Utils do
 
     it 'returns false for an empty string' do
       expect(described_class.valid_url?('')).to be(false)
+    end
+
+    it 'returns false for nil' do
+      expect(described_class.valid_url?(nil)).to be(false)
+    end
+
+    it 'returns false for a non-String input' do
+      expect(described_class.valid_url?(123)).to be(false)
     end
 
     it 'returns true for a uhrp:// prefixed URL' do

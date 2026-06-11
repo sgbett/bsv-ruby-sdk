@@ -48,9 +48,10 @@ module BSV
       #
       # @param url [String] UHRP URL (with or without `uhrp:` prefix)
       # @return [String] 32-byte binary SHA-256 hash
-      # @raise [ArgumentError] if the URL is empty, has a bad prefix, or has wrong length
+      # @raise [ArgumentError] if the URL is not a String, empty, has a bad prefix, or has wrong length
       # @raise [BSV::Primitives::Base58::ChecksumError] if the Base58Check checksum fails
       def get_hash_from_url(url)
+        raise ArgumentError, 'URL must be a String' unless url.is_a?(String)
         raise ArgumentError, 'URL must not be empty' if url.empty?
 
         normalised = normalize_url(url)

@@ -85,6 +85,7 @@ module BSV
       def build_entry(output, include_token:, history:)
         beef_data    = output['beef'] || output[:beef]
         output_index = (output['outputIndex'] || output[:output_index] || 0).to_i
+        raise 'Negative outputIndex' if output_index.negative?
 
         beef = parse_beef!(beef_data)
         beef_tx = beef.transactions.last

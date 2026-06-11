@@ -139,6 +139,17 @@ RSpec.describe BSV::Storage::Downloader do
         expect(downloader.resolve(DOWNLOADER_UHRP_URL)).to eq(['http://good.example/file'])
       end
     end
+
+    context 'with a negative outputIndex (untrusted overlay response)' do
+      it 'skips the entry rather than reading the wrong output via negative indexing' do
+        future        = Time.now.to_i + 3600
+        good_entry    = uhrp_output_entry('http://good.example/file', future)
+        negative      = good_entry.merge('outputIndex' => -1)
+        allow(resolver).to receive(:query).and_return(answer_with([negative, good_entry]))
+
+        expect(downloader.resolve(DOWNLOADER_UHRP_URL)).to eq(['http://good.example/file'])
+      end
+    end
   end
 
   describe '#download' do
