@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
+
 RSpec.describe BSV::Network::Util do
   describe '.safe_parse_json' do
     it 'parses valid JSON' do

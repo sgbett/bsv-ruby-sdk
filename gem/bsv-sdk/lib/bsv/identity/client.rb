@@ -107,6 +107,8 @@ module BSV
       # @return [BSV::Overlay::OverlayBroadcastResult]
       # @raise [ArgumentError] if the certificate has no fields or fields_to_reveal is empty
       # @raise [RuntimeError] if certificate verification fails or create_action returns no tx
+      # @raise [BSV::Overlay::OverlayError] (or a subclass) if the overlay broadcast fails —
+      #   see {BSV::Overlay::OverlayBroadcastResult#raise_if_error!} for the mapping
       def publicly_reveal_attributes(certificate, fields_to_reveal:)
         fields = certificate[:fields] || certificate['fields'] || {}
         raise ArgumentError, 'Public reveal failed: Certificate has no fields to reveal!' if fields.empty?
@@ -182,6 +184,8 @@ module BSV
       # @param serial_number [String] Base64 serial number of the certificate revelation to revoke
       # @return [void]
       # @raise [RuntimeError] if the revelation cannot be found or the transaction cannot be created
+      # @raise [BSV::Overlay::OverlayError] (or a subclass) if the overlay broadcast fails —
+      #   see {BSV::Overlay::OverlayBroadcastResult#raise_if_error!} for the mapping
       def revoke_certificate_revelation(serial_number)
         question = BSV::Overlay::LookupQuestion.new(
           service: Constants::SERVICE,
