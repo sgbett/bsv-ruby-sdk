@@ -150,6 +150,20 @@ RSpec.describe BSV::Storage::Downloader do
         expect(downloader.resolve(DOWNLOADER_UHRP_URL)).to eq(['http://good.example/file'])
       end
     end
+
+    context 'with a URL field containing invalid UTF-8 bytes' do
+      it 'skips the entry rather than returning an invalid-encoded String' do
+        future        = Time.now.to_i + 3600
+        # An invalid UTF-8 byte sequence — lone continuation byte 0x80 with no leading byte.
+        bad_url_bytes = "\x80\x80\x80".b
+        bad_script    = pushdrop_script("\x01".b, "\x02".b, bad_url_bytes, BSV::Transaction::VarInt.encode(future))
+        bad_entry     = output_entry(bad_script)
+        good_entry    = uhrp_output_entry('http://good.example/file', future)
+        allow(resolver).to receive(:query).and_return(answer_with([bad_entry, good_entry]))
+
+        expect(downloader.resolve(DOWNLOADER_UHRP_URL)).to eq(['http://good.example/file'])
+      end
+    end
   end
 
   describe '#download' do

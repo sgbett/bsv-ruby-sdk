@@ -32,10 +32,13 @@ module BSV
       # @param network_preset [Symbol] :mainnet, :testnet, or :local
       # @param lookup_resolver [BSV::Overlay::LookupResolver, nil] injectable resolver
       # @param service_name [String] lookup service identifier
-      def initialize(network_preset: :mainnet, lookup_resolver: nil, service_name: 'ls_kvstore')
+      # @param proto_wallet [BSV::Wallet::ProtoWallet, nil] injectable wallet used for
+      #   signature verification; defaults to +ProtoWallet.new('anyone')+. Tests can
+      #   substitute a double to avoid +allow_any_instance_of+.
+      def initialize(network_preset: :mainnet, lookup_resolver: nil, service_name: 'ls_kvstore', proto_wallet: nil)
         @lookup_resolver = lookup_resolver || BSV::Overlay::LookupResolver.new(network_preset: network_preset)
         @service_name = service_name
-        @proto_wallet = BSV::Wallet::ProtoWallet.new('anyone')
+        @proto_wallet = proto_wallet || BSV::Wallet::ProtoWallet.new('anyone')
       end
 
       # Query the overlay for KVStore entries.

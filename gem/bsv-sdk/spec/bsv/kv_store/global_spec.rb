@@ -76,7 +76,8 @@ RSpec.describe BSV::KVStore::Global do
   # ---- Shared setup ----
 
   let(:resolver) { instance_double(BSV::Overlay::LookupResolver) }
-  let(:global) { described_class.new(lookup_resolver: resolver) }
+  let(:proto_wallet) { instance_double(BSV::Wallet::ProtoWallet) }
+  let(:global) { described_class.new(lookup_resolver: resolver, proto_wallet: proto_wallet) }
 
   # ---- #get: selector validation ----
 
@@ -109,7 +110,7 @@ RSpec.describe BSV::KVStore::Global do
       let(:value)          { 'my-value' }
 
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([
                           overlay_output(locking_script: raw_old_format_script(
@@ -143,7 +144,7 @@ RSpec.describe BSV::KVStore::Global do
       let(:controller_hex) { 'bb' * 33 }
 
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([
                           overlay_output(locking_script: raw_old_format_script(
@@ -193,7 +194,7 @@ RSpec.describe BSV::KVStore::Global do
         bad_output  = { 'beef' => 'not-valid-beef', 'outputIndex' => 0 }
         good_script = raw_old_format_script
         good_output = overlay_output(locking_script: good_script)
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([bad_output, good_output])
         )
@@ -211,7 +212,7 @@ RSpec.describe BSV::KVStore::Global do
         good_script   = raw_old_format_script
         good_output   = overlay_output(locking_script: good_script)
         negative      = good_output.merge('outputIndex' => -1)
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([negative, good_output])
         )
@@ -237,7 +238,7 @@ RSpec.describe BSV::KVStore::Global do
         )
 
         call_count = 0
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature) do # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature) do
           call_count += 1
           raise BSV::Wallet::InvalidSignatureError if call_count == 1
 
@@ -256,7 +257,7 @@ RSpec.describe BSV::KVStore::Global do
       let(:satoshis) { 5000 }
 
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([
                           overlay_output(
@@ -287,7 +288,7 @@ RSpec.describe BSV::KVStore::Global do
 
     context 'with history: true' do
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow_any_instance_of(BSV::Overlay::Historian).to receive(:build_history).and_return(['old-value']) # rubocop:disable RSpec/AnyInstance
         allow(resolver).to receive(:query).and_return(
           lookup_answer([overlay_output(locking_script: raw_old_format_script)])
@@ -311,7 +312,7 @@ RSpec.describe BSV::KVStore::Global do
       let(:controller_hex) { 'cc' * 33 }
 
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([
                           overlay_output(locking_script: raw_old_format_script(
@@ -338,7 +339,7 @@ RSpec.describe BSV::KVStore::Global do
       let(:tags) { %w[alpha beta] }
 
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(
           lookup_answer([
                           overlay_output(locking_script: raw_new_format_script(
@@ -380,7 +381,7 @@ RSpec.describe BSV::KVStore::Global do
 
     context 'when camelising query keys' do
       before do
-        allow_any_instance_of(BSV::Wallet::ProtoWallet).to receive(:verify_signature).and_return({ valid: true }) # rubocop:disable RSpec/AnyInstance
+        allow(proto_wallet).to receive(:verify_signature).and_return({ valid: true })
         allow(resolver).to receive(:query).and_return(empty_answer)
       end
 

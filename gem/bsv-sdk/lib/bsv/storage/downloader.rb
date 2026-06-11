@@ -114,7 +114,10 @@ module BSV
         expiry, = BSV::Transaction::VarInt.decode(fields[3])
         return nil if expiry < current_time
 
-        fields[2].force_encoding('UTF-8')
+        url = fields[2].force_encoding('UTF-8')
+        return nil unless url.valid_encoding?
+
+        url
       rescue StandardError
         nil
       end
