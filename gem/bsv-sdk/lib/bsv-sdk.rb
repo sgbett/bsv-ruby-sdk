@@ -26,6 +26,7 @@ module BSV
   autoload :Identity,    'bsv/identity'
   autoload :Registry,    'bsv/registry'
   autoload :MCP,         'bsv/mcp'
+  autoload :Storage,     'bsv/storage'
 
   # Wallet is loaded eagerly to avoid load-path shadowing when bsv-wallet is
   # also in the bundle (bsv-wallet/lib/bsv/wallet.rb would otherwise win).
