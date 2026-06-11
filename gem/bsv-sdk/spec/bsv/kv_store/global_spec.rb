@@ -82,6 +82,16 @@ RSpec.describe BSV::KVStore::Global do
   # ---- #get: selector validation ----
 
   describe '#get' do
+    context 'with a non-Hash query' do
+      it 'raises ArgumentError on nil' do
+        expect { global.get(nil) }.to raise_error(ArgumentError, /query must be a Hash/)
+      end
+
+      it 'raises ArgumentError on a String query' do
+        expect { global.get('key=foo') }.to raise_error(ArgumentError, /query must be a Hash/)
+      end
+    end
+
     context 'with no selector' do
       it 'raises ArgumentError when query is empty' do
         expect { global.get({}) }.to raise_error(ArgumentError, /selector/)

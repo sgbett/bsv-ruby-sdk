@@ -10,7 +10,7 @@ For full details, see the individual pages:
 
 - [Storage (Utils + Downloader)](storage.md)
 - [KVStore (Global + Interpreter)](kvstore.md)
-- [Registry Client](network.md#registry) *(typed resolves are covered below)*
+- [Registry Client](../overlays/registries.md) *(typed resolves are covered below)*
 
 ## Registry::Client — typed resolves
 

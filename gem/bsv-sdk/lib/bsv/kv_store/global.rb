@@ -72,6 +72,8 @@ module BSV
       # ---- Selector validation ----
 
       def validate_selector!(query)
+        raise ArgumentError, 'query must be a Hash' unless query.is_a?(Hash)
+
         has_key        = query[:key].is_a?(String)        && !query[:key].empty?
         has_controller = query[:controller].is_a?(String) && !query[:controller].empty?
         has_protocol   = query[:protocol_id].is_a?(Array) && query[:protocol_id].length == 2
@@ -183,12 +185,9 @@ module BSV
       # ---- Signature verification ----
 
       def verify_signature!(data_fields, sig_bytes, protocol_id, key, controller)
-        data = data_fields.reduce(''.b) { |acc, f| acc + f }.unpack('C*')
-        sig  = sig_bytes.unpack('C*')
-
         @proto_wallet.verify_signature(
-          data: data,
-          signature: sig,
+          data: data_fields.join.bytes,
+          signature: sig_bytes.bytes,
           protocol_id: protocol_id,
           key_id: key,
           counterparty: controller
