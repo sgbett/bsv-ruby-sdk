@@ -5,6 +5,57 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.24.0 — 2026-06-11
+
+### Breaking Changes
+- **`BSV::Transaction::Transaction` renamed to `BSV::Transaction::Tx`** (#795). Class only;
+  module `BSV::Transaction` and peer classes (`TransactionInput`, `TransactionOutput`,
+  `ChainTracker`, `Beef`, etc.) unchanged. No compat alias — pre-1.0 clean break.
+  Downstream consumers update with `s/BSV::Transaction::Transaction/BSV::Transaction::Tx/g`.
+- **`BSV::Wallet::WalletWireTransceiver` pubkey results are now 66-char hex** (#798),
+  matching the BRC-100 `PubKeyHex` contract and `ProtoWallet`'s direct-call shape.
+  Affects `get_public_key`, `reveal_counterparty_key_linkage`, `reveal_specific_key_linkage`.
+  Wire bytes remain 33-byte compressed binary; only the deserialised Ruby return shape
+  changed. See ADR-001 for the rationale.
+- **`BSV::Identity::Client` and `BSV::Registry::Client` raise `BSV::Overlay::OverlayError`
+  subclasses on overlay broadcast failure** (#802) — `publicly_reveal_attributes`,
+  `revoke_certificate_revelation`, `register_definition`, `sign_and_broadcast` previously
+  returned a result hash and required callers to inspect `status` themselves.
+
+### Added
+- `BSV::Wallet::ProtoWallet::KeyDeriver#identity_key_bytes` — binary accessor for the
+  identity pubkey, alongside the hex `identity_key`. Mirrors the planned bsv-wallet
+  KeyDeriver shape.
+- `BSV::Overlay::OverlayBroadcastResult#success?` and `#raise_if_error!` — let callers
+  treat broadcast failure as an exception with the appropriate `OverlayError` subclass.
+- ADR-001 documenting the SDK's binary-internal rule and the public-key hex exception
+  (`docs/guides/wtxid-dtxid.md` extension + `.architecture/decisions/adrs/ADR-001-…`).
+
+### Fixed
+- `BSV::Network::Util.resolve_tx_hex` rejects empty input rather than silently producing
+  an empty `rawTx` broadcast (#799).
+- `BSV::Network::Protocol#default_call` converts transport-level exceptions
+  (`SocketError`, `Errno::ECONNREFUSED`, `Net::OpenTimeout`, `OpenSSL::SSL::SSLError`,
+  etc.) into structured `ProtocolResponse` with `http_success: false` and descriptive
+  `error_message`, rather than propagating raw exceptions to callers (#807).
+- `BSV::Auth::AuthPayload.serialize_request` raises `ArgumentError` for `request_nonce`
+  that isn't exactly 32 bytes, preventing malformed BRC-103 wire frames (#800).
+- `BSV::MCP::Tools::BroadcastP2pkh` rescues `StandardError` rather than just
+  `ArgumentError`, so non-`ArgumentError` exceptions from invalid WIF input (e.g.
+  `NoMethodError` on `nil`) return a structured MCP error instead of crashing the tool
+  handler (#801).
+- `BSV::Wallet::ProtoWallet#create_signature` / `#verify_signature` and matching wire
+  serialisers validate that `hash_to_directly_sign` / `hash_to_directly_verify` are
+  exactly 32 bytes, preventing malformed signatures (#805).
+- `BSV::Attest.verify` asserts that the provider's `fetch_transaction` returns a Tx-like
+  object before iterating, producing a clear `ArgumentError` instead of a low-signal
+  `NoMethodError` (#803).
+
+### Changed
+- Bitcoin Core script-vectors spec now enforces a bidirectional regression gate:
+  previously-failing vectors that now pass surface as failures so `known_failures.json`
+  stays honest. Cleaned out 101 stale entries (#806).
+
 ## 0.23.1 — 2026-06-06
 
 ### Fixed
