@@ -27,6 +27,14 @@ The SDK is organised into three top-level modules:
 - **[Script](sdk/script.md)** — script parsing, opcodes, templates, interpreter
 - **[Transaction](sdk/transaction.md)** — building, signing, BEEF serialisation, merkle proofs
 
+## Ecosystem Clients
+
+Higher-level overlay clients for working with on-chain services:
+
+- **[Storage](sdk/storage.md)** — UHRP URL utilities and content download with hash verification
+- **[KVStore](sdk/kvstore.md)** — read from the global key-value store overlay
+- **[Ecosystem Clients](sdk/ecosystem-clients.md)** — Registry typed resolves, Overlay Historian
+
 ## Companion gems
 
 - **[bsv-wallet](gems/wallet.md)** — BRC-100 wallet interface with `BSV::Wallet::Client`, storage adapters, and broadcast queue
