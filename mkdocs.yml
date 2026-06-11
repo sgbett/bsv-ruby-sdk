@@ -57,6 +57,12 @@ nav:
       - Storage: sdk/storage.md
       - KVStore: sdk/kvstore.md
       - Ecosystem Clients: sdk/ecosystem-clients.md
+  - Overlay services:
+      - Overview: overlays.md
+      - UHRP Storage: overlays/uhrp-storage.md
+      - Historian: overlays/historian.md
+      - KVStore: overlays/kvstore.md
+      - Registries: overlays/registries.md
   - Network:
       - Overview: network/overview.md
       - Examples: network/examples.md

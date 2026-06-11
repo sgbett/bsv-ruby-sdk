@@ -35,6 +35,17 @@ Higher-level overlay clients for working with on-chain services:
 - **[KVStore](sdk/kvstore.md)** — read from the global key-value store overlay
 - **[Ecosystem Clients](sdk/ecosystem-clients.md)** — Registry typed resolves, Overlay Historian
 
+## Overlay services
+
+End-user facing explanations of the overlay protocols the SDK supports,
+including how each one fits with the `bsv-wallet` write paths:
+
+- **[Overlay services overview](overlays.md)** — what overlays are, BRC-22/24 architecture, SDK vs wallet split
+- **[UHRP Storage](overlays/uhrp-storage.md)** — content-addressed file storage (BRC-26)
+- **[Historian](overlays/historian.md)** — walk on-chain state through transaction ancestry
+- **[KVStore](overlays/kvstore.md)** — overlay-backed signed key-value entries
+- **[Registries](overlays/registries.md)** — typed basket / protocol / certificate definitions
+
 ## Companion gems
 
 - **[bsv-wallet](gems/wallet.md)** — BRC-100 wallet interface with `BSV::Wallet::Client`, storage adapters, and broadcast queue
