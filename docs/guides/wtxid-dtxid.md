@@ -126,6 +126,40 @@ If you're writing code that touches transaction IDs, the decision is simple:
 
 There is no third case. If you find yourself reaching for `txid` without either prefix, stop and determine which of the two you actually need.
 
+## The principle generalises (with one exception)
+
+The wire-order-by-default rule isn't specific to transaction IDs. The same shape applies to most binary/hex value pairs across the SDK: keep the binary form internally, convert to hex only at JSON or human boundaries.
+
+This rule covers:
+
+| Value | Internal | Boundary |
+|------|----------|----------|
+| Transaction IDs | `wtxid` (32-byte binary, wire order) | `dtxid` / `dtxid_hex` |
+| SHA-256 / RIPEMD-160 hashes | binary bytes | hex at log / JSON emit |
+| Scripts | binary bytes | hex via `Script#to_hex` at emit |
+| Signatures (DER) | binary bytes | hex at JSON emit |
+| Raw transactions, BEEF bytes | binary throughout | hex at JSON / display |
+
+### Public keys are the documented exception
+
+A compressed secp256k1 public key is 33 bytes of curve-point material. JSON contexts represent it as a 66-character hex string — BRC-100 names this type `PubKeyHex`. The SDK and the wallet **both hold pubkeys as hex throughout**, not binary. This is a deliberate carve-out from the wtxid/dtxid rule.
+
+The reasoning (recovered during HLR #797 audit fallout — see sgbett/bsv-wallet#300 for the long form):
+
+1. **The canonical internal form isn't bytes — it's a `PublicKey` object** (curve point). Hex and binary are both serialisations of the same underlying value, and most SDK code that handles a pubkey holds the `PublicKey` instance, not the bytes.
+2. **Pubkeys are protocol identifiers, not binary content.** Unlike txids — which get hashed, recomputed from raw tx, and indexed by structural bytes — pubkey bytes don't have wire-order semantics. They flow through the SDK as identity tokens.
+3. **Pubkeys cross BRC boundaries more often than any other type.** Every BRC-100 method has a pubkey somewhere (`identity_key`, `counterparty`, `subject`, `certifier`, `verifier`). BRC-29 and BRC-43 also specify hex at the wire. Hex storage moves conversion off the boundary-heavy path.
+4. **The binary-internal rule already carves out spec-mandated hex.** Pubkey BRC fields meet that test directly. Txids are an exception in the *other* direction — we choose binary even though `TXIDHexString` is BRC-canonical — because txid bytes have structural meaning. Pubkey bytes don't.
+
+What this means in practice:
+
+- `BSV::Primitives::PublicKey` is the in-memory form. When a string is needed, prefer hex (`to_hex`).
+- Every `Interface::BRC100` implementation (`ProtoWallet`, `WalletWireTransceiver`, bsv-wallet's `Engine`) returns pubkey fields as 66-character hex strings. The wire bytes are still 33-byte compressed binary (the wire layer is binary by definition); the deserialiser converts to hex before placing the value into the Ruby result hash, matching the BRC-100 contract.
+- `KeyDeriver#identity_key` returns hex. A binary accessor (`identity_key_bytes`) exists for the rare sites that need the raw bytes (e.g. feeding `hash160`), to avoid binary → hex → binary round-trips.
+- Storage of pubkey-shaped fields is `:text` / `String`. `bytea` would be wrong.
+
+A reviewer seeing `.to_hex` / `Utils.toHex` / `.unpack1('H*')` on a pubkey at a BRC-100 boundary should not flag it — that conversion is the rule.
+
 ## Runtime validation
 
 Because `wtxid` and `dtxid` have distinct physical formats — 32-byte binary vs 64-character hex — the SDK validates at every entry point. Pass a hex string where binary is expected and you get an immediate `ArgumentError` with a diagnostic message:

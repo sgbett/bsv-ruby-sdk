@@ -181,5 +181,18 @@ RSpec.describe BSV::Attest do
       result = described_class.verify('test data', 'aa' * 32)
       expect(result).to be true
     end
+
+    # Regression guard for #803: previously a provider returning anything
+    # without an #outputs method (e.g. a String) produced NoMethodError with
+    # no indication of the contract violation.
+    it 'raises ArgumentError when provider#fetch_transaction returns a non-Tx object' do
+      provider = Class.new do
+        define_method(:fetch_transaction) { |_txid| 'not a transaction' }
+      end.new
+
+      expect do
+        described_class.verify('test data', 'aa' * 32, provider: provider)
+      end.to raise_error(ArgumentError, /must return a BSV::Transaction::Tx-like/)
+    end
   end
 end

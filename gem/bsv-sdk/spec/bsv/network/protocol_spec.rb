@@ -492,4 +492,80 @@ RSpec.describe 'BSV::Network::Protocol' do
       expect(http.last_request['Authorization']).to eq('Bearer ')
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Transport-level error handling — closes #807 (T4).
+  #
+  # The base #default_call catches the common HTTP transport errors that can
+  # surface from Net::HTTP or its injectable substitute (Net::HTTP.start, a
+  # ProtocolSpecFakeHttpClient, etc.). Each is converted to a structured
+  # ProtocolResponse with http_success: false and a descriptive error_message
+  # rather than propagated to the protocol caller as a raw exception.
+  # ---------------------------------------------------------------------------
+
+  describe 'transport-level error handling' do
+    # Fake client whose #request raises the supplied exception instead of
+    # returning an HTTP response.
+    let(:raising_client) do
+      Class.new do
+        def initialize(error)
+          @error = error
+        end
+
+        def request(_uri, _request)
+          raise @error
+        end
+      end
+    end
+
+    def call_with_error(error)
+      instance = test_protocol_class.new(
+        base_url: 'https://api.example.com',
+        http_client: raising_client.new(error)
+      )
+      instance.default_call(:get_raw)
+    end
+
+    [
+      [SocketError.new('Failed to resolve hostname'),                'DNS / unreachable host'],
+      [Errno::ECONNREFUSED.new,                                      'connection refused'],
+      [Errno::ETIMEDOUT.new,                                         'connect timed out'],
+      [Errno::EHOSTUNREACH.new,                                      'host unreachable'],
+      [Errno::ENETUNREACH.new,                                       'network unreachable'],
+      [Net::OpenTimeout.new('execution expired'),                    'open timeout'],
+      [Net::ReadTimeout.new('execution expired'),                    'read timeout'],
+      [Net::HTTPBadResponse.new('wrong status line'),                'bad HTTP response'],
+      [Net::HTTPHeaderSyntaxError.new('bad header'),                 'malformed HTTP header'],
+      [OpenSSL::SSL::SSLError.new('certificate verify failed'),      'SSL error']
+    ].each do |error, label|
+      context "when the transport raises #{error.class}" do
+        let(:result) { call_with_error(error) }
+
+        it "returns a ProtocolResponse with http_success: false (#{label})" do
+          expect(result).to be_a(BSV::Network::ProtocolResponse)
+          expect(result.http_success?).to be(false)
+        end
+
+        it "captures the exception class in error_message (#{label})" do
+          expect(result.error_message).to include('transport error:').and include(error.class.name)
+        end
+
+        it "leaves body / code / content_type nil-safe (#{label})" do
+          expect(result.body).to be_nil
+          expect(result.code).to be_nil
+          expect(result.content_type).to be_nil
+        end
+      end
+    end
+
+    # Anything outside the catch list still propagates — the base class
+    # only handles transport-shaped exceptions, not programmer errors.
+    it 'does not swallow non-transport exceptions (RuntimeError propagates)' do
+      instance = test_protocol_class.new(
+        base_url: 'https://api.example.com',
+        http_client: raising_client.new(RuntimeError.new('boom'))
+      )
+      expect { instance.default_call(:get_raw) }.to raise_error(RuntimeError, 'boom')
+    end
+  end
 end

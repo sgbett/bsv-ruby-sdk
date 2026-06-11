@@ -34,6 +34,19 @@ module BSV
           @identity_key ||= @root_key.public_key.to_hex
         end
 
+        # Returns the identity public key as a 33-byte compressed binary string.
+        #
+        # Pubkeys are hex-canonical in this SDK (see ADR-001 — the documented
+        # exception to binary-internal), so {#identity_key} (hex) is the
+        # default. This binary accessor exists for the rare sites that need
+        # raw bytes (e.g. feeding +BSV::Primitives::Hash#hash160+) without
+        # round-tripping hex → binary at each call.
+        #
+        # @return [String] 33-byte compressed public key binary
+        def identity_key_bytes
+          @identity_key_bytes ||= @root_key.public_key.compressed
+        end
+
         # Derives a public key using BRC-42 key derivation.
         #
         # @param protocol_id [Array] [security_level, protocol_name]

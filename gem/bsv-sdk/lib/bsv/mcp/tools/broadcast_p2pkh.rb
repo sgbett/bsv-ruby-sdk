@@ -127,7 +127,10 @@ module BSV
             [::MCP::Content::Text.new(result.to_json)],
             structured_content: result
           )
-        rescue ArgumentError => e
+        rescue StandardError => e
+          # Catch broadly so MCP returns a structured error rather than
+          # crashing the tool handler on unexpected exception types
+          # (e.g. NoMethodError on nil WIF input, encoding errors, etc.).
           Helpers.error_response(e.message)
         end
 

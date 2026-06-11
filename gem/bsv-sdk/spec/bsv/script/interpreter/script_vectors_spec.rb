@@ -184,6 +184,7 @@ RSpec.describe 'Bitcoin Core script vectors' do
     expected_fail_pass = 0
     known_fail_count = 0
     unexpected_mismatches = []
+    stale_known_failures = []
     parse_error_count = 0
     skipped_count = 0
 
@@ -221,7 +222,15 @@ RSpec.describe 'Bitcoin Core script vectors' do
       expected_ok = (expected == 'OK')
 
       if actual_ok == expected_ok
-        expected_ok ? pass_count += 1 : expected_fail_pass += 1
+        if known_failures.key?(idx.to_s)
+          # Vector matches expectation but is still tagged as a known failure —
+          # the interpreter has improved past the recorded gap. Surface so the
+          # known-failures list can be trimmed back to truth (T3, #806).
+          stale_known_failures << "[#{idx}] now matches expected (#{expected}): " \
+                                  "remove entry — was '#{known_failures[idx.to_s]}'"
+        else
+          expected_ok ? pass_count += 1 : expected_fail_pass += 1
+        end
       elsif known_failures.key?(idx.to_s)
         known_fail_count += 1
       else
@@ -231,7 +240,8 @@ RSpec.describe 'Bitcoin Core script vectors' do
       end
     end
 
-    total = pass_count + expected_fail_pass + known_fail_count + unexpected_mismatches.length
+    total = pass_count + expected_fail_pass + known_fail_count +
+            unexpected_mismatches.length + stale_known_failures.length
 
     # Report known failures count for visibility
     warn "Script vectors: #{pass_count + expected_fail_pass} pass, " \
@@ -242,5 +252,13 @@ RSpec.describe 'Bitcoin Core script vectors' do
     expect(unexpected_mismatches).to eq([]),
                                      "#{unexpected_mismatches.length} unexpected mismatches out of #{total} vectors:\n" \
                                      "#{unexpected_mismatches.join("\n")}"
+
+    # And any vector tagged as a known failure that has started passing is also
+    # a hard failure — forces the known-failures list to stay honest about
+    # what's still broken vs. what has been fixed.
+    expect(stale_known_failures).to eq([]),
+                                    "#{stale_known_failures.length} known-failure entries now pass " \
+                                    "and must be removed from script_vectors_known_failures.json:\n" \
+                                    "#{stale_known_failures.join("\n")}"
   end
 end

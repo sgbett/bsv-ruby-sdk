@@ -50,7 +50,9 @@ module BSV
       # @param data [BasketDefinitionData, ProtocolDefinitionData, CertificateDefinitionData]
       #   structured definition data
       # @return [BSV::Overlay::OverlayBroadcastResult]
-      # @raise [RuntimeError] if the transaction cannot be created or broadcast
+      # @raise [RuntimeError] if the transaction cannot be created
+      # @raise [BSV::Overlay::OverlayError] (or a subclass) if the overlay broadcast fails —
+      #   see {BSV::Overlay::OverlayBroadcastResult#raise_if_error!} for the mapping
       def register_definition(definition_type, data)
         registry_operator = identity_key
         fields = build_pushdrop_fields(definition_type, data, registry_operator)
@@ -82,7 +84,7 @@ module BSV
         raise "Register failed: could not create #{definition_type} registration transaction" if create_result[:tx].nil?
 
         tx = BSV::Transaction::Tx.from_beef(normalise_beef(create_result[:tx]))
-        broadcaster_for(definition_type).broadcast(tx)
+        broadcaster_for(definition_type).broadcast(tx).raise_if_error!
       end
 
       # Resolves registry definitions of a given type using the overlay lookup service.
@@ -463,6 +465,9 @@ module BSV
       # @param definition_type [String]
       # @param create_result [Hash] result from wallet.create_action containing :signable_transaction
       # @return [BSV::Overlay::OverlayBroadcastResult]
+      # @raise [RuntimeError] if the transaction cannot be signed
+      # @raise [BSV::Overlay::OverlayError] (or a subclass) if the overlay broadcast fails —
+      #   see {BSV::Overlay::OverlayBroadcastResult#raise_if_error!} for the mapping
       def sign_and_broadcast(definition_type, create_result)
         signable   = create_result[:signable_transaction]
         partial_tx = BSV::Transaction::Tx.from_beef(normalise_beef(signable[:tx]))
@@ -489,7 +494,7 @@ module BSV
         raise 'Revoke failed: could not sign transaction' if sign_result[:tx].nil?
 
         signed_tx = BSV::Transaction::Tx.from_beef(normalise_beef(sign_result[:tx]))
-        broadcaster_for(definition_type).broadcast(signed_tx)
+        broadcaster_for(definition_type).broadcast(signed_tx).raise_if_error!
       end
 
       # Verifies that the registered definition belongs to the current wallet.

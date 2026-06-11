@@ -66,6 +66,10 @@ module BSV
 
         # Result wire layout:
         #   [33 bytes: compressed public key]
+        #
+        # The wire bytes are 33-byte compressed binary by the BRC-103 protocol,
+        # but the Ruby return shape is hex per the BRC-100 PubKeyHex contract
+        # (ADR-001 — pubkeys are the documented hex exception to binary-internal).
         module Result
           module_function
 
@@ -77,7 +81,7 @@ module BSV
           def deserialize(bytes)
             raise ArgumentError, "public key too short: #{bytes.bytesize}" if bytes.bytesize < PUBKEY_SIZE
 
-            { public_key: bytes.byteslice(0, PUBKEY_SIZE) }
+            { public_key: bytes.byteslice(0, PUBKEY_SIZE).unpack1('H*') }
           end
         end
       end

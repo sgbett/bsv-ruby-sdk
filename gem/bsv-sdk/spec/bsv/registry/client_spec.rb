@@ -505,6 +505,47 @@ RSpec.describe 'BSV::Registry::Client' do
         expect(client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET)).to eq([])
       end
     end
+
+    # Per #809 — extend coverage of the parse path: malformed outputs
+    # should be silently dropped via the rescue at client.rb:140 rather
+    # than crashing the whole list.
+    context 'when an output is missing its outpoint' do
+      let(:output_no_outpoint) { { satoshis: 1, spendable: true } }
+
+      before do
+        allow(wallet).to receive(:list_outputs)
+          .and_return({ outputs: [output_no_outpoint], beef: REGISTRY_SPEC_BEEF_BYTES })
+      end
+
+      it 'returns an empty array (skips the output)' do
+        expect(client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET)).to eq([])
+      end
+    end
+
+    context 'when a locking script has the wrong field count for the definition type' do
+      let(:bad_locking_script) do
+        # 4 fields instead of the expected 7 (6 data + signature) — parse_locking_script raises
+        script = instance_double(BSV::Script::Script)
+        allow(script).to receive_messages(pushdrop_fields: ['a'.b, 'b'.b, 'c'.b, 'sig'.b], to_hex: REGISTRY_SPEC_LOCKING_HEX)
+        script
+      end
+      let(:bad_tx_output) do
+        instance_double(BSV::Transaction::TransactionOutput, locking_script: bad_locking_script, satoshis: 1)
+      end
+      let(:bad_tx) do
+        instance_double(BSV::Transaction::Tx, txid_hex: REGISTRY_SPEC_TXID, outputs: [bad_tx_output])
+      end
+      let(:bad_beef_tx) { instance_double(BSV::Transaction::Beef::RawTxEntry, transaction: bad_tx) }
+      let(:bad_beef)    { instance_double(BSV::Transaction::Beef, transactions: [bad_beef_tx]) }
+
+      before do
+        allow(BSV::Transaction::Beef).to receive(:from_binary).and_return(bad_beef)
+      end
+
+      it 'returns an empty array (rescue silently drops the malformed output)' do
+        expect(client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET)).to eq([])
+      end
+    end
   end
 
   # ---------------------------------------------------------------------------

@@ -108,6 +108,43 @@ module BSV
         @code = code
         @description = description
       end
+
+      # @return [Boolean] true when the broadcast reached at least one
+      #   competent host and satisfied any acknowledgement requirements.
+      def success?
+        @status == 'success'
+      end
+
+      # Raise the appropriate {OverlayError} subclass when {#success?} is
+      # false. Lets callers treat a broadcast failure as an exception rather
+      # than silently swallowing the result object — used by Identity and
+      # Registry clients which terminate on broadcast failure regardless.
+      #
+      # @return [self] when the result is a success (chainable)
+      # @raise [NoCompetentHostsError] for +ERR_NO_HOSTS_INTERESTED+
+      # @raise [AllHostsRejectedError] for +ERR_ALL_HOSTS_REJECTED+
+      # @raise [AcknowledgementError] for +ERR_REQUIRE_ACK_*_FAILED+
+      # @raise [OverlayError] for any other non-success status
+      def raise_if_error!
+        return self if success?
+
+        message = [@code, @description].compact.join(': ')
+        raise error_class_for_code, message
+      end
+
+      private
+
+      def error_class_for_code
+        case @code
+        when 'ERR_NO_HOSTS_INTERESTED' then NoCompetentHostsError
+        when 'ERR_ALL_HOSTS_REJECTED' then AllHostsRejectedError
+        when 'ERR_REQUIRE_ACK_FROM_ANY_HOST_FAILED',
+             'ERR_REQUIRE_ACK_FROM_ALL_HOSTS_FAILED',
+             'ERR_REQUIRE_ACK_FROM_SPECIFIC_HOSTS_FAILED'
+          AcknowledgementError
+        else OverlayError
+        end
+      end
     end
   end
 end

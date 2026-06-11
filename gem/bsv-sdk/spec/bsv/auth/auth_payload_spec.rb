@@ -23,6 +23,35 @@ RSpec.describe 'BSV::Auth::AuthPayload' do
     end
   end
 
+  describe '.serialize_request — request_nonce validation' do
+    it 'raises ArgumentError for a non-32-byte nonce (too short)' do
+      expect do
+        mod.serialize_request(
+          request_nonce: ("\xAB" * 31).b,
+          method: 'GET', path: '/x', query: nil, headers: [], body: nil
+        )
+      end.to raise_error(ArgumentError, /32-byte/)
+    end
+
+    it 'raises ArgumentError for a non-32-byte nonce (too long)' do
+      expect do
+        mod.serialize_request(
+          request_nonce: ("\xAB" * 33).b,
+          method: 'GET', path: '/x', query: nil, headers: [], body: nil
+        )
+      end.to raise_error(ArgumentError, /32-byte/)
+    end
+
+    it 'raises ArgumentError for a non-string nonce' do
+      expect do
+        mod.serialize_request(
+          request_nonce: nil,
+          method: 'GET', path: '/x', query: nil, headers: [], body: nil
+        )
+      end.to raise_error(ArgumentError, /32-byte/)
+    end
+  end
+
   describe '.serialize_request / .deserialize_request round-trip' do
     it 'round-trips a simple GET request' do
       nonce = ("\xAB" * 32).b

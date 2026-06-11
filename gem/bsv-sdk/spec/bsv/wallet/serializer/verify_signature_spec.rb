@@ -90,6 +90,20 @@ RSpec.describe 'BSV::Wallet::Serializer::VerifySignature' do
       args = { protocol_id: [2, 'hello world'], key_id: '1', counterparty: 'self', data: ''.b }
       expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError)
     end
+
+    # Regression guard for #805: previously any-length hash was silently
+    # accepted on the wire, shifting subsequent fields and producing an
+    # invalid verification with no clear error at the call site.
+    it 'raises WERR_INVALID_PARAMETER for a non-32-byte hash_to_directly_verify' do
+      args = {
+        protocol_id: [2, 'hello world'],
+        key_id: '1',
+        counterparty: 'self',
+        signature: VSIG_DER,
+        hash_to_directly_verify: ("\xAA" * 33).b
+      }
+      expect { mod::Args.serialize(args) }.to raise_error(BSV::Wallet::InvalidParameterError, /32 bytes/)
+    end
   end
 
   describe 'Result' do

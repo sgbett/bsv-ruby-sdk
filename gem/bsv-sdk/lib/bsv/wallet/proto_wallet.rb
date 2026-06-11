@@ -167,7 +167,7 @@ module BSV
         priv_key = @key_deriver.derive_private_key(protocol_id, key_id, counterparty)
 
         hash = if hash_to_directly_sign
-                 bytes_to_string(hash_to_directly_sign)
+                 validate_hash_32!(hash_to_directly_sign, 'hash_to_directly_sign')
                else
                  BSV::Primitives::Digest.sha256(bytes_to_string(data))
                end
@@ -203,7 +203,7 @@ module BSV
         )
 
         hash = if hash_to_directly_verify
-                 bytes_to_string(hash_to_directly_verify)
+                 validate_hash_32!(hash_to_directly_verify, 'hash_to_directly_verify')
                else
                  BSV::Primitives::Digest.sha256(bytes_to_string(data))
                end
@@ -345,6 +345,16 @@ module BSV
 
       def bytes_to_string(bytes)
         bytes.is_a?(String) ? bytes.b : bytes.pack('C*')
+      end
+
+      # Coerce a hash parameter to a 32-byte binary string, raising
+      # InvalidParameterError if the input has the wrong length. Accepts
+      # either a binary String or an Array<Integer> per BRC-100 convention.
+      def validate_hash_32!(value, name)
+        bytes = bytes_to_string(value)
+        raise InvalidParameterError.new(name, "exactly 32 bytes, got #{bytes.bytesize}") unless bytes.bytesize == 32
+
+        bytes
       end
 
       # Normalise a public key argument to a 66-character compressed hex string.

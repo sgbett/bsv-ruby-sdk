@@ -59,6 +59,11 @@ module BSV
         digest = hash(data)
 
         tx = p.fetch_transaction(txid)
+        unless tx.respond_to?(:outputs)
+          raise ArgumentError,
+                'provider#fetch_transaction must return a BSV::Transaction::Tx-like ' \
+                "object responding to :outputs, got #{tx.class}"
+        end
 
         tx.outputs.each do |output|
           script = output.locking_script

@@ -48,23 +48,24 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
   # -------------------------------------------------------------------------
 
   describe '#get_public_key' do
-    it 'returns the identity public key through the wire (as 33-byte binary)' do
-      direct_hex = proto.get_public_key(identity_key: true)[:public_key]
-      wire       = client.get_public_key(identity_key: true)
-      # Wire layer normalises to 33-byte compressed binary; compare as hex
-      expect(wire[:public_key].unpack1('H*')).to eq(direct_hex)
+    # Per ADR-001 the Ruby return shape is hex (BRC-100 PubKeyHex);
+    # wire bytes remain 33-byte compressed binary.
+    it 'returns the identity public key as hex matching ProtoWallet' do
+      direct = proto.get_public_key(identity_key: true)[:public_key]
+      wire   = client.get_public_key(identity_key: true)
+      expect(wire[:public_key]).to eq(direct)
     end
 
-    it 'returns a derived public key through the wire (as 33-byte binary)' do
-      direct_hex = proto.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')[:public_key]
-      wire       = client.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')
-      expect(wire[:public_key].unpack1('H*')).to eq(direct_hex)
+    it 'returns a derived public key as hex matching ProtoWallet' do
+      direct = proto.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')[:public_key]
+      wire   = client.get_public_key(protocol_id: protocol_id, key_id: key_id, counterparty: 'self')
+      expect(wire[:public_key]).to eq(direct)
     end
 
-    it 'returns a 33-byte binary public key' do
+    it 'returns a 66-char compressed-pubkey hex string' do
       wire = client.get_public_key(identity_key: true)
       expect(wire[:public_key]).to be_a(String)
-      expect(wire[:public_key].bytesize).to eq(33)
+      expect(wire[:public_key]).to match(/\A0[23][0-9a-fA-F]{64}\z/)
     end
   end
 
@@ -250,6 +251,23 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
       expect(result[:encrypted_linkage_proof]).to be_a(String)
       expect(result[:revelation_time]).to be_a(String)
     end
+
+    # Locks the hex pubkey contract per ADR-001 (pubkeys are the documented
+    # exception to binary-internal). Wire bytes stay 33-byte binary; the
+    # deserialised Ruby return shape is hex matching ProtoWallet's direct call.
+    it 'returns prover / verifier / counterparty as 66-char compressed-pubkey hex' do
+      result = client.reveal_counterparty_key_linkage(counterparty: other_pubkey, verifier: other_pubkey)
+      %i[prover verifier counterparty].each do |key|
+        expect(result[key]).to be_a(String)
+        expect(result[key]).to match(/\A0[23][0-9a-fA-F]{64}\z/)
+      end
+    end
+
+    it 'pubkey fields are byte-identical to ProtoWallet direct return' do
+      direct = proto.reveal_counterparty_key_linkage(counterparty: other_pubkey, verifier: other_pubkey)
+      wire   = client.reveal_counterparty_key_linkage(counterparty: other_pubkey, verifier: other_pubkey)
+      %i[prover verifier counterparty].each { |key| expect(wire[key]).to eq(direct[key]) }
+    end
   end
 
   # -------------------------------------------------------------------------
@@ -268,6 +286,30 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
       )
       expect(result[:encrypted_linkage]).to be_a(String)
       expect(result[:proof_type]).to be_a(Integer)
+    end
+
+    # Locks the hex pubkey contract per ADR-001.
+    it 'returns prover / verifier / counterparty as 66-char compressed-pubkey hex' do
+      result = client.reveal_specific_key_linkage(
+        counterparty: other_pubkey, verifier: other_pubkey,
+        protocol_id: protocol_id, key_id: key_id
+      )
+      %i[prover verifier counterparty].each do |key|
+        expect(result[key]).to be_a(String)
+        expect(result[key]).to match(/\A0[23][0-9a-fA-F]{64}\z/)
+      end
+    end
+
+    it 'pubkey fields are byte-identical to ProtoWallet direct return' do
+      direct = proto.reveal_specific_key_linkage(
+        counterparty: other_pubkey, verifier: other_pubkey,
+        protocol_id: protocol_id, key_id: key_id
+      )
+      wire = client.reveal_specific_key_linkage(
+        counterparty: other_pubkey, verifier: other_pubkey,
+        protocol_id: protocol_id, key_id: key_id
+      )
+      %i[prover verifier counterparty].each { |key| expect(wire[key]).to eq(direct[key]) }
     end
   end
 
