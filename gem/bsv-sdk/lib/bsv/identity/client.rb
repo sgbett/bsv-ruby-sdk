@@ -170,7 +170,7 @@ module BSV
         raise 'Public reveal failed: failed to create action!' if create_result[:tx].nil?
 
         tx = BSV::Transaction::Tx.from_beef(create_result[:tx])
-        broadcaster_for_action.broadcast(tx)
+        broadcaster_for_action.broadcast(tx).raise_if_error!
       end
 
       # Revokes a publicly revealed certificate by spending the identity token.
@@ -256,7 +256,7 @@ module BSV
         raise 'Revoke failed: failed to sign transaction' if sign_result[:tx].nil?
 
         signed_tx = BSV::Transaction::Tx.from_beef(sign_result[:tx])
-        broadcaster_for_action.broadcast(signed_tx)
+        broadcaster_for_action.broadcast(signed_tx).raise_if_error!
       end
 
       private

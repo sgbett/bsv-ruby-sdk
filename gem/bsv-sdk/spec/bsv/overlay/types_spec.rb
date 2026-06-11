@@ -129,6 +129,37 @@ RSpec.describe 'BSV::Overlay types' do
         expect(result.message).to be_nil
       end
     end
+
+    # Per #802 — callers (Identity, Registry) must treat broadcast errors
+    # as exceptional. `success?` and `raise_if_error!` make that
+    # explicit rather than leaving the contract implicit on the status field.
+    describe '#success? and #raise_if_error!' do
+      it 'success? is true for status="success"' do
+        result = described_class.new(status: 'success', txid: 'aa' * 32)
+        expect(result.success?).to be(true)
+        expect(result.raise_if_error!).to be(result)
+      end
+
+      it 'maps ERR_NO_HOSTS_INTERESTED to NoCompetentHostsError' do
+        result = described_class.new(status: 'error', code: 'ERR_NO_HOSTS_INTERESTED', description: 'd')
+        expect { result.raise_if_error! }.to raise_error(BSV::Overlay::NoCompetentHostsError, /ERR_NO_HOSTS_INTERESTED.*d/)
+      end
+
+      it 'maps ERR_ALL_HOSTS_REJECTED to AllHostsRejectedError' do
+        result = described_class.new(status: 'error', code: 'ERR_ALL_HOSTS_REJECTED', description: 'd')
+        expect { result.raise_if_error! }.to raise_error(BSV::Overlay::AllHostsRejectedError)
+      end
+
+      it 'maps ERR_REQUIRE_ACK_FROM_ANY_HOST_FAILED to AcknowledgementError' do
+        result = described_class.new(status: 'error', code: 'ERR_REQUIRE_ACK_FROM_ANY_HOST_FAILED', description: 'd')
+        expect { result.raise_if_error! }.to raise_error(BSV::Overlay::AcknowledgementError)
+      end
+
+      it 'falls back to OverlayError for unknown codes' do
+        result = described_class.new(status: 'error', code: 'ERR_SOMETHING_NEW', description: 'd')
+        expect { result.raise_if_error! }.to raise_error(BSV::Overlay::OverlayError)
+      end
+    end
   end
 end
 # rubocop:enable RSpec/DescribeClass

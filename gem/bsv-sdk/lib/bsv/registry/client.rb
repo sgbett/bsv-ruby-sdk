@@ -82,7 +82,7 @@ module BSV
         raise "Register failed: could not create #{definition_type} registration transaction" if create_result[:tx].nil?
 
         tx = BSV::Transaction::Tx.from_beef(normalise_beef(create_result[:tx]))
-        broadcaster_for(definition_type).broadcast(tx)
+        broadcaster_for(definition_type).broadcast(tx).raise_if_error!
       end
 
       # Resolves registry definitions of a given type using the overlay lookup service.
@@ -489,7 +489,7 @@ module BSV
         raise 'Revoke failed: could not sign transaction' if sign_result[:tx].nil?
 
         signed_tx = BSV::Transaction::Tx.from_beef(normalise_beef(sign_result[:tx]))
-        broadcaster_for(definition_type).broadcast(signed_tx)
+        broadcaster_for(definition_type).broadcast(signed_tx).raise_if_error!
       end
 
       # Verifies that the registered definition belongs to the current wallet.
