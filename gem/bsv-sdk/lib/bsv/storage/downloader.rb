@@ -49,7 +49,7 @@ module BSV
       def resolve(uhrp_url)
         question = BSV::Overlay::LookupQuestion.new(
           service: 'ls_uhrp',
-          query: { 'uhrpUrl' => uhrp_url }
+          query: { 'uhrpUrl' => BSV::Storage::Utils.normalize_url(uhrp_url) }
         )
         answer = @lookup_resolver.query(question)
         raise DownloadError, 'Lookup answer must be an output list' unless answer.type == 'output-list'
@@ -138,7 +138,9 @@ module BSV
         return nil if response.nil?
 
         code = response.code.to_i
-        return nil if code >= 400
+        # 3xx is treated as a failed host: redirects are intentionally not followed in v1,
+        # so a 302 body is never the content we want.
+        return nil if code >= 300
 
         body = response.body.to_s
         return nil if body.empty?

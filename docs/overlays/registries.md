@@ -63,19 +63,21 @@ certs = client.resolve_certificate(type: 'identity-v1')
 ```
 
 Each method returns `Array<BSV::Registry::RegisteredDefinition>`. A
-definition exposes the registry operator's pubkey, the parsed
-type-specific data, and the underlying token info so you can verify
-authenticity:
+definition exposes the type-specific data via `definition_data`, plus
+on-chain fields (`txid`, `output_index`, `satoshis`, `locking_script`,
+`beef`) so you can verify authenticity:
 
 ```ruby
 basket = baskets.first
-basket.definition.basket_id        # => "ordinals"
-basket.definition.name             # => "Ordinals"
-basket.definition.icon_url         # => "https://example.com/ord.png"
-basket.definition.description      # => "..."
-basket.registry_operator           # => pubkey hex of the publisher
-basket.token.satoshis              # => 1
-basket.token.dtxid_hex             # => display-order txid
+basket.definition_data.basket_id           # => "ordinals"
+basket.definition_data.name                # => "Ordinals"
+basket.definition_data.icon_url            # => "https://example.com/ord.png"
+basket.definition_data.description         # => "..."
+basket.definition_data.registry_operator   # => pubkey hex of the publisher
+basket.satoshis                            # => 1
+basket.txid                                # => display-order txid
+basket.output_index                        # => 0
+basket.beef                                # => BSV::Transaction::Beef (verifiable, embeddable)
 ```
 
 ### Trust model — filter by operator

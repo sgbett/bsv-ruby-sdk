@@ -78,6 +78,18 @@ RSpec.describe BSV::Storage::Downloader do
       end
     end
 
+    context 'when the caller supplies a uhrp:// prefixed URL' do
+      it 'normalises the URL before forwarding to the lookup query' do
+        allow(resolver).to receive(:query) do |question|
+          # Lookup query should receive the bare base58check form, not the uhrp:// form
+          expect(question.query['uhrpUrl']).to eq(DOWNLOADER_UHRP_URL)
+          non_output_list_answer
+        end
+        expect { downloader.resolve("uhrp://#{DOWNLOADER_UHRP_URL}") }
+          .to raise_error(BSV::Storage::DownloadError)
+      end
+    end
+
     context 'when resolver returns an empty output list' do
       it 'returns an empty array' do
         allow(resolver).to receive(:query).and_return(answer_with([]))
@@ -238,6 +250,29 @@ RSpec.describe BSV::Storage::Downloader do
         expect do
           described_class.new(lookup_resolver: resolver, http_client: http).download(uhrp_url)
         end.to raise_error(BSV::Storage::DownloadError, /Unable to download content/)
+      end
+    end
+
+    context 'when host returns 302 (redirects are not followed in v1)' do
+      let(:content)  { 'redirected content' }
+      let(:uhrp_url) { BSV::Storage::Utils.get_url_for_file(content) }
+
+      it 'treats 3xx as failed host and tries the next one' do
+        future = Time.now.to_i + 3600
+        allow(resolver).to receive(:query).and_return(answer_with([
+                                                                    uhrp_output_entry('http://redirect-host.example/file', future),
+                                                                    uhrp_output_entry('http://direct-host.example/file', future)
+                                                                  ]))
+
+        call_count = 0
+        http = lambda do |_url|
+          call_count += 1
+          call_count == 1 ? http_err(302) : http_ok(content)
+        end
+
+        result = described_class.new(lookup_resolver: resolver, http_client: http).download(uhrp_url)
+        expect(result.data).to eq(content)
+        expect(call_count).to eq(2)
       end
     end
 

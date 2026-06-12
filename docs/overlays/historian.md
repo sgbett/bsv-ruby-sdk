@@ -51,12 +51,14 @@ defensive reasons.
 ```ruby
 require 'bsv-sdk'
 
-# Match outputs that have an OP_RETURN with the marker 'note:' and
-# return whatever follows as the value.
+# Match outputs that have an OP_RETURN containing a 'note:' push and
+# return whatever follows as the value. Script#op_return_data returns
+# Array<String> — one element per push — so iterate.
 NoteInterpreter = ->(tx, idx, _ctx) {
-  out = tx.outputs[idx]
-  data = out.locking_script.op_return_data
-  data&.start_with?('note:') ? data.slice(5..) : nil
+  out    = tx.outputs[idx]
+  pushes = out.locking_script.op_return_data
+  marker = pushes&.find { |p| p.start_with?('note:') }
+  marker&.slice(5..)
 }
 
 historian = BSV::Overlay::Historian.new(NoteInterpreter)
@@ -76,7 +78,7 @@ audit reports), pass any `[]/[]=`-responder as a cache:
 
 ```ruby
 historian = BSV::Overlay::Historian.new(
-  KVStore::Interpreter,
+  BSV::KVStore::Interpreter,
   history_cache: {},
   interpreter_version: 'v1'
 )
