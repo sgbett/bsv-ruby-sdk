@@ -94,7 +94,7 @@ In prose, comments, YARD tags, and spec descriptions:
 
 - **`Transaction::Tx`** names the Ruby class or its instances. Use this whenever the meaning is "the class instance specifically". The `BSV::` prefix is redundant for the audience — gem consumers read `Namespace::Class` instinctively.
 - **`transaction`** (lowercase) is the English noun for the abstract entity. Use this when the representation doesn't matter, or when several representations are in play.
-- **`Tx`** bare is reserved for Ruby code at call sites (where `BSV::Transaction::Tx` resolves it fully). In prose it reads as an alien identifier.
+- **`Tx`** bare is for Ruby code where the `BSV::Transaction` namespace is already in lexical scope (inside a `module BSV::Transaction` block, a sibling file in that namespace, or after `include BSV::Transaction`). It does not resolve in unrelated namespaces — use `BSV::Transaction::Tx` there. Outside Ruby code, bare `Tx` reads as an alien identifier.
 
 The same shape extends to peer classes (`Transaction::Beef`, `Transaction::TransactionInput`, `Transaction::TransactionOutput`, `Transaction::ChainTracker`, etc.).
 
