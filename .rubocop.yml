@@ -125,6 +125,7 @@ Metrics/ClassLength:
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'gem/bsv-sdk/lib/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/lib/bsv/kv_store/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -137,6 +138,7 @@ Metrics/ParameterLists:
     - 'gem/bsv-sdk/lib/bsv/identity/**/*'
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'gem/bsv-sdk/lib/bsv/auth/**/*'
+    - 'gem/bsv-sdk/spec/bsv/kv_store/**/*'
 
 # The interpreter condition stack uses :true/:false symbols intentionally
 # (matching the Go SDK pattern) to distinguish from boolean values.
@@ -175,6 +177,8 @@ RSpec/MultipleExpectations:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/spec/bsv/storage/**/*'
+    - 'gem/bsv-sdk/spec/bsv/kv_store/**/*'
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
@@ -191,6 +195,8 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/**/*'
     - 'gem/bsv-sdk/spec/bsv/wallet/**/*'
+    - 'gem/bsv-sdk/spec/bsv/storage/**/*'
+    - 'gem/bsv-sdk/spec/bsv/kv_store/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/*/spec/support/**/*'
 
@@ -208,6 +214,8 @@ RSpec/ExampleLength:
     - 'gem/bsv-sdk/spec/bsv/identity/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/mcp/**/*'
+    - 'gem/bsv-sdk/spec/bsv/storage/**/*'
+    - 'gem/bsv-sdk/spec/bsv/kv_store/**/*'
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'

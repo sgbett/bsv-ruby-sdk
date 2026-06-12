@@ -25,5 +25,6 @@ module BSV
     autoload :HTTPSBroadcastFacilitator,  'bsv/overlay/broadcast_facilitator'
     autoload :TopicBroadcaster,           'bsv/overlay/topic_broadcaster'
     autoload :SHIPBroadcaster,            'bsv/overlay/topic_broadcaster'
+    autoload :Historian,                  'bsv/overlay/historian'
   end
 end

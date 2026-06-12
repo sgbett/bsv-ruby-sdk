@@ -397,6 +397,61 @@ RSpec.describe 'BSV::Registry::Client' do
   end
 
   # ---------------------------------------------------------------------------
+  # Typed resolve wrappers
+  # ---------------------------------------------------------------------------
+  #
+  # Each typed method is a thin wrapper around #resolve(type, query).
+  # We verify delegation by observing what service name the resolver receives —
+  # each DefinitionType maps to a distinct ls_* service constant.
+
+  shared_examples 'a typed resolve wrapper' do |method_name, expected_service|
+    let(:empty_answer) { BSV::Overlay::LookupAnswer.new(type: 'freeform', outputs: []) }
+
+    before { allow(resolver).to receive(:query).and_return(empty_answer) }
+
+    it 'queries the resolver with the correct service for the definition type' do
+      client.public_send(method_name, name: 'example')
+      expect(resolver).to have_received(:query) do |question|
+        expect(question.service).to eq(expected_service)
+      end
+    end
+
+    it 'passes the query hash through to the resolver question unchanged' do
+      query = { name: 'example' }
+      client.public_send(method_name, query)
+      expect(resolver).to have_received(:query) do |question|
+        expect(question.query).to eq(query)
+      end
+    end
+
+    it 'accepts an empty query hash and passes it through' do
+      client.public_send(method_name)
+      expect(resolver).to have_received(:query) do |question|
+        expect(question.query).to eq({})
+      end
+    end
+
+    it 'returns an Array' do
+      expect(client.public_send(method_name)).to be_an(Array)
+    end
+  end
+
+  describe '#resolve_basket' do
+    it_behaves_like 'a typed resolve wrapper',
+                    :resolve_basket, BSV::Registry::Constants::SERVICE_BASKET
+  end
+
+  describe '#resolve_protocol' do
+    it_behaves_like 'a typed resolve wrapper',
+                    :resolve_protocol, BSV::Registry::Constants::SERVICE_PROTOCOL
+  end
+
+  describe '#resolve_certificate' do
+    it_behaves_like 'a typed resolve wrapper',
+                    :resolve_certificate, BSV::Registry::Constants::SERVICE_CERTIFICATE
+  end
+
+  # ---------------------------------------------------------------------------
   # #list_own_registry_entries
   # ---------------------------------------------------------------------------
 
