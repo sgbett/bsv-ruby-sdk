@@ -14,7 +14,7 @@ module BSV
     class UnlockingScriptTemplate
       # Generate the unlocking script for a transaction input.
       #
-      # @param _tx [Tx] the transaction being signed
+      # @param _tx [Transaction::Tx] the transaction being signed
       # @param _input_index [Integer] the input index to sign
       # @return [Script::Script] the generated unlocking script
       # @raise [NotImplementedError] if not overridden by a subclass
@@ -24,7 +24,7 @@ module BSV
 
       # Estimate the unlocking script length in bytes (for fee estimation).
       #
-      # @param _tx [Tx] the transaction
+      # @param _tx [Transaction::Tx] the transaction
       # @param _input_index [Integer] the input index
       # @return [Integer] estimated script length in bytes
       # @raise [NotImplementedError] if not overridden by a subclass

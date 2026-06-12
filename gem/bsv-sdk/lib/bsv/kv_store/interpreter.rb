@@ -44,7 +44,7 @@ module BSV
       # Implements the Historian interpreter contract:
       # +interpreter.call(tx, output_index, ctx)+ → String or nil.
       #
-      # @param tx [BSV::Transaction::Tx, nil] the transaction to inspect
+      # @param tx [Transaction::Tx, nil] the transaction to inspect
       # @param output_index [Integer] index into +tx.outputs+
       # @param ctx [Hash, nil] must contain +:key+ (String) and +:protocol_id+ (Array)
       # @return [String, nil] the decoded UTF-8 value, or nil on any mismatch/error

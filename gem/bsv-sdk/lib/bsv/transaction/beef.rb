@@ -72,10 +72,10 @@ module BSV
 
       # A BEEF entry containing a raw transaction without a merkle proof.
       class RawTxEntry < BeefTx
-        # @return [Tx] the transaction
+        # @return [Transaction::Tx] the transaction
         attr_reader :transaction
 
-        # @param transaction [Tx] the transaction
+        # @param transaction [Transaction::Tx] the transaction
         # @raise [ArgumentError] if transaction is nil
         def initialize(transaction:)
           raise ArgumentError, 'RawTxEntry requires a transaction' if transaction.nil?
@@ -97,13 +97,13 @@ module BSV
 
       # A BEEF entry containing a raw transaction with an associated BUMP index.
       class ProvenTxEntry < BeefTx
-        # @return [Tx] the transaction
+        # @return [Transaction::Tx] the transaction
         attr_reader :transaction
 
         # @return [Integer] index into the BEEF bumps array
         attr_reader :bump_index
 
-        # @param transaction [Tx] the transaction
+        # @param transaction [Transaction::Tx] the transaction
         # @param bump_index [Integer] index into the bumps array
         # @raise [ArgumentError] if transaction or bump_index is nil
         def initialize(transaction:, bump_index:)
@@ -188,7 +188,7 @@ module BSV
       # After parsing, input source transactions are wired automatically.
       #
       # @param data [String] raw BEEF binary
-      # @return [Beef] the parsed BEEF bundle
+      # @return [Transaction::Beef] the parsed BEEF bundle
       def self.from_binary(data)
         raise ArgumentError, "truncated BEEF: need at least 4 bytes for version, got #{data.bytesize}" if data.bytesize < 4
 
@@ -247,7 +247,7 @@ module BSV
       # Deserialise a BEEF bundle from a hex string.
       #
       # @param hex [String] hex-encoded BEEF data
-      # @return [Beef] the parsed BEEF bundle
+      # @return [Transaction::Beef] the parsed BEEF bundle
       def self.from_hex(hex)
         from_binary(BSV::Primitives::Hex.decode(hex, name: 'BEEF hex'))
       end
@@ -320,7 +320,7 @@ module BSV
       # Find a transaction in the bundle by its wire-order transaction ID.
       #
       # @param wtxid [String] 32-byte wire-order wtxid
-      # @return [Tx, nil] the matching transaction, or nil
+      # @return [Transaction::Tx, nil] the matching transaction, or nil
       def find_transaction(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         BSV.logger&.debug { "[Beef] find_transaction: #{wtxid.reverse.unpack1('H*')} in #{@transactions.length} entries" }
@@ -353,7 +353,7 @@ module BSV
       # Find a transaction with all source_transactions wired for signing.
       #
       # @param wtxid [String] 32-byte wire-order wtxid
-      # @return [Tx, nil] the transaction with wired inputs, or nil
+      # @return [Transaction::Tx, nil] the transaction with wired inputs, or nil
       def find_transaction_for_signing(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
@@ -367,7 +367,7 @@ module BSV
       # and merkle paths) for atomic proof validation.
       #
       # @param wtxid [String] 32-byte wire-order wtxid
-      # @return [Tx, nil] the transaction with full proof tree, or nil
+      # @return [Transaction::Tx, nil] the transaction with full proof tree, or nil
       def find_atomic_transaction(wtxid)
         BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
         tx = find_transaction(wtxid)
@@ -440,7 +440,7 @@ module BSV
       # (same txid) are upgraded if a stronger format is now available (F5.7):
       # TXID_ONLY → RAW_TX or RAW_TX_AND_BUMP; RAW_TX → RAW_TX_AND_BUMP.
       #
-      # @param tx [Tx] the transaction to merge
+      # @param tx [Transaction::Tx] the transaction to merge
       # @return [BeefTx] the (possibly existing or upgraded) BeefTx entry
       def merge_transaction(tx)
         wtxid = tx.wtxid
@@ -512,7 +512,7 @@ module BSV
       # BUMP indices are remapped during merge. New BeefTx instances are
       # constructed rather than sharing references with the source bundle (F5.9).
       #
-      # @param other [Beef] the BEEF bundle to merge from
+      # @param other [Transaction::Beef] the BEEF bundle to merge from
       # @return [self]
       # @raise [ArgumentError] if a transaction in +other+ has a +bump_index+
       #   that does not point to any BUMP in +other.bumps+ (i.e. the source
@@ -821,7 +821,7 @@ module BSV
       #   RAW_TX    → RAW_TX_AND_BUMP (if bump now available)
       #
       # @param existing [BeefTx] the current entry in @transactions
-      # @param tx [Tx, nil] the raw transaction (may be nil for TXID_ONLY → TXID_ONLY)
+      # @param tx [Transaction::Tx, nil] the raw transaction (may be nil for TXID_ONLY → TXID_ONLY)
       # @param bump_index [Integer, nil] a BUMP index already validated against @bumps
       # @return [BeefTx, nil] the upgraded entry, or nil when no upgrade is needed
       def upgrade_beef_tx(existing, tx, bump_index: nil)

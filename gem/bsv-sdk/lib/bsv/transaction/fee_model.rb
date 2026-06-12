@@ -17,7 +17,7 @@ module BSV
     class FeeModel
       # Compute the fee for a transaction.
       #
-      # @param transaction [Tx] the transaction to compute the fee for
+      # @param transaction [Transaction::Tx] the transaction to compute the fee for
       # @return [Integer] the fee in satoshis
       # @raise [NotImplementedError] if not overridden by a subclass
       def compute_fee(_transaction)

@@ -47,7 +47,7 @@ module BSV
       # Traverses input ancestry from +start_transaction+ and returns all interpreted
       # values in chronological order (oldest first).
       #
-      # @param start_transaction [BSV::Transaction::Tx]
+      # @param start_transaction [Transaction::Tx]
       # @param context           [Object, nil] forwarded verbatim to the interpreter
       # @return [Array] interpreted values, oldest first
       def build_history(start_transaction, context = nil)

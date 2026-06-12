@@ -23,7 +23,7 @@ module BSV
 
         # Compute the fee for a transaction based on its estimated size.
         #
-        # @param transaction [Tx] the transaction to compute the fee for
+        # @param transaction [Transaction::Tx] the transaction to compute the fee for
         # @return [Integer] the fee in satoshis
         def compute_fee(transaction)
           size = transaction.estimated_size

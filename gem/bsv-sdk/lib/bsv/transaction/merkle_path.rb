@@ -322,7 +322,7 @@ module BSV
       # logic is: reject when `current_height - block_height < 100` (immature).
       #
       # @param dtxid_hex [String] hex-encoded transaction ID (display order)
-      # @param chain_tracker [ChainTracker] chain tracker to verify the root against
+      # @param chain_tracker [Transaction::ChainTracker] chain tracker to verify the root against
       # @return [Boolean] true if the computed root matches the block at this height
       def verify(dtxid_hex, chain_tracker)
         BSV::Primitives::Hex.validate_dtxid_hex!(dtxid_hex, name: 'dtxid_hex')

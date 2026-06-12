@@ -56,7 +56,7 @@ module BSV
       # Return a default ChainTracker backed by the GorillaPool provider.
       #
       # @param testnet [Boolean] when true, uses the testnet provider
-      # @return [ChainTracker]
+      # @return [Transaction::ChainTracker]
       def self.default(testnet: false)
         new(BSV::Network::Providers::GorillaPool.default(testnet: testnet))
       end

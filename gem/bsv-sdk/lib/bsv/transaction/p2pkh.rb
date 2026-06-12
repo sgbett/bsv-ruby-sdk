@@ -24,7 +24,7 @@ module BSV
 
       # Generate the P2PKH unlocking script for the given input.
       #
-      # @param tx [Tx] the transaction being signed
+      # @param tx [Transaction::Tx] the transaction being signed
       # @param input_index [Integer] the input index to sign
       # @return [Script::Script] the unlocking script (signature + pubkey)
       def sign(tx, input_index)

@@ -21,7 +21,7 @@ module BSV
 
         # Convert a Transaction to a hash suitable for JSON responses.
         #
-        # @param tx [BSV::Transaction::Tx]
+        # @param tx [Transaction::Tx]
         # @return [Hash]
         def self.transaction_to_h(tx)
           {
@@ -33,7 +33,7 @@ module BSV
           }
         end
 
-        # Convert a TransactionInput to a hash.
+        # Convert a Transaction::TransactionInput to a hash.
         # @api private
         def self.input_to_h(input, _index)
           unlock_script = input.unlocking_script
@@ -46,7 +46,7 @@ module BSV
           }
         end
 
-        # Convert a TransactionOutput to a hash.
+        # Convert a Transaction::TransactionOutput to a hash.
         # @api private
         def self.output_to_h(output, index)
           script = output.locking_script

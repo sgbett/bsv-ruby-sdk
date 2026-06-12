@@ -472,7 +472,7 @@ module BSV
       #
       # @param definition_type [String]
       # @param output [Hash] wallet output with :outpoint, :satoshis keys
-      # @param beef [BSV::Transaction::Beef] parsed BEEF
+      # @param beef [Transaction::Beef] parsed BEEF
       # @param beef_raw [String] raw BEEF bytes
       # @return [RegisteredDefinition, nil]
       def parse_own_output_to_registered_definition(definition_type, output, beef, beef_raw)

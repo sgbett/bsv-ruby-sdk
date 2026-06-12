@@ -59,7 +59,7 @@ module BSV
 
       # Append a transaction input.
       #
-      # @param input [TransactionInput] the input to add
+      # @param input [Transaction::TransactionInput] the input to add
       # @return [self] for chaining
       def add_input(input)
         @inputs << input
@@ -68,7 +68,7 @@ module BSV
 
       # Append a transaction output.
       #
-      # @param output [TransactionOutput] the output to add
+      # @param output [Transaction::TransactionOutput] the output to add
       # @return [self] for chaining
       def add_output(output)
         @outputs << output
@@ -144,7 +144,7 @@ module BSV
       # Deserialise a transaction from binary data.
       #
       # @param data [String] raw binary transaction
-      # @return [Tx] the parsed transaction
+      # @return [Transaction::Tx] the parsed transaction
       def self.from_binary(data)
         raise ArgumentError, "truncated transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
 
@@ -182,7 +182,7 @@ module BSV
       # Deserialise a transaction from a hex string.
       #
       # @param hex [String] hex-encoded transaction
-      # @return [Tx] the parsed transaction
+      # @return [Transaction::Tx] the parsed transaction
       def self.from_hex(hex)
         from_binary(BSV::Primitives::Hex.decode(hex, name: 'transaction hex'))
       end
@@ -190,7 +190,7 @@ module BSV
       # Deserialise a transaction from Extended Format (BRC-30) binary data.
       #
       # @param data [String] raw EF binary
-      # @return [Tx] the parsed transaction with source data on inputs
+      # @return [Transaction::Tx] the parsed transaction with source data on inputs
       # @raise [ArgumentError] if the EF marker is invalid
       def self.from_ef(data)
         raise ArgumentError, "truncated EF transaction: need at least 10 bytes, got #{data.bytesize}" if data.bytesize < 10
@@ -250,7 +250,7 @@ module BSV
       # Deserialise a transaction from an Extended Format hex string.
       #
       # @param hex [String] hex-encoded EF transaction
-      # @return [Tx] the parsed transaction with source data on inputs
+      # @return [Transaction::Tx] the parsed transaction with source data on inputs
       def self.from_ef_hex(hex)
         from_ef(BSV::Primitives::Hex.decode(hex, name: 'EF transaction hex'))
       end
@@ -260,7 +260,7 @@ module BSV
       #
       # @param data [String] binary data containing the transaction
       # @param offset [Integer] byte offset to start reading from
-      # @return [Array(Tx, Integer)] the transaction and bytes consumed
+      # @return [Array(Transaction::Tx, Integer)] the transaction and bytes consumed
       def self.from_binary_with_offset(data, offset = 0)
         if data.bytesize < offset + 10
           raise ArgumentError, "truncated transaction: need at least 10 bytes at offset #{offset}, got #{data.bytesize - offset}"
@@ -370,7 +370,7 @@ module BSV
       # +wire_source_transactions+ pass in +Beef.from_binary+.
       #
       # @param data [String] raw BEEF binary
-      # @return [Tx, nil] the subject transaction with ancestry wired,
+      # @return [Transaction::Tx, nil] the subject transaction with ancestry wired,
       #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef(data)
         beef = Beef.from_binary(data)
@@ -384,7 +384,7 @@ module BSV
       # Parse a BEEF hex string and return the subject transaction.
       #
       # @param hex [String] hex-encoded BEEF
-      # @return [Tx, nil] the subject transaction with ancestry wired,
+      # @return [Transaction::Tx, nil] the subject transaction with ancestry wired,
       #   or nil if the BEEF is empty or contains no raw transaction entries
       def self.from_beef_hex(hex)
         from_beef(BSV::Primitives::Hex.decode(hex, name: 'BEEF hex'))
@@ -622,7 +622,7 @@ module BSV
       # - +:script_failure+ — Ruby raises; TS/Python return +false+; Go also propagates errors
       # - +:missing_source+ — Ruby raises; consistent with TS/Go/Python (all raise/error)
       #
-      # @param chain_tracker [ChainTracker] chain tracker for merkle root validation
+      # @param chain_tracker [Transaction::ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
       # @return [true] on successful verification
       # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
@@ -806,7 +806,7 @@ module BSV
       # is required. Otherwise, requires a wired +source_transaction+ and a
       # valid output at +prev_tx_out_index+.
       #
-      # @param input [TransactionInput]
+      # @param input [Transaction::TransactionInput]
       # @param idx [Integer] input index, used in error messages
       # @return [TransactionOutput, nil]
       def ef_source_output(input, idx)
