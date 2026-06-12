@@ -66,7 +66,7 @@ module BSV
 
         # Compute the fee for a transaction using the latest ARC rate.
         #
-        # @param transaction [Tx] the transaction to compute the fee for
+        # @param transaction [Transaction::Tx] the transaction to compute the fee for
         # @return [Integer] the fee in satoshis
         def compute_fee(transaction)
           rate = current_rate

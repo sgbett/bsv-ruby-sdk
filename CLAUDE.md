@@ -86,6 +86,38 @@ Transaction IDs use an explicit naming convention to prevent byte-order bugs:
 
 Any method that accepts a txid parameter must validate the format using `BSV::Primitives::Hex.validate_wtxid!` or `BSV::Primitives::Hex.validate_dtxid_hex!`. This catches byte-order mismatches at call time rather than producing silent corruption. See `docs/guides/wtxid-dtxid.md` for the full rationale.
 
+### Transaction Class Convention: `Transaction::Tx` in prose
+
+A transaction is an abstract entity with several representations: bytes on the wire, a BEEF bundle, a Ruby `Transaction::Tx` instance. The English word and the Ruby class are not interchangeable.
+
+In prose, comments, YARD tags, and spec descriptions:
+
+- **`Transaction::Tx`** names the Ruby class or its instances. Use this whenever the meaning is "the class instance specifically". The `BSV::` prefix is redundant for the audience — gem consumers read `Namespace::Class` instinctively.
+- **`transaction`** (lowercase) is the English noun for the abstract entity. Use this when the representation doesn't matter, or when several representations are in play.
+- **`Tx`** bare is for Ruby code where the `BSV::Transaction` namespace is already in lexical scope (inside a `module BSV::Transaction` block, a sibling file in that namespace, or after `include BSV::Transaction`). It does not resolve in unrelated namespaces — use `BSV::Transaction::Tx` there. Outside Ruby code, bare `Tx` reads as an alien identifier.
+
+The same shape extends to peer classes (`Transaction::Beef`, `Transaction::TransactionInput`, `Transaction::TransactionOutput`, `Transaction::ChainTracker`, etc.).
+
+#### Examples
+
+| Reads | Means |
+|-------|-------|
+| "the cached `Transaction::Tx`" | Ruby instance, fully hydrated |
+| "`Transaction::Tx#verify` walks via `input.source_transaction`" | Class method reference |
+| "the transaction is rejected at broadcast time" | The abstract entity at any stage |
+| "atomic BEEF carries the transaction graph" | Abstract entity, multi-representation |
+
+#### Runnable code blocks keep `BSV::`
+
+This convention applies to prose. **Runnable Ruby code blocks in `docs/` keep the fully-qualified `BSV::Foo::Bar` form** because they have to compile when copy-pasted. The orthogonal rule:
+
+- **Where text is parsed by humans** (prose, comments, YARD tags, headings) — drop `BSV::`.
+- **Where text is parsed by Ruby** (code blocks meant to be run, method bodies) — keep `BSV::`.
+
+#### Source
+
+Mirrored from the `bsv-wallet` gem's `CLAUDE.md`, where the convention was settled in PR sgbett/bsv-wallet#304 during the SDK 0.24.0 rename migration. HLR sgbett/bsv-ruby-sdk#825 extends it here to keep the two gems aligned.
+
 ## Cryptography
 
 Elliptic curve operations (secp256k1) are provided by the [`secp256k1-native`](https://github.com/sgbett/secp256k1-native) gem — a pure Ruby implementation ported from the TypeScript reference SDK, with an optional native C extension that accelerates field, scalar, and Jacobian point operations (~22× speedup). The `bsv-sdk` exposes these as `BSV::Primitives::Secp256k1` and `BSV::Primitives::Secp256k1Native`. An OpenSSL compatibility shim (`openssl_ec_shim.rb`) replaces `OpenSSL::PKey::EC` classes so consumer code continues to use the same API. See the [secp256k1-native documentation](https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md) for implementation details.

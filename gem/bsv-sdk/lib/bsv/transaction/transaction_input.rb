@@ -26,7 +26,7 @@ module BSV
       # @return [Script::Script, nil] locking script of the source output (needed for sighash)
       attr_accessor :source_locking_script
 
-      # @return [Tx, nil] the full source transaction (for BEEF wiring)
+      # @return [Transaction::Tx, nil] the full source transaction (for BEEF wiring)
       attr_accessor :source_transaction
 
       # @return [UnlockingScriptTemplate, nil] template for deferred signing
