@@ -19,9 +19,13 @@ dynamically (no single pinned commit during development).
 To see what changed in a reference SDK since this baseline:
 
 ```bash
-git -C /opt/ruby/bsv-reference-sdks/go-sdk log --oneline 725db51..HEAD
-git -C /opt/ruby/bsv-reference-sdks/ts-sdk log --oneline 8acc706..HEAD
-git -C /opt/ruby/bsv-reference-sdks/py-sdk log --oneline f505ea5..HEAD
+git -C /opt/go/go-sdk log --oneline 725db51..HEAD
+git -C /opt/js/ts-stack log --oneline 8acc706..HEAD       # ts-sdk now lives in packages/sdk
+git -C /opt/python/py-sdk log --oneline f505ea5..HEAD
 ```
+
+Note: the 8acc706 baseline commit predates the ts-stack monorepo move
+(May 2026). After the next baseline update the ts-stack SHA will be the
+new anchor — the path will already be correct.
 
 Update this file when cutting a new Ruby SDK release, recording the new baseline commits.
