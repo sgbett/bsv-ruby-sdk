@@ -105,6 +105,6 @@ wallet picks up for writes.
   [26](https://hub.bsvblockchain.org/brc/overlays/0026),
   [87](https://hub.bsvblockchain.org/brc/overlays/0087),
   [88](https://hub.bsvblockchain.org/brc/overlays/0088)
-- Reference SDKs: [TypeScript](https://github.com/bitcoin-sv/ts-sdk),
-  [Go](https://github.com/bitcoin-sv/go-sdk),
-  [Python](https://github.com/bitcoin-sv/py-sdk)
+- Reference SDKs: [TypeScript (ts-stack monorepo)](https://github.com/bsv-blockchain/ts-stack) — SDK at `packages/sdk/`, overlay packages at `packages/overlays/`,
+  [Go](https://github.com/bsv-blockchain/go-sdk),
+  [Python](https://github.com/bsv-blockchain/py-sdk)
