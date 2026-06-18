@@ -1505,4 +1505,184 @@ RSpec.describe BSV::Transaction::Beef do
       expect(tx2.wtxid).to eq(tx1.wtxid)
     end
   end
+
+  # --- New supporting methods (T3 / #831) ---
+
+  describe '#merge_txid_only' do
+    let(:beef) { described_class.new(version: described_class::BEEF_V2) }
+    let(:wtxid) { "\xAB".b * 32 }
+
+    it 'adds a TxidOnlyEntry when no entry exists' do
+      beef.merge_txid_only(wtxid)
+      expect(beef.transactions.length).to eq(1)
+      expect(beef.transactions.first).to be_a(described_class::TxidOnlyEntry)
+      expect(beef.transactions.first.wtxid).to eq(wtxid)
+    end
+
+    it 'is idempotent — calling twice does not add a duplicate' do
+      beef.merge_txid_only(wtxid)
+      beef.merge_txid_only(wtxid)
+      expect(beef.transactions.length).to eq(1)
+    end
+
+    it 'does not overwrite a stronger existing entry' do
+      base = described_class.from_hex(brc62_hex)
+      proven_wtxid = base.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }.wtxid
+      base.merge_txid_only(proven_wtxid)
+      # Entry should still be ProvenTxEntry, not replaced by TxidOnlyEntry
+      entry = base.transactions.find { |bt| bt.wtxid == proven_wtxid }
+      expect(entry).to be_a(described_class::ProvenTxEntry)
+    end
+
+    it 'returns the existing entry when one is already present' do
+      beef.merge_txid_only(wtxid)
+      existing = beef.transactions.first
+      returned = beef.merge_txid_only(wtxid)
+      expect(returned).to be(existing)
+    end
+
+    it 'raises ArgumentError for a malformed wtxid' do
+      expect { beef.merge_txid_only('not32bytes') }.to raise_error(ArgumentError)
+    end
+  end
+
+  describe '#clone' do
+    let(:base) { described_class.from_hex(brc62_hex) }
+    let(:cloned) { base.clone }
+
+    it 'returns a new Beef instance' do
+      expect(cloned).not_to be(base)
+      expect(cloned).to be_a(described_class)
+    end
+
+    it 'duplicates the bumps array (new array, same references — shallow)' do
+      expect(cloned.bumps).not_to be(base.bumps)
+      expect(cloned.bumps.first).to be(base.bumps.first)
+    end
+
+    it 'duplicates the transactions array (new array, same entry references — shallow)' do
+      expect(cloned.transactions).not_to be(base.transactions)
+      expect(cloned.transactions.first).to be(base.transactions.first)
+    end
+
+    it 'preserves version' do
+      expect(cloned.version).to eq(base.version)
+    end
+
+    it 'preserves @subject_wtxid for Atomic BEEF' do
+      subject_wtxid = "\xFF".b * 32
+      base.instance_variable_set(:@subject_wtxid, subject_wtxid)
+      expect(base.clone.instance_variable_get(:@subject_wtxid)).to eq(subject_wtxid)
+    end
+
+    it 'preserves @txs_not_valid when set' do
+      dummy = described_class::TxidOnlyEntry.new(known_wtxid: "\x01".b * 32)
+      base.instance_variable_set(:@txs_not_valid, [dummy])
+      expect(base.clone.instance_variable_get(:@txs_not_valid)).to eq([dummy])
+    end
+
+    it 'does not mutate self when the clone is modified' do
+      cloned.transactions << described_class::TxidOnlyEntry.new(known_wtxid: "\xCC".b * 32)
+      expect(base.transactions.length).to eq(2)
+      expect(cloned.transactions.length).to eq(3)
+    end
+  end
+
+  describe '#trim_known_wtxids' do
+    let(:base) { described_class.from_hex(brc62_hex) }
+    let(:proven_entry) { base.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) } }
+    let(:proven_wtxid) { proven_entry.wtxid }
+
+    it 'returns a new Beef (does not mutate self)' do
+      txid_only_wtxid = "\xDE".b * 32
+      base.transactions << described_class::TxidOnlyEntry.new(known_wtxid: txid_only_wtxid)
+      result = base.trim_known_wtxids([txid_only_wtxid])
+      expect(result).not_to be(base)
+      expect(base.transactions.length).to eq(3)
+    end
+
+    it 'drops TxidOnlyEntry records whose wtxid is in the known set' do
+      txid_only_wtxid = "\xDE".b * 32
+      base.transactions << described_class::TxidOnlyEntry.new(known_wtxid: txid_only_wtxid)
+      result = base.trim_known_wtxids([txid_only_wtxid])
+      expect(result.transactions.none? { |bt| bt.wtxid == txid_only_wtxid }).to be(true)
+    end
+
+    it 'retains ProvenTxEntry even when its wtxid is in the known set' do
+      result = base.trim_known_wtxids([proven_wtxid])
+      expect(result.transactions.any? { |bt| bt.wtxid == proven_wtxid }).to be(true)
+      expect(result.transactions.find { |bt| bt.wtxid == proven_wtxid }).to be_a(described_class::ProvenTxEntry)
+    end
+
+    it 'retains RawTxEntry even when its wtxid is in the known set' do
+      raw_entry = base.transactions.find { |bt| bt.is_a?(described_class::RawTxEntry) }
+      result = base.trim_known_wtxids([raw_entry.wtxid])
+      expect(result.transactions.any? { |bt| bt.wtxid == raw_entry.wtxid }).to be(true)
+    end
+
+    it 'removes unreferenced bumps after dropping TXID-only entries' do
+      # Build a BEEF with a TXID-only entry whose only consumer would be a BUMP reference,
+      # but the TXID-only entry doesn't reference a BUMP itself — bump stays if ProvenTxEntry
+      # still references it; bump goes if no proven entries remain.
+      beef2 = described_class.new(version: described_class::BEEF_V2)
+      beef2.bumps << base.bumps.first
+      txid_only_wtxid = "\xDE".b * 32
+      beef2.transactions << described_class::TxidOnlyEntry.new(known_wtxid: txid_only_wtxid)
+      result = beef2.trim_known_wtxids([txid_only_wtxid])
+      expect(result.bumps.length).to eq(0)
+    end
+
+    it 'reindexes bump_index after removing unreferenced bumps' do
+      # Build a BEEF with two BUMPs: one used by proven_entry, one extra (orphaned after trim)
+      beef2 = described_class.from_hex(brc62_hex)
+      # Add an extra BUMP (duplicate the first for simplicity)
+      extra_bump = beef2.bumps.first
+      beef2.bumps.unshift(extra_bump)
+      # Update proven entry to use the new index (1, was 0 before unshift)
+      old_entry = beef2.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }
+      idx = beef2.transactions.index(old_entry)
+      beef2.transactions[idx] = described_class::ProvenTxEntry.new(
+        transaction: old_entry.transaction,
+        bump_index: 1
+      )
+      # Add a TXID-only entry that has no BUMP
+      txid_only_wtxid = "\xDE".b * 32
+      beef2.transactions << described_class::TxidOnlyEntry.new(known_wtxid: txid_only_wtxid)
+      # Drop the TXID-only; the extra_bump (index 0) becomes orphaned; proven entry moves to index 0
+      result = beef2.trim_known_wtxids([txid_only_wtxid])
+      expect(result.bumps.length).to eq(1)
+      proven = result.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }
+      expect(proven.bump_index).to eq(0)
+    end
+
+    it 'is a no-op when the known set has wtxids not present in the bundle' do
+      phantom_wtxid = "\xFF".b * 32
+      result = base.trim_known_wtxids([phantom_wtxid])
+      expect(result.transactions.length).to eq(base.transactions.length)
+    end
+  end
+
+  describe '#valid_wtxids' do
+    let(:base) { described_class.from_hex(brc62_hex) }
+
+    it 'includes the proven transaction' do
+      proven_wtxid = base.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }.wtxid
+      expect(base.valid_wtxids).to include(proven_wtxid)
+    end
+
+    it 'includes the spending transaction (inputs chain to proven)' do
+      raw_wtxid = base.transactions.find { |bt| bt.is_a?(described_class::RawTxEntry) }.wtxid
+      expect(base.valid_wtxids).to include(raw_wtxid)
+    end
+
+    it 'excludes TxidOnlyEntry records' do
+      txid_only_wtxid = "\xDE".b * 32
+      base.transactions << described_class::TxidOnlyEntry.new(known_wtxid: txid_only_wtxid)
+      expect(base.valid_wtxids).not_to include(txid_only_wtxid)
+    end
+
+    it 'returns an empty array for an empty BEEF' do
+      expect(described_class.new.valid_wtxids).to eq([])
+    end
+  end
 end
