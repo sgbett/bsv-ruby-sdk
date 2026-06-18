@@ -240,6 +240,20 @@ atomic = beef.to_atomic_binary(subject_txid)
 
 `Transaction::BeefParty` extends `Transaction::Beef` to track per-party knowledge: each named counterparty is associated with the set of wtxids it is already known to hold. This avoids re-transmitting transaction data and merkle proofs that the recipient already possesses, keeping BEEF bundles compact in multi-step exchange flows.
 
+### Why it exists
+
+A complete `Transaction::Beef` carries every transaction it depends on, either with a merkle path proof or with all of its input transactions inlined. That's the invariant readers rely on for SPV verification without consulting a block explorer.
+
+The cost shows up in a typical wallet-chained-creation loop:
+
+1. Query a wallet storage provider for spendable outputs.
+2. The provider returns a Beef validating those outputs.
+3. Construct a new transaction using some of those outputs as inputs, sending a Beef that validates the inputs.
+4. The provider returns the new raw transaction and a Beef validating the change outputs you'll later spend.
+5. Return to step 1, building on old and new spendable outputs.
+
+As soon as transaction creation out-paces the block mining rate, the same proof tree is sent back and forth across multiple rounds — most of the bundle is data the counterparty already has. `BeefParty` is the bookkeeping layer that lets each side track what the other has already seen and trim re-sends down to only the new material.
+
 ### Worked example
 
 ```ruby
