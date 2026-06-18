@@ -130,6 +130,39 @@ plaintext = BSV::Primitives::ECIES.decrypt(ciphertext, recipient)
 
 The ciphertext format is: `BIE1` magic (4 bytes) + ephemeral public key (33 bytes) + AES-256-CBC encrypted data + HMAC-SHA256 (32 bytes).
 
+### Bitcore variant
+
+Use `Primitives::ECIES.bitcore_encrypt` / `bitcore_decrypt` when interoperating with legacy BSV tooling built on the Bitcore library (e.g. Paymail implementations, older BSV wallets). The Bitcore variant differs from the Electrum/BIE1 format in three ways: there is no `BIE1` magic prefix; it uses AES-256-CBC (not AES-128); and the ECDH shared secret is derived from the raw X-coordinate of the shared point rather than the compressed public key. The wire format is `ephemeral_pub(33) + IV(16) + ciphertext + HMAC(32)`.
+
+```ruby
+recipient = BSV::Primitives::PrivateKey.generate
+sender    = BSV::Primitives::PrivateKey.generate
+
+# Encrypt
+ciphertext = BSV::Primitives::ECIES.bitcore_encrypt(
+  'secret data',
+  recipient.public_key,
+  private_key: sender   # omit for a random ephemeral key
+)
+
+# Decrypt
+plaintext = BSV::Primitives::ECIES.bitcore_decrypt(ciphertext, recipient)
+```
+
+The `iv:` keyword argument accepts a 16-byte binary string to override the randomly-generated IV. **Supply a fixed IV only when producing deterministic test vectors — using a fixed IV in production breaks confidentiality.**
+
+```ruby
+fixed_iv = "\x00" * 16
+ciphertext = BSV::Primitives::ECIES.bitcore_encrypt(
+  plaintext,
+  recipient.public_key,
+  private_key: sender,
+  iv: fixed_iv
+)
+```
+
+See `spec/bsv/primitives/ecies_bitcore_conformance_spec.rb` for cross-SDK conformance vectors against the TS SDK.
+
 ## Hashing
 
 The `Digest` module provides all hash functions used in Bitcoin:

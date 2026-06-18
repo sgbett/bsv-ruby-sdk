@@ -173,6 +173,44 @@ chunks.each do |chunk|
 end
 ```
 
+## BIP-276 Text Encoding
+
+`Script::BIP276` implements the [BIP-276](https://github.com/moneybutton/bips/blob/master/bip-0276.mediawiki) text-sharing format, which provides a compact, checksummed way to pass raw scripts and script templates between BSV tools as human-readable strings.
+
+The encoded form is `<prefix>:<version-byte><network-byte><hex-payload><checksum>`, where the checksum is the first four bytes of double-SHA-256 over the full preimage.
+
+```ruby
+# Encode a script's binary form
+encoded = BSV::Script::BIP276.encode(
+  script.to_binary,
+  prefix:  BSV::Script::BIP276::PREFIX_SCRIPT,   # 'bitcoin-script'
+  network: BSV::Script::BIP276::NETWORK_MAINNET, # 1
+  version: BSV::Script::BIP276::CURRENT_VERSION  # 1
+)
+#=> "bitcoin-script:010176a914...6f0cd86a"
+
+# Decode — returns an immutable Result with :prefix, :version, :network, :data
+result = BSV::Script::BIP276.decode(encoded)
+result.prefix   #=> "bitcoin-script"
+result.version  #=> 1
+result.network  #=> 1
+result.data     #=> binary script bytes
+```
+
+Convenience helpers lock the prefix:
+
+```ruby
+# Script round-trip
+encoded = BSV::Script::BIP276.encode_script(binary_script)
+result  = BSV::Script::BIP276.decode_script(encoded)
+
+# Template round-trip
+encoded = BSV::Script::BIP276.encode_template(binary_template)
+result  = BSV::Script::BIP276.decode_template(encoded)
+```
+
+**Field order note:** the two header bytes are `<version><network>` — version first, then network. This matches the BIP-276 specification and the Go SDK reference implementation. The Python SDK has these two fields reversed, a known bug that is invisible when both values are `0x01` (the default) but produces incorrect output for testnet or non-default versions. See `spec/bsv/script/bip276_spec.rb` for Go SDK cross-SDK conformance vectors that prove the correct byte order.
+
 ## Script Interpreter
 
 Verify that an unlocking script satisfies a locking script:
