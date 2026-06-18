@@ -800,8 +800,7 @@ module BSV
 
               input.source_transaction = source
               BSV.logger&.debug do
-                "[Beef] wired input #{input.prev_wtxid.reverse.unpack1('H*')}:#{input.prev_tx_out_index} " \
-                  "-> source #{source.wtxid.reverse.unpack1('H*')}"
+                "[Beef] wired input #{input.dtxid_hex}:#{input.prev_tx_out_index} -> source #{source.dtxid}"
               end
             end
 
