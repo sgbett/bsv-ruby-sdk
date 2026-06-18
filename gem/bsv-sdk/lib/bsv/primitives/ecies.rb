@@ -147,14 +147,23 @@ module BSV
       # @param message [String] the plaintext message
       # @param public_key [PublicKey] the recipient's public key
       # @param private_key [PrivateKey, nil] optional ephemeral key (random if omitted)
+      # @param iv [String, nil] optional 16-byte ASCII-8BIT IV. When omitted a random IV is
+      #   generated via +SecureRandom+. Supply a fixed value only for deterministic test
+      #   vectors — **never use a fixed IV in production**.
       # @return [String] encrypted payload
-      def bitcore_encrypt(message, public_key, private_key: nil)
+      # @raise [ArgumentError] if +iv+ is supplied but is not exactly 16 bytes
+      def bitcore_encrypt(message, public_key, private_key: nil, iv: nil)
         message = message.b if message.encoding != Encoding::ASCII_8BIT
+
+        if iv
+          iv = iv.b if iv.encoding != Encoding::ASCII_8BIT
+          raise ArgumentError, 'iv must be exactly 16 bytes' unless iv.bytesize == 16
+        else
+          iv = SecureRandom.random_bytes(16)
+        end
 
         ephemeral = private_key || PrivateKey.generate
         key_e, key_m = derive_bitcore_keys(ephemeral, public_key)
-
-        iv = SecureRandom.random_bytes(16)
 
         cipher = OpenSSL::Cipher.new('aes-256-cbc')
         cipher.encrypt

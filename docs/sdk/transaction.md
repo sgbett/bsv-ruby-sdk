@@ -236,6 +236,48 @@ binary = beef.to_binary
 atomic = beef.to_atomic_binary(subject_txid)
 ```
 
+## BeefParty: Multi-Party Exchange
+
+`Transaction::BeefParty` extends `Transaction::Beef` to track per-party knowledge: each named counterparty is associated with the set of wtxids it is already known to hold. This avoids re-transmitting transaction data and merkle proofs that the recipient already possesses, keeping BEEF bundles compact in multi-step exchange flows.
+
+### Worked example
+
+```ruby
+require 'bsv-sdk'
+
+# Party A starts with a BEEF received from elsewhere
+party = BSV::Transaction::BeefParty.new(%w[alice bob])
+party.merge_beef_from_party('alice', alice_beef_binary)
+
+# Tell the bundle that bob already holds a specific transaction
+bob_known_wtxid = BSV::Transaction::TransactionInput.wtxid_from_hex(
+  'abcd1234...'  # display-order txid that bob definitely has
+)
+party.add_known_wtxids_for_party('bob', [bob_known_wtxid])
+
+# Produce a trimmed Beef for bob — TXID-only entries bob already knows are removed
+beef_for_bob = party.trimmed_beef_for_party('bob')
+
+# Bob can verify the trimmed bundle
+bob_party = BSV::Transaction::BeefParty.new(['bob'])
+bob_party.merge_beef_from_party('bob', beef_for_bob)
+```
+
+`trimmed_beef_for_party` returns a plain `Transaction::Beef` (not a `Transaction::BeefParty`) and does not mutate the original bundle. RAW_TX and RAW_TX_AND_BUMP entries are always retained even when the party knows the txid — only TXID-only entries are candidates for removal.
+
+### New methods on `Transaction::Beef`
+
+Four public methods were added to support `Transaction::BeefParty`:
+
+| Method | Purpose |
+|--------|---------|
+| `merge_txid_only(wtxid)` | Add a TXID-only entry if no entry for that wtxid exists yet; no-ops on stronger existing entries. |
+| `clone` | Return a shallow copy with independent `@bumps` and `@transactions` arrays. |
+| `trim_known_wtxids(known_wtxids)` | Return a new `Transaction::Beef` with TXID-only entries removed for the supplied set of wtxids; renumbers bump indices. |
+| `valid_wtxids` | Return the wtxids of all transactions in the bundle that are proven or chain back to proven transactions. |
+
+See `spec/bsv/transaction/beef_party_spec.rb` for a full worked example including cross-SDK conformance vectors against the TS SDK.
+
 ## Merkle Paths (BRC-74)
 
 Merkle paths (BUMPs) prove transaction inclusion in a block.

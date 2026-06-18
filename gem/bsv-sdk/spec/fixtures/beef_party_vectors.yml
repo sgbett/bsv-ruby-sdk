@@ -1,0 +1,30 @@
+# Cross-SDK conformance vectors for BSV::Transaction::BeefParty
+# Generated from TS reference SDK (BeefParty.ts / Beef.ts) against the
+# BRC-62 Go SDK test vector.
+#
+# Scenario: A BeefParty with alice and bob.
+# - proven_tx: the mined transaction (BUMP proof exists); represented as TXID-only.
+# - spend_tx:  the spending transaction (no proof), provided as RAW_TX.
+# - alice knows the proven_tx already (TXID-only entry in the bundle).
+# - bob knows nothing.
+# - trimmed_for_alice_hex: proven TXID-only entry removed; 0 txs, 0 bumps for alice.
+# - trimmed_for_bob_hex: same as input (no-op trim); 2 txs, 0 bumps for bob.
+#
+# All hex strings are V2 (BRC-96) BEEF.
+# dtxid = display-order hex (as TS SDK uses internally).
+# wtxid  = wire-order binary (little-endian / reversed).
+
+proven_dtxid: "3ecead27a44d013ad1aae40038acbb1883ac9242406808bb4667c15b4f164eac"
+spend_dtxid: "157428aee67d11123203735e4c540fa1bdab3b36d5882c6f8c5ff79f07d20d1c"
+
+# Input BEEF: proven_tx as TXID-only + spend_tx as RAW_TX, no bumps.
+# alice already knows the proven_tx (TXID-only) so it should be trimmed for her.
+input_beef_hex: "0200beef000202ac4e164f5bc16746bb0868404292ac8318bbac3800e4aad13a014da427adce3e000100000001ac4e164f5bc16746bb0868404292ac8318bbac3800e4aad13a014da427adce3e000000006a47304402203a61a2e931612b4bda08d541cfb980885173b8dcf64a3471238ae7abcd368d6402204cbf24f04b9aa2256d8901f0ed97866603d2be8324c2bfb7a37bf8fc90edd5b441210263e2dee22b1ddc5e11f6fab8bcd2378bdd19580d640501ea956ec0e786f93e76ffffffff013c660000000000001976a9146bfd5c7fbe21529d45803dbcf0c87dd3c71efbc288ac00000000"
+
+# Trimmed for alice: TXID-only entry dropped; spend_tx remains as RAW_TX.
+# 1 tx, 0 bumps.
+trimmed_for_alice_hex: "0200beef0001000100000001ac4e164f5bc16746bb0868404292ac8318bbac3800e4aad13a014da427adce3e000000006a47304402203a61a2e931612b4bda08d541cfb980885173b8dcf64a3471238ae7abcd368d6402204cbf24f04b9aa2256d8901f0ed97866603d2be8324c2bfb7a37bf8fc90edd5b441210263e2dee22b1ddc5e11f6fab8bcd2378bdd19580d640501ea956ec0e786f93e76ffffffff013c660000000000001976a9146bfd5c7fbe21529d45803dbcf0c87dd3c71efbc288ac00000000"
+
+# Trimmed for bob: bob knows nothing; no-op trim; same as input.
+# 2 txs, 0 bumps.
+trimmed_for_bob_hex: "0200beef000202ac4e164f5bc16746bb0868404292ac8318bbac3800e4aad13a014da427adce3e000100000001ac4e164f5bc16746bb0868404292ac8318bbac3800e4aad13a014da427adce3e000000006a47304402203a61a2e931612b4bda08d541cfb980885173b8dcf64a3471238ae7abcd368d6402204cbf24f04b9aa2256d8901f0ed97866603d2be8324c2bfb7a37bf8fc90edd5b441210263e2dee22b1ddc5e11f6fab8bcd2378bdd19580d640501ea956ec0e786f93e76ffffffff013c660000000000001976a9146bfd5c7fbe21529d45803dbcf0c87dd3c71efbc288ac00000000"

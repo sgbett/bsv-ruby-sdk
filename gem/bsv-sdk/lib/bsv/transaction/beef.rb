@@ -385,6 +385,161 @@ module BSV
         to_atomic_binary(subject_wtxid).unpack1('H*')
       end
 
+      # --- Supporting methods for multi-party BEEF exchange ---
+
+      # Add a TXID-only entry for +wtxid+ if no entry exists yet.
+      #
+      # If an entry already exists (in any format), the call is a no-op —
+      # TXID-only is the weakest format, so an existing stronger entry is kept.
+      #
+      # @param wtxid [String] 32-byte wire-order binary txid
+      # @return [BeefTx] the existing or newly added entry
+      def merge_txid_only(wtxid)
+        BSV::Primitives::Hex.validate_wtxid!(wtxid, name: 'wtxid')
+        existing = @transactions.find { |bt| bt.wtxid == wtxid }
+        return existing if existing
+
+        entry = TxidOnlyEntry.new(known_wtxid: wtxid)
+        @transactions << entry
+        entry
+      end
+
+      # Return a shallow copy of this Transaction::Beef.
+      #
+      # Both +@bumps+ and +@transactions+ arrays are duplicated (new arrays),
+      # but the +BeefTx+ and +MerklePath+ objects they contain are shared
+      # references. This mirrors the TS SDK's +clone+ contract: entries are
+      # effectively immutable once added to a bundle, so shallow semantics are
+      # correct. If a deeper copy is ever required, add a separate +deep_dup+
+      # rather than changing this method's contract.
+      #
+      # +@subject_wtxid+ (Atomic BEEF) and +@txs_not_valid+ (cyclic-graph
+      # metadata) are preserved on the copy.
+      #
+      # @return [Transaction::Beef] a new shallow copy
+      def clone
+        # Use super (Object#clone) rather than self.class.new so subclasses
+        # (e.g. Transaction::BeefParty) with different initialize signatures
+        # work correctly. Object#clone does a shallow ivar copy without
+        # invoking initialize; we then dup the two arrays so the copy's
+        # contents can mutate independently.
+        c = super
+        c.instance_variable_set(:@bumps, @bumps.dup)
+        c.instance_variable_set(:@transactions, @transactions.dup)
+        c.instance_variable_set(:@txs_not_valid, @txs_not_valid&.dup)
+        c
+      end
+
+      # Return a new Transaction::Beef with TXID-only entries removed for any
+      # wtxid in +known_wtxids+.
+      #
+      # RAW_TX and RAW_TX_AND_BUMP entries are always retained, even when their
+      # wtxid appears in +known_wtxids+. Only +TxidOnlyEntry+ records are
+      # candidates for removal (they carry no proof data the recipient needs).
+      #
+      # After dropping TXID-only entries, any BUMP that is no longer referenced
+      # by any remaining +ProvenTxEntry+ is removed, and all +bump_index+
+      # fields are renumbered to match the new bumps array (mirrors TS
+      # +trimKnownTxids+ at +Beef.ts:861-914+).
+      #
+      # Does not mutate +self+. Starts from a {#clone} so the caller's state
+      # is preserved.
+      #
+      # @param known_wtxids [Array<String>] binary wtxids the recipient already has
+      # @return [Transaction::Beef] a new bundle with the specified entries trimmed
+      def trim_known_wtxids(known_wtxids)
+        known_set = known_wtxids.to_set
+
+        trimmed = clone
+        trimmed.instance_variable_set(
+          :@transactions,
+          trimmed.transactions.reject { |bt| bt.is_a?(TxidOnlyEntry) && known_set.include?(bt.wtxid) }
+        )
+
+        # Find which bump indices are still referenced
+        referenced = Set.new
+        trimmed.transactions.each do |bt|
+          referenced.add(bt.bump_index) if bt.is_a?(ProvenTxEntry)
+        end
+
+        # If all bumps are still referenced, nothing more to do
+        return trimmed if referenced.size == trimmed.bumps.length
+
+        # Build old → new index map for surviving bumps
+        index_map = {}
+        new_idx = 0
+        trimmed.bumps.each_with_index do |_, old_idx|
+          if referenced.include?(old_idx)
+            index_map[old_idx] = new_idx
+            new_idx += 1
+          end
+        end
+
+        # Drop unreferenced bumps
+        trimmed.instance_variable_set(
+          :@bumps,
+          trimmed.bumps.each_with_index.filter_map { |bump, i| bump if referenced.include?(i) }
+        )
+
+        # Renumber bump_index on all ProvenTxEntry records
+        trimmed.instance_variable_set(
+          :@transactions,
+          trimmed.transactions.map do |bt|
+            next bt unless bt.is_a?(ProvenTxEntry)
+
+            new_bump_idx = index_map.fetch(bt.bump_index)
+            ProvenTxEntry.new(transaction: bt.transaction, bump_index: new_bump_idx).tap do |e|
+              e.transaction.merkle_path = trimmed.bumps[new_bump_idx]
+            end
+          end
+        )
+
+        trimmed
+      end
+
+      # Return the wtxids of transactions that are "valid" in this bundle.
+      #
+      # A transaction is valid when it either:
+      # - has a merkle proof (is a +ProvenTxEntry+), or
+      # - all of its inputs chain back to proven transactions within the bundle.
+      #
+      # TXID-only entries are excluded. Cyclic transactions (from
+      # +@txs_not_valid+) are also excluded.
+      #
+      # Used by {Transaction::BeefParty} to record which wtxids a party gains
+      # knowledge of after a {#merge_beef_from_party} call.
+      #
+      # @return [Array<String>] binary wire-order wtxids
+      def valid_wtxids
+        invalid = @txs_not_valid || Set.new
+        known   = Set.new
+
+        # Seed with proven entries (excluding any marked cyclic/unsortable)
+        @transactions.each do |bt|
+          known.add(bt.wtxid) if bt.is_a?(ProvenTxEntry) && !invalid.include?(bt.wtxid)
+        end
+
+        # Iteratively resolve unproven entries whose inputs are all known.
+        # Skip @txs_not_valid entries — by definition they can't be ordered
+        # for validation, so a counterparty receiving them can't validate either.
+        changed = true
+        while changed
+          changed = false
+          @transactions.each do |bt|
+            next if bt.is_a?(TxidOnlyEntry) || known.include?(bt.wtxid)
+            next if invalid.include?(bt.wtxid)
+            next unless bt.respond_to?(:transaction)
+
+            if bt.transaction.inputs.all? { |inp| known.include?(inp.prev_wtxid) }
+              known.add(bt.wtxid)
+              changed = true
+            end
+          end
+        end
+
+        known.to_a
+      end
+
       # --- Merge operations ---
 
       # Add or deduplicate a merkle path (BUMP) in this BEEF bundle.

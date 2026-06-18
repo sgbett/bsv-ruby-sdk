@@ -19,6 +19,7 @@ module BSV
     autoload :ChainTracker,             'bsv/transaction/chain_tracker'
     autoload :ChainTrackers,            'bsv/transaction/chain_trackers'
     autoload :Beef,                     'bsv/transaction/beef'
+    autoload :BeefParty, 'bsv/transaction/beef_party'
     autoload :UnlockingScriptTemplate,  'bsv/transaction/unlocking_script_template'
     autoload :P2PKH,                    'bsv/transaction/p2pkh'
     autoload :Tx,                       'bsv/transaction/tx'

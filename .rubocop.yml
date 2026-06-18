@@ -40,6 +40,7 @@ Naming/MethodParameterName:
   AllowedNames:
     - a
     - b
+    - iv
     - ok
     - r
     - s
