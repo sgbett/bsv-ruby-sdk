@@ -170,6 +170,17 @@ RSpec.describe 'BSV::Script::BIP276' do
       result = mod.decode('bitcoin-script:010166616b65207363726970746F0CD86A')
       expect(result.data).to eq(FAKE_SCRIPT_BYTES)
     end
+
+    it 'accepts uppercase payload from a producer that hashed the uppercase preimage' do
+      # Regression: an earlier implementation rebuilt the preimage from the
+      # parsed data, normalising the hex to lowercase, which broke verification
+      # for spec-conformant producers that emit uppercase. The checksum is
+      # defined over the exact preimage; we now compute it over the input.
+      preimage_upper = "bitcoin-script:0101#{FAKE_SCRIPT_BYTES.unpack1('H*').upcase}"
+      checksum_hex   = BSV::Primitives::Digest.sha256d(preimage_upper)[0, 4].unpack1('H*')
+      result = mod.decode(preimage_upper + checksum_hex)
+      expect(result.data).to eq(FAKE_SCRIPT_BYTES)
+    end
   end
 
   describe 'convenience helpers' do

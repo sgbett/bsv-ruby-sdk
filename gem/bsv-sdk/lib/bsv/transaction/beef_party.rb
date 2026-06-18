@@ -79,8 +79,14 @@ module BSV
       #   instance or raw binary BEEF bytes
       def merge_beef_from_party(party_id, beef_or_binary)
         beef = beef_or_binary.is_a?(Beef) ? beef_or_binary : Beef.from_binary(beef_or_binary)
-        known = beef.valid_wtxids
+        # Capture the set of wtxids the party actually sent before merging.
+        beef_wtxids = beef.transactions.map(&:wtxid)
         merge(beef)
+        # Record knowledge of any tx the party sent that is now provably valid
+        # against the merged state. This captures the cross-bundle case where
+        # an unproven tx in +beef+ becomes valid via inputs already proven in
+        # +self+ (and conversely doesn't record knowledge the party never sent).
+        known = valid_wtxids & beef_wtxids
         add_known_wtxids_for_party(party_id, known)
       end
 

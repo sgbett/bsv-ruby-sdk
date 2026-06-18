@@ -1586,6 +1586,15 @@ RSpec.describe BSV::Transaction::Beef do
       expect(base.transactions.length).to eq(2)
       expect(cloned.transactions.length).to eq(3)
     end
+
+    it 'preserves the subclass when called on a Transaction::BeefParty' do
+      # Regression: an earlier implementation used self.class.new(version:, ...)
+      # which broke for subclasses with different initialize signatures.
+      bp = BSV::Transaction::BeefParty.new(%w[alice])
+      cloned_bp = bp.clone
+      expect(cloned_bp).to be_a(BSV::Transaction::BeefParty)
+      expect(cloned_bp).not_to be(bp)
+    end
   end
 
   describe '#trim_known_wtxids' do
@@ -1683,6 +1692,14 @@ RSpec.describe BSV::Transaction::Beef do
 
     it 'returns an empty array for an empty BEEF' do
       expect(described_class.new.valid_wtxids).to eq([])
+    end
+
+    it 'excludes wtxids marked unsortable in @txs_not_valid' do
+      # Regression: an earlier implementation forgot to consult @txs_not_valid,
+      # so cyclic/unsortable proven entries leaked through as valid.
+      proven_entry = base.transactions.find { |bt| bt.is_a?(described_class::ProvenTxEntry) }
+      base.instance_variable_set(:@txs_not_valid, Set.new([proven_entry.wtxid]))
+      expect(base.valid_wtxids).not_to include(proven_entry.wtxid)
     end
   end
 end

@@ -418,8 +418,14 @@ module BSV
       #
       # @return [Transaction::Beef] a new shallow copy
       def clone
-        c = self.class.new(version: @version, bumps: @bumps.dup, transactions: @transactions.dup)
-        c.instance_variable_set(:@subject_wtxid, @subject_wtxid)
+        # Use super (Object#clone) rather than self.class.new so subclasses
+        # (e.g. Transaction::BeefParty) with different initialize signatures
+        # work correctly. Object#clone does a shallow ivar copy without
+        # invoking initialize; we then dup the two arrays so the copy's
+        # contents can mutate independently.
+        c = super
+        c.instance_variable_set(:@bumps, @bumps.dup)
+        c.instance_variable_set(:@transactions, @transactions.dup)
         c.instance_variable_set(:@txs_not_valid, @txs_not_valid&.dup)
         c
       end
@@ -505,19 +511,23 @@ module BSV
       #
       # @return [Array<String>] binary wire-order wtxids
       def valid_wtxids
-        known = Set.new
+        invalid = @txs_not_valid || Set.new
+        known   = Set.new
 
-        # Seed with proven entries
+        # Seed with proven entries (excluding any marked cyclic/unsortable)
         @transactions.each do |bt|
-          known.add(bt.wtxid) if bt.is_a?(ProvenTxEntry)
+          known.add(bt.wtxid) if bt.is_a?(ProvenTxEntry) && !invalid.include?(bt.wtxid)
         end
 
-        # Iteratively resolve unproven entries whose inputs are all known
+        # Iteratively resolve unproven entries whose inputs are all known.
+        # Skip @txs_not_valid entries — by definition they can't be ordered
+        # for validation, so a counterparty receiving them can't validate either.
         changed = true
         while changed
           changed = false
           @transactions.each do |bt|
             next if bt.is_a?(TxidOnlyEntry) || known.include?(bt.wtxid)
+            next if invalid.include?(bt.wtxid)
             next unless bt.respond_to?(:transaction)
 
             if bt.transaction.inputs.all? { |inp| known.include?(inp.prev_wtxid) }

@@ -71,8 +71,12 @@ module BSV
 
         data = [match[4]].pack('H*')
 
-        preimage        = build_preimage(prefix, version, network, data)
-        expected        = checksum(preimage)
+        # Compute the checksum over the EXACT input bytes (everything except
+        # the trailing 8-hex-digit checksum) rather than rebuilding the
+        # preimage from parsed fields. Rebuilding via build_preimage would
+        # lowercase the payload hex, causing valid mixed-case input to fail.
+        preimage = str[0..-9]
+        expected = checksum(preimage)
         raise InvalidChecksum, 'checksum mismatch' unless match[5].downcase == expected
 
         Result.new(prefix: prefix, version: version, network: network, data: data)
