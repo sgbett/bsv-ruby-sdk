@@ -18,5 +18,6 @@ module BSV
     autoload :Stack,             'bsv/script/interpreter/stack'
 
     autoload :PushDropTemplate, 'bsv/script/push_drop_template'
+    autoload :BIP276,           'bsv/script/bip276'
   end
 end
