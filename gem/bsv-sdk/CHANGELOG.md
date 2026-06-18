@@ -5,6 +5,34 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.25.0 — 2026-06-18
+
+### Added
+- `BSV::Storage::Utils` — UHRP URL helpers (`normalise_url`, `url_for_hash`,
+  `url_for_file`, `hash_from_url`, `valid_url?`) (#817).
+- `BSV::Overlay::Historian` — generic output-history walker over `LookupResolver`,
+  enabling protocol-specific replay of an outpoint's lineage (#818).
+- `BSV::Registry` — typed `resolve_basket`, `resolve_protocol`, and
+  `resolve_certificate` methods on the registry client (#819).
+- `BSV::KVStore::Interpreter` — `Historian`-compatible interpreter for KV
+  protocol outputs (#820).
+- `BSV::Storage::Downloader` — UHRP resolver and content fetcher with
+  hash verification (#821).
+- `BSV::KVStore::Global` — overlay-backed read-only key-value reader (#822).
+- `BSV::Script::BIP276` — text encoding for scripts and templates (`encode`,
+  `decode`) (#830).
+- `BSV::Transaction::BeefParty` — `Beef` subclass tracking per-party knowledge
+  of transactions for multi-party BEEF exchange, plus supporting methods on
+  `Beef` (#831).
+
+### Changed
+- `Beef` wire-inputs debug log now uses the existing `TransactionInput#dtxid_hex`
+  and `Tx#dtxid` accessors instead of inlined byte-order conversions (#828).
+
+### Fixed
+- ECIES bitcore variant — added `iv:` kwarg and TypeScript SDK conformance
+  vector (#829).
+
 ## 0.24.0 — 2026-06-11
 
 ### Breaking Changes
