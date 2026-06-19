@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 # Cross-validation of transaction serialisation against TS SDK test vectors.
-# Source: bsv-blockchain/ts-sdk src/transaction/__tests/tx.valid.vectors.ts
+# Source: bsv-blockchain/ts-stack packages/sdk/src/transaction/__tests/tx.valid.vectors.ts
 #
 # Each vector: [[[prevout_hash, prevout_index, scriptPubKey], ...], serialised_tx_hex, flags]
 # We test round-trip: from_hex(hex).to_hex == hex

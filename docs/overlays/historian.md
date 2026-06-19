@@ -124,7 +124,7 @@ instead.
 
 ## References
 
-- TypeScript: [`Historian.ts`](https://github.com/bitcoin-sv/ts-sdk/blob/master/src/overlay-tools/Historian.ts)
-- Python: [`bsv/overlay_tools/historian.py`](https://github.com/bitcoin-sv/py-sdk/blob/master/bsv/overlay_tools/historian.py)
+- TypeScript: [`Historian.ts`](https://github.com/bsv-blockchain/ts-stack/blob/main/packages/sdk/src/overlay-tools/Historian.ts)
+- Python: [`bsv/overlay_tools/historian.py`](https://github.com/bsv-blockchain/py-sdk/blob/master/bsv/overlay_tools/historian.py)
 - [SDK reference: Ecosystem Clients](../sdk/ecosystem-clients.md)
 - [KVStore overlay](kvstore.md) — the most common Historian consumer

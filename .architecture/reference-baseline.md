@@ -11,7 +11,7 @@ dynamically (no single pinned commit during development).
 | SDK | Version | Commit | Description |
 |-----|---------|--------|-------------|
 | [go-sdk](https://github.com/bsv-blockchain/go-sdk) | v1.2.18 | `725db51` | Fix BIP276 decoding, AuthFetch data race, and add NUM2BIN tests (#288) |
-| [ts-sdk](https://github.com/bsv-blockchain/ts-sdk) | v2.0.0 | `8acc706` | Merge pull request #481 — fix/optimizations |
+| [ts-stack](https://github.com/bsv-blockchain/ts-stack) (TS SDK at `packages/sdk/`) | v2.0.0 | `8acc706` | Merge pull request #481 — fix/optimizations (SHA from pre-monorepo ts-sdk, reachable via subtree import) |
 | [py-sdk](https://github.com/bsv-blockchain/py-sdk) | v1.0.10 | `f505ea5` | Added OP_CAT template example and script (#137) |
 
 ### How to use
@@ -19,9 +19,19 @@ dynamically (no single pinned commit during development).
 To see what changed in a reference SDK since this baseline:
 
 ```bash
-git -C /opt/ruby/bsv-reference-sdks/go-sdk log --oneline 725db51..HEAD
-git -C /opt/ruby/bsv-reference-sdks/ts-sdk log --oneline 8acc706..HEAD
-git -C /opt/ruby/bsv-reference-sdks/py-sdk log --oneline f505ea5..HEAD
+git -C /opt/go/go-sdk log --oneline 725db51..HEAD
+git -C /opt/js/ts-stack log --oneline 8acc706..HEAD -- packages/sdk
+git -C /opt/python/py-sdk log --oneline f505ea5..HEAD
 ```
+
+Note: the 8acc706 baseline commit predates the ts-stack monorepo move
+(May 2026). The commit IS reachable from ts-stack because the standalone
+ts-sdk repo was imported via `git subtree` (see ["Updating Imported
+Packages"](https://github.com/bsv-blockchain/ts-stack#updating-imported-packages)
+in the ts-stack README), but the range walks the whole monorepo's
+history. The `-- packages/sdk` path filter scopes the log to the TS
+SDK changes, which is what the comparison wants. After the next
+baseline update the ts-stack SHA will be the new anchor and the path
+filter becomes redundant.
 
 Update this file when cutting a new Ruby SDK release, recording the new baseline commits.

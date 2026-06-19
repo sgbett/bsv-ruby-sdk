@@ -4,9 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ruby SDK for the BSV Blockchain (`bsv-sdk` gem). Part of the official BSV SDK family alongside [go-sdk](https://github.com/bsv-blockchain/go-sdk), [ts-sdk](https://github.com/bsv-blockchain/ts-sdk), and [py-sdk](https://github.com/bsv-blockchain/py-sdk). Use those as reference implementations when building features.
+Ruby SDK for the BSV Blockchain (`bsv-sdk` gem). Part of the official BSV SDK family alongside [go-sdk](https://github.com/bsv-blockchain/go-sdk), [ts-stack](https://github.com/bsv-blockchain/ts-stack) (the TS SDK lives at `packages/sdk/` inside this monorepo), and [py-sdk](https://github.com/bsv-blockchain/py-sdk). Use those as reference implementations when building features.
 
-**Reference SDK clones** are at `/opt/ruby/bsv-reference-sdks/` (`go-sdk/`, `ts-sdk/`, `py-sdk/`). Search these when implementing new features to match behaviour across SDKs. Run `git -C /opt/ruby/bsv-reference-sdks/<sdk> pull` to update before comparing.
+**Reference SDK clones** are kept under language-appropriate locations:
+
+- **TypeScript (now a monorepo)** — `/opt/js/ts-stack/` (the `bsv-blockchain/ts-stack` repo). The SDK lives at `packages/sdk/`; wallet-toolbox at `packages/wallet/wallet-toolbox/`.
+- **Go** — `/opt/go/go-sdk/` and `/opt/go/wallet-toolbox/`.
+- **Python** — `/opt/python/py-sdk/` and `/opt/python/wallet-toolbox/`.
+
+Search these when implementing new features to match behaviour across SDKs. Run `git -C <clone-path> pull` to update before comparing. The previous `/opt/ruby/bsv-reference-sdks/` location is gone — none of these are Ruby, so they don't belong under `/opt/ruby/`.
 
 The [BSV Hub protocol documentation](https://hub.bsvblockchain.org/bitcoin-protocol-documentation) is available via MCP (`.mcp.json`) for verifying protocol conformance during development.
 

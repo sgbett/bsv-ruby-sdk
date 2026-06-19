@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # ---- Shared test data (mirrors go-sdk vector_test.go) ----
-BRC103_TESTDATA_DIR    = '/opt/ruby/bsv-reference-sdks/go-sdk/wallet/substrates/testdata'
+BRC103_TESTDATA_DIR    = '/opt/go/go-sdk/wallet/substrates/testdata'
 BRC103_PUB_KEY_HEX     = '025ad43a22ac38d0bc1f8bacaabb323b5d634703b7a774c4268f6a09e4ddf79097'
 BRC103_COUNTERPARTY_HEX = '0294c479f762f6baa97fbcd4393564c1d7bd8336ebd15928135bbcf575cd1a71a1'
 BRC103_VERIFIER_HEX    = '03b106dae20ae8fca0f4e8983d974c4b583054573eecdcdcfad261c035415ce1ee'
@@ -18,7 +18,9 @@ RSpec.describe 'BRC-103 cross-SDK wire conformance (go-sdk vectors)' do
   # rubocop:enable RSpec/DescribeClass
 
   before(:all) do # rubocop:disable RSpec/BeforeAfterAll
-    skip 'Go SDK reference testdata not present — clone bsv-reference-sdks to run conformance specs' unless File.directory?(BRC103_TESTDATA_DIR)
+    unless File.directory?(BRC103_TESTDATA_DIR)
+      skip 'Go SDK reference testdata not present — clone bsv-blockchain/go-sdk to /opt/go/go-sdk to run conformance specs'
+    end
   end
 
   def go_wire(name)

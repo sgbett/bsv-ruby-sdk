@@ -4,7 +4,7 @@ description: Analyses the current SDK codebase and compares it semantically to t
 
 # SDK Divergence Analysis
 
-Performs a semantic comparison of the current BSV Ruby SDK against the three official reference implementations: [go-sdk](https://github.com/bitcoin-sv/go-sdk), [ts-sdk](https://github.com/bitcoin-sv/ts-sdk), and [py-sdk](https://github.com/bitcoin-sv/py-sdk).
+Performs a semantic comparison of the current BSV Ruby SDK against the three official reference implementations: [go-sdk](https://github.com/bsv-blockchain/go-sdk), [ts-stack](https://github.com/bsv-blockchain/ts-stack) (the TypeScript SDK lives at `packages/sdk/` inside this monorepo), and [py-sdk](https://github.com/bsv-blockchain/py-sdk).
 
 ## Process
 
@@ -22,7 +22,7 @@ Launch an **Explore** subagent to produce a complete semantic inventory of the R
 
 ### 2. Inventory the reference SDKs (3 parallel subagents)
 
-Launch three **general-purpose** subagents in parallel, one per reference SDK. Each should fetch the repository from GitHub and analyse:
+Launch three **general-purpose** subagents in parallel, one per reference SDK. Prefer the local clones (faster, no rate limits); fall back to GitHub if a clone is missing. Each subagent should analyse:
 
 - Module/package/namespace organisation
 - Key classes/types and their public methods
@@ -31,10 +31,15 @@ Launch three **general-purpose** subagents in parallel, one per reference SDK. E
 - Higher-level features (BRC-42/77/78, wallet interface, broadcasters, SPV, overlay tools)
 - Architecture pattern and design decisions
 
-**Reference SDK repositories:**
-- **TypeScript:** https://github.com/bitcoin-sv/ts-sdk (also check https://github.com/bsv-blockchain/ts-sdk)
-- **Go:** https://github.com/bitcoin-sv/go-sdk (also check https://github.com/bsv-blockchain/go-sdk)
-- **Python:** https://github.com/bitcoin-sv/py-sdk (also check https://github.com/bsv-blockchain/py-sdk)
+**Reference SDK locations:**
+
+| SDK | Local clone | GitHub |
+|---|---|---|
+| TypeScript | `/opt/js/ts-stack/` (clone root; TS SDK at `packages/sdk/` inside the ts-stack monorepo) | https://github.com/bsv-blockchain/ts-stack |
+| Go | `/opt/go/go-sdk/` | https://github.com/bsv-blockchain/go-sdk |
+| Python | `/opt/python/py-sdk/` | https://github.com/bsv-blockchain/py-sdk |
+
+Run `git -C <clone-path> pull` to update a local clone before analysis (use the clone root, not a package subdirectory).
 
 ### 3. Produce the comparison
 
@@ -94,6 +99,6 @@ Present the full report directly in the conversation. Do not write to a file unl
 
 ## Notes
 
-- The reference SDK organisations may have moved from `bitcoin-sv` to `bsv-blockchain` on GitHub. Try both.
+- The TypeScript SDK was folded into the `bsv-blockchain/ts-stack` monorepo around June 2026. The standalone `bsv-blockchain/ts-sdk` repo is archived and redirects to ts-stack. Compare against `packages/sdk/` inside ts-stack.
 - The TypeScript SDK implements all cryptography from scratch (no external deps). The Go SDK uses a custom secp256k1. The Python SDK uses `coincurve` (libsecp256k1 bindings). The Ruby SDK uses OpenSSL stdlib. These are architectural choices, not divergences.
 - Focus on **semantic** comparison (what capabilities exist), not syntactic (naming conventions, language idioms).

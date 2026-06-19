@@ -1,9 +1,9 @@
 # BSV Ruby SDK
 
 Ruby SDK for the BSV Blockchain. Part of the official BSV SDK family alongside
-[Go](https://github.com/bitcoin-sv/go-sdk),
-[TypeScript](https://github.com/bitcoin-sv/ts-sdk), and
-[Python](https://github.com/bitcoin-sv/py-sdk).
+[Go](https://github.com/bsv-blockchain/go-sdk),
+[TypeScript](https://github.com/bsv-blockchain/ts-stack), and
+[Python](https://github.com/bsv-blockchain/py-sdk).
 
 ## Installation
 

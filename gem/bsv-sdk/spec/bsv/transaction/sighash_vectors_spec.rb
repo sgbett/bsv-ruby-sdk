@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 # Cross-validation of BIP-143 sighash computation against TS SDK test vectors.
-# Source: bsv-blockchain/ts-sdk src/primitives/__tests/sighash.vectors.ts
+# Source: bsv-blockchain/ts-stack packages/sdk/src/primitives/__tests/sighash.vectors.ts
 #
 # Each vector: [raw_tx_hex, script_hex, input_index, hash_type, expected_sighash_hex]
 # All vectors use SIGHASH_FORKID (BIP-143).

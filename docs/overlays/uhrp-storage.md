@@ -96,13 +96,21 @@ funding; publishing needs both.
 
 ## Reference implementations and infrastructure
 
-The canonical UHRP storage server reference is
-[bsv-blockchain/storage-server](https://github.com/bsv-blockchain/storage-server)
-(archived in May 2026 in favour of the ts-stack monorepo). It implements:
+The canonical UHRP storage server references now live in the
+[bsv-blockchain/ts-stack](https://github.com/bsv-blockchain/ts-stack)
+monorepo under `infra/`:
+
+- **[uhrp-server-basic](https://github.com/bsv-blockchain/ts-stack/tree/main/infra/uhrp-server-basic)** (`@bsv/uhrp-lite`) — minimal single-host implementation suitable for local-development or a single-tenant deployment.
+- **[uhrp-server-cloud-bucket](https://github.com/bsv-blockchain/ts-stack/tree/main/infra/uhrp-server-cloud-bucket)** (`@bsv/uhrp-storage-server`) — cloud-bucket-backed implementation for production deployments.
+
+Both implement:
 
 - Upload endpoints that accept file content plus a hosting commitment.
 - A notifier that broadcasts the advertisement to the overlay.
 - Billing for hosting duration.
+
+The standalone `bsv-blockchain/storage-server` repo was archived in May
+2026 when the two-tier split was introduced inside ts-stack.
 
 Public UHRP overlay nodes are reachable through the default
 `BSV::Overlay::LookupResolver` — you don't need to know specific host
@@ -126,7 +134,8 @@ URLs in normal SDK usage.
 ## References
 
 - [BRC-26](https://hub.bsvblockchain.org/brc/overlays/0026) — UHRP specification
-- [bsv-blockchain/storage-server](https://github.com/bsv-blockchain/storage-server) — reference server
-- TypeScript: [`StorageDownloader.ts`](https://github.com/bitcoin-sv/ts-sdk/blob/master/src/storage/StorageDownloader.ts)
-- Python: [`bsv/storage/downloader.py`](https://github.com/bitcoin-sv/py-sdk/blob/master/bsv/storage/downloader.py)
+- [ts-stack/infra/uhrp-server-basic](https://github.com/bsv-blockchain/ts-stack/tree/main/infra/uhrp-server-basic) — minimal reference server (`@bsv/uhrp-lite`)
+- [ts-stack/infra/uhrp-server-cloud-bucket](https://github.com/bsv-blockchain/ts-stack/tree/main/infra/uhrp-server-cloud-bucket) — production reference server (`@bsv/uhrp-storage-server`)
+- TypeScript: [`StorageDownloader.ts`](https://github.com/bsv-blockchain/ts-stack/blob/main/packages/sdk/src/storage/StorageDownloader.ts)
+- Python: [`bsv/storage/downloader.py`](https://github.com/bsv-blockchain/py-sdk/blob/master/bsv/storage/downloader.py)
 - [SDK reference: Storage](../sdk/storage.md)

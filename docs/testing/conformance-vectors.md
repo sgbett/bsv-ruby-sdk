@@ -87,15 +87,25 @@ every file under `spec/conformance/`.
 
 ## Syncing from upstream
 
-The reference SDK clones live under `/opt/ruby/bsv-reference-sdks/`. To
-refresh a vector file:
+> **Note:** this manual hand-copy workflow is provisional. The ts-stack
+> monorepo now ships a canonical language-neutral conformance corpus at
+> `conformance/vectors/` with a CI-published artifact. [HLR
+> #837](https://github.com/sgbett/bsv-ruby-sdk/issues/837) tracks moving
+> the Ruby specs onto that corpus; once that lands, this section will be
+> rewritten and the per-file hand-copy procedure goes away.
+
+The reference SDK clones live under language-appropriate locations:
+`/opt/go/go-sdk`, `/opt/python/py-sdk`, and `/opt/js/ts-stack` (the TS
+SDK is at `packages/sdk/` inside the `bsv-blockchain/ts-stack` monorepo;
+`/opt/js/ts-stack` is the clone root for `git pull`). To refresh a
+vector file from the Go reference:
 
 ```sh
-git -C /opt/ruby/bsv-reference-sdks/go-sdk pull
-diff -q /opt/ruby/bsv-reference-sdks/go-sdk/primitives/ec/testdata/BRC42.private.vectors.json \
+git -C /opt/go/go-sdk pull
+diff -q /opt/go/go-sdk/primitives/ec/testdata/BRC42.private.vectors.json \
         spec/conformance/vectors/BRC42.private.vectors.json
 # If different, copy the new version and update README.md's commit SHA column.
-cp /opt/ruby/bsv-reference-sdks/go-sdk/primitives/ec/testdata/BRC42.private.vectors.json \
+cp /opt/go/go-sdk/primitives/ec/testdata/BRC42.private.vectors.json \
    spec/conformance/vectors/BRC42.private.vectors.json
 ```
 

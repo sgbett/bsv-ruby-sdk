@@ -140,7 +140,7 @@ overlay query; writing needs a wallet to fund the new UTXO and sign it.
 
 ## References
 
-- TypeScript: [`GlobalKVStore.ts`](https://github.com/bitcoin-sv/ts-sdk/blob/master/src/kvstore/GlobalKVStore.ts) (canonical reference)
+- TypeScript: [`GlobalKVStore.ts`](https://github.com/bsv-blockchain/ts-stack/blob/main/packages/sdk/src/kvstore/GlobalKVStore.ts) (canonical reference)
 - [SDK reference: KVStore](../sdk/kvstore.md)
 - [Historian overlay](historian.md) — used for the `history: true` path
 - [BRC-100](https://hub.bsvblockchain.org/brc/wallet/0100) — wallet
