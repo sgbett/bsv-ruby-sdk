@@ -88,9 +88,10 @@ every file under `spec/conformance/`.
 ## Syncing from upstream
 
 The reference SDK clones live under language-appropriate locations:
-`/opt/go/go-sdk`, `/opt/python/py-sdk`, and `/opt/js/ts-stack/packages/sdk`
-(the TS SDK is now a package inside the `bsv-blockchain/ts-stack`
-monorepo). To refresh a vector file from the Go reference:
+`/opt/go/go-sdk`, `/opt/python/py-sdk`, and `/opt/js/ts-stack` (the TS
+SDK is at `packages/sdk/` inside the `bsv-blockchain/ts-stack` monorepo;
+`/opt/js/ts-stack` is the clone root for `git pull`). To refresh a
+vector file from the Go reference:
 
 ```sh
 git -C /opt/go/go-sdk pull

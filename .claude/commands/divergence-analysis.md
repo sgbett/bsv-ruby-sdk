@@ -35,11 +35,11 @@ Launch three **general-purpose** subagents in parallel, one per reference SDK. P
 
 | SDK | Local clone | GitHub |
 |---|---|---|
-| TypeScript | `/opt/js/ts-stack/packages/sdk/` (in the ts-stack monorepo) | https://github.com/bsv-blockchain/ts-stack |
+| TypeScript | `/opt/js/ts-stack/` (clone root; TS SDK at `packages/sdk/` inside the ts-stack monorepo) | https://github.com/bsv-blockchain/ts-stack |
 | Go | `/opt/go/go-sdk/` | https://github.com/bsv-blockchain/go-sdk |
 | Python | `/opt/python/py-sdk/` | https://github.com/bsv-blockchain/py-sdk |
 
-Run `git -C <clone-path> pull` to update a local clone before analysis.
+Run `git -C <clone-path> pull` to update a local clone before analysis (use the clone root, not a package subdirectory).
 
 ### 3. Produce the comparison
 
