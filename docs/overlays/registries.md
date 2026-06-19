@@ -144,6 +144,6 @@ typed resolve methods. The constructor accepts it.
   naming convention (where the `tm_*` / `ls_*` names come from)
 - [BRC-43](https://hub.bsvblockchain.org/brc/key-derivation/0043) —
   protocol ID format (`[security_level, name]`)
-- Go: [`registry/methods.go`](https://github.com/bitcoin-sv/go-sdk/blob/master/registry/methods.go)
-- Python: [`bsv/registry/client.py`](https://github.com/bitcoin-sv/py-sdk/blob/master/bsv/registry/client.py)
+- Go: [`registry/methods.go`](https://github.com/bsv-blockchain/go-sdk/blob/master/registry/methods.go)
+- Python: [`bsv/registry/client.py`](https://github.com/bsv-blockchain/py-sdk/blob/master/bsv/registry/client.py)
 - [SDK reference: Ecosystem Clients](../sdk/ecosystem-clients.md)

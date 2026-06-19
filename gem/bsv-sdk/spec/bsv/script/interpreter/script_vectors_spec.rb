@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 # Bitcoin Core script test vectors from the Go SDK.
-# Source: bitcoin-sv/go-sdk script/interpreter/data/script_tests.json
+# Source: bsv-blockchain/go-sdk script/interpreter/data/script_tests.json
 #
 # Format: [scriptSig_asm, scriptPubKey_asm, flags, expected_result, optional_comment]
 # Comment-only entries (1-element arrays) and witness vectors are skipped.

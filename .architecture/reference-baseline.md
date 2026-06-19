@@ -11,7 +11,7 @@ dynamically (no single pinned commit during development).
 | SDK | Version | Commit | Description |
 |-----|---------|--------|-------------|
 | [go-sdk](https://github.com/bsv-blockchain/go-sdk) | v1.2.18 | `725db51` | Fix BIP276 decoding, AuthFetch data race, and add NUM2BIN tests (#288) |
-| [ts-sdk](https://github.com/bsv-blockchain/ts-sdk) | v2.0.0 | `8acc706` | Merge pull request #481 — fix/optimizations |
+| [ts-sdk](https://github.com/bsv-blockchain/ts-stack) | v2.0.0 | `8acc706` | Merge pull request #481 — fix/optimizations |
 | [py-sdk](https://github.com/bsv-blockchain/py-sdk) | v1.0.10 | `f505ea5` | Added OP_CAT template example and script (#137) |
 
 ### How to use

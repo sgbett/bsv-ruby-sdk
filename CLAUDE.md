@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ruby SDK for the BSV Blockchain (`bsv-sdk` gem). Part of the official BSV SDK family alongside [go-sdk](https://github.com/bsv-blockchain/go-sdk), [ts-sdk](https://github.com/bsv-blockchain/ts-sdk), and [py-sdk](https://github.com/bsv-blockchain/py-sdk). Use those as reference implementations when building features.
+Ruby SDK for the BSV Blockchain (`bsv-sdk` gem). Part of the official BSV SDK family alongside [go-sdk](https://github.com/bsv-blockchain/go-sdk), [ts-sdk](https://github.com/bsv-blockchain/ts-stack), and [py-sdk](https://github.com/bsv-blockchain/py-sdk). Use those as reference implementations when building features.
 
 **Reference SDK clones** are kept under language-appropriate locations:
 

@@ -24,7 +24,7 @@ This Ruby SDK is a port of the official BSV Blockchain SDKs, which serve as its 
 
 The reference SDKs:
 
-- [TypeScript SDK](https://github.com/bsv-blockchain/ts-sdk)
+- [TypeScript SDK](https://github.com/bsv-blockchain/ts-stack)
 - [Go SDK](https://github.com/bsv-blockchain/go-sdk)
 - [Python SDK](https://github.com/bsv-blockchain/py-sdk)
 
