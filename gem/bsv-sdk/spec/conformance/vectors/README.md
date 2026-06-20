@@ -17,8 +17,6 @@ so that a `diff` against upstream makes drift trivially visible.
 
 | File | Source SDK | Source path | Commit SHA |
 |---|---|---|---|
-| `BRC42.private.vectors.json` | go-sdk | `primitives/ec/testdata/BRC42.private.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `BRC42.public.vectors.json` | go-sdk | `primitives/ec/testdata/BRC42.public.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 | `SymmetricKey.vectors.json` | go-sdk | `primitives/ec/testdata/SymmetricKey.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 | `sighash_legacy.json` | go-sdk | `script/interpreter/data/sighash_legacy.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 | `sighash_bip143.json` | go-sdk | `script/interpreter/data/sighash_bip143.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
