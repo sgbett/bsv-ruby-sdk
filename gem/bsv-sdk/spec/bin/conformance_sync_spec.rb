@@ -88,32 +88,54 @@ RSpec.describe 'ConformanceSync pure helpers' do
   describe '.cache_valid?' do
     let(:tmpdir) { Dir.mktmpdir }
     let(:cache_dir) { File.join(tmpdir, 'conformance-vectors') }
+    let(:sha_sentinel) { File.join(cache_dir, '.sync-sha') }
+    let(:test_sha) { 'a' * 40 }
 
-    before { stub_const('ConformanceSync::CACHE_DIR', cache_dir) }
+    before do
+      stub_const('ConformanceSync::CACHE_DIR', cache_dir)
+      stub_const('ConformanceSync::SHA_SENTINEL', sha_sentinel)
+    end
 
     after { FileUtils.rm_rf(tmpdir) }
 
     it 'returns false when cache directory does not exist' do
-      expect(ConformanceSync.cache_valid?('aa' * 32)).to be false
+      expect(ConformanceSync.cache_valid?(test_sha)).to be false
     end
 
     it 'returns false when META.json is missing' do
       FileUtils.mkdir_p(File.join(ConformanceSync::CACHE_DIR, 'conformance'))
-      expect(ConformanceSync.cache_valid?('aa' * 32)).to be false
+      expect(ConformanceSync.cache_valid?(test_sha)).to be false
     end
 
-    it 'returns false when expected_sha256 is nil' do
+    it 'returns false when sentinel file is missing' do
       meta_dir = File.join(ConformanceSync::CACHE_DIR, 'conformance')
       FileUtils.mkdir_p(meta_dir)
       File.write(File.join(meta_dir, 'META.json'), '{}')
+      expect(ConformanceSync.cache_valid?(test_sha)).to be false
+    end
+
+    it 'returns false when sentinel sha does not match expected sha' do
+      meta_dir = File.join(ConformanceSync::CACHE_DIR, 'conformance')
+      FileUtils.mkdir_p(meta_dir)
+      File.write(File.join(meta_dir, 'META.json'), '{}')
+      File.write(sha_sentinel, 'b' * 40)
+      expect(ConformanceSync.cache_valid?(test_sha)).to be false
+    end
+
+    it 'returns false when expected sha is nil' do
+      meta_dir = File.join(ConformanceSync::CACHE_DIR, 'conformance')
+      FileUtils.mkdir_p(meta_dir)
+      File.write(File.join(meta_dir, 'META.json'), '{}')
+      File.write(sha_sentinel, test_sha)
       expect(ConformanceSync.cache_valid?(nil)).to be false
     end
 
-    it 'returns true when META.json exists and sha256 is provided' do
+    it 'returns true when META.json exists, sentinel matches expected sha' do
       meta_dir = File.join(ConformanceSync::CACHE_DIR, 'conformance')
       FileUtils.mkdir_p(meta_dir)
       File.write(File.join(meta_dir, 'META.json'), '{}')
-      expect(ConformanceSync.cache_valid?('aa' * 32)).to be true
+      File.write(sha_sentinel, test_sha)
+      expect(ConformanceSync.cache_valid?(test_sha)).to be true
     end
   end
 

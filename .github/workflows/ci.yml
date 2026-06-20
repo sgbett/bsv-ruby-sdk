@@ -24,6 +24,15 @@ jobs:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
 
+      - name: Cache conformance vectors
+        uses: actions/cache@v4
+        with:
+          path: tmp/conformance-vectors
+          key: conformance-${{ hashFiles('.architecture/conformance.lock') }}
+
+      - name: Sync conformance vectors
+        run: bin/conformance/sync
+
       - name: Run specs
         run: bundle exec rake
         env:

@@ -28,6 +28,7 @@ module ConformanceSync
   REPO_ROOT      = File.expand_path('../..', __dir__)
   LOCK_PATH      = File.join(REPO_ROOT, '.architecture', 'conformance.lock')
   CACHE_DIR      = File.join(REPO_ROOT, 'tmp', 'conformance-vectors')
+  SHA_SENTINEL   = File.join(CACHE_DIR, '.sync-sha')
   EXTRACT_PREFIX = 'conformance/'
   SHA_PATTERN    = /\A[0-9a-f]{40}\z/
 
@@ -67,13 +68,14 @@ module ConformanceSync
     File.write(LOCK_PATH, content)
   end
 
-  # Returns true when the cache looks valid for the given sha256.
-  def self.cache_valid?(expected_sha256)
+  # Returns true when the cache is present and was extracted for the given sha.
+  def self.cache_valid?(expected_sha)
     return false unless Dir.exist?(CACHE_DIR)
     return false unless File.exist?(File.join(CACHE_DIR, 'conformance', 'META.json'))
-    return false if expected_sha256.nil? || expected_sha256.empty?
+    return false unless File.exist?(SHA_SENTINEL)
+    return false if expected_sha.nil? || expected_sha.empty?
 
-    true
+    File.read(SHA_SENTINEL).strip == expected_sha
   end
 
   def self.codeload_url(sha)
@@ -111,7 +113,7 @@ module ConformanceSync
 
   # Extracts only paths under conformance/ from the tarball bytes.
   # Returns the count of extracted files.
-  def self.extract(tarball_bytes)
+  def self.extract(tarball_bytes, sha)
     extracted = 0
     FileUtils.rm_rf(CACHE_DIR)
     FileUtils.mkdir_p(CACHE_DIR)
@@ -131,6 +133,7 @@ module ConformanceSync
       end
     end
 
+    File.write(SHA_SENTINEL, sha)
     extracted
   end
 
@@ -151,20 +154,20 @@ module ConformanceSync
 
     validate_sha!(sha)
 
-    if !update && lock['sha'] == sha && cache_valid?(lock['tarball_sha256'])
+    if !update && lock['sha'] == sha && cache_valid?(sha)
       warn "Cache valid for #{sha} — nothing to do."
       return
     end
 
     if !update && lock['sha'] == sha && lock['tarball_sha256']
-      # SHA matches lock but cache dir missing/incomplete — re-fetch silently.
+      # SHA matches lock but cache dir missing/stale — re-fetch silently.
     elsif !update && lock['sha'] && lock['sha'] != sha
       raise Error, "Lock SHA #{lock['sha']} ≠ requested #{sha}. " \
                    'Pass --update to overwrite the lock.'
     end
 
     tarball, sha256 = fetch_tarball(sha)
-    count           = extract(tarball)
+    count           = extract(tarball, sha)
 
     if count.zero?
       raise Error, "No files extracted from conformance/ at SHA #{sha}. " \
