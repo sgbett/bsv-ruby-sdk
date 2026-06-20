@@ -5,6 +5,7 @@ Gemfile.lock
 /coverage/
 /.rspec_status
 /tmp/
+tmp/conformance-vectors/
 
 # C extension compiled artefacts
 *.bundle
