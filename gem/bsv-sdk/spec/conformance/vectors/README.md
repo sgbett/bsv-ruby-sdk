@@ -18,8 +18,6 @@ so that a `diff` against upstream makes drift trivially visible.
 | File | Source SDK | Source path | Commit SHA |
 |---|---|---|---|
 | `SymmetricKey.vectors.json` | go-sdk | `primitives/ec/testdata/SymmetricKey.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `sighash_legacy.json` | go-sdk | `script/interpreter/data/sighash_legacy.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `sighash_bip143.json` | go-sdk | `script/interpreter/data/sighash_bip143.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 | `script_tests.json` | go-sdk | `script/interpreter/data/script_tests.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
 `beef.vectors.json` has been **removed** — BEEF conformance now uses the canonical ts-stack corpus:
 `sdk/transactions/serialization.json` (vectors `tx-003`, `tx-006`) and
@@ -32,3 +30,10 @@ See [issue #849](https://github.com/sgbett/bsv-ruby-sdk/issues/849) for the upst
 `ConformanceVectors.canonical_regression`. See `spec/conformance/bump_spec.rb` for
 the vector IDs: `sdk/transactions/merkle-path.json` (17 vectors) and
 `regressions/merkle-path-odd-node.json` (5 vectors).
+
+`sighash_bip143.json` and `sighash_legacy.json` have been **removed**. FORKID
+sighash conformance now reads from the canonical corpus (`sdk/scripts/evaluation.json`,
+filtered to `["sighash"]`-tagged FORKID vectors). Legacy (pre-FORKID) sighash
+has been retired permanently: BSV requires FORKID on all signatures, so these
+vectors have no valid meaning on-chain. See the Protocol Philosophy section in
+`CLAUDE.md` ("recognise everything, construct only what's valid") and issue #845.
