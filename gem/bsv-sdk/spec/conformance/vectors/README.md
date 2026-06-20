@@ -18,7 +18,10 @@ so that a `diff` against upstream makes drift trivially visible.
 | File | Source SDK | Source path | Commit SHA |
 |---|---|---|---|
 | `SymmetricKey.vectors.json` | go-sdk | `primitives/ec/testdata/SymmetricKey.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `script_tests.json` | go-sdk | `script/interpreter/data/script_tests.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
+`script_tests.json` has been **removed** — script parsing and evaluation conformance now reads from the
+canonical corpus (`sdk/scripts/evaluation.json`, filtered to `["parse"]`-tagged and `["evaluation"]`-tagged
+vectors). See `spec/conformance/script_tests_spec.rb` and issue #846.
+
 `beef.vectors.json` has been **removed** — BEEF conformance now uses the canonical ts-stack corpus:
 `sdk/transactions/serialization.json` (vectors `tx-003`, `tx-006`) and
 `regressions/beef-isvalid-hydration.json` + `regressions/beef-v2-txid-panic.json`.
