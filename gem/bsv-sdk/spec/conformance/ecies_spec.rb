@@ -50,7 +50,10 @@ RSpec.describe 'SDK ECIES conformance (sdk.crypto.ecies)' do
         end.to raise_error(BSV::Primitives::ECIES::DecryptionError)
 
       elsif expected.key?('_roundtrip_only')
-        # No known ciphertext: verify that encrypt→decrypt recovers the original plaintext
+        # _roundtrip_only is an upstream-defined sentinel (underscore-prefixed
+        # convention in the canonical envelope) marking vectors that ship inputs
+        # but no fixed expected ciphertext, e.g. when ephemeral entropy isn't
+        # pinned. Verify that encrypt→decrypt recovers the original plaintext.
         sender_priv    = BSV::Primitives::PrivateKey.from_hex(input['sender_private_key'])
         recipient_priv = BSV::Primitives::PrivateKey.from_hex(input['recipient_private_key'])
         recipient_pub  = BSV::Primitives::PublicKey.from_hex(input['recipient_public_key'])

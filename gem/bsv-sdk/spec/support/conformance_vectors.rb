@@ -4,20 +4,25 @@ require 'json'
 
 # Loader for cross-SDK conformance test vectors.
 #
-# Vectors live in `spec/conformance/vectors/` and are vendored verbatim from
-# the BSV reference SDKs (Go, TypeScript). Provenance (source SDK, path, and
-# commit SHA) is recorded in `spec/conformance/vectors/README.md`.
+# Primary source: the canonical ts-stack conformance corpus, fetched into
+# `tmp/conformance-vectors/` by `bin/conformance/sync` at the SHA pinned in
+# `.architecture/conformance.lock`. Use `canonical` / `each_canonical_vector`
+# / `canonical_regression` to read from it.
+#
+# Secondary source: a small set of Ruby-local fixtures kept under
+# `spec/conformance/vectors/` because no canonical upstream equivalent exists
+# (see that directory's README for the surviving entries and the rationale).
+# Use `load` / `load_rows` to read those.
 #
 # Keep this loader minimal — each spec family knows its own vector shape.
 # Do not grow a single generic parser here; add parsing logic per spec.
 #
-# See: `docs/testing/conformance-vectors.md` and HLR sgbett/bsv-ruby-sdk#307.
+# See: `docs/testing/conformance-vectors.md` and HLR sgbett/bsv-ruby-sdk#837.
 module ConformanceVectors
-  VECTORS_DIR = File.expand_path('../conformance/vectors', __dir__)
-
-  # Root of the canonical corpus cache populated by bin/conformance/sync.
-  CANONICAL_DIR = File.expand_path('../../../../tmp/conformance-vectors/conformance/vectors', __dir__)
-  CANONICAL_REGRESSIONS_DIR = File.expand_path('../../../../tmp/conformance-vectors/conformance/vectors/regressions', __dir__)
+  REPO_ROOT     = File.expand_path('../../../..', __dir__)
+  VECTORS_DIR   = File.expand_path('../conformance/vectors', __dir__)
+  CANONICAL_DIR = File.join(REPO_ROOT, 'tmp', 'conformance-vectors', 'conformance', 'vectors')
+  CANONICAL_REGRESSIONS_DIR = File.join(CANONICAL_DIR, 'regressions')
 
   # Read a vector file and return its parsed JSON content.
   #
@@ -60,14 +65,14 @@ module ConformanceVectors
   # @param vector_id [String] dot-separated vector ID
   # @yieldparam envelope [Hash] the full parsed envelope
   # @yieldparam vector [Hash] individual vector entry
-  def self.each_canonical_vector(vector_id, &block)
+  def self.each_canonical_vector(vector_id)
     envelope = canonical(vector_id)
     envelope.fetch('vectors', []).each do |vector|
       if vector['skip']
         warn "[conformance] skipping #{vector['id']}: #{vector['skip_reason']}"
         next
       end
-      block.call(envelope, vector)
+      yield envelope, vector
     end
   end
 
