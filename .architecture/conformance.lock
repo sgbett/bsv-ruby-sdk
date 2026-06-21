@@ -1,0 +1,9 @@
+# .architecture/conformance.lock
+# Auto-managed by bin/conformance/sync — do not edit by hand.
+upstream: bsv-blockchain/ts-stack
+path: conformance/
+sha: c094b60029a6340a12e7da7449cf72c06b11cd7c
+fetched_at: 2026-06-21
+tarball_sha256: 21d152f90c51fc13bcee10a83118124345ec222d79338ea0d71623da2c21f071
+vectors_count: 73
+vectors_total: 6646

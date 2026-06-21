@@ -16,11 +16,9 @@ require 'base64'
 #   TS SDK:  "Verifies the transaction from the BEEF spec",
 #            "Verifies tx scripts only when our input has no MerklePath"
 #
-# Vectors sourced from: spec/conformance/vectors/beef.vectors.json
-
-SPV_BEEF_VECTORS = ConformanceVectors.load('beef.vectors.json')['vectors']
-                                     .to_h { |v| [v['label'], v] }
-                                     .freeze
+# Vectors:
+#   BRC62 (V1 BEEF): canonical corpus sdk/transactions/serialization.json tx-003
+#   BEEFSet (V2 BEEF), BEEF (V1 base64), Issue96BeefHex: Ruby-local inline fixtures (see beef_spec.rb)
 
 # A chain tracker that always accepts any merkle root as valid.
 # Used for BEEF conformance tests where we trust the embedded proofs
@@ -38,10 +36,18 @@ end
 RSpec.describe 'BEEF-based SPV verification conformance' do
   let(:always_true_tracker) { AlwaysTrueChainTracker.new }
 
-  let(:brc62_hex)      { SPV_BEEF_VECTORS.fetch('BRC62Hex')['data'] }
-  let(:beef_base64)    { SPV_BEEF_VECTORS.fetch('BEEF')['data'] }
-  let(:beef_set_hex)   { SPV_BEEF_VECTORS.fetch('BEEFSet')['data'] }
-  let(:issue96_hex)    { SPV_BEEF_VECTORS.fetch('Issue96BeefHex')['data'] }
+  let(:brc62_hex) do
+    vector = nil
+    ConformanceVectors.each_canonical_vector('sdk.transactions.serialization') do |_env, v|
+      vector = v if v['id'] == 'tx-003'
+    end
+    raise 'tx-003 not found in sdk.transactions.serialization (canonical cache missing or schema changed)' if vector.nil?
+
+    vector.dig('input', 'beef_hex')
+  end
+  let(:beef_base64) { BEEF_V1_B64 }
+  let(:beef_set_hex) { BEEF_V2_SET_HEX }
+  let(:issue96_hex) { BEEF_ISSUE96_HEX }
 
   # --- Happy-path verification with always-true chain tracker ---
 

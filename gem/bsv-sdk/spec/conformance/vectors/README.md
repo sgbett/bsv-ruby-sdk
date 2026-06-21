@@ -1,32 +1,35 @@
 # Cross-SDK conformance vectors
 
-This directory contains canonical test vectors vendored verbatim from the
-BSV reference SDKs. They are used by specs under `spec/conformance/` to
-cross-validate the Ruby SDK's behaviour against the Go and TypeScript
-reference implementations.
-
-See [`docs/testing/conformance-vectors.md`](../../../docs/testing/conformance-vectors.md)
+Canonical vector provenance is now tracked in
+[`.architecture/conformance.lock`](../../../../../.architecture/conformance.lock).
+See [`docs/testing/conformance-vectors.md`](../../../../../docs/testing/conformance-vectors.md)
 for the sync procedure and guidance on adding new families.
 
-Tracking issue: [sgbett/bsv-ruby-sdk#307](https://github.com/sgbett/bsv-ruby-sdk/issues/307)
+## Ruby-local fixtures
 
-## Provenance
+These files have no canonical equivalent in the ts-stack corpus and are kept here
+with explicit skip-with-reason in their specs:
 
-Every vector file below has been copied byte-for-byte from the listed source
-so that a `diff` against upstream makes drift trivially visible.
+| File | Source SDK | Why Ruby-local |
+|---|---|---|
+| `SymmetricKey.vectors.json` | go-sdk `primitives/ec/testdata/SymmetricKey.vectors.json` at `5cb9b59` | Base64 AES-256-GCM round-trip vectors; canonical corpus has NIST AES vectors with different inputs |
 
-| File | Source SDK | Source path | Commit SHA |
-|---|---|---|---|
-| `BRC42.private.vectors.json` | go-sdk | `primitives/ec/testdata/BRC42.private.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `BRC42.public.vectors.json` | go-sdk | `primitives/ec/testdata/BRC42.public.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `SymmetricKey.vectors.json` | go-sdk | `primitives/ec/testdata/SymmetricKey.vectors.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `sighash_legacy.json` | go-sdk | `script/interpreter/data/sighash_legacy.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `sighash_bip143.json` | go-sdk | `script/interpreter/data/sighash_bip143.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `script_tests.json` | go-sdk | `script/interpreter/data/script_tests.json` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `bump.vectors.json` | go-sdk | `transaction/testdata/bump.go` (transliterated) | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
-| `beef.vectors.json` | go-sdk | `transaction/beef_test.go` constants `BRC62Hex`, `BEEF`, `BEEFSet` + `transaction/testdata/bump.go` constant `Issue96BeefHex` | `5cb9b59038ed590becc7eb64fd6ca6007be55a85` |
+## Retired files
 
-`bump.vectors.json` and `beef.vectors.json` are not byte-identical to upstream
-because upstream stores them inside Go source files rather than as standalone
-JSON. They are faithful transliterations; each vector is one Go literal copied
-verbatim into a JSON string.
+`script_tests.json` — removed. Script evaluation conformance now reads from the
+canonical corpus (`sdk/scripts/evaluation.json`). See `spec/conformance/script_tests_spec.rb` and issue #846.
+
+`beef.vectors.json` — removed. BEEF conformance now uses the canonical ts-stack corpus
+(`sdk/transactions/serialization.json`, `regressions/beef-isvalid-hydration.json`,
+`regressions/beef-v2-txid-panic.json`). Ruby-local fixtures are inlined in
+`spec/conformance/beef_spec.rb`. See [issue #849](https://github.com/sgbett/bsv-ruby-sdk/issues/849).
+
+`bump.vectors.json` — removed. Merkle path conformance now uses the canonical corpus
+(`sdk/transactions/merkle-path.json`, `regressions/merkle-path-odd-node.json`).
+See `spec/conformance/bump_spec.rb`.
+
+`sighash_bip143.json` and `sighash_legacy.json` — removed. FORKID sighash conformance
+reads from the canonical corpus (`sdk/scripts/evaluation.json`, `["sighash"]`-tagged
+vectors). Legacy (pre-FORKID) sighash has been retired permanently: BSV requires
+FORKID on all signatures, so these vectors have no valid meaning on-chain. See the
+Protocol Philosophy section in `CLAUDE.md` and issue #845.

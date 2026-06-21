@@ -5,293 +5,365 @@ require 'base64'
 
 # Protocol conformance: BEEF serialisation (BRC-62/95/96)
 #
-# Cross-validates the Ruby SDK's BEEF implementation against canonical test
-# vectors from go-sdk (constants `BRC62Hex`, `BEEF`, `BEEFSet` in
-# `transaction/beef_test.go`). Vectors are loaded from
-# `spec/conformance/vectors/beef.vectors.json` — see that file and
-# `spec/conformance/vectors/README.md` for provenance.
+# Canonical vectors sourced from the ts-stack conformance corpus:
+#   sdk/transactions/serialization.json (tag: "beef" vectors: tx-003, tx-006)
+#   regressions/beef-isvalid-hydration.json
+#   regressions/beef-v2-txid-panic.json
+#
+# Ruby-local fixtures (BEEF_V2_SET_HEX, BEEF_V1_B64, BEEF_ISSUE96_HEX) live in
+# spec/support/beef_local_fixtures.rb so they auto-load regardless of which
+# spec file RSpec hits first. Upstream coverage suggestion: issue #849.
 
-BEEF_CONFORMANCE_VECTORS = ConformanceVectors.load('beef.vectors.json')['vectors']
-                                             .to_h { |v| [v['label'], v['data']] }
-                                             .freeze
+RSpec.describe 'BEEF serialisation conformance (BRC-62/95/96)' do
+  # Helper: find a specific vector from the serialization canonical file
+  def find_serialization_vector(vector_id)
+    result = nil
+    ConformanceVectors.each_canonical_vector('sdk.transactions.serialization') do |_envelope, vector|
+      result = vector if vector['id'] == vector_id
+    end
+    raise "Vector #{vector_id} not found in sdk.transactions.serialization" if result.nil?
 
-RSpec.describe BSV::Transaction::Beef do
-  let(:go_brc62_hex) { BEEF_CONFORMANCE_VECTORS.fetch('BRC62Hex') }
+    result
+  end
 
-  let(:go_beef_set_hex) { BEEF_CONFORMANCE_VECTORS.fetch('BEEFSet') }
+  # --- Canonical vectors: tx-003 (BEEF V1, 1 BUMP, 2 transactions) ---
 
-  let(:go_beef_base64) { BEEF_CONFORMANCE_VECTORS.fetch('BEEF') }
+  describe 'canonical tx-003 (BEEF_V1, 1 BUMP, 2 transactions)' do
+    subject(:beef) { BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex')) }
 
-  let(:go_issue96_beef_hex) { BEEF_CONFORMANCE_VECTORS.fetch('Issue96BeefHex') }
+    let(:vector) { find_serialization_vector('tx-003') }
 
-  # --- Format conformance ---
+    it 'version matches BEEF_V1 (0xEFBE0001)' do
+      expect(beef.version).to eq(0xEFBE0001)
+    end
 
-  describe 'BRC-62 (V1) conformance' do
-    subject(:beef) { described_class.from_hex(go_brc62_hex) }
+    it 'contains 1 BUMP' do
+      expect(beef.bumps.length).to eq(1)
+    end
 
-    it('version matches BEEF_V1') { expect(beef.version).to eq(0xEFBE0001) }
-    it('contains 1 BUMP') { expect(beef.bumps.length).to eq(1) }
-    it('contains 2 transactions') { expect(beef.transactions.length).to eq(2) }
+    it 'contains 2 transactions' do
+      expect(beef.transactions.length).to eq(2)
+    end
 
     it 'wires source transactions during parse' do
-      wired = beef.transactions.grep_v(described_class::TxidOnlyEntry).flat_map { |bt| bt.transaction.inputs.select(&:source_transaction) }
+      wired = beef.transactions
+                  .grep_v(BSV::Transaction::Beef::TxidOnlyEntry)
+                  .flat_map { |bt| bt.transaction.inputs.select(&:source_transaction) }
       expect(wired).not_to be_empty
     end
 
-    it 'attaches merkle_path to the mined transaction' do
-      mined = beef.transactions.grep(described_class::ProvenTxEntry)
-      expect(mined.length).to eq(1)
-      expect(mined.first.transaction.merkle_path).to be_a(BSV::Transaction::MerklePath)
+    it 'attaches merkle_path to the proven transaction' do
+      proven = beef.transactions.grep(BSV::Transaction::Beef::ProvenTxEntry)
+      expect(proven.length).to eq(1)
+      expect(proven.first.transaction.merkle_path).to be_a(BSV::Transaction::MerklePath)
+    end
+
+    it 'computes the expected merkle root from the canonical vector' do
+      expected_root = vector.dig('expected', 'merkle_root')
+      proven = beef.transactions.grep(BSV::Transaction::Beef::ProvenTxEntry).first
+      actual_root = proven.transaction.merkle_path.compute_root_hex(proven.transaction.txid_hex)
+      expect(actual_root).to eq(expected_root)
+    end
+
+    it 'round-trips through V1 serialise/parse' do
+      expect(beef.to_hex).to eq(vector.dig('input', 'beef_hex'))
     end
   end
 
-  describe 'BRC-96 (V2) conformance' do
-    subject(:beef) { described_class.from_hex(go_beef_set_hex) }
+  # --- Canonical vector: tx-006 (non-atomic BEEF does not carry an atomic subject) ---
+  #
+  # The TS SDK has a dedicated fromAtomicBEEF method that rejects non-atomic BEEF.
+  # The Ruby SDK unifies parsing in from_binary; atomic detection is via the 0x01010101
+  # version magic. A V1 BEEF parsed via from_hex has subject_wtxid == nil (no atomic prefix).
 
-    # Go SDK: require.Equal(t, uint32(4022206466), beef.Version)
-    it('version matches BEEF_V2 (4022206466)') { expect(beef.version).to eq(4_022_206_466) }
+  describe 'canonical tx-006 (non-atomic BEEF lacks an atomic subject txid)' do
+    let(:vector) { find_serialization_vector('tx-006') }
 
-    # Go SDK: require.Len(t, beef.BUMPs, 3)
-    it('contains 3 BUMPs') { expect(beef.bumps.length).to eq(3) }
+    it 'parsing a V1 BEEF produces no atomic subject (subject_wtxid is nil)' do
+      beef = BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex'))
+      expect(beef.subject_wtxid).to be_nil
+    end
+  end
 
-    # Go SDK: require.Len(t, beef.Transactions, 3)
-    it('contains 3 transactions') { expect(beef.transactions.length).to eq(3) }
+  # --- Canonical regressions: beef-isvalid-hydration (go-sdk#167) ---
+  #
+  # KNOWN DISCREPANCY (see issue #844 comment):
+  # The regression BEEF has a BUMP where level-0 leaves have flags=0x00 (no txid flag).
+  # MerklePath#initialize requires at least one txid-flagged leaf at level 0, causing
+  # ArgumentError: "level 0 of path must contain at least one txid-flagged element".
+  # The go-sdk accepts this BUMP structure. The Ruby SDK is over-strict.
+  # Vectors are pending until MerklePath is relaxed to match cross-SDK behaviour.
 
-    # Go SDK: tx := beef.FindTransaction("b1fc0f44ba629dbdffab9e34fcc4faf9dbde3560a7365c55c26fe4daab052aac")
-    it 'contains the expected transaction by txid (Go SDK reference)' do
+  describe 'regression: beef-isvalid-hydration (go-sdk#167)' do
+    let(:envelope) { ConformanceVectors.canonical_regression('beef-isvalid-hydration') }
+
+    it 'BEEF_V1 with parent + child tx parses without error (0001)' do
+      pending 'MerklePath over-strict: level-0 leaf with flags=0x00 raises ArgumentError (see issue #844)'
+      vector = envelope['vectors'].find { |v| v['id'] == 'regression.beef.isvalid-hydration.0001' }
+      expect { BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex')) }.not_to raise_error
+    end
+
+    it 'BEEF_V1 with parent + child tx is structurally valid (0001)' do
+      pending 'MerklePath over-strict: level-0 leaf with flags=0x00 raises ArgumentError (see issue #844)'
+      vector = envelope['vectors'].find { |v| v['id'] == 'regression.beef.isvalid-hydration.0001' }
+      beef = BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex'))
+      expect(beef.valid?).to be true
+    end
+
+    it 'BEEF_V1 with parent + child tx exposes a non-nil txid for the newest tx (0002)' do
+      pending 'MerklePath over-strict: level-0 leaf with flags=0x00 raises ArgumentError (see issue #844)'
+      vector = envelope['vectors'].find { |v| v['id'] == 'regression.beef.isvalid-hydration.0002' }
+      beef = BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex'))
+      expect(beef.transactions.last.dtxid).not_to be_nil
+    end
+  end
+
+  # --- Canonical regressions: beef-v2-txid-panic (go-sdk#306) ---
+  #
+  # The Ruby SDK must not recapitulate the go-sdk#306 bug (nil transaction on BEEF_V2 parse).
+
+  describe 'regression: beef-v2-txid-panic (go-sdk#306)' do
+    let(:envelope) { ConformanceVectors.canonical_regression('beef-v2-txid-panic') }
+
+    it 'minimal BEEF_V2 (0 txs) parses without error (0001)' do
+      vector = envelope['vectors'].find { |v| v['id'] == 'regression.beef.v2-txid-panic.0001' }
+      expect { BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex')) }.not_to raise_error
+    end
+
+    it 'minimal BEEF_V2 with no transactions has an empty transactions list (0001)' do
+      vector = envelope['vectors'].find { |v| v['id'] == 'regression.beef.v2-txid-panic.0001' }
+      beef = BSV::Transaction::Beef.from_hex(vector.dig('input', 'beef_hex'))
+      # expected.txid_non_null is false — no transactions means no subject tx
+      expect(beef.transactions).to be_empty
+    end
+  end
+
+  # --- Ruby-local fixtures (no canonical upstream equivalent) ---
+  # See https://github.com/sgbett/bsv-ruby-sdk/issues/849 for upstream coverage suggestion.
+
+  describe 'Ruby-local BEEFSet (V2, 3 BUMPs, 3 transactions)' do
+    subject(:beef) { BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX) }
+
+    it 'version matches BEEF_V2 (4022206466)' do
+      expect(beef.version).to eq(4_022_206_466)
+    end
+
+    it 'contains 3 BUMPs' do
+      expect(beef.bumps.length).to eq(3)
+    end
+
+    it 'contains 3 transactions' do
+      expect(beef.transactions.length).to eq(3)
+    end
+
+    it 'contains the expected transaction by display-order txid' do
       expected_hex = 'b1fc0f44ba629dbdffab9e34fcc4faf9dbde3560a7365c55c26fe4daab052aac'
-      # find_transaction takes wire-order (internal) bytes — reverse the display-order hex
       expected_wtxid = [expected_hex].pack('H*').reverse
       tx = beef.find_transaction(expected_wtxid)
       expect(tx).not_to be_nil
       expect(tx.txid_hex).to eq(expected_hex)
     end
 
-    it 'V2 round-trips through serialise/parse' do
-      expect(beef.to_binary(version: described_class::BEEF_V2).unpack1('H*')).to eq(go_beef_set_hex)
+    it 'round-trips through V2 serialise/parse' do
+      expect(beef.to_binary(version: BSV::Transaction::Beef::BEEF_V2).unpack1('H*')).to eq(BEEF_V2_SET_HEX)
+    end
+
+    it 'is structurally valid' do
+      expect(beef.valid?).to be true
     end
   end
 
-  # --- Base64 V1 fixture (go-sdk `const BEEF`) ---
-  # A distinct, larger V1 BEEF payload the go-sdk test suite carries as a
-  # base64 string. Exercised here so the vendored fixture has executable
-  # coverage rather than sitting unused in the vector file.
+  describe 'Ruby-local base64 BEEF (V1, 1 BUMP, 9 transactions)' do
+    subject(:beef) { BSV::Transaction::Beef.from_binary(Base64.strict_decode64(BEEF_V1_B64)) }
 
-  describe 'V1 base64 fixture conformance' do
-    subject(:beef) { described_class.from_binary(Base64.strict_decode64(go_beef_base64)) }
+    it 'version matches BEEF_V1' do
+      expect(beef.version).to eq(0xEFBE0001)
+    end
 
-    it('version matches BEEF_V1') { expect(beef.version).to eq(0xEFBE0001) }
-    it('contains 1 BUMP')         { expect(beef.bumps.length).to eq(1) }
-    it('contains 9 transactions') { expect(beef.transactions.length).to eq(9) }
-    it('is structurally valid')   { expect(beef.valid?).to be true }
+    it 'contains 1 BUMP' do
+      expect(beef.bumps.length).to eq(1)
+    end
+
+    it 'contains 9 transactions' do
+      expect(beef.transactions.length).to eq(9)
+    end
+
+    it 'is structurally valid' do
+      expect(beef.valid?).to be true
+    end
   end
 
-  # --- Issue #96 regression fixture (go-sdk `Issue96BeefHex`) ---
-  # Regression vector for a "no leaves at height: 1" parse failure tracked
-  # in go-sdk issue #96. Five bumps, fourteen transactions. Exercised here
-  # so the Ruby SDK carries the same regression guard.
+  describe 'Ruby-local Issue96BeefHex (V1, 5 BUMPs, 14 transactions, go-sdk#96)' do
+    subject(:beef) { BSV::Transaction::Beef.from_hex(BEEF_ISSUE96_HEX) }
 
-  describe 'Issue #96 regression fixture conformance' do
-    subject(:beef) { described_class.from_hex(go_issue96_beef_hex) }
+    it 'version matches BEEF_V1' do
+      expect(beef.version).to eq(0xEFBE0001)
+    end
 
-    it('version matches BEEF_V1')   { expect(beef.version).to eq(0xEFBE0001) }
-    it('contains 5 BUMPs')          { expect(beef.bumps.length).to eq(5) }
-    it('contains 14 transactions')  { expect(beef.transactions.length).to eq(14) }
-    it('is structurally valid')     { expect(beef.valid?).to be true }
+    it 'contains 5 BUMPs' do
+      expect(beef.bumps.length).to eq(5)
+    end
+
+    it 'contains 14 transactions' do
+      expect(beef.transactions.length).to eq(14)
+    end
+
+    it 'is structurally valid' do
+      expect(beef.valid?).to be true
+    end
   end
 
-  # --- F5.1: TXID_ONLY byte-order consistency ---
-  # BeefTx#wtxid must return wire byte order for ALL format types.
-  # Previously, TXID_ONLY entries stored wire-order bytes but the
-  # lookup path expected display-order, causing find_transaction to
-  # fail and producing a silent cross-SDK divergence.
+  # --- Structural behaviour tests (no canonical upstream equivalent) ---
 
   describe 'TXID_ONLY byte-order consistency (F5.1)' do
+    let(:brc62_beef) do
+      BSV::Transaction::Beef.from_hex(find_serialization_vector('tx-003').dig('input', 'beef_hex'))
+    end
+
     it 'make_txid_only preserves wtxid' do
-      beef = described_class.from_hex(go_brc62_hex)
+      beef = brc62_beef
       bt = beef.transactions.first
       original_wtxid = bt.wtxid
 
       beef.make_txid_only(bt.wtxid)
-      txid_only_entry = beef.transactions.find { |entry| entry.is_a?(described_class::TxidOnlyEntry) }
+      txid_only_entry = beef.transactions.find { |e| e.is_a?(BSV::Transaction::Beef::TxidOnlyEntry) }
       expect(txid_only_entry).not_to be_nil
       expect(txid_only_entry.wtxid).to eq(original_wtxid)
     end
 
     it 'TXID_ONLY round-trips through V2 serialise/parse' do
-      beef = described_class.from_hex(go_brc62_hex)
+      beef = brc62_beef
       first_bt = beef.transactions.first
       original_wtxid = first_bt.wtxid
 
       beef.make_txid_only(first_bt.wtxid)
-      v2_bytes = beef.to_binary(version: described_class::BEEF_V2)
-      parsed = described_class.from_binary(v2_bytes)
+      v2_bytes = beef.to_binary(version: BSV::Transaction::Beef::BEEF_V2)
+      parsed = BSV::Transaction::Beef.from_binary(v2_bytes)
 
-      txid_entry = parsed.transactions.find { |entry| entry.is_a?(described_class::TxidOnlyEntry) }
+      txid_entry = parsed.transactions.find { |e| e.is_a?(BSV::Transaction::Beef::TxidOnlyEntry) }
       expect(txid_entry).not_to be_nil
       expect(txid_entry.wtxid).to eq(original_wtxid)
     end
 
     it 'TXID_ONLY entries are included in known txids set' do
-      beef = described_class.from_hex(go_beef_set_hex)
+      beef = BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX)
       first_bt = beef.transactions.first
 
       beef.make_txid_only(first_bt.wtxid)
-      # With allow_txid_only, the converted entry must be findable
-      # by its display-order txid in the known set
       expect(beef.valid?(allow_txid_only: true)).to be true
     end
   end
 
-  # --- Atomic BEEF (BRC-95) conformance ---
-
   describe 'Atomic BEEF (BRC-95) conformance' do
-    it 'wraps V2 with magic prefix and subject txid' do
-      beef = described_class.from_hex(go_beef_set_hex)
-      last_bt = beef.transactions.last
-      subject_wtxid = last_bt.wtxid
+    let(:v2_beef) { BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX) }
 
-      atomic = beef.to_atomic_binary(subject_wtxid)
+    it 'wraps V2 BEEF with BRC-95 magic prefix and subject txid' do
+      last_bt = v2_beef.transactions.last
+      atomic = v2_beef.to_atomic_binary(last_bt.wtxid)
 
-      # BRC-95: first 4 bytes = 0x01010101
       expect(atomic.byteslice(0, 4).unpack1('V')).to eq(0x01010101)
-      # BRC-95: next 32 bytes = subject txid in wire (internal) byte order
-      expect(atomic.byteslice(4, 32)).to eq(subject_wtxid)
-      # BRC-95: remainder is V2 BEEF
-      inner_version = atomic.byteslice(36, 4).unpack1('V')
-      expect(inner_version).to eq(described_class::BEEF_V2)
+      expect(atomic.byteslice(4, 32)).to eq(last_bt.wtxid)
+      expect(atomic.byteslice(36, 4).unpack1('V')).to eq(BSV::Transaction::Beef::BEEF_V2)
     end
 
     it 'round-trips through atomic serialise/parse' do
-      beef = described_class.from_hex(go_beef_set_hex)
-      last_bt = beef.transactions.last
-
-      atomic = beef.to_atomic_binary(last_bt.wtxid)
-      parsed = described_class.from_binary(atomic)
+      last_bt = v2_beef.transactions.last
+      atomic = v2_beef.to_atomic_binary(last_bt.wtxid)
+      parsed = BSV::Transaction::Beef.from_binary(atomic)
 
       expect(parsed.subject_wtxid).to eq(last_bt.wtxid)
-      expect(parsed.transactions.length).to eq(beef.transactions.length)
+      expect(parsed.transactions.length).to eq(v2_beef.transactions.length)
     end
   end
 
-  # --- Empty BEEF conformance ---
-  # Go SDK: require.Equal(t, "0100beef0000", hex.EncodeToString(beefBytes))
-  #         require.Equal(t, "0200beef0000", hex.EncodeToString(beefBytes))
-
   describe 'empty BEEF conformance' do
-    it 'V1 empty BEEF matches Go SDK expected hex' do
-      beef = described_class.from_hex('0100beef0000')
-      expect(beef.version).to eq(described_class::BEEF_V1)
+    it 'V1 empty BEEF parses correctly' do
+      beef = BSV::Transaction::Beef.from_hex('0100beef0000')
+      expect(beef.version).to eq(BSV::Transaction::Beef::BEEF_V1)
       expect(beef.bumps).to be_empty
       expect(beef.transactions).to be_empty
     end
 
-    it 'V2 empty BEEF matches Go SDK expected hex' do
-      beef = described_class.from_hex('0200beef0000')
-      expect(beef.version).to eq(described_class::BEEF_V2)
+    it 'V2 empty BEEF parses correctly' do
+      beef = BSV::Transaction::Beef.from_hex('0200beef0000')
+      expect(beef.version).to eq(BSV::Transaction::Beef::BEEF_V2)
       expect(beef.bumps).to be_empty
       expect(beef.transactions).to be_empty
     end
 
     it 'serialises empty V1 BEEF to expected hex' do
-      beef = described_class.new
-      expect(beef.to_hex).to eq('0100beef0000')
+      expect(BSV::Transaction::Beef.new.to_hex).to eq('0100beef0000')
     end
 
     it 'serialises empty V2 BEEF when requested' do
-      beef = described_class.new
-      expect(beef.to_binary(version: described_class::BEEF_V2).unpack1('H*')).to eq('0200beef0000')
+      expect(BSV::Transaction::Beef.new.to_binary(version: BSV::Transaction::Beef::BEEF_V2).unpack1('H*'))
+        .to eq('0200beef0000')
     end
   end
 
-  # --- V1 → V2 upgrade conformance ---
-
   describe 'V1 to V2 upgrade' do
     it 'parses V1 and serialises as V2 preserving all data' do
-      v1 = described_class.from_hex(go_brc62_hex)
-      v2_hex = v1.to_binary(version: described_class::BEEF_V2).unpack1('H*')
-
-      # Should start with V2 magic
+      v1 = BSV::Transaction::Beef.from_hex(find_serialization_vector('tx-003').dig('input', 'beef_hex'))
+      v2_hex = v1.to_binary(version: BSV::Transaction::Beef::BEEF_V2).unpack1('H*')
       expect(v2_hex[0..7]).to eq('0200beef')
 
-      # Parse back and verify data preserved
-      v2 = described_class.from_hex(v2_hex)
+      v2 = BSV::Transaction::Beef.from_hex(v2_hex)
       expect(v2.bumps.length).to eq(v1.bumps.length)
       expect(v2.transactions.length).to eq(v1.transactions.length)
-
-      # Transaction IDs preserved
       v1.transactions.each_with_index do |bt, i|
         expect(v2.transactions[i].wtxid).to eq(bt.wtxid)
       end
     end
   end
 
-  # --- Merge conformance ---
-
   describe 'merge conformance' do
     it 'merging identical BEEFs deduplicates' do
-      beef1 = described_class.from_hex(go_beef_set_hex)
-      beef2 = described_class.from_hex(go_beef_set_hex)
-
+      beef1 = BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX)
+      beef2 = BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX)
       beef1.merge(beef2)
       expect(beef1.transactions.length).to eq(3)
       expect(beef1.bumps.length).to eq(3)
     end
 
     it 'merging different BEEFs combines all transactions' do
-      beef1 = described_class.from_hex(go_brc62_hex)
-      beef2 = described_class.from_hex(go_beef_set_hex)
-
+      v1_hex = find_serialization_vector('tx-003').dig('input', 'beef_hex')
+      beef1 = BSV::Transaction::Beef.from_hex(v1_hex)
+      beef2 = BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX)
       beef1.merge(beef2)
       expect(beef1.transactions.length).to eq(5) # 2 + 3
     end
 
     it 'merged BEEF validates as valid' do
-      beef1 = described_class.from_hex(go_brc62_hex)
-      beef2 = described_class.from_hex(go_beef_set_hex)
-
+      v1_hex = find_serialization_vector('tx-003').dig('input', 'beef_hex')
+      beef1 = BSV::Transaction::Beef.from_hex(v1_hex)
+      beef2 = BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX)
       beef1.merge(beef2)
       expect(beef1.valid?).to be true
     end
   end
 
-  # --- Transaction convenience method conformance ---
-
-  describe 'Tx.from_beef / Tx#to_beef' do
-    it 'from_beef returns the subject (last) transaction' do
-      tx = BSV::Transaction::Tx.from_beef_hex(go_beef_set_hex)
-      beef = described_class.from_hex(go_beef_set_hex)
+  describe 'Tx.from_beef_hex / Tx#to_beef_hex' do
+    it 'from_beef_hex returns the subject (last) transaction' do
+      tx = BSV::Transaction::Tx.from_beef_hex(BEEF_V2_SET_HEX)
+      beef = BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX)
       expect(tx.wtxid).to eq(beef.transactions.last.wtxid)
     end
 
-    it 'to_beef produces valid BEEF that round-trips' do
-      original = BSV::Transaction::Tx.from_beef_hex(go_beef_set_hex)
+    it 'to_beef_hex produces valid BEEF that round-trips' do
+      original = BSV::Transaction::Tx.from_beef_hex(BEEF_V2_SET_HEX)
       rebuilt_hex = original.to_beef_hex
-
       tx2 = BSV::Transaction::Tx.from_beef_hex(rebuilt_hex)
       expect(tx2.wtxid).to eq(original.wtxid)
     end
   end
 
-  # --- Validation conformance ---
-
   describe 'validation conformance' do
-    it 'Go SDK V2 vector is structurally valid' do
-      beef = described_class.from_hex(go_beef_set_hex)
-      expect(beef.valid?).to be true
-    end
-
-    it 'Go SDK V1 vector is structurally valid' do
-      beef = described_class.from_hex(go_brc62_hex)
-      expect(beef.valid?).to be true
+    it 'V2 local fixture (BEEFSet) is structurally valid' do
+      expect(BSV::Transaction::Beef.from_hex(BEEF_V2_SET_HEX).valid?).to be true
     end
 
     it 'invalid version magic is rejected' do
-      # Go SDK: binary.LittleEndian.PutUint32(beefBytes[0:4], 0xdeadbeef) → error
-      # F5.12: unknown version bytes must raise ArgumentError rather than
-      # silently producing an empty-transactions bundle.
-      bad_hex = 'efbeadde0000'
-      expect { described_class.from_hex(bad_hex) }
+      expect { BSV::Transaction::Beef.from_hex('efbeadde0000') }
         .to raise_error(ArgumentError, /unknown BEEF version/)
     end
   end

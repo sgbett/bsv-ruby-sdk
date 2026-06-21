@@ -1,0 +1,227 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# bin/conformance/sync
+#
+# Fetches the conformance/ subtree from ts-stack at a pinned SHA and extracts
+# it into tmp/conformance-vectors/. Writes/updates .architecture/conformance.lock.
+#
+# Usage:
+#   bin/conformance/sync <sha>           # fetch at SHA; verify if lock already exists
+#   bin/conformance/sync <sha> --update  # fetch at SHA; overwrite lock unconditionally
+#   bin/conformance/sync                 # re-fetch at SHA recorded in lock
+
+require 'net/http'
+require 'zlib'
+require 'rubygems/package'
+require 'stringio'
+require 'digest'
+require 'json'
+require 'date'
+require 'fileutils'
+require 'yaml'
+
+module ConformanceSync
+  class Error < StandardError; end
+
+  REPO           = 'bsv-blockchain/ts-stack'
+  CODELOAD_BASE  = 'https://codeload.github.com'
+  REPO_ROOT      = File.expand_path('../..', __dir__)
+  LOCK_PATH      = File.join(REPO_ROOT, '.architecture', 'conformance.lock')
+  CACHE_DIR      = File.join(REPO_ROOT, 'tmp', 'conformance-vectors')
+  SHA_SENTINEL   = File.join(CACHE_DIR, '.sync-sha')
+  EXTRACT_PREFIX = 'conformance/'
+  SHA_PATTERN    = /\A[0-9a-f]{40}\z/
+
+  # Validates that the given string is a 40-char lowercase hex SHA.
+  # Rejects branch names, tags, and partial SHAs to keep the lock reproducible.
+  def self.validate_sha!(sha)
+    return if SHA_PATTERN.match?(sha)
+
+    raise Error, "Expected a 40-char hex SHA; got #{sha.inspect}. " \
+                 'Resolve the branch/tag to a SHA first: ' \
+                 "git -C /opt/js/ts-stack rev-parse #{sha}"
+  end
+
+  def self.lock_read
+    return {} unless File.exist?(LOCK_PATH)
+
+    # `fetched_at` is an ISO date — YAML parses it as a Date scalar, so it
+    # needs an explicit permit. All fields are coerced to strings so callers
+    # don't have to care which ones were written as integers or dates.
+    parsed = YAML.safe_load_file(LOCK_PATH, permitted_classes: [Date]) || {}
+    parsed.transform_values(&:to_s)
+  end
+
+  def self.lock_write(sha:, tarball_sha256:, vectors_count:, vectors_total:)
+    content = <<~YAML
+      # .architecture/conformance.lock
+      # Auto-managed by bin/conformance/sync — do not edit by hand.
+      upstream: #{REPO}
+      path: #{EXTRACT_PREFIX}
+      sha: #{sha}
+      fetched_at: #{Date.today}
+      tarball_sha256: #{tarball_sha256}
+      vectors_count: #{vectors_count}
+      vectors_total: #{vectors_total}
+    YAML
+    File.write(LOCK_PATH, content)
+  end
+
+  # Returns true when the cache is present and was extracted for the given sha.
+  def self.cache_valid?(expected_sha)
+    return false unless Dir.exist?(CACHE_DIR)
+    return false unless File.exist?(File.join(CACHE_DIR, 'conformance', 'META.json'))
+    return false unless File.exist?(SHA_SENTINEL)
+    return false if expected_sha.nil? || expected_sha.empty?
+
+    File.read(SHA_SENTINEL).strip == expected_sha
+  end
+
+  def self.codeload_url(sha)
+    "#{CODELOAD_BASE}/#{REPO}/tar.gz/#{sha}"
+  end
+
+  # Downloads the tarball for +sha+, verifies it is not empty, and returns
+  # [tarball_bytes, sha256_hex].  Cleans up on network failure.
+  def self.fetch_tarball(sha)
+    url = codeload_url(sha)
+    warn "Fetching #{url} ..."
+
+    uri  = URI.parse(url)
+    data = net_get(uri, sha, url)
+
+    sha256 = Digest::SHA256.hexdigest(data)
+    [data, sha256]
+  end
+
+  def self.net_get(uri, sha, url)
+    response = Net::HTTP.get_response(uri)
+
+    if response.is_a?(Net::HTTPRedirection)
+      redirected = URI.parse(response['location'])
+      response = Net::HTTP.get_response(redirected)
+    end
+
+    unless response.is_a?(Net::HTTPOK)
+      raise Error, "HTTP #{response.code} fetching #{url}\n" \
+                   "SHA #{sha} may not exist in #{REPO}."
+    end
+
+    response.body
+  end
+
+  # Extracts only paths under conformance/ from the tarball bytes.
+  # Writes to a sibling staging dir then atomically swaps into CACHE_DIR,
+  # so a failed extraction never destroys a previously-good cache.
+  # Returns the count of extracted files.
+  def self.extract(tarball_bytes, sha)
+    staging_dir = "#{CACHE_DIR}.tmp"
+    FileUtils.rm_rf(staging_dir)
+    FileUtils.mkdir_p(staging_dir)
+    canonical_root = File.expand_path(staging_dir) + File::SEPARATOR
+
+    extracted = 0
+    gz_stream = Zlib::GzipReader.new(StringIO.new(tarball_bytes))
+    Gem::Package::TarReader.new(gz_stream) do |tar|
+      tar.each do |entry|
+        # Tarball entries are prefixed with "ts-stack-<sha>/"
+        relative = entry.full_name.sub(%r{\Ats-stack-[^/]+/}, '')
+        next unless relative.start_with?(EXTRACT_PREFIX)
+        next if entry.directory?
+
+        dest = File.expand_path(File.join(staging_dir, relative))
+        # Defence in depth: reject any entry that would escape the staging dir.
+        # Trusted upstream today, but extracting a remote tarball blindly is a
+        # zip-slip / tar-slip pattern that's cheap to neutralise.
+        raise Error, "Tarball entry escapes cache dir: #{entry.full_name}" unless dest.start_with?(canonical_root)
+
+        FileUtils.mkdir_p(File.dirname(dest))
+        File.binwrite(dest, entry.read)
+        extracted += 1
+      end
+    end
+
+    File.write(File.join(staging_dir, '.sync-sha'), sha)
+    FileUtils.rm_rf(CACHE_DIR)
+    File.rename(staging_dir, CACHE_DIR)
+    extracted
+  ensure
+    FileUtils.rm_rf(staging_dir) if staging_dir && Dir.exist?(staging_dir)
+  end
+
+  def self.meta_stats
+    meta_path = File.join(CACHE_DIR, 'conformance', 'META.json')
+    raise Error, 'META.json not found after extraction — no conformance/ at this SHA?' unless File.exist?(meta_path)
+
+    meta = JSON.parse(File.read(meta_path))
+    stats = meta.fetch('stats', {})
+    [stats.fetch('total_files', 0), stats.fetch('total_vectors', 0)]
+  end
+
+  def self.run(argv)
+    sha, update = parse_args(argv)
+    lock        = lock_read
+
+    sha, update = resolve_sha_from_lock(sha, lock, update)
+
+    validate_sha!(sha)
+
+    if !update && lock['sha'] == sha && cache_valid?(sha)
+      warn "Cache valid for #{sha} — nothing to do."
+      return
+    end
+
+    if !update && lock['sha'] == sha && lock['tarball_sha256']
+      # SHA matches lock but cache dir missing/stale — re-fetch silently.
+    elsif !update && lock['sha'] && lock['sha'] != sha
+      raise Error, "Lock SHA #{lock['sha']} ≠ requested #{sha}. " \
+                   'Pass --update to overwrite the lock.'
+    end
+
+    tarball, sha256 = fetch_tarball(sha)
+
+    # Verify the digest BEFORE touching the cache. If it doesn't match the
+    # pinned lock, the existing cache stays intact and the user can investigate.
+    if !update && lock['tarball_sha256'] && lock['tarball_sha256'] != sha256
+      raise Error, "Tarball sha256 mismatch!\n  " \
+                   "Expected : #{lock['tarball_sha256']}\n  " \
+                   "Got      : #{sha256}\n" \
+                   'Pass --update to accept the new digest.'
+    end
+
+    count = extract(tarball, sha)
+
+    if count.zero?
+      raise Error, "No files extracted from conformance/ at SHA #{sha}. " \
+                   "The path '#{EXTRACT_PREFIX}' may not exist at this commit."
+    end
+
+    vectors_count, vectors_total = meta_stats
+
+    lock_write(sha:, tarball_sha256: sha256, vectors_count:, vectors_total:)
+    warn "Extracted #{count} files. Wrote #{LOCK_PATH}."
+    warn "  vectors_count=#{vectors_count}  vectors_total=#{vectors_total}"
+  end
+
+  def self.parse_args(argv)
+    update = argv.delete('--update')
+    sha    = argv.first
+    [sha, update]
+  end
+
+  def self.resolve_sha_from_lock(sha, lock, update)
+    if sha.nil?
+      unless lock['sha']
+        raise Error, 'No SHA given and no lock file found. ' \
+                     'Run: bin/conformance/sync <40-char-sha> --update'
+      end
+
+      [lock['sha'], update]
+    else
+      [sha, update]
+    end
+  end
+end
+
+ConformanceSync.run(ARGV.dup) if $PROGRAM_NAME == __FILE__

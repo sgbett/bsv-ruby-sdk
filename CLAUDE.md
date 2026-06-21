@@ -29,6 +29,8 @@ cd gem/bsv-sdk && bundle exec rspec spec/bsv_spec.rb:4    # run a single example
 bundle exec rubocop                          # lint
 bundle exec rubocop -A                       # lint with autocorrect
 cd gem/bsv-sdk && gem build bsv-sdk.gemspec  # build gem (must run from inside gem/<name>/)
+bin/conformance/sync                         # populate/verify the conformance vector cache (required before rspec spec/conformance/)
+bin/conformance/sync <sha> --update          # bump the pinned corpus revision
 ```
 
 ## Ruby Version Compatibility

@@ -81,26 +81,31 @@ Naming/PredicatePrefix:
 # splitting into tiny methods would harm readability and auditability.
 Metrics/AbcSize:
   Exclude:
+    - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
 
 Metrics/MethodLength:
   Exclude:
+    - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
+    - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
+    - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
 
 Metrics/ModuleLength:
   Exclude:
+    - 'bin/**/*'
     - 'gem/bsv-sdk/lib/bsv/primitives/ecdsa.rb'
     - 'gem/bsv-sdk/lib/bsv/primitives/ecies.rb'
     - 'gem/bsv-sdk/lib/bsv/script/opcodes.rb'
@@ -183,6 +188,7 @@ RSpec/MultipleExpectations:
     - 'gem/*/spec/support/**/*'
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
+    - 'gem/bsv-sdk/spec/bin/**/*'
 
 RSpec/MultipleMemoizedHelpers:
   Exclude:
@@ -200,6 +206,7 @@ RSpec/MultipleMemoizedHelpers:
     - 'gem/bsv-sdk/spec/bsv/kv_store/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/*/spec/support/**/*'
+    - 'gem/bsv-sdk/spec/bin/**/*'
 
 RSpec/ExampleLength:
   Exclude:
@@ -221,6 +228,7 @@ RSpec/ExampleLength:
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-sdk/spec/bsv/wire_format_spec.rb'
+    - 'gem/bsv-sdk/spec/bin/**/*'
 
 # Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
 # Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
@@ -241,6 +249,7 @@ RSpec/SpecFilePathFormat:
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/providers/**/*'
+    - 'gem/bsv-sdk/spec/bin/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 # Hardening specs test multiple classes/modules together and use a string description.
@@ -253,6 +262,7 @@ RSpec/DescribeClass:
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
+    - 'gem/bsv-sdk/spec/bin/**/*'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
 Lint/ConstantDefinitionInBlock:
