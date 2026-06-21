@@ -1,8 +1,8 @@
 # Cross-SDK conformance vectors
 
 Canonical vector provenance is now tracked in
-[`.architecture/conformance.lock`](../../../.architecture/conformance.lock).
-See [`docs/testing/conformance-vectors.md`](../../../docs/testing/conformance-vectors.md)
+[`.architecture/conformance.lock`](../../../../../.architecture/conformance.lock).
+See [`docs/testing/conformance-vectors.md`](../../../../../docs/testing/conformance-vectors.md)
 for the sync procedure and guidance on adding new families.
 
 ## Ruby-local fixtures

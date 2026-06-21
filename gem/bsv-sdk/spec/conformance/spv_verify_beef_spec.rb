@@ -41,6 +41,8 @@ RSpec.describe 'BEEF-based SPV verification conformance' do
     ConformanceVectors.each_canonical_vector('sdk.transactions.serialization') do |_env, v|
       vector = v if v['id'] == 'tx-003'
     end
+    raise 'tx-003 not found in sdk.transactions.serialization (canonical cache missing or schema changed)' if vector.nil?
+
     vector.dig('input', 'beef_hex')
   end
   let(:beef_base64) { BEEF_V1_B64 }

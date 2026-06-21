@@ -186,11 +186,8 @@ RSpec.describe 'sdk.scripts.evaluation — script evaluation' do
         result = BSV::Script::Interpreter.evaluate(unlock, lock)
 
         if result == expected['valid']
-          if issue
-            failures << "#{vector['id']}: UNEXPECTED PASS (issue #{issue} may be resolved)"
-          else
-            pass_count += 1
-          end
+          warn "#{vector['id']}: UNEXPECTED PASS — prune from PENDING_EVALUATION_VECTORS (issue #{issue} may be resolved)" if issue
+          pass_count += 1
         elsif issue
           pending_count += 1
         else

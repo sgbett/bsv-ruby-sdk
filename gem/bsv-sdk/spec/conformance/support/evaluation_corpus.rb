@@ -14,7 +14,7 @@ require 'support/conformance_vectors'
 #   EvaluationCorpus.each(tags: %w[sighash]) { |envelope, vector| ... }
 #   EvaluationCorpus.each(tags: %w[sighash forkid]) { |envelope, vector| ... }
 #
-# Vectors with `skip: true` are silently skipped (skip_reason is warned).
+# Vectors with `skip: true` are silently skipped; `skip_reason` is not surfaced.
 #
 # Reuse: Task #846 (script evaluation spec) imports this helper directly.
 # The filter API is intentionally small — add new keyword args rather than
