@@ -45,15 +45,16 @@ module ConformanceVectors
     load(filename).reject { |row| row.is_a?(Array) && row.length == 1 }
   end
 
-  # Load a canonical corpus envelope by dot-separated ID or relative path.
+  # Load a canonical corpus envelope by its dot-separated vector ID.
   # Resolves dots to directory separators: "sdk.keys.key-derivation" →
   # "sdk/keys/key-derivation.json". Hyphens within a segment are preserved.
+  # Pass the ID only — never a path or a name with a .json suffix.
   #
-  # @param id_or_path [String] dot-separated vector ID or path relative to canonical vectors dir
+  # @param vector_id [String] dot-separated vector ID (no slashes, no extension)
   # @return [Hash] parsed JSON envelope
-  def self.canonical(id_or_path)
+  def self.canonical(vector_id)
     assert_canonical_cache!
-    path = File.join(CANONICAL_DIR, "#{id_or_path.tr('.', '/')}.json")
+    path = File.join(CANONICAL_DIR, "#{vector_id.tr('.', '/')}.json")
     raise "Canonical vector not found: #{path}" unless File.exist?(path)
 
     JSON.parse(File.read(path))
