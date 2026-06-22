@@ -48,8 +48,7 @@ including how each one fits with the `bsv-wallet` write paths:
 
 ## Companion gems
 
-- **[bsv-wallet](https://github.com/sgbett/bsv-wallet)** — BRC-100 wallet interface with `BSV::Wallet::Client`, storage adapters, and broadcast queue
-- **[bsv-wallet-postgres](https://github.com/sgbett/bsv-wallet)** — PostgreSQL storage adapter and async broadcast queue for production deployments
+- **[bsv-wallet](https://github.com/sgbett/bsv-wallet)** — BRC-100 wallet interface with `BSV::Wallet::Client`, storage adapters (including PostgreSQL), and broadcast queue
 - **[bsv-attest](https://rubygems.org/gems/bsv-attest)** — document attestation via OP_RETURN on the BSV blockchain
 
 ## Quick Links
@@ -57,4 +56,4 @@ including how each one fits with the `bsv-wallet` write paths:
 - [Getting Started](guides/getting-started.md) — first steps with the SDK
 - [API Reference](reference/api/) — auto-generated from source
 - [GitHub](https://github.com/sgbett/bsv-ruby-sdk) — source code and issues
-- Changelogs: [sdk](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-sdk/CHANGELOG.md) · [wallet](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-wallet/CHANGELOG.md) · [wallet-postgres](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-wallet-postgres/CHANGELOG.md) · [attest](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-attest/CHANGELOG.md)
+- Changelogs: [sdk](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-sdk/CHANGELOG.md) · [attest](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-attest/CHANGELOG.md) · [wallet](https://github.com/sgbett/bsv-wallet/blob/master/gem/bsv-wallet/CHANGELOG.md)

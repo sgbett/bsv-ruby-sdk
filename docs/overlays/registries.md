@@ -94,9 +94,9 @@ client.resolve_basket(
 )
 ```
 
-The Ruby SDK pre-existed before this PR; `resolve_basket`/`_protocol`/
-`_certificate` are new thin wrappers around the existing
-`resolve(type, query)` that match the typed API in other SDKs.
+`resolve_basket`/`_protocol`/`_certificate` are thin typed wrappers
+around the general `resolve(type, query)` method — kept for parity
+with the typed API in the TypeScript, Go, and Python SDKs.
 
 See [SDK reference: Ecosystem Clients](../sdk/ecosystem-clients.md) for
 the full method surface.

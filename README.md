@@ -119,9 +119,9 @@ Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgb
 **Guides:**
 
 - [Getting Started](https://sgbett.github.io/bsv-ruby-sdk/guides/getting-started/) — installation, first transaction
-- [Primitives](https://sgbett.github.io/bsv-ruby-sdk/guides/primitives/) — keys, signing, encryption, HD keys
-- [Script](https://sgbett.github.io/bsv-ruby-sdk/guides/script/) — construction, templates, detection
-- [Transaction](https://sgbett.github.io/bsv-ruby-sdk/guides/transaction/) — building, signing, BEEF
+- [Primitives](https://sgbett.github.io/bsv-ruby-sdk/sdk/primitives/) — keys, signing, encryption, HD keys
+- [Script](https://sgbett.github.io/bsv-ruby-sdk/sdk/script/) — construction, templates, detection
+- [Transaction](https://sgbett.github.io/bsv-ruby-sdk/sdk/transaction/) — building, signing, BEEF
 **Additional resources:**
 
 - [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/api/) — auto-generated from YARD annotations
