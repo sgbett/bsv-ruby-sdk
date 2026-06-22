@@ -2,7 +2,7 @@
 
 Canonical vector provenance is now tracked in
 [`.architecture/conformance.lock`](../../../../../.architecture/conformance.lock).
-See [`docs/testing/conformance-vectors.md`](../../../../../docs/testing/conformance-vectors.md)
+See [`docs/reference/conformance-vectors.md`](../../../../../docs/reference/conformance-vectors.md)
 for the sync procedure and guidance on adding new families.
 
 ## Ruby-local fixtures

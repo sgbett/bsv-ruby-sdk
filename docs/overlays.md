@@ -69,7 +69,7 @@ The `bsv-sdk` gem ships the **read paths** for the overlays above. Reading
 is pure consumption: no UTXOs spent, no signatures over private keys, no
 payment flow. A read client only needs an HTTP transport and a parser.
 
-The **write paths** live in the [`bsv-wallet`](../gems/wallet.md) gem
+The **write paths** live in the [`bsv-wallet`](https://github.com/sgbett/bsv-wallet) gem
 because creating an advertisement, registering a definition, or setting
 a KV entry requires:
 

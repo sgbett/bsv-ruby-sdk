@@ -18,7 +18,7 @@ provides two distinct ECDSA secp256k1/SHA-256 vector sets:
 
 The standard vectors are already vendored and exercised by
 `secp256k1_wycheproof_spec.rb` (see
-[vectors/README.md](../../gem/bsv-sdk/spec/bsv/primitives/vectors/README.md)).
+[vectors/README.md](https://github.com/sgbett/bsv-ruby-sdk/blob/master/gem/bsv-sdk/spec/bsv/primitives/vectors/README.md)).
 
 The Bitcoin vectors describe themselves in their header as testing an
 *"ECDSA variant used for Bitcoin, that add signature non-malleability."*
@@ -178,7 +178,7 @@ When vendoring `ecdsa_secp256k1_sha256_bitcoin_test.json`:
          # policy (BIP-62 rule 5). ECDSA.verify correctly returns true;
          # low-S enforcement belongs in the script interpreter, not the
          # primitive. See:
-         # docs/testing/wycheproof-malleability-analysis.md
+         # docs/reference/wycheproof-malleability-analysis.md
        else
          expect(verified).to be false
        end

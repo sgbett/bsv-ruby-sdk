@@ -4,7 +4,7 @@ The `BSV::Network` module handles broadcasting transactions and querying the blo
 The `BSV::Transaction::ChainTracker` class provides SPV verification against block headers.
 
 For the underlying architecture (Protocols, Providers, Commands), see the
-[Network Architecture Overview](network/overview.md) and [Examples](network/examples.md).
+[Network Architecture Overview](../network/overview.md) and [Examples](../network/examples.md).
 
 ## Broadcasting Transactions
 

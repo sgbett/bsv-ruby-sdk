@@ -20,7 +20,7 @@ Or install directly:
 gem install bsv-sdk
 ```
 
-The SDK has **no required external dependencies** — it uses only Ruby's standard library. Elliptic curve operations use a pure Ruby implementation with an optional native C extension for acceleration (see [secp256k1](../general/secp256k1.md)). OpenSSL is used for hashing, HMAC, PBKDF2, and symmetric encryption.
+The SDK has **no required external dependencies** — it uses only Ruby's standard library. Elliptic curve operations use a pure Ruby implementation with an optional native C extension for acceleration (see the [secp256k1-native](https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md) documentation). OpenSSL is used for hashing, HMAC, PBKDF2, and symmetric encryption.
 
 ## Quick Start
 
@@ -57,7 +57,7 @@ address = public_key.address
 
 This example builds a P2PKH transaction that spends one input and creates two outputs: an OP_RETURN data carrier and a change output.
 
-> **Transaction IDs:** The SDK uses `wtxid` for wire-order binary (the native byte order of SHA-256d hashes) and `dtxid` for display-order hex (the reversed format shown by block explorers). Internally, everything is wire order — conversion to display order happens only at JSON and UI boundaries. See the **[wtxid/dtxid guide](wtxid-dtxid.md)** for the full rationale.
+> **Transaction IDs:** The SDK uses `wtxid` for wire-order binary (the native byte order of SHA-256d hashes) and `dtxid` for display-order hex (the reversed format shown by block explorers). Internally, everything is wire order — conversion to display order happens only at JSON and UI boundaries. See the **[wtxid/dtxid convention](../reference/wtxid-dtxid.md)** for the full rationale.
 
 ```ruby
 # Set up keys
@@ -140,7 +140,7 @@ If you already know the TypeScript or Go BSV SDKs, most of the API is a direct t
 
 **BRC-100 wire protocol methods are the exception** — `get_public_key`, `get_height`, `is_authenticated`, `list_outputs` keep their protocol names because they *are* the protocol names. Don't try to rename them.
 
-For the full picture including edge cases and rationale, see **[Naming Conventions](../general/naming-conventions.md)**.
+For the full picture including edge cases and rationale, see **[Naming Conventions](../reference/naming-conventions.md)**.
 
 ## What's Next
 
@@ -148,6 +148,6 @@ For the full picture including edge cases and rationale, see **[Naming Conventio
 - **[Script Guide](../sdk/script.md)** — script construction, templates, detection
 - **[Transaction Guide](../sdk/transaction.md)** — building, signing, fee estimation, BEEF
 - **[Network Guide](../sdk/network.md)** — broadcasting, chain tracking, SPV verification
-- **[Wallet Guide](../gems/wallet.md)** — BRC-100 wallet interface, storage, broadcasting
+- **[bsv-wallet](https://github.com/sgbett/bsv-wallet)** — BRC-100 wallet interface, storage, broadcasting (standalone gem)
 - **[MCP Server Guide](../general/mcp.md)** — use BSV operations as AI assistant tools via Claude Code
-- **[Naming Conventions](../general/naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
+- **[Naming Conventions](../reference/naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs

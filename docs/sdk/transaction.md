@@ -21,7 +21,7 @@ input.source_satoshis = 100_000
 input.source_locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
 ```
 
-`wtxid_from_hex` converts a display-order hex txid to wire-order binary (the native byte order used internally). See the **[wtxid/dtxid guide](../guides/wtxid-dtxid.md)** for why.
+`wtxid_from_hex` converts a display-order hex txid to wire-order binary (the native byte order used internally). See the **[wtxid/dtxid convention](../reference/wtxid-dtxid.md)** for why.
 
 ### Outputs
 

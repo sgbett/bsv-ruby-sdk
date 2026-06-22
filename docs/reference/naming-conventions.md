@@ -40,7 +40,7 @@ Ruby treats attribute access and method calls identically, so `get_` is redundan
 # TS:   beef.getBumps()     → Ruby: beef.bumps
 ```
 
-Note: `tx.wtxid` returns the transaction ID as **wire-order binary** (for computation and storage). Use `tx.dtxid` for the display-order hex that most TS/Go APIs return from `getTxid()`. See the **[wtxid/dtxid guide](../guides/wtxid-dtxid.md)** for the full convention.
+Note: `tx.wtxid` returns the transaction ID as **wire-order binary** (for computation and storage). Use `tx.dtxid` for the display-order hex that most TS/Go APIs return from `getTxid()`. See the **[wtxid/dtxid convention](wtxid-dtxid.md)** for the full rule.
 
 ### 4. Setters use assignment syntax
 

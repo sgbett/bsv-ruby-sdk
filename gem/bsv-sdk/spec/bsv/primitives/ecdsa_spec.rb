@@ -228,7 +228,7 @@ RSpec.describe BSV::Primitives::ECDSA do
       # to ECDSA.verify, which would conflate mathematical validity with protocol
       # policy — the same conceptual error that led to SegWit on BTC.
       #
-      # See: docs/testing/wycheproof-malleability-analysis.md
+      # See: docs/reference/wycheproof-malleability-analysis.md
       hash = BSV::Primitives::Digest.sha256('high-S regression guard')
       sig = described_class.sign(hash, privkey_bn)
 

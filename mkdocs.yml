@@ -42,6 +42,17 @@ plugins:
   - search
   - minify:
       minify_html: true
+  - redirects:
+      redirect_maps:
+        # Track 2 moves into docs/reference/ (HLR #856).
+        'general/naming-conventions.md': 'reference/naming-conventions.md'
+        'guides/wtxid-dtxid.md': 'reference/wtxid-dtxid.md'
+        'testing/conformance-vectors.md': 'reference/conformance-vectors.md'
+        'testing/wycheproof-malleability-analysis.md': 'reference/wycheproof-malleability-analysis.md'
+        # Track 1 YARD relocation: docs/reference/ → docs/reference/api/.
+        'reference/index.md': 'reference/api/index.md'
+        # Extracted to a standalone gem in commit 72c100bd; redirect to upstream.
+        'general/secp256k1.md': 'https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md'
 
 nav:
   - Home: index.md
@@ -74,15 +85,14 @@ nav:
           - Ordinals: network/protocols/ordinals.md
           - TAAL Binary: network/protocols/taal_binary.md
           - WoC REST: network/protocols/woc_rest.md
-  - Wallet: gems/wallet.md
-  - Wallet Storage:
-      - Postgres: gems/wallet-postgres.md
-  - API: reference/index.md
+  - Reference:
+      - Naming Conventions: reference/naming-conventions.md
+      - wtxid / dtxid Convention: reference/wtxid-dtxid.md
+      - Conformance Vectors: reference/conformance-vectors.md
+      - Wycheproof Malleability Analysis: reference/wycheproof-malleability-analysis.md
+      - API: reference/api/index.md
   - Testing:
-      - Conformance Vectors: testing/conformance-vectors.md
       - Testnet Integration: testing/testnet.md
       - Custom Provider Integration: testing/custom-provider.md
   - General:
-    - Ruby secp256k1: general/secp256k1.md
-    - Naming Conventions: general/naming-conventions.md
-    - MCP Server: general/mcp.md
+      - MCP Server: general/mcp.md

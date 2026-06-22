@@ -7,7 +7,7 @@ blockchain interaction.
 
 Use `ProtoWallet` when you need BRC-100 crypto operations without a full wallet stack. For
 transaction creation, UTXO management, and blockchain interaction, use the standalone
-[`bsv-wallet`](../gems/wallet.md) gem, which builds on top of ProtoWallet's crypto layer.
+[`bsv-wallet`](https://github.com/sgbett/bsv-wallet) gem, which builds on top of ProtoWallet's crypto layer.
 
 ## When to use ProtoWallet
 
