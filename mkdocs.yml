@@ -74,15 +74,11 @@ nav:
           - Ordinals: network/protocols/ordinals.md
           - TAAL Binary: network/protocols/taal_binary.md
           - WoC REST: network/protocols/woc_rest.md
-  - Wallet: gems/wallet.md
-  - Wallet Storage:
-      - Postgres: gems/wallet-postgres.md
-  - API: reference/index.md
+  - API: reference/api/index.md
   - Testing:
       - Conformance Vectors: testing/conformance-vectors.md
       - Testnet Integration: testing/testnet.md
       - Custom Provider Integration: testing/custom-provider.md
   - General:
-    - Ruby secp256k1: general/secp256k1.md
     - Naming Conventions: general/naming-conventions.md
     - MCP Server: general/mcp.md

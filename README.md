@@ -124,7 +124,7 @@ Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgb
 - [Transaction](https://sgbett.github.io/bsv-ruby-sdk/guides/transaction/) — building, signing, BEEF
 **Additional resources:**
 
-- [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/) — auto-generated from YARD annotations
+- [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/api/) — auto-generated from YARD annotations
 - [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) — runnable usage examples
 - Changelogs: [sdk](gem/bsv-sdk/CHANGELOG.md) · [attest](gem/bsv-attest/CHANGELOG.md)
 

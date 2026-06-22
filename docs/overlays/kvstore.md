@@ -117,7 +117,7 @@ own `proto_wallet:` to the `Global` constructor.
 
 ## What the wallet provides
 
-[`bsv-wallet`](../gems/wallet.md) ships `LocalKVStore` for **writes**:
+[`bsv-wallet`](https://github.com/sgbett/bsv-wallet) ships `LocalKVStore` for **writes**:
 `#set`, `#remove`, optimistic double-spend retry, and a key-locking layer
 so concurrent writers from the same wallet don't race against each other.
 

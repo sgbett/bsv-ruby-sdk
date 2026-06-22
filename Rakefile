@@ -51,13 +51,17 @@ def generate_reference_index(output_dir) # rubocop:disable Metrics/AbcSize,Metri
 end
 
 namespace :docs do # rubocop:disable Metrics/BlockLength
-  desc 'Generate YARD markdown into docs/reference/'
+  desc 'Generate YARD markdown into docs/reference/api/'
   task :generate do
     require 'fileutils'
-    output_dir = 'docs/reference'
+    # YARD output lives in its own +api/+ sub-dir per the documentation
+    # strategy. Authored canonical-reference content (blueprints, principles,
+    # state-machine refs) sits at +docs/reference/+ as siblings; scoping the
+    # rm_rf to +api/+ keeps the authored docs out of the nuclear cleanup.
+    output_dir = 'docs/reference/api'
     FileUtils.rm_rf(output_dir)
     FileUtils.mkdir_p(output_dir)
-    sh 'bundle exec yardoc --plugin markdown --format markdown --output-dir docs/reference gem/*/lib/**/*.rb'
+    sh "bundle exec yardoc --plugin markdown --format markdown --output-dir #{output_dir} gem/*/lib/**/*.rb"
     generate_reference_index(output_dir)
   end
 

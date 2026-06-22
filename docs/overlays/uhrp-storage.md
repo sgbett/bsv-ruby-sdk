@@ -87,7 +87,7 @@ surface.
 ## What the wallet provides
 
 Publishing to UHRP — creating the host-advertisement UTXOs — lives in
-[`bsv-wallet`](../gems/wallet.md). A `StorageUploader` there takes a file
+[`bsv-wallet`](https://github.com/sgbett/bsv-wallet). A `StorageUploader` there takes a file
 and a target host, signs the advertisement, pays the satoshi cost, and
 submits to the `tm_uhrp` topic on behalf of the wallet's identity.
 

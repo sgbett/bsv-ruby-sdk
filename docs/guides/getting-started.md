@@ -20,7 +20,7 @@ Or install directly:
 gem install bsv-sdk
 ```
 
-The SDK has **no required external dependencies** — it uses only Ruby's standard library. Elliptic curve operations use a pure Ruby implementation with an optional native C extension for acceleration (see [secp256k1](../general/secp256k1.md)). OpenSSL is used for hashing, HMAC, PBKDF2, and symmetric encryption.
+The SDK has **no required external dependencies** — it uses only Ruby's standard library. Elliptic curve operations use a pure Ruby implementation with an optional native C extension for acceleration (see the [secp256k1-native](https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md) documentation). OpenSSL is used for hashing, HMAC, PBKDF2, and symmetric encryption.
 
 ## Quick Start
 
@@ -148,6 +148,6 @@ For the full picture including edge cases and rationale, see **[Naming Conventio
 - **[Script Guide](../sdk/script.md)** — script construction, templates, detection
 - **[Transaction Guide](../sdk/transaction.md)** — building, signing, fee estimation, BEEF
 - **[Network Guide](../sdk/network.md)** — broadcasting, chain tracking, SPV verification
-- **[Wallet Guide](../gems/wallet.md)** — BRC-100 wallet interface, storage, broadcasting
+- **[bsv-wallet](https://github.com/sgbett/bsv-wallet)** — BRC-100 wallet interface, storage, broadcasting (standalone gem)
 - **[MCP Server Guide](../general/mcp.md)** — use BSV operations as AI assistant tools via Claude Code
 - **[Naming Conventions](../general/naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
