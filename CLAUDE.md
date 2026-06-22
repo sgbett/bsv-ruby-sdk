@@ -92,7 +92,7 @@ Transaction IDs use an explicit naming convention to prevent byte-order bugs:
 - **`dtxid` / `dtxid_hex`** — display-order hex (64 chars). Used only at JSON and UI boundaries.
 - **`txid`** — reserved for spec-mandated names (BRC-100, BRC-74, ARC API), always with a boundary comment.
 
-Any method that accepts a txid parameter must validate the format using `BSV::Primitives::Hex.validate_wtxid!` or `BSV::Primitives::Hex.validate_dtxid_hex!`. This catches byte-order mismatches at call time rather than producing silent corruption. See `docs/guides/wtxid-dtxid.md` for the full rationale.
+Any method that accepts a txid parameter must validate the format using `BSV::Primitives::Hex.validate_wtxid!` or `BSV::Primitives::Hex.validate_dtxid_hex!`. This catches byte-order mismatches at call time rather than producing silent corruption. See `docs/reference/wtxid-dtxid.md` for the full rationale.
 
 ### Transaction Class Convention: `Transaction::Tx` in prose
 

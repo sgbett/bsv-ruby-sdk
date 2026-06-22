@@ -178,7 +178,7 @@ When vendoring `ecdsa_secp256k1_sha256_bitcoin_test.json`:
          # policy (BIP-62 rule 5). ECDSA.verify correctly returns true;
          # low-S enforcement belongs in the script interpreter, not the
          # primitive. See:
-         # docs/testing/wycheproof-malleability-analysis.md
+         # docs/reference/wycheproof-malleability-analysis.md
        else
          expect(verified).to be false
        end

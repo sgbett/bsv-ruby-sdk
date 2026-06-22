@@ -57,7 +57,7 @@ RSpec.describe 'Wycheproof ECDSA secp256k1 Bitcoin vectors' do
                 #              a valid signature (s > N/2)
                 #   tcId 388 — flagged ArithmeticError; s = HALF_N + 1 (boundary edge case)
                 #
-                # See: docs/testing/wycheproof-malleability-analysis.md
+                # See: docs/reference/wycheproof-malleability-analysis.md
                 expect(verified).to be true
                 expect(sig.low_s?).to be false
               else

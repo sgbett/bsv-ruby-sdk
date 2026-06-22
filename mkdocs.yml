@@ -74,11 +74,14 @@ nav:
           - Ordinals: network/protocols/ordinals.md
           - TAAL Binary: network/protocols/taal_binary.md
           - WoC REST: network/protocols/woc_rest.md
-  - API: reference/api/index.md
+  - Reference:
+      - Naming Conventions: reference/naming-conventions.md
+      - wtxid / dtxid Convention: reference/wtxid-dtxid.md
+      - Conformance Vectors: reference/conformance-vectors.md
+      - Wycheproof Malleability Analysis: reference/wycheproof-malleability-analysis.md
+      - API: reference/api/index.md
   - Testing:
-      - Conformance Vectors: testing/conformance-vectors.md
       - Testnet Integration: testing/testnet.md
       - Custom Provider Integration: testing/custom-provider.md
   - General:
-    - Naming Conventions: general/naming-conventions.md
-    - MCP Server: general/mcp.md
+      - MCP Server: general/mcp.md

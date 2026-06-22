@@ -8,7 +8,7 @@ Accepted
 
 The SDK handles many byte-shaped values: transaction IDs, hashes, scripts, signatures, raw transactions, BEEF payloads, public keys. Each of these has a natural binary form (the bytes a hash function or wire protocol produces) and a hex form (the printable encoding JSON APIs and humans use). A consistent rule for which form is canonical internally avoids representation-mismatch bugs and the wasted conversions that drove the original `wtxid` / `dtxid` convention.
 
-The `wtxid` / `dtxid` rule for transaction IDs has been settled in the SDK since 2026-05 (`docs/guides/wtxid-dtxid.md`): wire-order binary internally, display-order hex only at JSON or human boundaries, with runtime validation at every entry point. It eliminated a recurring class of bugs and has held up well.
+The `wtxid` / `dtxid` rule for transaction IDs has been settled in the SDK since 2026-05 (`docs/reference/wtxid-dtxid.md`): wire-order binary internally, display-order hex only at JSON or human boundaries, with runtime validation at every entry point. It eliminated a recurring class of bugs and has held up well.
 
 Two questions remained open and were surfaced by the HLR #797 codebase audit:
 
@@ -74,7 +74,7 @@ The reasoning behind the pubkey exception:
 
 ### Negative
 
-* Two rules to remember (default + exception) is slightly heavier than one rule. Mitigated by writing both down in the same doc (`docs/guides/wtxid-dtxid.md`) and grouping the discussion together.
+* Two rules to remember (default + exception) is slightly heavier than one rule. Mitigated by writing both down in the same doc (`docs/reference/wtxid-dtxid.md`) and grouping the discussion together.
 * BRC-100 specifies hex (`PubKeyHex`), which makes hex the *spec* canonical form for pubkeys but binary the *internal* form for txids — readers skimming spec text need to understand the txid carve-out is in the opposite direction. The wtxid/dtxid guide explains this explicitly.
 
 ### Neutral
@@ -91,7 +91,7 @@ The reasoning behind the pubkey exception:
 
 * Wire serialisers (`gem/bsv-sdk/lib/bsv/wallet/serializer/get_public_key.rb`, `reveal_counterparty_key_linkage.rb`, `reveal_specific_key_linkage.rb`) — convert binary → hex in `Result.deserialize`. #798.
 * Loopback integration spec (`gem/bsv-sdk/spec/bsv/wallet/loopback_integration_spec.rb`) — assert hex parity with ProtoWallet, not 33-byte binary. #804.
-* Documentation (`docs/guides/wtxid-dtxid.md`) — add the "principle generalises (with one exception)" section. #814 (this ADR is the other deliverable of #814).
+* Documentation (`docs/reference/wtxid-dtxid.md`) — add the "principle generalises (with one exception)" section. #814 (this ADR is the other deliverable of #814).
 
 **User Impact**: None for end users. SDK consumers writing HTTP / JSON code apply the same conversions they already do (`unpack1('H*')` for binary types at JSON emit; hex stays hex through pubkey fields).
 
@@ -151,7 +151,7 @@ Follow TypeScript SDK's pattern more literally; let representation be a substrat
 
 ## References
 
-* `docs/guides/wtxid-dtxid.md` — primary developer-facing guide; extended with the "principle generalises" section as part of this work.
+* `docs/reference/wtxid-dtxid.md` — primary developer-facing guide; extended with the "principle generalises" section as part of this work.
 * sgbett/bsv-wallet#300 — wallet-side decision (Option B accepted: "Pubkeys stay hex"). Recovered the original reasoning behind the pubkey carve-out.
 * HLR #797 — codebase audit that surfaced both questions and prompted this ADR.
 * #798 — wire transceiver returns binary; should be hex (the one outstanding code-level consequence of this ADR).

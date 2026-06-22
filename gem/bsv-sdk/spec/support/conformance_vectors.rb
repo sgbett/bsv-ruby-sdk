@@ -17,7 +17,7 @@ require 'json'
 # Keep this loader minimal — each spec family knows its own vector shape.
 # Do not grow a single generic parser here; add parsing logic per spec.
 #
-# See: `docs/testing/conformance-vectors.md` and HLR sgbett/bsv-ruby-sdk#837.
+# See: `docs/reference/conformance-vectors.md` and HLR sgbett/bsv-ruby-sdk#837.
 module ConformanceVectors
   REPO_ROOT     = File.expand_path('../../../..', __dir__)
   VECTORS_DIR   = File.expand_path('../conformance/vectors', __dir__)

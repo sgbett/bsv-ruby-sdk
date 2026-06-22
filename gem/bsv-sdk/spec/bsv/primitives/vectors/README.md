@@ -40,7 +40,7 @@ URL below is sufficient to verify this.
   enforcement). Cases flagged `SignatureMalleabilityBitcoin` have high-S signatures that are
   mathematically valid ECDSA but rejected by Bitcoin's protocol policy. Raw `ECDSA.verify` is
   correct to accept them; low-S enforcement belongs in the script interpreter, not the
-  cryptographic primitive. See `docs/testing/wycheproof-malleability-analysis.md`.
+  cryptographic primitive. See `docs/reference/wycheproof-malleability-analysis.md`.
 
 ### Inline vectors
 
