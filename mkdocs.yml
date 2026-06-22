@@ -42,6 +42,17 @@ plugins:
   - search
   - minify:
       minify_html: true
+  - redirects:
+      redirect_maps:
+        # Track 2 moves into docs/reference/ (HLR #856).
+        'general/naming-conventions.md': 'reference/naming-conventions.md'
+        'guides/wtxid-dtxid.md': 'reference/wtxid-dtxid.md'
+        'testing/conformance-vectors.md': 'reference/conformance-vectors.md'
+        'testing/wycheproof-malleability-analysis.md': 'reference/wycheproof-malleability-analysis.md'
+        # Track 1 YARD relocation: docs/reference/ → docs/reference/api/.
+        'reference/index.md': 'reference/api/index.md'
+        # Extracted to a standalone gem in commit 72c100bd; redirect to upstream.
+        'general/secp256k1.md': 'https://github.com/sgbett/secp256k1-native/blob/master/docs/secp256k1.md'
 
 nav:
   - Home: index.md
