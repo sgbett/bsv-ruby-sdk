@@ -213,7 +213,7 @@ RSpec.describe 'Bitcoin Core script vectors' do
       lock = BSV::Script::Script.new(pub_bin)
 
       begin
-        result = BSV::Script::Interpreter.evaluate(unlock, lock)
+        result = BSV::Script::Interpreter.evaluate(unlock, lock, flags: flags)
         actual_ok = result ? true : false
       rescue StandardError
         actual_ok = false

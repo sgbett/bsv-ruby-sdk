@@ -110,4 +110,31 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('OP_1', 'OP_2MUL OP_2 OP_EQUAL')).to be true
     end
   end
+
+  describe 'OP_VERIF / OP_VERNOTIF in a non-executing branch' do
+    it 'is a complete NOP post-Genesis pre-Chronicle (no cond-stack push)' do
+      # scriptSig pushes false, IF takes false branch, VERIF skipped entirely,
+      # ELSE flips to executing, OP_1 pushes 1, ENDIF closes. Final stack [1].
+      expect(
+        evaluate('OP_0', 'OP_IF OP_VERIF OP_ELSE OP_1 OP_ENDIF',
+                 flags: %w[UTXO_AFTER_GENESIS])
+      ).to be true
+    end
+
+    it 'VERNOTIF is a NOP post-Genesis pre-Chronicle' do
+      expect(
+        evaluate('OP_0', 'OP_IF OP_VERNOTIF OP_ELSE OP_1 OP_ENDIF',
+                 flags: %w[UTXO_AFTER_GENESIS])
+      ).to be true
+    end
+
+    it 'pre-Genesis VERIF is illegal even in a non-executing branch' do
+      expect do
+        evaluate('OP_0', 'OP_IF OP_VERIF OP_ELSE OP_1 OP_ENDIF',
+                 flags: %w[P2SH STRICTENC])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:disabled_opcode)
+      }
+    end
+  end
 end

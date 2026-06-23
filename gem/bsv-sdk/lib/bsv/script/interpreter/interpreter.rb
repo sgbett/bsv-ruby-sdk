@@ -180,6 +180,14 @@ module BSV
         true
       end
 
+      # Whether post-Genesis rules apply. With explicit flags this requires one
+      # of the genesis-era flags; without, the interpreter is always post-Genesis.
+      def after_genesis?
+        return flag?('GENESIS') || flag?('UTXO_AFTER_GENESIS') || flag?('UTXO_AFTER_CHRONICLE') if explicit_flags?
+
+        true
+      end
+
       def enforce_sig_pushonly?
         return flag?('SIGPUSHONLY') if explicit_flags?
 
@@ -215,18 +223,31 @@ module BSV
       def execute_opcode(chunk)
         opcode = chunk.opcode
 
+        # Pre-Chronicle, pre-Genesis mode (explicit non-genesis flags) treats
+        # OP_VER / OP_VERIF / OP_VERNOTIF as universally illegal — they raise
+        # even in a non-executing branch. Mirrors TS Spend.ts line ~700.
+        enforce_pre_genesis_ver_gate(opcode)
+
         # After OP_RETURN inside a conditional: only process flow control opcodes
         # and OP_RETURN itself (which may terminate at top level once conditionals
         # are balanced), matching Go SDK's branchExecuting semantics.
         if @after_op_return
-          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode) || opcode == Opcodes::OP_RETURN
+          if conditional_opcode?(opcode) || opcode == Opcodes::OP_RETURN
+            return if skipped_ver_conditional?(opcode)
+
+            dispatch_opcode(opcode, chunk)
+          end
           return
         end
 
         # In non-executing branch: only dispatch conditional opcodes (for nesting tracking).
         # All other opcodes are skipped.
         unless branch_executing?
-          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode)
+          if conditional_opcode?(opcode)
+            return if skipped_ver_conditional?(opcode)
+
+            dispatch_opcode(opcode, chunk)
+          end
           return
         end
 
@@ -246,6 +267,30 @@ module BSV
         raise ScriptError.new(
           ScriptErrorCode::DISABLED_OPCODE,
           "#{Opcodes.name_for(opcode) || format('0x%02x', opcode)} is disabled outside Chronicle"
+        )
+      end
+
+      # OP_VERIF / OP_VERNOTIF in a non-executing branch are conditional opcodes
+      # post-Chronicle (push to cond_stack, like OP_IF in a non-executing branch),
+      # but a complete NOP pre-Chronicle post-genesis — they neither push nor
+      # consume. This matches TS Spend.ts (line ~710) and Go opcodeVerConditional.
+      def skipped_ver_conditional?(opcode)
+        !chronicle? && after_genesis? &&
+          [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].include?(opcode)
+      end
+
+      # Pre-Genesis VERIF / VERNOTIF are unconditionally illegal (even in
+      # non-executing branches — they enter the dispatcher as conditional opcodes).
+      # OP_VER pre-Genesis is illegal only when executing; in a non-executing
+      # branch it's skipped silently. Mirrors the Bitcoin Core script test
+      # rule "VER non-functional (ok if not executed); VERIF illegal everywhere".
+      def enforce_pre_genesis_ver_gate(opcode)
+        return unless explicit_flags? && !after_genesis?
+        return unless [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].include?(opcode)
+
+        raise ScriptError.new(
+          ScriptErrorCode::DISABLED_OPCODE,
+          "#{Opcodes.name_for(opcode) || format('0x%02x', opcode)} is illegal pre-Genesis"
         )
       end
 

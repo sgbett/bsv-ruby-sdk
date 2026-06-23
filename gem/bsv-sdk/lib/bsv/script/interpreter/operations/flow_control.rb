@@ -42,12 +42,21 @@ module BSV
             @else_stack.push(false)
           end
 
-          # OP_ELSE: toggle conditional branch (only one ELSE per IF after genesis)
+          # OP_ELSE: toggle the current conditional branch.
+          #
+          # Multi-ELSE handling matches the TS SDK (Spend.ts OP_ELSE case):
+          # - In relaxed mode (no explicit flags), each ELSE toggles the branch —
+          #   any number of ELSEs per IF is valid. This is the script-021 case.
+          # - With explicit post-genesis flags, only one ELSE per IF is permitted;
+          #   a second ELSE raises UNBALANCED_CONDITIONAL. Vectors such as
+          #   node.script.bitcoin-sv.0731 and teranode.0057 enforce this.
           def op_else
             raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'OP_ELSE without matching OP_IF') if @cond_stack.empty?
 
-            # After genesis: only one ELSE per IF
-            raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'duplicate OP_ELSE') if @else_stack.pop
+            already_seen_else = @else_stack.pop
+            if already_seen_else && explicit_flags? && after_genesis?
+              raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'duplicate OP_ELSE')
+            end
 
             case @cond_stack.last
             when :true  then @cond_stack[-1] = :false

@@ -35,12 +35,6 @@ require 'conformance/support/evaluation_corpus'
 
 # Known interpreter gaps — vector ID → follow-up GitHub issue.
 PENDING_EVALUATION_VECTORS = {
-  # Multiple-ELSE and VERIF-in-unexecuted-branch semantics.
-  'script-021' => '#850',
-  'node.script.bitcoin-sv.0140' => '#850',
-  'node.script.bitcoin-sv.0142' => '#850',
-  'node.script.teranode.0131' => '#850',
-  'node.script.teranode.0133' => '#850',
   # OP_VER requires transaction context; UTXO_AFTER_CHRONICLE vectors.
   'node.script.bitcoin-sv.0145' => '#853',
   'node.script.bitcoin-sv.0150' => '#853',
