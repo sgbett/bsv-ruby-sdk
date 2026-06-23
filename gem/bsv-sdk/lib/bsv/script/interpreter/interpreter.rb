@@ -53,10 +53,16 @@ module BSV
       # stack overflow from deeply nested conditionals.
       MAX_CONDITIONAL_DEPTH = 256
 
-      # OP_2MUL and OP_2DIV are Chronicle-only opcodes. With explicit flags but
-      # without UTXO_AFTER_CHRONICLE, executing either raises DISABLED_OPCODE.
-      # Mirrors TS Spend.ts (line ~696) and Go opcodeVerConditional / IsDisabled.
-      CHRONICLE_ONLY_OPCODES = [Opcodes::OP_2MUL, Opcodes::OP_2DIV].freeze
+      # Opcodes that require Chronicle to execute. With explicit flags but
+      # without UTXO_AFTER_CHRONICLE, executing any of these raises
+      # DISABLED_OPCODE. OP_VER / OP_VERIF / OP_VERNOTIF are included because
+      # pre-Chronicle they're either reserved (OP_VER) or behave as a
+      # conditional-only NOP in non-executing branches — execution itself is
+      # disabled. Mirrors TS Spend.ts (lines ~694-709) and Go IsDisabled.
+      CHRONICLE_ONLY_OPCODES = [
+        Opcodes::OP_2MUL, Opcodes::OP_2DIV,
+        Opcodes::OP_VER, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
+      ].freeze
 
       # Evaluate unlock + lock scripts without transaction context.
       #

@@ -137,4 +137,43 @@ RSpec.describe BSV::Script::Interpreter do
       }
     end
   end
+
+  describe 'tx_version: parameter (Chronicle OP_VER / OP_VERIF without tx)' do
+    it 'OP_VER pushes the 4-byte LE encoding of tx_version' do
+      expect(
+        evaluate('OP_1', 'OP_VER 01000000 OP_EQUAL',
+                 flags: %w[UTXO_AFTER_GENESIS UTXO_AFTER_CHRONICLE],
+                 tx_version: 1)
+      ).to be true
+    end
+
+    it 'OP_VERIF compares stack data to tx_version under Chronicle' do
+      # Push the 4-byte LE form of version 1, VERIF takes the matching branch.
+      expect(
+        evaluate('01000000', 'OP_VERIF OP_1 OP_ELSE OP_0 OP_ENDIF',
+                 flags: %w[UTXO_AFTER_GENESIS UTXO_AFTER_CHRONICLE],
+                 tx_version: 1)
+      ).to be true
+    end
+
+    it 'OP_VER still raises MISSING_TX_CONTEXT when neither tx nor tx_version supplied' do
+      expect do
+        evaluate('', 'OP_VER', flags: %w[UTXO_AFTER_GENESIS UTXO_AFTER_CHRONICLE])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:missing_tx_context)
+      }
+    end
+
+    it 'OP_VER executes in relaxed mode when tx_version is supplied' do
+      expect(evaluate('OP_1', 'OP_VER 01000000 OP_EQUAL', tx_version: 1)).to be true
+    end
+
+    it 'OP_VER raises :disabled_opcode when explicit non-Chronicle flags are set' do
+      expect do
+        evaluate('', 'OP_VER', flags: %w[UTXO_AFTER_GENESIS], tx_version: 1)
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:disabled_opcode)
+      }
+    end
+  end
 end

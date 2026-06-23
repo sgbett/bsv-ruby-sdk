@@ -24,8 +24,9 @@ require 'conformance/support/evaluation_corpus'
 # pre-Genesis consensus rules.
 #
 # Failures against corpus vectors that expose real interpreter gaps are tracked
-# as follow-up issues rather than blocking this migration. Each failing vector ID
-# is listed in PENDING_EVALUATION_VECTORS with its issue reference.
+# as follow-up issues rather than blocking the canonical-corpus migration. Each
+# failing vector ID is listed in PENDING_EVALUATION_VECTORS with its issue ref;
+# the suite is currently empty — all known gaps have been fixed.
 #
 # Vectors with corpus-level skip:true are silently excluded by EvaluationCorpus.
 #
@@ -33,14 +34,9 @@ require 'conformance/support/evaluation_corpus'
 # that vendored script_tests.json has been deleted.
 # See spec/conformance/vectors/README.md.
 
-# Known interpreter gaps — vector ID → follow-up GitHub issue.
-PENDING_EVALUATION_VECTORS = {
-  # OP_VER requires transaction context; UTXO_AFTER_CHRONICLE vectors.
-  'node.script.bitcoin-sv.0145' => '#853',
-  'node.script.bitcoin-sv.0150' => '#853',
-  'node.script.bitcoin-sv.0151' => '#853',
-  'node.script.bitcoin-sv.0156' => '#853'
-}.freeze
+# Known interpreter gaps — vector ID → follow-up GitHub issue. Empty when all
+# canonical evaluation vectors pass; populated only when a new gap is identified.
+PENDING_EVALUATION_VECTORS = {}.freeze
 
 RSpec.describe 'sdk.scripts.evaluation — script parsing' do # rubocop:disable RSpec/MultipleDescribes
   let(:parse_vectors) do
