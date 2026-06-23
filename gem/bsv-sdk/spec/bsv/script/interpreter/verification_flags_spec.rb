@@ -44,4 +44,36 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('OP_1 OP_RETURN', 'OP_1')).to be true
     end
   end
+
+  describe 'CLEANSTACK flag' do
+    it 'rejects scripts that leave more than one item on the stack' do
+      # OP_1 OP_1 leaves [1, 1] — two items, both truthy.
+      expect do
+        evaluate('OP_1', 'OP_1', flags: %w[CLEANSTACK])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:clean_stack)
+      }
+    end
+
+    it 'accepts a single-item truthy stack under CLEANSTACK' do
+      expect(evaluate('OP_1', '', flags: %w[CLEANSTACK])).to be true
+    end
+
+    it 'still raises EVAL_FALSE before the clean-stack check applies to a falsy single item' do
+      # OP_0 leaves a single empty-bytes item — clean (length == 1) but falsy.
+      expect do
+        evaluate('OP_0', '', flags: %w[CLEANSTACK])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:eval_false)
+      }
+    end
+
+    it 'does not enforce CLEANSTACK when the flag is absent (explicit non-Chronicle flags)' do
+      expect(evaluate('OP_1', 'OP_1', flags: %w[UTXO_AFTER_GENESIS])).to be true
+    end
+
+    it 'does not enforce CLEANSTACK in relaxed (no-flags) mode' do
+      expect(evaluate('OP_1', 'OP_1')).to be true
+    end
+  end
 end

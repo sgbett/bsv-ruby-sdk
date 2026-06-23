@@ -191,6 +191,22 @@ module BSV
         )
       end
 
+      def enforce_clean_stack?
+        return flag?('CLEANSTACK') if explicit_flags?
+
+        false
+      end
+
+      def enforce_clean_stack
+        return unless enforce_clean_stack?
+        return if @dstack.length == 1
+
+        raise ScriptError.new(
+          ScriptErrorCode::CLEAN_STACK,
+          "CLEANSTACK requires exactly one stack item at end (found #{@dstack.length})"
+        )
+      end
+
       def execute_opcode(chunk)
         opcode = chunk.opcode
 
@@ -345,8 +361,11 @@ module BSV
       end
 
       # Verify final stack state: must have at least one truthy element on top.
+      # When the CLEANSTACK flag is set, additionally requires exactly one item.
       def check_final_stack
         raise ScriptError.new(ScriptErrorCode::EMPTY_STACK, 'stack empty at end of script execution') if @dstack.empty?
+
+        enforce_clean_stack
 
         return if @dstack.pop_bool
 

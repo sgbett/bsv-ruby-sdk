@@ -41,8 +41,6 @@ PENDING_EVALUATION_VECTORS = {
   'node.script.bitcoin-sv.0142' => '#850',
   'node.script.teranode.0131' => '#850',
   'node.script.teranode.0133' => '#850',
-  # CLEANSTACK flag not implemented in interpreter.
-  'node.script.bitcoin-sv.0086' => '#852',
   # OP_VER requires transaction context; UTXO_AFTER_CHRONICLE vectors.
   'node.script.bitcoin-sv.0145' => '#853',
   'node.script.bitcoin-sv.0150' => '#853',
