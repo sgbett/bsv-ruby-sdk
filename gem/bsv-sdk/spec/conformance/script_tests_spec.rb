@@ -45,10 +45,7 @@ PENDING_EVALUATION_VECTORS = {
   'node.script.bitcoin-sv.0145' => '#853',
   'node.script.bitcoin-sv.0150' => '#853',
   'node.script.bitcoin-sv.0151' => '#853',
-  'node.script.bitcoin-sv.0156' => '#853',
-  # OP_2MUL / OP_2DIV must be DISABLED_OPCODE without UTXO_AFTER_CHRONICLE.
-  'node.script.bitcoin-sv.0165' => '#854',
-  'node.script.teranode.0143' => '#854'
+  'node.script.bitcoin-sv.0156' => '#853'
 }.freeze
 
 RSpec.describe 'sdk.scripts.evaluation — script parsing' do # rubocop:disable RSpec/MultipleDescribes

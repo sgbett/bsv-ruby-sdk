@@ -53,6 +53,11 @@ module BSV
       # stack overflow from deeply nested conditionals.
       MAX_CONDITIONAL_DEPTH = 256
 
+      # OP_2MUL and OP_2DIV are Chronicle-only opcodes. With explicit flags but
+      # without UTXO_AFTER_CHRONICLE, executing either raises DISABLED_OPCODE.
+      # Mirrors TS Spend.ts (line ~696) and Go opcodeVerConditional / IsDisabled.
+      CHRONICLE_ONLY_OPCODES = [Opcodes::OP_2MUL, Opcodes::OP_2DIV].freeze
+
       # Evaluate unlock + lock scripts without transaction context.
       #
       # Signature operations will always fail (no sighash available).
@@ -225,11 +230,23 @@ module BSV
           return
         end
 
+        enforce_chronicle_gate(opcode)
+
         BSV.logger&.debug do
           name = Opcodes.name_for(opcode) || format('0x%02x', opcode)
           "[Interpreter]   #{name} (stack: #{@dstack.length})"
         end
         dispatch_opcode(opcode, chunk)
+      end
+
+      def enforce_chronicle_gate(opcode)
+        return unless CHRONICLE_ONLY_OPCODES.include?(opcode)
+        return if chronicle?
+
+        raise ScriptError.new(
+          ScriptErrorCode::DISABLED_OPCODE,
+          "#{Opcodes.name_for(opcode) || format('0x%02x', opcode)} is disabled outside Chronicle"
+        )
       end
 
       def dispatch_opcode(opcode, chunk)

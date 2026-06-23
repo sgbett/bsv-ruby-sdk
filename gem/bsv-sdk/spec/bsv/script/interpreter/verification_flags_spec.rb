@@ -76,4 +76,38 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('OP_1', 'OP_1')).to be true
     end
   end
+
+  describe 'Chronicle-only opcodes' do
+    it 'OP_2MUL raises :disabled_opcode with explicit non-Chronicle flags' do
+      expect do
+        evaluate('OP_1', 'OP_2MUL', flags: %w[UTXO_AFTER_GENESIS])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:disabled_opcode)
+      }
+    end
+
+    it 'OP_2DIV raises :disabled_opcode with explicit non-Chronicle flags' do
+      expect do
+        evaluate('OP_2', 'OP_2DIV', flags: %w[UTXO_AFTER_GENESIS])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:disabled_opcode)
+      }
+    end
+
+    it 'OP_2MUL executes with UTXO_AFTER_CHRONICLE' do
+      expect(
+        evaluate('OP_1', 'OP_2MUL OP_2 OP_EQUAL', flags: %w[UTXO_AFTER_GENESIS UTXO_AFTER_CHRONICLE])
+      ).to be true
+    end
+
+    it 'OP_2DIV executes with UTXO_AFTER_CHRONICLE' do
+      expect(
+        evaluate('OP_2', 'OP_2DIV OP_1 OP_EQUAL', flags: %w[UTXO_AFTER_GENESIS UTXO_AFTER_CHRONICLE])
+      ).to be true
+    end
+
+    it 'OP_2MUL executes in relaxed (no-flags) mode (Chronicle default)' do
+      expect(evaluate('OP_1', 'OP_2MUL OP_2 OP_EQUAL')).to be true
+    end
+  end
 end
