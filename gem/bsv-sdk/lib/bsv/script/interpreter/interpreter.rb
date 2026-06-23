@@ -59,12 +59,19 @@ module BSV
       #
       # @param unlock_script [Script] the unlocking script
       # @param lock_script [Script] the locking script
+      # @param flags [Array<String>, Set<String>, nil] explicit verification flags
+      #   (e.g. +SIGPUSHONLY+, +CLEANSTACK+, +UTXO_AFTER_CHRONICLE+). When +nil+,
+      #   the interpreter runs in relaxed (post-Chronicle) mode.
+      # @param tx_version [Integer, nil] transaction version made available to
+      #   +OP_VER+/+OP_VERIF+/+OP_VERNOTIF+ when no transaction is supplied
       # @return [Boolean] +true+ if execution succeeds
       # @raise [ScriptError] if script execution fails
-      def self.evaluate(unlock_script, lock_script)
+      def self.evaluate(unlock_script, lock_script, flags: nil, tx_version: nil)
         new(
           unlock_script: unlock_script,
-          lock_script: lock_script
+          lock_script: lock_script,
+          flags: flags,
+          tx_version: tx_version
         ).execute
       end
 
@@ -75,19 +82,23 @@ module BSV
       # @param unlock_script [Script] the input's unlocking script
       # @param lock_script [Script] the previous output's locking script
       # @param satoshis [Integer] the value of the previous output in satoshis
+      # @param flags [Array<String>, Set<String>, nil] explicit verification flags
       # @return [Boolean] +true+ if verification succeeds
       # @raise [ScriptError] if script execution fails
-      def self.verify(tx:, input_index:, unlock_script:, lock_script:, satoshis:)
+      def self.verify(tx:, input_index:, unlock_script:, lock_script:, satoshis:, flags: nil)
         new(
           unlock_script: unlock_script,
           lock_script: lock_script,
           tx: tx,
           input_index: input_index,
-          satoshis: satoshis
+          satoshis: satoshis,
+          flags: flags
         ).execute
       end
 
       def execute
+        enforce_sig_pushonly
+
         scripts = [@unlock_script, @lock_script]
         script_names = %w[unlock_script lock_script]
 
@@ -123,12 +134,15 @@ module BSV
 
       private
 
-      def initialize(unlock_script:, lock_script:, tx: nil, input_index: nil, satoshis: nil)
+      def initialize(unlock_script:, lock_script:, tx: nil, input_index: nil, satoshis: nil,
+                     flags: nil, tx_version: nil)
         @unlock_script = unlock_script
         @lock_script = lock_script
         @tx = tx
         @input_index = input_index
         @satoshis = satoshis
+        @flags = flags.nil? ? nil : Set.new(flags.map(&:to_s))
+        @tx_version = tx_version
 
         @dstack = Stack.new
         @astack = Stack.new
@@ -139,6 +153,42 @@ module BSV
         @after_op_return = false
         @current_script = nil
         @current_chunk_idx = 0
+      end
+
+      # Whether explicit verification flags were supplied.
+      # In their absence the interpreter behaves as if Chronicle is active and
+      # the unlock-script maleability flags are off (matches the TS SDK's
+      # +isRelaxed+ default — see Spend.ts).
+      def explicit_flags?
+        !@flags.nil?
+      end
+
+      def flag?(name)
+        explicit_flags? && @flags.include?(name)
+      end
+
+      # Whether post-Chronicle semantics apply (OP_2MUL/2DIV enabled,
+      # OP_VER/OP_VERIF/OP_VERNOTIF interpret +tx_version+).
+      def chronicle?
+        return flag?('UTXO_AFTER_CHRONICLE') if explicit_flags?
+
+        true
+      end
+
+      def enforce_sig_pushonly?
+        return flag?('SIGPUSHONLY') if explicit_flags?
+
+        false
+      end
+
+      def enforce_sig_pushonly
+        return unless enforce_sig_pushonly?
+        return if @unlock_script.push_only?
+
+        raise ScriptError.new(
+          ScriptErrorCode::SIG_PUSHONLY,
+          'unlock script must contain only push-data operations'
+        )
       end
 
       def execute_opcode(chunk)

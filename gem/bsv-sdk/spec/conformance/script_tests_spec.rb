@@ -41,9 +41,6 @@ PENDING_EVALUATION_VECTORS = {
   'node.script.bitcoin-sv.0142' => '#850',
   'node.script.teranode.0131' => '#850',
   'node.script.teranode.0133' => '#850',
-  # SIGPUSHONLY flag not implemented in interpreter.
-  'node.script.bitcoin-sv.0084' => '#851',
-  'node.script.teranode.0084' => '#851',
   # CLEANSTACK flag not implemented in interpreter.
   'node.script.bitcoin-sv.0086' => '#852',
   # OP_VER requires transaction context; UTXO_AFTER_CHRONICLE vectors.
@@ -183,7 +180,11 @@ RSpec.describe 'sdk.scripts.evaluation — script evaluation' do
       begin
         unlock = BSV::Script::Script.from_hex(input['script_sig_hex'] || '')
         lock   = BSV::Script::Script.from_hex(input['script_pubkey_hex'] || '')
-        result = BSV::Script::Interpreter.evaluate(unlock, lock)
+        result = BSV::Script::Interpreter.evaluate(
+          unlock, lock,
+          flags: input['flags'],
+          tx_version: input['tx_version']
+        )
 
         if result == expected['valid']
           warn "#{vector['id']}: UNEXPECTED PASS — prune from PENDING_EVALUATION_VECTORS (issue #{issue} may be resolved)" if issue

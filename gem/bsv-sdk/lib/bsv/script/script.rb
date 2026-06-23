@@ -460,6 +460,17 @@ module BSV
           b.getbyte(22) == Opcodes::OP_EQUAL
       end
 
+      # Whether the script consists entirely of push-data operations.
+      #
+      # A script is push-only iff every chunk's opcode is at most +OP_16+
+      # (0x60). Used by the script interpreter to enforce the +SIGPUSHONLY+
+      # verification flag on unlock scripts.
+      #
+      # @return [Boolean]
+      def push_only?
+        chunks.all? { |chunk| chunk.opcode <= Opcodes::OP_16 }
+      end
+
       # Whether this is an OP_RETURN data carrier script.
       #
       # Matches both +OP_RETURN ...+ and +OP_FALSE OP_RETURN ...+ forms.
