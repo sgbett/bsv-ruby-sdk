@@ -56,12 +56,11 @@ jobs:
       - name: Lint docs frontmatter
         run: bundle exec rake docs:lint
 
-      # Offline link check against the built site
-      - name: Check links with lychee
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: --offline --include-fragments --no-progress docs/_site
-          fail: true
+      # Offline link + anchor check via html-proofer (Jekyll-aware: handles
+      # the baseurl prefix via swap_urls; lychee can't resolve root-relative
+      # URLs against a local _site tree).
+      - name: Check internal links
+        run: bundle exec rake docs:proofread
 
       # Upload artefact for the deploy job
       - uses: actions/configure-pages@v5

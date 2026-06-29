@@ -23,3 +23,10 @@ gem 'jekyll-redirect-from', '= 0.16.0'
 # time. MkDocs did this transparently; Jekyll does not — without this plugin,
 # every internal [link](path/to/file.md) breaks in the rendered HTML.
 gem 'jekyll-relative-links', '= 0.6.1'
+
+group :development do
+  # Jekyll-aware link checker — handles baseurl via swap_urls (lychee can't
+  # resolve root-relative URLs like /bsv-ruby-sdk/... against a local _site
+  # tree, since baseurl is a URL concept not a filesystem path).
+  gem 'html-proofer', '~> 5.0'
+end
