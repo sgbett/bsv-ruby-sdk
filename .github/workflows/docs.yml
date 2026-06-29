@@ -25,7 +25,7 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # YARD generation — uses the SDK root Gemfile.
       # Both setup-ruby steps use Ruby 3.4 to match docs/Gemfile.lock's
