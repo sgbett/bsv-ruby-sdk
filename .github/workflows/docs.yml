@@ -74,7 +74,7 @@ jobs:
       # the deploy job is also skipped (only push to master deploys).
       - uses: actions/configure-pages@v5
         if: github.event_name == 'push'
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name == 'push'
         with:
           path: docs/_site
