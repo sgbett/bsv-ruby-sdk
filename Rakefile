@@ -246,7 +246,8 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
       'Chaintracks' => 'Chaintracks',
       'Ordinals' => 'Ordinals',
       'JungleBus' => 'JungleBus',
-      'TAALBinary' => 'TAALBinary'
+      'TAALBinary' => 'TAALBinary',
+      'Arcade' => 'Arcade'
     }
     # Display name overrides for provider class names derived from filenames
     provider_display = {
@@ -260,7 +261,8 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
       'Chaintracks' => 'chaintracks.md',
       'Ordinals' => 'ordinals.md',
       'JungleBus' => 'jungle_bus.md',
-      'TAALBinary' => 'taal_binary.md'
+      'TAALBinary' => 'taal_binary.md',
+      'Arcade' => 'arcade.md'
     }
 
     # --- Parse each provider factory file --------------------------------------

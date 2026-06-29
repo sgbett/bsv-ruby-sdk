@@ -20,10 +20,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # configure-pages requires both — without them the build job fails
+      # before the artefact is uploaded. Same set as the deploy job below.
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
-      # YARD generation — uses the SDK root Gemfile
+      # YARD generation — uses the SDK root Gemfile.
+      # Both setup-ruby steps use Ruby 3.4 to match docs/Gemfile.lock's
+      # RUBY VERSION pin (3.4.2). Splitting Ruby versions between the two
+      # steps breaks `bundle exec rake docs:*` because the rake command
+      # resolves through the root Gemfile, whose gems were installed under
+      # the first setup-ruby's Ruby version.
       - name: Set up Ruby (YARD)
         uses: ruby/setup-ruby@v1
         with:
@@ -37,7 +46,7 @@ jobs:
       - name: Set up Ruby (Jekyll)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
+          ruby-version: '3.4'
           working-directory: docs
           bundler-cache: true
 

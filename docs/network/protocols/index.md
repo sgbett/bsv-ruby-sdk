@@ -42,8 +42,8 @@ Each cell shows the networks on which the provider composes that protocol.
 
 | Network | Protocols |
 |---------|-----------|
-| mainnet | [](), [Ordinals](ordinals.md), [JungleBus](jungle_bus.md) |
-| testnet | [](), [JungleBus](jungle_bus.md) |
+| mainnet | [Arcade](arcade.md), [Ordinals](ordinals.md), [JungleBus](jungle_bus.md) |
+| testnet | [Arcade](arcade.md), [JungleBus](jungle_bus.md) |
 
 ### TAAL
 
