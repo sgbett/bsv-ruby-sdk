@@ -6,22 +6,25 @@ on:
     paths:
       - 'gem/*/lib/**'
       - 'docs/**'
-      - 'mkdocs.yml'
       - '.yardopts'
       - '.github/workflows/docs.yml'
+      - 'Rakefile'
   workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Ruby
+      # YARD generation — uses the SDK root Gemfile
+      - name: Set up Ruby (YARD)
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
@@ -30,15 +33,42 @@ jobs:
       - name: Generate YARD markdown
         run: bundle exec rake docs:generate
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      # Jekyll build — uses docs/Gemfile (separate bundler-cache key)
+      - name: Set up Ruby (Jekyll)
+        uses: ruby/setup-ruby@v1
         with:
-          python-version: '3.x'
-          cache: pip
-          cache-dependency-path: docs/requirements.txt
+          ruby-version: '3.3'
+          working-directory: docs
+          bundler-cache: true
 
-      - name: Install MkDocs dependencies
-        run: pip install -r docs/requirements.txt
+      - name: Build Jekyll site
+        run: bundle exec rake docs:build
 
-      - name: Deploy to GitHub Pages
-        run: mkdocs gh-deploy --force
+      - name: Lint docs frontmatter
+        run: bundle exec rake docs:lint
+
+      # Offline link check against the built site
+      - name: Check links with lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --include-fragments --no-progress docs/_site
+          fail: true
+
+      # Upload artefact for the deploy job
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
