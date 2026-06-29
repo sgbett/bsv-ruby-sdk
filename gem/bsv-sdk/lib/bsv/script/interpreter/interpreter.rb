@@ -69,19 +69,52 @@ module BSV
       # every executed chunk) doesn't allocate a fresh Array per call.
       VER_CONDITIONAL_OPCODES = [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].freeze
 
+      # Recognised verification flag names. Catches typos (a misspelled
+      # +SIGPUSHONLLY+ would otherwise silently disable enforcement) and forces
+      # any new flag to be declared here before use. The set is the union of
+      # flags appearing in the canonical conformance corpus and the Bitcoin
+      # Core +script_tests.json+ fixture, plus the witness/taproot family that
+      # downstream callers filter out before reaching the interpreter.
+      KNOWN_FLAGS = Set[
+        'CHECKLOCKTIMEVERIFY', 'CHECKSEQUENCEVERIFY',
+        'CLEANSTACK', 'DERSIG', 'DISCOURAGE_UPGRADABLE_NOPS',
+        'DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM',
+        'GENESIS', 'LOW_S',
+        'MINIMALDATA', 'MINIMALIF',
+        'NULLDUMMY', 'NULLFAIL',
+        'P2SH', 'SIGHASH_FORKID', 'SIGPUSHONLY', 'STRICTENC',
+        'TAPROOT',
+        'UTXO_AFTER_CHRONICLE', 'UTXO_AFTER_GENESIS',
+        'WITNESS'
+      ].freeze
+
       # Evaluate unlock + lock scripts without transaction context.
       #
       # Signature operations will always fail (no sighash available).
       #
+      # @example Relaxed mode (post-Chronicle defaults, no maleability checks)
+      #   Interpreter.evaluate(unlock, lock)                  # flags defaults to nil
+      #
+      # @example Explicit flag set
+      #   Interpreter.evaluate(unlock, lock, flags: %w[UTXO_AFTER_GENESIS CLEANSTACK])
+      #
+      # @example Explicit-but-empty (pre-Genesis, pre-Chronicle, strict)
+      #   Interpreter.evaluate(unlock, lock, flags: [])       # NOT the same as nil
+      #
       # @param unlock_script [Script] the unlocking script
       # @param lock_script [Script] the locking script
       # @param flags [Array<String>, Set<String>, nil] explicit verification flags
-      #   (e.g. +SIGPUSHONLY+, +CLEANSTACK+, +UTXO_AFTER_CHRONICLE+). When +nil+,
-      #   the interpreter runs in relaxed (post-Chronicle) mode.
+      #   (e.g. +SIGPUSHONLY+, +CLEANSTACK+, +UTXO_AFTER_CHRONICLE+). +nil+
+      #   selects relaxed (post-Chronicle) mode where maleability checks are
+      #   off; an empty +[]+ array is explicit-but-empty (pre-Genesis,
+      #   pre-Chronicle strict mode). Each flag string must appear in
+      #   {KNOWN_FLAGS} — unknown names raise +ArgumentError+.
       # @param tx_version [Integer, nil] transaction version made available to
       #   +OP_VER+/+OP_VERIF+/+OP_VERNOTIF+ when no transaction is supplied
       # @return [Boolean] +true+ if execution succeeds
       # @raise [ScriptError] if script execution fails
+      # @raise [ArgumentError] if +flags+ contains an unknown name or
+      #   +tx_version+ is not a valid uint32
       def self.evaluate(unlock_script, lock_script, flags: nil, tx_version: nil)
         new(
           unlock_script: unlock_script,
@@ -99,8 +132,13 @@ module BSV
       # @param lock_script [Script] the previous output's locking script
       # @param satoshis [Integer] the value of the previous output in satoshis
       # @param flags [Array<String>, Set<String>, nil] explicit verification flags
+      #   (see {.evaluate}). Production callers (e.g. +Tx#verify_input+) do not
+      #   pass +flags+, so mainnet transaction validation always runs in
+      #   relaxed mode; the parameter exists for conformance-corpus and
+      #   regression-vector runners that need to drive specific flag combinations.
       # @return [Boolean] +true+ if verification succeeds
       # @raise [ScriptError] if script execution fails
+      # @raise [ArgumentError] if +flags+ contains an unknown name
       def self.verify(tx:, input_index:, unlock_script:, lock_script:, satoshis:, flags: nil)
         new(
           unlock_script: unlock_script,
@@ -157,7 +195,7 @@ module BSV
         @tx = tx
         @input_index = input_index
         @satoshis = satoshis
-        @flags = flags.nil? ? nil : Set.new(flags.map(&:to_s))
+        @flags = normalise_flags(flags)
         @tx_version = validate_tx_version(tx_version)
 
         @dstack = Stack.new
@@ -169,6 +207,32 @@ module BSV
         @after_op_return = false
         @current_script = nil
         @current_chunk_idx = 0
+      end
+
+      # Normalises the +flags:+ kwarg into a frozen Set of recognised names.
+      # +nil+ stays +nil+ (relaxed mode); any iterable is coerced to a Set of
+      # strings, dropping +nil+ / empty entries silently (so callers can pass
+      # +flags_csv.split(',')+ without trimming). Unknown flag names raise
+      # +ArgumentError+ — typos in consensus-affecting flag strings would
+      # otherwise silently disable the corresponding rule.
+      def normalise_flags(flags)
+        return nil if flags.nil?
+
+        normalised = Set.new
+        flags.each do |raw|
+          next if raw.nil?
+
+          name = raw.to_s.strip
+          next if name.empty?
+
+          unless KNOWN_FLAGS.include?(name)
+            raise ArgumentError,
+                  "unknown verification flag: #{raw.inspect} (add to KNOWN_FLAGS if intentional)"
+          end
+
+          normalised << name
+        end
+        normalised.freeze
       end
 
       # Ensures the +tx_version:+ kwarg is a valid uint32. Returns +nil+ for nil

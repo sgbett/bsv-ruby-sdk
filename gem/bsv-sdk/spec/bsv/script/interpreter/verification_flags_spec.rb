@@ -194,4 +194,40 @@ RSpec.describe BSV::Script::Interpreter do
       end.to raise_error(ArgumentError, /tx_version must be a uint32/)
     end
   end
+
+  describe 'flag normalisation' do
+    it 'raises ArgumentError on an unknown flag name (typo guard)' do
+      expect do
+        evaluate('OP_1', 'OP_1', flags: %w[SIGPUSHONLLY])
+      end.to raise_error(ArgumentError, /unknown verification flag/)
+    end
+
+    it 'accepts every flag listed in KNOWN_FLAGS without raising' do
+      # Sanity: passing the entire whitelist should construct fine. We pair
+      # it with a trivial true-stack to exercise execution past initialize.
+      flags = described_class::KNOWN_FLAGS.to_a
+      expect(evaluate('OP_1', '', flags: flags)).to be true
+    end
+
+    it 'strips whitespace and ignores nil / empty entries' do
+      # Pretend the corpus gave us ["", " UTXO_AFTER_GENESIS ", nil] —
+      # caller doesn't have to pre-trim.
+      expect(
+        evaluate('OP_1', '', flags: ['', ' UTXO_AFTER_GENESIS ', nil])
+      ).to be true
+    end
+
+    it 'an empty flag array is explicit-but-empty (NOT relaxed)' do
+      # Pre-Genesis pre-Chronicle: OP_2MUL is disabled.
+      expect do
+        evaluate('OP_1', 'OP_2MUL', flags: [])
+      end.to raise_error(BSV::Script::ScriptError) { |e|
+        expect(e.code).to eq(:disabled_opcode)
+      }
+    end
+
+    it 'nil flags selects relaxed mode (OP_2MUL allowed)' do
+      expect(evaluate('OP_1', 'OP_2MUL OP_2 OP_EQUAL', flags: nil)).to be true
+    end
+  end
 end
