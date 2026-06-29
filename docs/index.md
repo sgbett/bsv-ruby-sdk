@@ -1,3 +1,8 @@
+---
+title: Home
+nav_order: 1
+---
+
 # BSV Ruby SDK
 
 Ruby SDK for the BSV Blockchain. Part of the official BSV SDK family alongside

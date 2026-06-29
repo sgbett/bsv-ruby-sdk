@@ -1,3 +1,9 @@
+---
+title: Conformance Vectors
+nav_order: 3
+parent: Reference
+---
+
 # Cross-SDK conformance vectors
 
 The Ruby SDK validates its behaviour against canonical test vectors from the

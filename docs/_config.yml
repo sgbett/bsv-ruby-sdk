@@ -1,0 +1,54 @@
+title: BSV Ruby SDK
+description: >-
+  Ruby SDK for the BSV Blockchain. Keys, scripts, transactions, BEEF,
+  and overlay services — all in pure Ruby.
+
+url: "https://sgbett.github.io"
+baseurl: "/bsv-ruby-sdk"
+
+theme: just-the-docs
+color_scheme: bsv-ruby
+
+search_enabled: true
+
+# Mermaid diagram support (built-in to just-the-docs since 0.5).
+# Pinned to an exact version — not a floating major — so a CDN release
+# cannot silently change diagram rendering in a deployed site.
+mermaid:
+  version: "11.16.0"
+
+plugins:
+  - jekyll-redirect-from
+
+# Trailing-slash URLs (e.g. /guides/getting-started/) match the URL shape
+# produced by MkDocs, so existing links in README and external references
+# continue to resolve after the migration.
+permalink: pretty
+
+# Exclude YARD-generated API output from both side-nav and Lunr search index.
+# YARD writes hundreds of per-class pages; including them in the nav would
+# bury hand-authored content, and indexing them causes severe Lunr index bloat
+# that degrades search performance for end users.
+defaults:
+  - scope:
+      path: "reference/api"
+    values:
+      nav_exclude: true
+      search_exclude: true
+
+callouts:
+  note:
+    title: Note
+    color: blue
+  important:
+    title: Important
+    color: yellow
+  warning:
+    title: Warning
+    color: red
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - requirements.txt

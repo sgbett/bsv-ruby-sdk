@@ -2,6 +2,9 @@
 pkg/
 /.bundle/
 Gemfile.lock
+# The docs site is a deployable application; its lockfile is committed.
+# See docs/README.md for the full rationale.
+!docs/Gemfile.lock
 /coverage/
 /.rspec_status
 /tmp/

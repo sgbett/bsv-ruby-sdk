@@ -1,3 +1,9 @@
+---
+title: Script
+nav_order: 2
+parent: SDK
+---
+
 # Script
 
 The `BSV::Script` module handles Bitcoin script parsing, construction, and execution. Scripts define the spending conditions for transaction outputs.
@@ -133,10 +139,12 @@ script.type
 #   'scripthash', 'empty', or 'nonstandard'
 ```
 
-!!! note "P2SH Detection"
-    P2SH scripts are detected for completeness (e.g. when parsing historical
-    transactions), but BSV does not support P2SH execution. No P2SH
-    constructors are provided.
+{: .note }
+> **P2SH Detection**
+>
+> P2SH scripts are detected for completeness (e.g. when parsing historical
+> transactions), but BSV does not support P2SH execution. No P2SH
+> constructors are provided.
 
 ## Data Extraction
 

@@ -1,3 +1,9 @@
+---
+title: Naming Conventions
+nav_order: 1
+parent: Reference
+---
+
 # Naming Conventions
 
 This SDK follows idiomatic Ruby naming, which differs in several ways from the TypeScript and Go BSV SDKs. If you're familiar with those SDKs, the patterns here will translate directly once you know the rules.

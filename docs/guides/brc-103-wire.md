@@ -1,3 +1,9 @@
+---
+title: BRC-103 Wire Layer
+nav_order: 2
+parent: Guides
+---
+
 # BRC-103 Wire Layer
 
 The BRC-103 wire layer is a compact binary frame protocol for invoking BRC-100 wallet methods over

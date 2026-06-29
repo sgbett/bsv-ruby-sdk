@@ -1,3 +1,9 @@
+---
+title: Wallet
+nav_order: 5
+parent: SDK
+---
+
 # Wallet
 
 `BSV::Wallet::ProtoWallet` is the SDK's built-in cryptographic wallet. It is a concrete

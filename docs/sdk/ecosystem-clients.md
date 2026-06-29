@@ -1,3 +1,9 @@
+---
+title: Ecosystem Clients
+nav_order: 8
+parent: SDK
+---
+
 # Ecosystem Clients
 
 The SDK ships several overlay-aware client modules that work alongside `BSV::Registry::Client`

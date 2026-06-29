@@ -1,3 +1,9 @@
+---
+title: Testnet Integration
+nav_order: 1
+parent: Testing
+---
+
 # Testnet integration
 
 The SDK includes an integration test suite that exercises the full transaction
