@@ -35,7 +35,7 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # YARD generation — uses the SDK root Gemfile.
       # Both setup-ruby steps pin Ruby to '3.4.2' exactly to match
@@ -77,9 +77,9 @@ jobs:
 
       # Upload artefact for the deploy job — skipped on PR runs since
       # the deploy job is also skipped (only push to master deploys).
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: github.event_name == 'push'
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name == 'push'
         with:
           path: docs/_site
