@@ -35,20 +35,38 @@ def generate_reference_index(output_dir) # rubocop:disable Metrics/AbcSize,Metri
     row['type'] == 'Module' ? modules << entry : classes << entry
   end
 
-  File.open(File.join(output_dir, 'index.md'), 'w') do |f|
-    # Jekyll frontmatter — Jekyll only processes .md files with frontmatter
-    # as content pages; without it, this file is copied verbatim as .md and
-    # _site/reference/api/index.html never exists. The defaults block in
-    # _config.yml additionally keeps it out of the side nav and search index.
+  File.open(File.join(output_dir, 'index.md'), 'w') do |f| # rubocop:disable Metrics/BlockLength
+    # Jekyll frontmatter — without it, Jekyll copies the file as static .md
+    # rather than processing it to HTML. The _config.yml `defaults:` block
+    # applies nav_exclude/search_exclude to ALL of reference/api/**; the
+    # index page explicitly overrides those so it appears as the
+    # API Reference entry under Reference. Per-class pages keep the
+    # excluded defaults (silent navigation, reachable via this index).
     f.puts '---'
     f.puts 'title: API Reference'
     f.puts 'parent: Reference'
-    f.puts 'nav_order: 99'
+    f.puts 'nav_order: 5'
+    f.puts 'nav_exclude: false'
+    f.puts 'search_exclude: false'
     f.puts '---'
     f.puts
     f.puts '# API Reference'
     f.puts
     f.puts 'Auto-generated from source using [YARD](https://yardoc.org/).'
+    f.puts
+    f.puts '{: .note }'
+    f.puts '> **Generated content**'
+    f.puts '>'
+    f.puts '> This page is overwritten by `rake docs:generate` with the ' \
+           'live module/class tree across both gems in this monorepo. ' \
+           'Run it locally to populate the API reference:'
+    f.puts '>'
+    f.puts '> ```bash'
+    f.puts '> bundle exec rake docs:generate'
+    f.puts '> ```'
+    f.puts '>'
+    f.puts '> Output lands in `docs/reference/api/` (sibling to authored ' \
+           'canonical-reference content under `docs/reference/`).'
     f.puts
     f.puts '## Modules'
     f.puts
@@ -430,12 +448,21 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
   end
   desc 'Build the Jekyll docs site'
   task :build do
-    Dir.chdir('docs') { sh 'BUNDLE_GEMFILE=Gemfile bundle exec jekyll build' }
+    # Bundler.with_unbundled_env strips BUNDLE_GEMFILE / BUNDLE_PATH from the
+    # outer `bundle exec rake` context so the inner `bundle exec jekyll`
+    # resolves the docs Gemfile cleanly from cwd. Without this the outer
+    # bundle's env leaks in and jekyll/htmlproofer either resolve against
+    # the wrong Gemfile or fail to find their gems.
+    Bundler.with_unbundled_env do
+      Dir.chdir('docs') { sh 'bundle exec jekyll build' }
+    end
   end
 
   desc 'Serve the Jekyll docs locally'
   task :serve do
-    Dir.chdir('docs') { sh 'BUNDLE_GEMFILE=Gemfile bundle exec jekyll serve --livereload' }
+    Bundler.with_unbundled_env do
+      Dir.chdir('docs') { sh 'bundle exec jekyll serve --livereload' }
+    end
   end
 
   desc 'Lint docs frontmatter — asserts required keys on every hand-authored .md'
@@ -537,17 +564,19 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
             'Run `bundle exec rake docs:build` first.'
     end
 
-    Dir.chdir('docs') do
-      # html-proofer is Jekyll-aware: swap_urls strips the baseurl prefix
-      # (which is a URL concept, not a filesystem path) so root-relative
-      # links like /bsv-ruby-sdk/sdk/wallet/ resolve to _site/sdk/wallet/.
-      # disable_external skips https:// links — those need network.
-      sh 'BUNDLE_GEMFILE=Gemfile bundle exec htmlproofer _site ' \
-         '--disable-external ' \
-         '--swap-urls "^/bsv-ruby-sdk:" ' \
-         '--ignore-empty-alt ' \
-         '--ignore-missing-alt ' \
-         '--allow-missing-href'
+    Bundler.with_unbundled_env do
+      Dir.chdir('docs') do
+        # html-proofer is Jekyll-aware: swap_urls strips the baseurl prefix
+        # (which is a URL concept, not a filesystem path) so root-relative
+        # links like /bsv-ruby-sdk/sdk/wallet/ resolve to _site/sdk/wallet/.
+        # disable_external skips https:// links — those need network.
+        sh 'bundle exec htmlproofer _site ' \
+           '--disable-external ' \
+           '--swap-urls "^/bsv-ruby-sdk:" ' \
+           '--ignore-empty-alt ' \
+           '--ignore-missing-alt ' \
+           '--allow-missing-href'
+      end
     end
   end
 end

@@ -160,6 +160,7 @@ correctness checkpoint, not a rubber stamp.
 The GitHub Actions workflow (`.github/workflows/ci.yml`) runs the sync step
 before the RSpec invocation:
 
+{% raw %}
 ```yaml
 - name: Cache conformance vectors
   uses: actions/cache@v4
@@ -170,6 +171,7 @@ before the RSpec invocation:
 - name: Sync conformance vectors
   run: bin/conformance/sync
 ```
+{% endraw %}
 
 The cache key is derived from the content of the lock file. A cache miss
 triggers a full anonymous fetch from codeload; a hit reuses the cached tree
