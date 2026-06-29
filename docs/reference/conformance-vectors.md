@@ -163,7 +163,7 @@ before the RSpec invocation:
 {% raw %}
 ```yaml
 - name: Cache conformance vectors
-  uses: actions/cache@v4
+  uses: actions/cache@v6
   with:
     path: tmp/conformance-vectors
     key: conformance-${{ hashFiles('.architecture/conformance.lock') }}
