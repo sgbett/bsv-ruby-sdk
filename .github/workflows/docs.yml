@@ -9,6 +9,14 @@ on:
       - '.yardopts'
       - '.github/workflows/docs.yml'
       - 'Rakefile'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'gem/*/lib/**'
+      - 'docs/**'
+      - '.yardopts'
+      - '.github/workflows/docs.yml'
+      - 'Rakefile'
   workflow_dispatch:
 
 concurrency:
@@ -62,13 +70,19 @@ jobs:
       - name: Check internal links
         run: bundle exec rake docs:proofread
 
-      # Upload artefact for the deploy job
+      # Upload artefact for the deploy job — skipped on PR runs since
+      # the deploy job is also skipped (only push to master deploys).
       - uses: actions/configure-pages@v5
+        if: github.event_name == 'push'
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name == 'push'
         with:
           path: docs/_site
 
   deploy:
+    # Only deploy on push to master. PR runs are dry-run only: they
+    # build, lint, and link-check the site without touching Pages.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: build
     runs-on: ubuntu-latest
     permissions:
