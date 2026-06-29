@@ -446,8 +446,18 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
         next
       end
 
+      # nav_order is required for every nav-bearing page. Without it,
+      # just-the-docs falls back to alphabetical, which silently breaks the
+      # MkDocs nav order this migration preserves. Stubs hidden from nav
+      # (nav_exclude: true) and the root index are the only exemptions.
+      is_root_index = path == File.join(docs_root, 'index.md')
+      unless fm['nav_exclude'] || is_root_index || fm['nav_order']
+        errors << "#{path}: missing required frontmatter key: nav_order"
+        next
+      end
+
       # The index page is the root anchor — no parent/nav_exclude required.
-      next if path == File.join(docs_root, 'index.md')
+      next if is_root_index
 
       # Section landing pages (has_children: true) are also top-level — they
       # act as parents and need no parent key themselves.
