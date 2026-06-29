@@ -31,11 +31,19 @@ relative_links:
 # continue to resolve after the migration.
 permalink: pretty
 
-# Exclude YARD-generated API output from both side-nav and Lunr search index.
-# YARD writes hundreds of per-class pages; including them in the nav would
-# bury hand-authored content, and indexing them causes severe Lunr index bloat
-# that degrades search performance for end users.
+# Defaults — note these REPLACE the theme's defaults rather than merging
+# with them, so we must restore the `layout: default` setting that
+# just-the-docs would otherwise apply to all pages. Without it, Jekyll
+# renders pages as bare content (no <head>, no nav, no theme styling).
+#
+# The second scope excludes YARD-generated API output from both side-nav
+# and Lunr search index — YARD writes hundreds of per-class pages and
+# would otherwise bury hand-authored content and bloat the search index.
 defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
   - scope:
       path: "reference/api"
     values:
