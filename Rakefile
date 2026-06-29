@@ -390,8 +390,82 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
 
     puts "  generated #{out_file} (#{providers.size} providers, #{overlapping_commands.size} overlapping commands)"
   end
-  desc 'Generate docs and serve locally with MkDocs'
-  task serve: :generate do
-    sh 'mkdocs serve'
+  desc 'Build the Jekyll docs site'
+  task :build do
+    Dir.chdir('docs') { sh 'BUNDLE_GEMFILE=Gemfile bundle exec jekyll build' }
+  end
+
+  desc 'Serve the Jekyll docs locally'
+  task :serve do
+    Dir.chdir('docs') { sh 'BUNDLE_GEMFILE=Gemfile bundle exec jekyll serve --livereload' }
+  end
+
+  desc 'Lint docs frontmatter — asserts required keys on every hand-authored .md'
+  task :lint do # rubocop:disable Metrics/BlockLength
+    require 'yaml'
+
+    docs_root = File.expand_path('docs', __dir__)
+
+    # Exclude generated and non-content paths:
+    #   _site/       — Jekyll output, not source
+    #   reference/api/ — YARD-generated, no hand-authored frontmatter
+    #   README.md    — contributor meta-documentation, not a site page
+    excluded_prefixes = [
+      File.join(docs_root, '_site'),
+      File.join(docs_root, 'reference', 'api')
+    ]
+    excluded_files = [File.join(docs_root, 'README.md')]
+
+    md_files = Dir.glob(File.join(docs_root, '**', '*.md')).reject do |f|
+      excluded_prefixes.any? { |prefix| f.start_with?(prefix) } ||
+        excluded_files.include?(f)
+    end
+
+    errors = []
+
+    md_files.each do |path|
+      content = File.read(path)
+
+      unless content.start_with?('---')
+        errors << "#{path}: missing frontmatter block (file must begin with ---)"
+        next
+      end
+
+      # Extract the YAML between the opening and closing --- delimiters.
+      fm_match = content.match(/\A---\s*\n(.*?)\n---/m)
+      unless fm_match
+        errors << "#{path}: malformed frontmatter (no closing ---)"
+        next
+      end
+
+      fm = YAML.safe_load(fm_match[1]) || {}
+
+      # Every file must declare a title.
+      unless fm['title']
+        errors << "#{path}: missing required frontmatter key: title"
+        next
+      end
+
+      # The index page is the root anchor — no parent/nav_exclude required.
+      next if path == File.join(docs_root, 'index.md')
+
+      # Section landing pages (has_children: true) are also top-level — they
+      # act as parents and need no parent key themselves.
+      next if fm['has_children']
+
+      # Every other page must declare either a parent (placing it in a section)
+      # or nav_exclude: true (hiding it from the nav entirely, e.g. redirect stubs).
+      next if fm['parent'] || fm['nav_exclude']
+
+      errors << "#{path}: missing 'parent' or 'nav_exclude' — " \
+                'non-root, non-section pages must declare one or the other'
+    end
+
+    if errors.empty?
+      puts "docs:lint — #{md_files.size} file(s) checked, all OK"
+    else
+      errors.each { |e| warn e }
+      exit 1
+    end
   end
 end

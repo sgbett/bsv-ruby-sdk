@@ -5,6 +5,8 @@ AllCops:
   TargetRubyVersion: 3.3
   NewCops: enable
   SuggestExtensions: false
+  Exclude:
+    - 'docs/**/*'
 
 Style/Documentation:
   Enabled: false

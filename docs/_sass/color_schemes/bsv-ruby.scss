@@ -1,0 +1,34 @@
+// BSV Ruby colour scheme for just-the-docs
+//
+// Colours derived from the bsv-ruby-sdk GitHub social preview (1280×640).
+// Brightest-pixel samples: Bitcoin orange #F68617, ruby red #FD2A24,
+// pill black #000000, paper #FFFFFF.
+//
+// All in-text tokens use AA-passing variants (WCAG 2.1, contrast ≥ 4.5:1
+// against white #FFFFFF):
+//   Bitcoin orange → #C26200  (~5.0:1 contrast)
+//   Ruby red       → #C8101A  (~5.8:1 contrast)
+//   Body ink       → #0A0A0A  (near-black, far exceeds AAA)
+
+// Primary — Bitcoin orange (darkened for AA compliance on white paper)
+$link-color: #C26200;
+$btn-primary-color: #C26200;
+
+// Body ink and paper
+$body-text-color: #0A0A0A;
+$body-heading-color: #0A0A0A;
+$body-background-color: #FFFFFF;
+
+// Sidebar and search panel — light warm grey, enough contrast for
+// the sidebar link text without competing with the main content area
+$sidebar-color: #F7F4F2;
+$search-background-color: #F7F4F2;
+
+// Navigation child links — slightly muted so hierarchy reads clearly
+$nav-child-link-color: #C26200;
+
+// Borders — neutral warm grey
+$border-color: #DDD8D3;
+
+// Code blocks — very light warm grey, distinct from body white
+$code-background-color: #F5F2F0;

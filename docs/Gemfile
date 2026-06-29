@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+# Gemfile for the Jekyll docs site — kept separate from the SDK root Gemfile
+# so gem-development dependencies stay clean.
+#
+# Lockfile policy: docs/Gemfile.lock IS committed. This is a deployable
+# application (GitHub Pages), not a library. Pinning the lockfile ensures
+# CI produces byte-for-byte identical output to local dev.
+#
+# Version constraints:
+#   - jekyll: ~> 4.3 (minor-version floating; Jekyll 4.x has a stable API)
+#   - just-the-docs: exact pin (supply-chain: caps blast radius of stale releases)
+#   - jekyll-redirect-from: exact pin (same rationale)
+
+source 'https://rubygems.org'
+
+ruby '>= 3.3'
+
+gem 'jekyll', '~> 4.3'
+gem 'just-the-docs', '= 0.12.0'
+gem 'jekyll-redirect-from', '= 0.16.0'
