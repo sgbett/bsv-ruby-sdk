@@ -92,7 +92,7 @@ module BSV
       #
       # Signature operations will always fail (no sighash available).
       #
-      # @example Relaxed mode (post-Chronicle defaults, no maleability checks)
+      # @example Relaxed mode (post-Chronicle defaults, no malleability checks)
       #   Interpreter.evaluate(unlock, lock)                  # flags defaults to nil
       #
       # @example Explicit flag set
@@ -105,7 +105,7 @@ module BSV
       # @param lock_script [Script] the locking script
       # @param flags [Array<String>, Set<String>, nil] explicit verification flags
       #   (e.g. +SIGPUSHONLY+, +CLEANSTACK+, +UTXO_AFTER_CHRONICLE+). +nil+
-      #   selects relaxed (post-Chronicle) mode where maleability checks are
+      #   selects relaxed (post-Chronicle) mode where malleability checks are
       #   off; an empty +[]+ array is explicit-but-empty (pre-Genesis,
       #   pre-Chronicle strict mode). Each flag string must appear in
       #   {KNOWN_FLAGS} — unknown names raise +ArgumentError+.
