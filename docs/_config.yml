@@ -19,6 +19,12 @@ mermaid:
 
 plugins:
   - jekyll-redirect-from
+  - jekyll-relative-links
+
+# Make jekyll-relative-links process every .md, not just collections.
+relative_links:
+  enabled: true
+  collections: false
 
 # Trailing-slash URLs (e.g. /guides/getting-started/) match the URL shape
 # produced by MkDocs, so existing links in README and external references

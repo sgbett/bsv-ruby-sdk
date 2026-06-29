@@ -19,3 +19,7 @@ ruby '>= 3.3'
 gem 'jekyll', '~> 4.3'
 gem 'just-the-docs', '= 0.12.0'
 gem 'jekyll-redirect-from', '= 0.16.0'
+# Rewrites relative .md links in markdown to their permalink form at build
+# time. MkDocs did this transparently; Jekyll does not — without this plugin,
+# every internal [link](path/to/file.md) breaks in the rendered HTML.
+gem 'jekyll-relative-links', '= 0.6.1'
