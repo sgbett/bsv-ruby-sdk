@@ -460,7 +460,10 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
     excluded_files = [File.join(docs_root, 'README.md')]
 
     md_files = Dir.glob(File.join(docs_root, '**', '*.md')).reject do |f|
-      excluded_prefixes.any? { |prefix| f.start_with?(prefix) } ||
+      # Add a trailing path separator to each prefix so the match is strict
+      # directory containment (e.g. `docs/vendor/x.md` matches `docs/vendor`
+      # but a hypothetical `docs/vendorized/x.md` would not).
+      excluded_prefixes.any? { |prefix| f.start_with?("#{prefix}/") } ||
         excluded_files.include?(f)
     end
 
@@ -523,7 +526,17 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
   end
 
   desc 'Check internal links and anchors in the built site (offline)'
-  task proofread: :build do
+  task :proofread do
+    # No Rake-level dependency on :build so CI can run them as separate
+    # steps without rebuilding twice. Callers (CI + local) are expected
+    # to have run `rake docs:build` first; surface a clear message
+    # rather than letting htmlproofer fail with an opaque "no files".
+    site_dir = File.expand_path('docs/_site', __dir__)
+    unless File.directory?(site_dir) && !Dir.empty?(site_dir)
+      abort "docs:proofread — #{site_dir} is missing or empty. " \
+            'Run `bundle exec rake docs:build` first.'
+    end
+
     Dir.chdir('docs') do
       # html-proofer is Jekyll-aware: swap_urls strips the baseurl prefix
       # (which is a URL concept, not a filesystem path) so root-relative
