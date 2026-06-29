@@ -1,6 +1,6 @@
 ---
 title: TAAL Binary
-nav_order: 5
+nav_order: 6
 parent: Protocol Reference
 ---
 
