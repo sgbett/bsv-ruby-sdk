@@ -42,12 +42,21 @@ module BSV
             @else_stack.push(false)
           end
 
-          # OP_ELSE: toggle conditional branch (only one ELSE per IF after genesis)
+          # OP_ELSE: toggle the current conditional branch.
+          #
+          # Multi-ELSE handling matches the TS SDK (Spend.ts OP_ELSE case):
+          # - In relaxed mode (no explicit flags), each ELSE toggles the branch —
+          #   any number of ELSEs per IF is valid. This is the script-021 case.
+          # - With explicit post-genesis flags, only one ELSE per IF is permitted;
+          #   a second ELSE raises UNBALANCED_CONDITIONAL. Vectors such as
+          #   node.script.bitcoin-sv.0731 and teranode.0057 enforce this.
           def op_else
             raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'OP_ELSE without matching OP_IF') if @cond_stack.empty?
 
-            # After genesis: only one ELSE per IF
-            raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'duplicate OP_ELSE') if @else_stack.pop
+            already_seen_else = @else_stack.pop
+            if already_seen_else && explicit_flags? && after_genesis?
+              raise ScriptError.new(ScriptErrorCode::UNBALANCED_CONDITIONAL, 'duplicate OP_ELSE')
+            end
 
             case @cond_stack.last
             when :true  then @cond_stack[-1] = :false
@@ -97,20 +106,23 @@ module BSV
 
           # OP_VER: push 4-byte little-endian transaction version onto the stack.
           #
-          # Requires a transaction context (@tx must not be nil). Raises
-          # MISSING_TX_CONTEXT when called from Interpreter.evaluate (no-tx path).
+          # Resolves the version from +@tx.version+ (when verifying a
+          # transaction) or from the +tx_version:+ parameter passed to
+          # +Interpreter.evaluate+. Raises MISSING_TX_CONTEXT only if neither
+          # is available.
           #
           # The version is always encoded as exactly 4 bytes (LE uint32), never as
           # a ScriptNumber. Version 1 → 01000000, version 2 → 02000000.
           def op_ver
-            if @tx.nil?
+            bytes = tx_version_bytes
+            if bytes.nil?
               raise ScriptError.new(
                 ScriptErrorCode::MISSING_TX_CONTEXT,
                 'OP_VER requires transaction context'
               )
             end
 
-            @dstack.push_bytes(tx_version_bytes)
+            @dstack.push_bytes(bytes)
           end
 
           # OP_VERIF: version-conditional branch — executes like OP_IF but compares
@@ -166,20 +178,25 @@ module BSV
           end
 
           # Returns the transaction version as a 4-byte little-endian binary
-          # string. Used by OP_VER, OP_VERIF, and OP_VERNOTIF.
+          # string, or +nil+ if no version is available. Used by OP_VER,
+          # OP_VERIF, and OP_VERNOTIF. Prefers +@tx.version+ when verifying a
+          # transaction; falls back to the +tx_version:+ argument used by
+          # evaluate-without-tx (e.g. conformance corpus runs).
           def tx_version_bytes
-            [@tx.version].pack('V')
+            v = @tx&.version || @tx_version
+            v.nil? ? nil : [v].pack('V')
           end
 
           # Compares raw bytes against the current transaction version.
           # Returns false if:
           # - +data+ is not exactly 4 bytes
-          # - @tx is nil (no transaction context)
-          # - the bytes do not match the 4-byte LE encoding of @tx.version
+          # - no version is available (neither @tx nor @tx_version set)
+          # - the bytes do not match the 4-byte LE encoding of the version
           def tx_version_matches?(data)
-            return false if @tx.nil? || data.bytesize != 4
+            return false if data.bytesize != 4
 
-            data == tx_version_bytes
+            bytes = tx_version_bytes
+            !bytes.nil? && data == bytes
           end
         end
       end

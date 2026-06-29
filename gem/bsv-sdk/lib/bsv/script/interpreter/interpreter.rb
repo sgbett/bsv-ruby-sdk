@@ -53,18 +53,74 @@ module BSV
       # stack overflow from deeply nested conditionals.
       MAX_CONDITIONAL_DEPTH = 256
 
+      # Opcodes that require Chronicle to execute. With explicit flags but
+      # without UTXO_AFTER_CHRONICLE, executing any of these raises
+      # DISABLED_OPCODE. OP_VER / OP_VERIF / OP_VERNOTIF are included because
+      # pre-Chronicle they're either reserved (OP_VER) or behave as a
+      # conditional-only NOP in non-executing branches — execution itself is
+      # disabled. Mirrors TS Spend.ts (lines ~694-709) and Go IsDisabled.
+      CHRONICLE_ONLY_OPCODES = [
+        Opcodes::OP_2MUL, Opcodes::OP_2DIV,
+        Opcodes::OP_VER, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
+      ].freeze
+
+      # The two version-conditional opcodes — extracted to module-level
+      # constants so the interpreter hot path (every conditional dispatch /
+      # every executed chunk) doesn't allocate a fresh Array per call.
+      VER_CONDITIONAL_OPCODES = [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].freeze
+
+      # Recognised verification flag names. Catches typos (a misspelled
+      # +SIGPUSHONLLY+ would otherwise silently disable enforcement) and forces
+      # any new flag to be declared here before use. The set is the union of
+      # flags appearing in the canonical conformance corpus and the Bitcoin
+      # Core +script_tests.json+ fixture, plus the witness/taproot family that
+      # downstream callers filter out before reaching the interpreter.
+      KNOWN_FLAGS = Set[
+        'CHECKLOCKTIMEVERIFY', 'CHECKSEQUENCEVERIFY',
+        'CLEANSTACK', 'DERSIG', 'DISCOURAGE_UPGRADABLE_NOPS',
+        'DISCOURAGE_UPGRADABLE_WITNESS_PROGRAM',
+        'GENESIS', 'LOW_S',
+        'MINIMALDATA', 'MINIMALIF',
+        'NULLDUMMY', 'NULLFAIL',
+        'P2SH', 'SIGHASH_FORKID', 'SIGPUSHONLY', 'STRICTENC',
+        'TAPROOT',
+        'UTXO_AFTER_CHRONICLE', 'UTXO_AFTER_GENESIS',
+        'WITNESS'
+      ].freeze
+
       # Evaluate unlock + lock scripts without transaction context.
       #
       # Signature operations will always fail (no sighash available).
       #
+      # @example Relaxed mode (post-Chronicle defaults, no malleability checks)
+      #   Interpreter.evaluate(unlock, lock)                  # flags defaults to nil
+      #
+      # @example Explicit flag set
+      #   Interpreter.evaluate(unlock, lock, flags: %w[UTXO_AFTER_GENESIS CLEANSTACK])
+      #
+      # @example Explicit-but-empty (pre-Genesis, pre-Chronicle, strict)
+      #   Interpreter.evaluate(unlock, lock, flags: [])       # NOT the same as nil
+      #
       # @param unlock_script [Script] the unlocking script
       # @param lock_script [Script] the locking script
+      # @param flags [Array<String>, Set<String>, nil] explicit verification flags
+      #   (e.g. +SIGPUSHONLY+, +CLEANSTACK+, +UTXO_AFTER_CHRONICLE+). +nil+
+      #   selects relaxed (post-Chronicle) mode where malleability checks are
+      #   off; an empty +[]+ array is explicit-but-empty (pre-Genesis,
+      #   pre-Chronicle strict mode). Each flag string must appear in
+      #   {KNOWN_FLAGS} — unknown names raise +ArgumentError+.
+      # @param tx_version [Integer, nil] transaction version made available to
+      #   +OP_VER+/+OP_VERIF+/+OP_VERNOTIF+ when no transaction is supplied
       # @return [Boolean] +true+ if execution succeeds
       # @raise [ScriptError] if script execution fails
-      def self.evaluate(unlock_script, lock_script)
+      # @raise [ArgumentError] if +flags+ contains an unknown name or
+      #   +tx_version+ is not a valid uint32
+      def self.evaluate(unlock_script, lock_script, flags: nil, tx_version: nil)
         new(
           unlock_script: unlock_script,
-          lock_script: lock_script
+          lock_script: lock_script,
+          flags: flags,
+          tx_version: tx_version
         ).execute
       end
 
@@ -75,19 +131,28 @@ module BSV
       # @param unlock_script [Script] the input's unlocking script
       # @param lock_script [Script] the previous output's locking script
       # @param satoshis [Integer] the value of the previous output in satoshis
+      # @param flags [Array<String>, Set<String>, nil] explicit verification flags
+      #   (see {.evaluate}). Production callers (e.g. +Tx#verify_input+) do not
+      #   pass +flags+, so mainnet transaction validation always runs in
+      #   relaxed mode; the parameter exists for conformance-corpus and
+      #   regression-vector runners that need to drive specific flag combinations.
       # @return [Boolean] +true+ if verification succeeds
       # @raise [ScriptError] if script execution fails
-      def self.verify(tx:, input_index:, unlock_script:, lock_script:, satoshis:)
+      # @raise [ArgumentError] if +flags+ contains an unknown name
+      def self.verify(tx:, input_index:, unlock_script:, lock_script:, satoshis:, flags: nil)
         new(
           unlock_script: unlock_script,
           lock_script: lock_script,
           tx: tx,
           input_index: input_index,
-          satoshis: satoshis
+          satoshis: satoshis,
+          flags: flags
         ).execute
       end
 
       def execute
+        enforce_sig_pushonly
+
         scripts = [@unlock_script, @lock_script]
         script_names = %w[unlock_script lock_script]
 
@@ -123,12 +188,15 @@ module BSV
 
       private
 
-      def initialize(unlock_script:, lock_script:, tx: nil, input_index: nil, satoshis: nil)
+      def initialize(unlock_script:, lock_script:, tx: nil, input_index: nil, satoshis: nil,
+                     flags: nil, tx_version: nil)
         @unlock_script = unlock_script
         @lock_script = lock_script
         @tx = tx
         @input_index = input_index
         @satoshis = satoshis
+        @flags = normalise_flags(flags)
+        @tx_version = validate_tx_version(tx_version)
 
         @dstack = Stack.new
         @astack = Stack.new
@@ -141,29 +209,177 @@ module BSV
         @current_chunk_idx = 0
       end
 
+      # Normalises the +flags:+ kwarg into a frozen Set of recognised names.
+      # +nil+ stays +nil+ (relaxed mode); any iterable is coerced to a Set of
+      # strings, dropping +nil+ / empty entries silently (so callers can pass
+      # +flags_csv.split(',')+ without trimming). Unknown flag names raise
+      # +ArgumentError+ — typos in consensus-affecting flag strings would
+      # otherwise silently disable the corresponding rule.
+      def normalise_flags(flags)
+        return nil if flags.nil?
+
+        normalised = Set.new
+        flags.each do |raw|
+          next if raw.nil?
+
+          name = raw.to_s.strip
+          next if name.empty?
+
+          unless KNOWN_FLAGS.include?(name)
+            raise ArgumentError,
+                  "unknown verification flag: #{raw.inspect} (add to KNOWN_FLAGS if intentional)"
+          end
+
+          normalised << name
+        end
+        normalised.freeze
+      end
+
+      # Ensures the +tx_version:+ kwarg is a valid uint32. Returns +nil+ for nil
+      # input. Raises +ArgumentError+ for negative values, values > 2^32-1, or
+      # non-Integer inputs — these would otherwise silently coerce inside
+      # +Array#pack('V')+ (negative wraps to 0xFFFFFFFF, oversized wraps mod
+      # 2^32), masking caller bugs.
+      def validate_tx_version(version)
+        return nil if version.nil?
+        return version if version.is_a?(Integer) && version >= 0 && version <= 0xFFFFFFFF
+
+        raise ArgumentError, "tx_version must be a uint32 (0..0xFFFFFFFF), got #{version.inspect}"
+      end
+
+      # Whether explicit verification flags were supplied.
+      # In their absence the interpreter behaves as if Chronicle is active and
+      # the unlock-script malleability flags are off (matches the TS SDK's
+      # +isRelaxed+ default — see Spend.ts).
+      def explicit_flags?
+        !@flags.nil?
+      end
+
+      def flag?(name)
+        explicit_flags? && @flags.include?(name)
+      end
+
+      # Whether post-Chronicle semantics apply (OP_2MUL/2DIV enabled,
+      # OP_VER/OP_VERIF/OP_VERNOTIF interpret +tx_version+).
+      def chronicle?
+        return flag?('UTXO_AFTER_CHRONICLE') if explicit_flags?
+
+        true
+      end
+
+      # Whether post-Genesis rules apply. With explicit flags this requires one
+      # of the genesis-era flags; without, the interpreter is always post-Genesis.
+      def after_genesis?
+        return flag?('GENESIS') || flag?('UTXO_AFTER_GENESIS') || flag?('UTXO_AFTER_CHRONICLE') if explicit_flags?
+
+        true
+      end
+
+      def enforce_sig_pushonly?
+        return flag?('SIGPUSHONLY') if explicit_flags?
+
+        false
+      end
+
+      def enforce_sig_pushonly
+        return unless enforce_sig_pushonly?
+        return if @unlock_script.push_only?
+
+        raise ScriptError.new(
+          ScriptErrorCode::SIG_PUSHONLY,
+          'unlock script must contain only push-data operations'
+        )
+      end
+
+      def enforce_clean_stack?
+        return flag?('CLEANSTACK') if explicit_flags?
+
+        false
+      end
+
+      def enforce_clean_stack
+        return unless enforce_clean_stack?
+        return if @dstack.length == 1
+
+        raise ScriptError.new(
+          ScriptErrorCode::CLEAN_STACK,
+          "CLEANSTACK requires exactly one stack item at end (found #{@dstack.length})"
+        )
+      end
+
       def execute_opcode(chunk)
         opcode = chunk.opcode
+
+        # Pre-Chronicle, pre-Genesis mode (explicit non-genesis flags) treats
+        # OP_VER / OP_VERIF / OP_VERNOTIF as universally illegal — they raise
+        # even in a non-executing branch. Mirrors TS Spend.ts line ~700.
+        enforce_pre_genesis_ver_gate(opcode)
 
         # After OP_RETURN inside a conditional: only process flow control opcodes
         # and OP_RETURN itself (which may terminate at top level once conditionals
         # are balanced), matching Go SDK's branchExecuting semantics.
         if @after_op_return
-          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode) || opcode == Opcodes::OP_RETURN
+          if conditional_opcode?(opcode) || opcode == Opcodes::OP_RETURN
+            return if skipped_ver_conditional?(opcode)
+
+            dispatch_opcode(opcode, chunk)
+          end
           return
         end
 
         # In non-executing branch: only dispatch conditional opcodes (for nesting tracking).
         # All other opcodes are skipped.
         unless branch_executing?
-          dispatch_opcode(opcode, chunk) if conditional_opcode?(opcode)
+          if conditional_opcode?(opcode)
+            return if skipped_ver_conditional?(opcode)
+
+            dispatch_opcode(opcode, chunk)
+          end
           return
         end
+
+        enforce_chronicle_gate(opcode)
 
         BSV.logger&.debug do
           name = Opcodes.name_for(opcode) || format('0x%02x', opcode)
           "[Interpreter]   #{name} (stack: #{@dstack.length})"
         end
         dispatch_opcode(opcode, chunk)
+      end
+
+      def enforce_chronicle_gate(opcode)
+        return unless CHRONICLE_ONLY_OPCODES.include?(opcode)
+        return if chronicle?
+
+        raise ScriptError.new(
+          ScriptErrorCode::DISABLED_OPCODE,
+          "#{Opcodes.name_for(opcode) || format('0x%02x', opcode)} is disabled outside Chronicle"
+        )
+      end
+
+      # OP_VERIF / OP_VERNOTIF in a non-executing branch are conditional opcodes
+      # post-Chronicle (push to cond_stack, like OP_IF in a non-executing branch),
+      # but a complete NOP pre-Chronicle post-genesis — they neither push nor
+      # consume. This matches TS Spend.ts (line ~710) and Go opcodeVerConditional.
+      def skipped_ver_conditional?(opcode)
+        return false unless VER_CONDITIONAL_OPCODES.include?(opcode)
+
+        !chronicle? && after_genesis?
+      end
+
+      # Pre-Genesis VERIF / VERNOTIF are unconditionally illegal (even in
+      # non-executing branches — they enter the dispatcher as conditional opcodes).
+      # OP_VER pre-Genesis is illegal only when executing; in a non-executing
+      # branch it's skipped silently. Mirrors the Bitcoin Core script test
+      # rule "VER non-functional (ok if not executed); VERIF illegal everywhere".
+      def enforce_pre_genesis_ver_gate(opcode)
+        return unless VER_CONDITIONAL_OPCODES.include?(opcode)
+        return unless explicit_flags? && !after_genesis?
+
+        raise ScriptError.new(
+          ScriptErrorCode::DISABLED_OPCODE,
+          "#{Opcodes.name_for(opcode) || format('0x%02x', opcode)} is illegal pre-Genesis"
+        )
       end
 
       def dispatch_opcode(opcode, chunk)
@@ -295,8 +511,11 @@ module BSV
       end
 
       # Verify final stack state: must have at least one truthy element on top.
+      # When the CLEANSTACK flag is set, additionally requires exactly one item.
       def check_final_stack
         raise ScriptError.new(ScriptErrorCode::EMPTY_STACK, 'stack empty at end of script execution') if @dstack.empty?
+
+        enforce_clean_stack
 
         return if @dstack.pop_bool
 

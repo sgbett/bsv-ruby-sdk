@@ -55,9 +55,16 @@ RSpec.describe BSV::Script::Interpreter do
       expect(evaluate('', 'OP_0 OP_IF OP_0 OP_ELSE OP_1 OP_ENDIF')).to be true
     end
 
-    it 'raises on duplicate ELSE (after genesis)' do
+    it 'allows multiple ELSE branches per IF in relaxed (no-flags) mode' do
+      # OP_0 IF (skip) ELSE 1 (exec → push 1) ELSE (skip) ENDIF → stack [1]
+      expect(evaluate('', 'OP_0 OP_IF OP_0 OP_ELSE OP_1 OP_ELSE OP_0 OP_ENDIF')).to be true
+    end
+
+    it 'rejects multiple ELSE with explicit post-Genesis flags' do
+      unlock = BSV::Script::Script.from_asm('OP_0')
+      lock = BSV::Script::Script.from_asm('OP_IF OP_0 OP_ELSE OP_1 OP_ELSE OP_0 OP_ENDIF')
       expect do
-        evaluate('', 'OP_1 OP_IF OP_1 OP_ELSE OP_1 OP_ELSE OP_1 OP_ENDIF')
+        described_class.evaluate(unlock, lock, flags: %w[UTXO_AFTER_GENESIS])
       end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:unbalanced_conditional)
       }

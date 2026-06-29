@@ -24,8 +24,9 @@ require 'conformance/support/evaluation_corpus'
 # pre-Genesis consensus rules.
 #
 # Failures against corpus vectors that expose real interpreter gaps are tracked
-# as follow-up issues rather than blocking this migration. Each failing vector ID
-# is listed in PENDING_EVALUATION_VECTORS with its issue reference.
+# as follow-up issues rather than blocking the canonical-corpus migration. Each
+# failing vector ID is listed in PENDING_EVALUATION_VECTORS with its issue ref;
+# the suite is currently empty — all known gaps have been fixed.
 #
 # Vectors with corpus-level skip:true are silently excluded by EvaluationCorpus.
 #
@@ -33,28 +34,9 @@ require 'conformance/support/evaluation_corpus'
 # that vendored script_tests.json has been deleted.
 # See spec/conformance/vectors/README.md.
 
-# Known interpreter gaps — vector ID → follow-up GitHub issue.
-PENDING_EVALUATION_VECTORS = {
-  # Multiple-ELSE and VERIF-in-unexecuted-branch semantics.
-  'script-021' => '#850',
-  'node.script.bitcoin-sv.0140' => '#850',
-  'node.script.bitcoin-sv.0142' => '#850',
-  'node.script.teranode.0131' => '#850',
-  'node.script.teranode.0133' => '#850',
-  # SIGPUSHONLY flag not implemented in interpreter.
-  'node.script.bitcoin-sv.0084' => '#851',
-  'node.script.teranode.0084' => '#851',
-  # CLEANSTACK flag not implemented in interpreter.
-  'node.script.bitcoin-sv.0086' => '#852',
-  # OP_VER requires transaction context; UTXO_AFTER_CHRONICLE vectors.
-  'node.script.bitcoin-sv.0145' => '#853',
-  'node.script.bitcoin-sv.0150' => '#853',
-  'node.script.bitcoin-sv.0151' => '#853',
-  'node.script.bitcoin-sv.0156' => '#853',
-  # OP_2MUL / OP_2DIV must be DISABLED_OPCODE without UTXO_AFTER_CHRONICLE.
-  'node.script.bitcoin-sv.0165' => '#854',
-  'node.script.teranode.0143' => '#854'
-}.freeze
+# Known interpreter gaps — vector ID → follow-up GitHub issue. Empty when all
+# canonical evaluation vectors pass; populated only when a new gap is identified.
+PENDING_EVALUATION_VECTORS = {}.freeze
 
 RSpec.describe 'sdk.scripts.evaluation — script parsing' do # rubocop:disable RSpec/MultipleDescribes
   let(:parse_vectors) do
@@ -183,7 +165,11 @@ RSpec.describe 'sdk.scripts.evaluation — script evaluation' do
       begin
         unlock = BSV::Script::Script.from_hex(input['script_sig_hex'] || '')
         lock   = BSV::Script::Script.from_hex(input['script_pubkey_hex'] || '')
-        result = BSV::Script::Interpreter.evaluate(unlock, lock)
+        result = BSV::Script::Interpreter.evaluate(
+          unlock, lock,
+          flags: input['flags'],
+          tx_version: input['tx_version']
+        )
 
         if result == expected['valid']
           warn "#{vector['id']}: UNEXPECTED PASS — prune from PENDING_EVALUATION_VECTORS (issue #{issue} may be resolved)" if issue
