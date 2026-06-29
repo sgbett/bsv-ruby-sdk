@@ -36,6 +36,16 @@ def generate_reference_index(output_dir) # rubocop:disable Metrics/AbcSize,Metri
   end
 
   File.open(File.join(output_dir, 'index.md'), 'w') do |f|
+    # Jekyll frontmatter — Jekyll only processes .md files with frontmatter
+    # as content pages; without it, this file is copied verbatim as .md and
+    # _site/reference/api/index.html never exists. The defaults block in
+    # _config.yml additionally keeps it out of the side nav and search index.
+    f.puts '---'
+    f.puts 'title: API Reference'
+    f.puts 'parent: Reference'
+    f.puts 'nav_order: 99'
+    f.puts '---'
+    f.puts
     f.puts '# API Reference'
     f.puts
     f.puts 'Auto-generated from source using [YARD](https://yardoc.org/).'
