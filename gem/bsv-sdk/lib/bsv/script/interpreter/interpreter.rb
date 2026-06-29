@@ -64,6 +64,11 @@ module BSV
         Opcodes::OP_VER, Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF
       ].freeze
 
+      # The two version-conditional opcodes — extracted to module-level
+      # constants so the interpreter hot path (every conditional dispatch /
+      # every executed chunk) doesn't allocate a fresh Array per call.
+      VER_CONDITIONAL_OPCODES = [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].freeze
+
       # Evaluate unlock + lock scripts without transaction context.
       #
       # Signature operations will always fail (no sighash available).
@@ -153,7 +158,7 @@ module BSV
         @input_index = input_index
         @satoshis = satoshis
         @flags = flags.nil? ? nil : Set.new(flags.map(&:to_s))
-        @tx_version = tx_version
+        @tx_version = validate_tx_version(tx_version)
 
         @dstack = Stack.new
         @astack = Stack.new
@@ -166,9 +171,21 @@ module BSV
         @current_chunk_idx = 0
       end
 
+      # Ensures the +tx_version:+ kwarg is a valid uint32. Returns +nil+ for nil
+      # input. Raises +ArgumentError+ for negative values, values > 2^32-1, or
+      # non-Integer inputs — these would otherwise silently coerce inside
+      # +Array#pack('V')+ (negative wraps to 0xFFFFFFFF, oversized wraps mod
+      # 2^32), masking caller bugs.
+      def validate_tx_version(version)
+        return nil if version.nil?
+        return version if version.is_a?(Integer) && version >= 0 && version <= 0xFFFFFFFF
+
+        raise ArgumentError, "tx_version must be a uint32 (0..0xFFFFFFFF), got #{version.inspect}"
+      end
+
       # Whether explicit verification flags were supplied.
       # In their absence the interpreter behaves as if Chronicle is active and
-      # the unlock-script maleability flags are off (matches the TS SDK's
+      # the unlock-script malleability flags are off (matches the TS SDK's
       # +isRelaxed+ default — see Spend.ts).
       def explicit_flags?
         !@flags.nil?
@@ -281,8 +298,9 @@ module BSV
       # but a complete NOP pre-Chronicle post-genesis — they neither push nor
       # consume. This matches TS Spend.ts (line ~710) and Go opcodeVerConditional.
       def skipped_ver_conditional?(opcode)
-        !chronicle? && after_genesis? &&
-          [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].include?(opcode)
+        return false unless VER_CONDITIONAL_OPCODES.include?(opcode)
+
+        !chronicle? && after_genesis?
       end
 
       # Pre-Genesis VERIF / VERNOTIF are unconditionally illegal (even in
@@ -291,8 +309,8 @@ module BSV
       # branch it's skipped silently. Mirrors the Bitcoin Core script test
       # rule "VER non-functional (ok if not executed); VERIF illegal everywhere".
       def enforce_pre_genesis_ver_gate(opcode)
+        return unless VER_CONDITIONAL_OPCODES.include?(opcode)
         return unless explicit_flags? && !after_genesis?
-        return unless [Opcodes::OP_VERIF, Opcodes::OP_VERNOTIF].include?(opcode)
 
         raise ScriptError.new(
           ScriptErrorCode::DISABLED_OPCODE,

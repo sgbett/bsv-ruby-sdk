@@ -175,5 +175,23 @@ RSpec.describe BSV::Script::Interpreter do
         expect(e.code).to eq(:disabled_opcode)
       }
     end
+
+    it 'rejects a negative tx_version with ArgumentError' do
+      expect do
+        evaluate('', 'OP_VER', tx_version: -1)
+      end.to raise_error(ArgumentError, /tx_version must be a uint32/)
+    end
+
+    it 'rejects an oversized tx_version (> 2^32-1) with ArgumentError' do
+      expect do
+        evaluate('', 'OP_VER', tx_version: 2**32)
+      end.to raise_error(ArgumentError, /tx_version must be a uint32/)
+    end
+
+    it 'rejects a non-Integer tx_version with ArgumentError' do
+      expect do
+        evaluate('', 'OP_VER', tx_version: '1')
+      end.to raise_error(ArgumentError, /tx_version must be a uint32/)
+    end
   end
 end
