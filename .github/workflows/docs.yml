@@ -35,18 +35,21 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # YARD generation — uses the SDK root Gemfile.
-      # Both setup-ruby steps use Ruby 3.4 to match docs/Gemfile.lock's
-      # RUBY VERSION pin (3.4.2). Splitting Ruby versions between the two
-      # steps breaks `bundle exec rake docs:*` because the rake command
-      # resolves through the root Gemfile, whose gems were installed under
-      # the first setup-ruby's Ruby version.
+      # Both setup-ruby steps pin Ruby to '3.4.2' exactly to match
+      # docs/Gemfile.lock's RUBY VERSION pin. The floating '3.4' would
+      # drift on patch releases and trigger a Bundler warning (or
+      # refusal) when the installed Ruby differs from the lockfile pin.
+      # Splitting Ruby versions between the two steps also breaks
+      # `bundle exec rake docs:*` because the rake command resolves
+      # through the root Gemfile, whose gems were installed under the
+      # first setup-ruby's Ruby version.
       - name: Set up Ruby (YARD)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
+          ruby-version: '3.4.2'
           bundler-cache: true
 
       - name: Generate YARD markdown
@@ -56,7 +59,7 @@ jobs:
       - name: Set up Ruby (Jekyll)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
+          ruby-version: '3.4.2'
           working-directory: docs
           bundler-cache: true
 
@@ -74,9 +77,9 @@ jobs:
 
       # Upload artefact for the deploy job — skipped on PR runs since
       # the deploy job is also skipped (only push to master deploys).
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: github.event_name == 'push'
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name == 'push'
         with:
           path: docs/_site
