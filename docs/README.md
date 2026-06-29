@@ -13,6 +13,21 @@ bundle exec rake docs:serve
 
 The site is served at `http://localhost:4000/bsv-ruby-sdk/` with live-reload enabled.
 
+### Testing redirect stubs locally
+
+`jekyll-redirect-from` prepends `site.url + site.baseurl` to redirect targets,
+so by default a local preview redirects you to the production GitHub Pages URL
+(`https://sgbett.github.io/bsv-ruby-sdk/...`). To verify a redirect resolves
+within localhost, override both at serve time:
+
+```bash
+cd docs && bundle exec jekyll serve --livereload \
+  --url 'http://localhost:4000' --baseurl ''
+```
+
+Then load the old path (e.g. `http://localhost:4000/general/naming-conventions/`)
+and confirm it redirects to the new path on the same host.
+
 To build without serving:
 
 ```bash
