@@ -3,6 +3,11 @@
 # Gem releases are handled by the /release Claude Code skill.
 # See CLAUDE.md for the release workflow and tag conventions.
 
+# Bundler is required explicitly so `rake docs:build` / `docs:serve` /
+# `docs:proofread` work without `bundle exec` in front — they call
+# `Bundler.with_unbundled_env` to isolate the docs Gemfile resolution,
+# and without this require the constant would not exist.
+require 'bundler'
 require 'rspec/core/rake_task'
 
 namespace :spec do
