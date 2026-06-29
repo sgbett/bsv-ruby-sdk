@@ -9,6 +9,7 @@ on:
       - '.yardopts'
       - '.github/workflows/docs.yml'
       - 'Rakefile'
+      - 'Gemfile'
   pull_request:
     branches: [master]
     paths:
@@ -17,6 +18,7 @@ on:
       - '.yardopts'
       - '.github/workflows/docs.yml'
       - 'Rakefile'
+      - 'Gemfile'
   workflow_dispatch:
 
 concurrency:
