@@ -36,6 +36,17 @@ defaults:
       nav_exclude: true
       search_exclude: true
 
+callouts:
+  note:
+    title: Note
+    color: blue
+  important:
+    title: Important
+    color: yellow
+  warning:
+    title: Warning
+    color: red
+
 exclude:
   - Gemfile
   - Gemfile.lock

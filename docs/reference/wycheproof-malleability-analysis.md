@@ -1,3 +1,9 @@
+---
+title: Wycheproof Malleability Analysis
+nav_order: 4
+parent: Reference
+---
+
 # Wycheproof Bitcoin Vectors and Signature Malleability
 
 This document records the design reasoning behind how the SDK handles

@@ -1,3 +1,9 @@
+---
+title: KVStore
+nav_order: 7
+parent: SDK
+---
+
 # KVStore
 
 `BSV::KVStore::Global` is a read-only client for the global KVStore overlay service.

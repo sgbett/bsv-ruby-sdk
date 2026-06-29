@@ -1,3 +1,9 @@
+---
+title: wtxid / dtxid Convention
+nav_order: 2
+parent: Reference
+---
+
 # Transaction IDs: wtxid and dtxid
 
 ## Why two representations?

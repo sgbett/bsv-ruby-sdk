@@ -1,3 +1,9 @@
+---
+title: KVStore
+nav_order: 3
+parent: Overlay services
+---
+
 # KVStore
 
 The KVStore overlay is a signed key-value store backed by overlay-tracked

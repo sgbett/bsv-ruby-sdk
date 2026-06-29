@@ -1,3 +1,9 @@
+---
+title: Registries
+nav_order: 4
+parent: Overlay services
+---
+
 # Registries
 
 The registry overlay maps human-readable names to canonical on-chain

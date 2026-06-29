@@ -1,3 +1,9 @@
+---
+title: Custom Provider Integration
+nav_order: 2
+parent: Testing
+---
+
 # Custom Provider integration
 
 The SDK includes an integration test that exercises the Protocol DSL and

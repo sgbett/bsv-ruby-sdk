@@ -1,3 +1,9 @@
+---
+title: Primitives
+nav_order: 1
+parent: SDK
+---
+
 # Primitives
 
 The `BSV::Primitives` module provides cryptographic building blocks: keys, signatures, hashing, encryption, and HD key derivation.
@@ -30,10 +36,12 @@ key.to_hex                          # 64-char hex string
 key.to_bytes                        # 32-byte binary
 ```
 
-!!! note "Compressed only"
-    `to_wif` always produces compressed WIF. BSV exclusively uses compressed
-    public keys, so exporting uncompressed WIF is not supported. `from_wif`
-    still accepts both formats for import compatibility with legacy wallets.
+{: .note }
+> **Compressed only**
+>
+> `to_wif` always produces compressed WIF. BSV exclusively uses compressed
+> public keys, so exporting uncompressed WIF is not supported. `from_wif`
+> still accepts both formats for import compatibility with legacy wallets.
 
 ## Public Keys
 

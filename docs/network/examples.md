@@ -1,3 +1,9 @@
+---
+title: Examples
+nav_order: 2
+parent: Network
+---
+
 # Network Examples
 
 ## Quick Start — Using Defaults

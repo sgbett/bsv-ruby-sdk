@@ -1,3 +1,9 @@
+---
+title: MCP Server
+nav_order: 1
+parent: General
+---
+
 # MCP Server
 
 The SDK ships with a built-in MCP (Model Context Protocol) server that exposes core BSV operations as tools for AI assistants such as Claude Code.

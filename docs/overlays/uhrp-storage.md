@@ -1,3 +1,9 @@
+---
+title: UHRP Storage
+nav_order: 1
+parent: Overlay services
+---
+
 # UHRP Storage
 
 UHRP — the **Universal Hash Resource Protocol**

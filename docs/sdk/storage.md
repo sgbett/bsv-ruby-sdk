@@ -1,3 +1,9 @@
+---
+title: Storage
+nav_order: 6
+parent: SDK
+---
+
 # Storage
 
 The `BSV::Storage` module provides utilities for working with UHRP (Unified Hash Resource

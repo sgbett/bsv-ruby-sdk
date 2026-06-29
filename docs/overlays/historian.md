@@ -1,3 +1,9 @@
+---
+title: Historian
+nav_order: 2
+parent: Overlay services
+---
+
 # Historian
 
 `BSV::Overlay::Historian` is a generic walker over a transaction's input

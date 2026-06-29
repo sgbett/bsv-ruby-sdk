@@ -1,3 +1,9 @@
+---
+title: Network
+nav_order: 4
+parent: SDK
+---
+
 # Network
 
 The `BSV::Network` module handles broadcasting transactions and querying the blockchain.
