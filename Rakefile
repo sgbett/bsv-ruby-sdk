@@ -511,4 +511,20 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
       exit 1
     end
   end
+
+  desc 'Check internal links and anchors in the built site (offline)'
+  task proofread: :build do
+    Dir.chdir('docs') do
+      # html-proofer is Jekyll-aware: swap_urls strips the baseurl prefix
+      # (which is a URL concept, not a filesystem path) so root-relative
+      # links like /bsv-ruby-sdk/sdk/wallet/ resolve to _site/sdk/wallet/.
+      # disable_external skips https:// links — those need network.
+      sh 'BUNDLE_GEMFILE=Gemfile bundle exec htmlproofer _site ' \
+         '--disable-external ' \
+         '--swap-urls "^/bsv-ruby-sdk:" ' \
+         '--ignore-empty-alt ' \
+         '--ignore-missing-alt ' \
+         '--allow-missing-href'
+    end
+  end
 end
