@@ -435,12 +435,17 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
     docs_root = File.expand_path('docs', __dir__)
 
     # Exclude generated and non-content paths:
-    #   _site/       — Jekyll output, not source
+    #   _site/        — Jekyll output, not source
     #   reference/api/ — YARD-generated, no hand-authored frontmatter
-    #   README.md    — contributor meta-documentation, not a site page
+    #   vendor/       — CI bundler-cache lands gems here; their READMEs
+    #                   are not our docs
+    #   .bundle/      — Bundler config dir
+    #   README.md     — contributor meta-documentation, not a site page
     excluded_prefixes = [
       File.join(docs_root, '_site'),
-      File.join(docs_root, 'reference', 'api')
+      File.join(docs_root, 'reference', 'api'),
+      File.join(docs_root, 'vendor'),
+      File.join(docs_root, '.bundle')
     ]
     excluded_files = [File.join(docs_root, 'README.md')]
 
