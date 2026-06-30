@@ -92,7 +92,7 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 ))
 
 # Add a change output (send remaining funds back)
-fee = tx.estimated_fee
+fee = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new.compute_fee(tx)
 tx.add_output(BSV::Transaction::TransactionOutput.new(
   satoshis: 1_000_000 - fee,
   locking_script: locking_script
