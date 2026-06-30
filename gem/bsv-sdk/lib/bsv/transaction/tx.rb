@@ -59,20 +59,78 @@ module BSV
 
       # Append a transaction input.
       #
+      # Raises +ArgumentError+ if the input is already attached to a different
+      # +Transaction::Tx+. Re-adding the same input to the same transaction is
+      # idempotent and does not raise.
+      #
       # @param input [Transaction::TransactionInput] the input to add
       # @return [self] for chaining
+      # @raise [ArgumentError] if the input belongs to a different transaction
       def add_input(input)
+        existing_owner = input.instance_variable_get(:@owning_tx)
+        if existing_owner && !existing_owner.equal?(self)
+          raise ArgumentError,
+                "TransactionInput #{input.dtxid_hex}:#{input.prev_tx_out_index} is already attached to a Tx"
+        end
+
+        input.instance_variable_set(:@owning_tx, self)
         @inputs << input
         self
       end
 
       # Append a transaction output.
       #
+      # Raises +ArgumentError+ if the output is already attached to a different
+      # +Transaction::Tx+. Re-adding the same output to the same transaction is
+      # idempotent and does not raise.
+      #
       # @param output [Transaction::TransactionOutput] the output to add
       # @return [self] for chaining
+      # @raise [ArgumentError] if the output belongs to a different transaction
       def add_output(output)
+        existing_owner = output.instance_variable_get(:@owning_tx)
+        if existing_owner && !existing_owner.equal?(self)
+          asm_fragment = output.locking_script.to_asm
+          asm_fragment = "#{asm_fragment[0, 40]}..." if asm_fragment.length > 40
+          raise ArgumentError,
+                "TransactionOutput (#{asm_fragment}) is already attached to a Tx"
+        end
+
+        output.instance_variable_set(:@owning_tx, self)
         @outputs << output
         self
+      end
+
+      # Invalidate all cached state on this transaction (sighash components,
+      # wire serialisation, etc.).
+      #
+      # This is the public escape hatch for callers who mutate inputs or outputs
+      # directly (e.g. via +tx.inputs.push+). Prefer +add_input+ / +add_output+
+      # which maintain the cache automatically.
+      #
+      # @return [self]
+      def invalidate_caches
+        self
+      end
+
+      # Called by +#dup+ and +#clone+. Deep-dups +@inputs+ and +@outputs+ so that
+      # the copy and the original do not share mutable input/output state. Rebinds
+      # +@owning_tx+ on each copied struct to +self+ (the new transaction).
+      #
+      # This closes the hazard at +beef.rb:703,707+ where a shallow dup would leave
+      # the copied inputs/outputs pointing at the original transaction's cache.
+      def initialize_copy(other)
+        super
+        @inputs = @inputs.map do |i|
+          dup_input = i.dup
+          dup_input.instance_variable_set(:@owning_tx, self)
+          dup_input
+        end
+        @outputs = @outputs.map do |o|
+          dup_output = o.dup
+          dup_output.instance_variable_set(:@owning_tx, self)
+          dup_output
+        end
       end
 
       # --- Serialisation ---
@@ -1066,6 +1124,18 @@ module BSV
         scale_factor = LOG10_RECIPROCAL_D_VALUES_1TO9[Random.rand(9)] # Array indexing starts at 0
         (min + (scale_factor * (max - min))).floor
       end
+
+      # No-op stub: Phase C wires the body when L3 component-hash caches land.
+      # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
+      def invalidate_sequence_components_cache; end
+
+      # No-op stub: Phase C wires the body when L3 component-hash caches land.
+      # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
+      def invalidate_outputs_components_cache; end
+
+      # No-op stub: Phase D wires the body when L2 wire-serialisation caches land.
+      # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
+      def invalidate_wire_cache; end
     end
   end
 end

@@ -24,6 +24,15 @@ module BSV
         @satoshis = satoshis
         @locking_script = locking_script
         @change = change
+        @owning_tx = nil
+      end
+
+      # Called by +#dup+ and +#clone+. Clears the owning-Tx backref so that the
+      # cloned output does not belong to any transaction until it is explicitly
+      # added via +Tx#add_output+.
+      def initialize_copy(other)
+        super
+        @owning_tx = nil
       end
 
       # Serialise the output to its binary wire format.

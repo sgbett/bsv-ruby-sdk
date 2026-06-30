@@ -42,7 +42,16 @@ module BSV
         @prev_tx_out_index = prev_tx_out_index
         @unlocking_script = unlocking_script
         @sequence = sequence
+        @owning_tx = nil
         BSV.logger&.debug { "[TransactionInput] prev_wtxid set: #{dtxid_hex}:#{@prev_tx_out_index}" }
+      end
+
+      # Called by +#dup+ and +#clone+. Clears the owning-Tx backref so that the
+      # cloned input does not belong to any transaction until it is explicitly
+      # added via +Tx#add_input+.
+      def initialize_copy(other)
+        super
+        @owning_tx = nil
       end
 
       # Serialise the input to its binary wire format.
