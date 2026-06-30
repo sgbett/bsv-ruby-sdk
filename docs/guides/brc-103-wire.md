@@ -20,6 +20,14 @@ The Ruby SDK implements both sides:
 - **Transport** — `WalletWire` (module): the single-method interface that connects the two sides.
   Any class that implements `transmit_to_wallet(message)` can serve as a transport.
 
+**Scope of this guide:** BRC-103 *wire transport* — binary frames for calling BRC-100 wallet
+methods over HTTP or a custom carrier. This is distinct from the BRC-103 *mutual-auth message
+protocol* used for peer-to-peer authentication. If you are looking for:
+
+- Authenticated HTTP clients and servers (BRC-104) → [Auth](../sdk/auth.md)
+- Identity certificate creation and selective disclosure (BRC-52/53) → [Auth § Certificates](../sdk/auth.md#certificates)
+- On-chain identity publication and resolution → [Identity](../sdk/identity.md)
+
 ## Choosing a substrate
 
 | Substrate | Use case |
