@@ -55,8 +55,11 @@ node can choose to index only the kinds it cares about.
 ```ruby
 require 'bsv-sdk'
 
-# Resolver-only construction — read paths don't need a wallet
-client = BSV::Registry::Client.new(wallet: nil)
+# Resolver-only construction — inject a resolver directly so no wallet is needed.
+# Without resolver:, the client calls wallet.get_network to build one, which
+# will raise NoMethodError if wallet: is nil.
+resolver = BSV::Overlay::LookupResolver.new(network_preset: :mainnet)
+client = BSV::Registry::Client.new(wallet: nil, resolver: resolver)
 
 # Resolve baskets by id, name, or both
 baskets = client.resolve_basket(basket_id: 'ordinals')
