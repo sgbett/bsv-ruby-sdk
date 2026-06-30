@@ -170,6 +170,70 @@ Fee estimation accounts for:
 - Template inputs: `estimated_length` from the template
 - Unsigned inputs (no template): 148 bytes (standard P2PKH estimate)
 
+### FeeModel and FeeModels
+
+`Transaction::FeeModel` is the abstract base class; concrete implementations live in `Transaction::FeeModels`. Two are bundled:
+
+**`FeeModels::SatoshisPerKilobyte`** — simple static rate, suitable for most applications:
+
+```ruby
+model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new           # default: 100 sat/kB
+model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new(value: 50)
+fee   = model.compute_fee(tx)  #=> Integer (satoshis)
+```
+
+**`FeeModels::LivePolicy`** — fetches the current mining fee rate from an ARC `/v1/policy` endpoint. The fetched rate is cached for a configurable TTL (default `300` seconds) so repeated calls to `compute_fee` do not repeatedly query the API. On fetch failure the model falls back to the last cached rate, or to `fallback_rate` if nothing has been cached yet:
+
+```ruby
+model = BSV::Transaction::FeeModels::LivePolicy.new(
+  arc_url:      'https://arc.taal.com',
+  fallback_rate: 100,       # sat/kB used when fetch fails and no cached rate
+  cache_ttl:     60         # override the default 300-second TTL
+)
+fee = model.compute_fee(tx)
+
+BSV::Transaction::FeeModels::LivePolicy::DEFAULT_CACHE_TTL  #=> 300
+```
+
+`LivePolicy.default` returns a policy backed by TAAL's public ARC instance with a 100 sat/kB fallback. Pass `api_key:` for authenticated access.
+
+Custom fee models implement one method: `compute_fee(transaction) -> Integer`.
+
+## ChainTrackers
+
+`Transaction::ChainTracker` is the data-source interface used by `Beef#verify`, `MerklePath#verify`, and `Tx#verify`. It answers one question: "is this merkle root valid for this block height?" The base class itself **does not cache** — it dispatches directly to the underlying network provider on every call. If you want caching, subclass it and implement it there.
+
+```ruby
+# Provider-backed default (GorillaPool)
+tracker = BSV::Transaction::ChainTracker.default
+tracker = BSV::Transaction::ChainTracker.default(testnet: true)
+
+# WhatsOnChain-backed
+tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.new
+tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.default
+
+# Duck-typed in-memory tracker (for testing or offline use)
+class FixedTracker < BSV::Transaction::ChainTracker
+  def initialize(headers)
+    super()
+    @headers = headers
+  end
+
+  def valid_root_for_height?(root, height)
+    @headers[height]&.casecmp(root)&.zero?
+  end
+
+  def current_height
+    @headers.keys.max
+  end
+end
+
+tracker = FixedTracker.new(800_000 => 'abcd1234...')
+mp.verify('txid_hex...', tracker)
+```
+
+Any object responding to `valid_root_for_height?` and `current_height` satisfies the interface — inheriting from `Transaction::ChainTracker` is optional.
+
 ## Script Verification
 
 Verify that an input's unlocking script satisfies the locking script:
@@ -302,35 +366,83 @@ See `spec/bsv/transaction/beef_party_spec.rb` for a full worked example includin
 
 ## Merkle Paths (BRC-74)
 
-Merkle paths (BUMPs) prove transaction inclusion in a block.
+Merkle paths (BUMPs) prove transaction inclusion in a block. A `MerklePath` stores the minimum set of intermediate hashes needed to recompute a block's merkle root from one or more transaction IDs.
 
 ### Parsing
 
 ```ruby
 mp = BSV::Transaction::MerklePath.from_hex(bump_hex)
+mp = BSV::Transaction::MerklePath.from_binary(raw_bytes).first  # returns [path, bytes_consumed]
 
-mp.block_height  # the block height
-mp.path          # tree levels, each containing leaves
+mp.block_height  # Integer — the block height
+mp.path          # Array<Array<PathElement>> — tree levels; level 0 holds the leaf(es)
 ```
+
+### Construction
+
+```ruby
+mp = BSV::Transaction::MerklePath.new(
+  block_height: 800_000,
+  path: [
+    [
+      BSV::Transaction::MerklePath::PathElement.new(offset: 0, hash: tx_wtxid,      txid: true),
+      BSV::Transaction::MerklePath::PathElement.new(offset: 1, hash: sibling_wtxid)
+    ]
+    # upper levels follow; omit when the sibling is a duplicate (set duplicate: true)
+  ]
+)
+```
+
+Hashes are stored in **wire order** (32-byte binary, reversed from display order). Level 0 must contain at least one `txid: true` leaf — that flag marks the transaction being proved, not a txid value.
 
 ### Computing the Merkle Root
 
 ```ruby
-# From a hex txid
-root_hex = mp.compute_root_hex(txid_hex)
+# Pass a display-order (reversed) hex txid; returns display-order hex root
+root_hex = mp.compute_root_hex('aabb...')   # 64-char hex
 
-# Auto-detect from txid-flagged leaves
+# Auto-detect: uses the txid-flagged leaf in level 0
 root_hex = mp.compute_root_hex
+```
+
+### Verification
+
+```ruby
+# Verify against a chain tracker — checks root matches the block at block_height
+valid = mp.verify('aabb...', tracker)  #=> true / false
 ```
 
 ### Combining Paths
 
-Merge two paths for the same block:
+Merge two paths for the same block (e.g. proving two transactions from the same block):
 
 ```ruby
 mp1.combine(mp2)
-# mp1 now contains the union of both paths
+# mp1 now contains the union of both paths; trim compresses the result
+mp1.trim  # remove redundant intermediate nodes
 ```
+
+### Caching and Performance
+
+`Transaction::Tx` memoises the bytes and digests that sighash computation reads across many inputs. The cache is a three-layer Russian-doll structure (L1 per-struct binaries → L2 wire format → L3 sighash component hashes). Most mutations are handled automatically:
+
+| Mutation | Result |
+|---|---|
+| `input.sequence=` | Invalidates `hash_sequence`, L1, L2 |
+| `input.unlocking_script=` | Invalidates L1, L2 (not sighash components) |
+| `output.satoshis=` | Invalidates `hash_outputs_*`, L1, L2 |
+| `output.locking_script=` | Invalidates `hash_outputs_*`, L1, L2 |
+| `tx.add_input` / `tx.add_output` | Invalidates all cache layers |
+| Direct `tx.inputs <<` / `pop` | **Not auto-invalidated** — call `invalidate_caches` |
+
+```ruby
+tx.inputs.pop         # bypasses the setter surface
+tx.invalidate_caches  # clears all cache layers; returns self
+```
+
+**One-owner constraint:** `add_input` and `add_output` bind an input or output to the owning transaction by setting a private `@owning_tx` backref. Passing the same object to a *different* `Transaction::Tx` raises `ArgumentError`. Construct a fresh `TransactionInput` / `TransactionOutput` per transaction.
+
+See [Sighash & Wire Cache](../reference/sighash-cache.md) for the full invalidation contract, thread-safety notes, and the "build → sign/verify" idiom.
 
 ## Complete Example
 
