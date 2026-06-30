@@ -66,9 +66,10 @@ module BSV
 
       # Append a transaction input.
       #
-      # Raises +ArgumentError+ if the input is already attached to a different
-      # +Transaction::Tx+. Re-adding the same input to the same transaction is
-      # idempotent and does not raise.
+      # Idempotent on re-add: calling +add_input(x)+ twice with the same input
+      # on the same +Transaction::Tx+ returns +self+ on the second call without
+      # appending a duplicate or invalidating caches. Raises +ArgumentError+
+      # if the input is already attached to a different +Transaction::Tx+.
       #
       # @param input [Transaction::TransactionInput] the input to add
       # @return [self] for chaining
@@ -78,7 +79,9 @@ module BSV
       #   {file:docs/reference/sighash-cache.md#one-owner}.
       def add_input(input)
         existing_owner = input.instance_variable_get(:@owning_tx)
-        if existing_owner && !existing_owner.equal?(self)
+        if existing_owner
+          return self if existing_owner.equal?(self)
+
           raise ArgumentError,
                 "TransactionInput #{input.dtxid_hex}:#{input.prev_tx_out_index} is already attached to a Tx"
         end
@@ -90,9 +93,10 @@ module BSV
 
       # Append a transaction output.
       #
-      # Raises +ArgumentError+ if the output is already attached to a different
-      # +Transaction::Tx+. Re-adding the same output to the same transaction is
-      # idempotent and does not raise.
+      # Idempotent on re-add: calling +add_output(x)+ twice with the same output
+      # on the same +Transaction::Tx+ returns +self+ on the second call without
+      # appending a duplicate or invalidating caches. Raises +ArgumentError+
+      # if the output is already attached to a different +Transaction::Tx+.
       #
       # @param output [Transaction::TransactionOutput] the output to add
       # @return [self] for chaining
@@ -102,7 +106,9 @@ module BSV
       #   {file:docs/reference/sighash-cache.md#one-owner}.
       def add_output(output)
         existing_owner = output.instance_variable_get(:@owning_tx)
-        if existing_owner && !existing_owner.equal?(self)
+        if existing_owner
+          return self if existing_owner.equal?(self)
+
           asm_fragment = output.locking_script.to_asm
           asm_fragment = "#{asm_fragment[0, 40]}..." if asm_fragment.length > 40
           raise ArgumentError,

@@ -40,11 +40,13 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
       expect { tx2.add_input(input) }.to raise_error(ArgumentError, /already attached/)
     end
 
-    it 'does NOT raise when the same input is re-added to the same Tx (idempotent)' do
+    it 'is idempotent on same-Tx re-add — does not raise and does not duplicate' do
       tx = make_tx
       input = make_input
       tx.add_input(input)
       expect { tx.add_input(input) }.not_to raise_error
+      expect(tx.inputs.length).to eq(1)
+      expect(tx.inputs.first).to equal(input)
     end
   end
 
@@ -64,11 +66,13 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
       expect { tx2.add_output(output) }.to raise_error(ArgumentError, /already attached/)
     end
 
-    it 'does NOT raise when the same output is re-added to the same Tx (idempotent)' do
+    it 'is idempotent on same-Tx re-add — does not raise and does not duplicate' do
       tx = make_tx
       output = make_output
       tx.add_output(output)
       expect { tx.add_output(output) }.not_to raise_error
+      expect(tx.outputs.length).to eq(1)
+      expect(tx.outputs.first).to equal(output)
     end
   end
 
@@ -183,6 +187,17 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
     it 'TransactionInput#outpoint_binary returns a frozen binary' do
       input = make_input
       expect(input.outpoint_binary).to be_frozen
+    end
+
+    it 'external mutation of the constructor wtxid argument cannot stale outpoint_binary' do
+      mutable_wtxid = "\x00".b * 32
+      input = BSV::Transaction::TransactionInput.new(prev_wtxid: mutable_wtxid, prev_tx_out_index: 0)
+      cached = input.outpoint_binary
+      mutable_wtxid[0] = "\xFF".b
+      # Cache returns the same frozen object; defensive copy means external
+      # mutation cannot reach @prev_wtxid.
+      expect(input.outpoint_binary).to equal(cached)
+      expect(input.outpoint_binary.bytes.first).to eq(0x00)
     end
 
     it 'TransactionInput#to_binary returns a frozen binary' do

@@ -61,7 +61,9 @@ module BSV
       # @param sequence [Integer] sequence number
       def initialize(prev_wtxid:, prev_tx_out_index:, unlocking_script: nil, sequence: 0xFFFFFFFF)
         BSV::Primitives::Hex.validate_wtxid!(prev_wtxid, name: 'prev_wtxid')
-        @prev_wtxid = prev_wtxid.b
+        # Defensively copy + freeze so external mutation of the caller's String
+        # cannot stale the cached outpoint_binary / to_binary.
+        @prev_wtxid = prev_wtxid.b.dup.freeze
         @prev_tx_out_index = prev_tx_out_index
         @unlocking_script = unlocking_script
         @sequence = sequence

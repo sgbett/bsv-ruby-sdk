@@ -7,10 +7,11 @@ parent: Reference
 # Sighash & Wire Cache
 
 `Transaction::Tx` memoises the bytes and digests that BIP-143 sighash verification reads
-many times across a transaction's inputs. The cache is a five-layer
-Russian-doll structure; correct cache invalidation is the security control
-that makes memoisation safe — without it, signing or verifying could read
-stale state and produce silently invalid signatures.
+many times across a transaction's inputs. The cache is a three-layer
+Russian-doll structure (L1 per-struct binaries → L2 wire format → L3
+sighash component hashes); correct cache invalidation is the security
+control that makes memoisation safe — without it, signing or verifying
+could read stale state and produce silently invalid signatures.
 
 ## Cache layers
 
