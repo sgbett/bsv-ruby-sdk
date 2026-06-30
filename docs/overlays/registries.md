@@ -156,3 +156,4 @@ typed resolve methods. The constructor accepts it.
 - Go: [`registry/methods.go`](https://github.com/bsv-blockchain/go-sdk/blob/master/registry/methods.go)
 - Python: [`bsv/registry/client.py`](https://github.com/bsv-blockchain/py-sdk/blob/master/bsv/registry/client.py)
 - [SDK reference: Ecosystem Clients](../sdk/ecosystem-clients.md)
+- [SDK reference: Script](../sdk/script.md) — see the `PushDropTemplate` section for the locking script template underlying every registry definition (section added by #899)
