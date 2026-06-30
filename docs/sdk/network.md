@@ -14,58 +14,67 @@ For the underlying architecture (Protocols, Providers, Commands), see the
 
 ## Broadcasting Transactions
 
-### Default Broadcaster
+Broadcasting uses the `BSV::Network::Providers` layer. A provider composes one or more
+wire protocols and routes commands through a single `call` interface, returning a
+`BSV::Network::ProtocolResponse`.
 
-The quickest way to broadcast is via `ARC.default`, which points at GorillaPool's
-public Arcade endpoint:
+### Default Broadcaster — GorillaPool (Arcade)
+
+The simplest path uses `GorillaPool.default`, which points at GorillaPool's public
+Arcade endpoint:
 
 ```ruby
-arc = BSV::Network::ARC.default
-response = arc.broadcast(tx)
+provider = BSV::Network::Providers::GorillaPool.default
+result = provider.call(:broadcast, tx)
 
-puts response.txid      #=> "abc123..."
-puts response.tx_status #=> "SEEN_ON_NETWORK"
+if result.http_success?
+  puts result.data['txid']    #=> "abc123..."
+else
+  puts result.error_message   #=> rejection detail
+end
 ```
 
 For testnet:
 
 ```ruby
-arc = BSV::Network::ARC.default(testnet: true)
+provider = BSV::Network::Providers::GorillaPool.default(testnet: true)
 ```
 
-### Custom Endpoint
+### TAAL ARC
 
-Point at any ARC-compatible endpoint. Use `auth:` to specify the authentication mechanism:
+To broadcast via TAAL's ARC endpoint instead:
 
 ```ruby
-# Bearer token (default for GorillaPool and TAAL ARC)
-arc = BSV::Network::ARC.new(
-  'https://my-arc-server.example.com',
+provider = BSV::Network::Providers::TAAL.default(auth: { bearer: ENV['TAAL_KEY'] })
+result = provider.call(:broadcast, tx)
+
+if result.http_success?
+  puts result.data['txid']      #=> display-order hex (ARC API boundary)
+  puts result.data['txStatus']  #=> "SEEN_ON_NETWORK"
+end
+```
+
+### Custom ARC Endpoint
+
+Point the ARC protocol directly at any ARC-compatible endpoint:
+
+```ruby
+arc = BSV::Network::Protocols::ARC.new(
+  base_url: 'https://my-arc-server.example.com',
   auth: { bearer: 'my-api-key' }
 )
-
-# Raw API key in Authorization header (no Bearer prefix)
-arc = BSV::Network::ARC.new(
-  'https://my-arc-server.example.com',
-  auth: { api_key: 'my-api-key' }
-)
-
-# The legacy api_key: shorthand is still supported and sends Bearer
-arc = BSV::Network::ARC.new(
-  'https://my-arc-server.example.com',
-  api_key: 'my-api-key'
-)
+result = arc.call(:broadcast, tx)
 ```
 
-### Broadcast Options
+### ARC Broadcast Options
 
-`broadcast` accepts several optional parameters:
+`call(:broadcast, tx, ...)` forwards keyword options to the ARC escape hatch:
 
 ```ruby
-arc.broadcast(tx,
-  wait_for: 'SEEN_ON_NETWORK',      # hold connection until status reached
-  skip_fee_validation: true,          # bypass minimum-fee check
-  skip_script_validation: true        # bypass script correctness check
+result = arc.call(:broadcast, tx,
+  wait_for: 'SEEN_ON_NETWORK',   # hold connection until status reached
+  skip_fee_validation: true,       # bypass minimum-fee check
+  skip_script_validation: true     # bypass script correctness check
 )
 ```
 
@@ -77,39 +86,54 @@ arc.broadcast(tx,
 
 ### Batch Broadcasting
 
-Submit multiple transactions in a single request:
+Submit multiple transactions in a single ARC request:
 
 ```ruby
-results = arc.broadcast_many([tx1, tx2, tx3])
+# Use the ARC protocol directly for batch support
+arc = BSV::Network::Protocols::ARC.new(
+  base_url: 'https://arc.taal.com',
+  auth: { bearer: ENV['TAAL_KEY'] }
+)
+result = arc.call(:broadcast_many, [tx1, tx2, tx3])
 
-results.each do |result|
-  if result.is_a?(BSV::Network::BroadcastResponse)
-    puts "#{result.txid}: #{result.tx_status}"
-  else
-    # BroadcastError — this tx was rejected but others may have succeeded
-    puts "Failed: #{result.message}"
+if result.http_success?
+  result.data.each do |entry|
+    puts "#{entry['txid']}: #{entry['txStatus']}"
   end
+else
+  puts result.error_message
 end
 ```
 
-`broadcast_many` returns a mixed array — each element is either a `BroadcastResponse` (success) or a `BroadcastError` (per-transaction failure). HTTP-level errors raise for the entire batch.
+`broadcast_many` returns a `ProtocolResponse`. On success, `result.data` is an array
+of per-transaction hashes — each has `txid` and `txStatus`. HTTP-level failures set
+`http_success?` to false for the entire batch; per-transaction rejections are
+detectable by checking `txStatus` within the array.
 
 ### Transaction Status
 
-Query the status of a previously broadcast transaction:
+Query the status of a previously broadcast transaction via ARC:
 
 ```ruby
-response = arc.status('abc123...')
-puts response.tx_status   #=> "MINED"
-puts response.block_height #=> 800_123
+arc = BSV::Network::Protocols::ARC.new(
+  base_url: 'https://arc.taal.com',
+  auth: { bearer: ENV['TAAL_KEY'] }
+)
+result = arc.call(:get_tx_status, 'abc123...')  # display-order hex at ARC boundary
+if result.http_success?
+  puts result.data['txStatus']    #=> "MINED"
+  puts result.data['blockHeight'] #=> 800123
+end
 ```
 
 ### Callbacks
 
-ARC can notify your server when a transaction's status changes:
+Pass callback options when building the ARC protocol:
 
 ```ruby
-arc = BSV::Network::ARC.default(
+arc = BSV::Network::Protocols::ARC.new(
+  base_url: 'https://arc.taal.com',
+  auth: { bearer: ENV['TAAL_KEY'] },
   callback_url: 'https://my-server.com/tx-status',
   callback_token: 'my-secret-token'
 )
@@ -188,7 +212,7 @@ The SDK (`bsv-sdk`) is **declarative** — it defines data structures, serialisa
 | Need | Where |
 |------|-------|
 | Build and sign a transaction | `bsv-sdk` — `BSV::Transaction` |
-| Broadcast a transaction | `bsv-sdk` — `BSV::Network::ARC` |
+| Broadcast a transaction | `bsv-sdk` — `BSV::Network::Providers` / `BSV::Network::Protocols::ARC` |
 | Verify a BEEF proof | `bsv-sdk` — `BSV::Transaction::Beef#verify` |
 | Manage UTXOs and baskets | `bsv-wallet` — `BSV::Wallet::Client` |
 | Track output baskets | `bsv-wallet` — basket parameter on outputs |
