@@ -597,6 +597,22 @@ RSpec.describe 'Tx Phase C: Layer 3 component-hash memos — §3 contract table'
       expect(pre).not_to equal(post)
     end
 
+    it 'after invalidate_caches, to_binary recomputes' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.invalidate_caches
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'after invalidate_caches, wtxid recomputes' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.invalidate_caches
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+
     it 'returns self' do
       tx = build_wired_tx
       expect(tx.invalidate_caches).to equal(tx)
@@ -648,6 +664,173 @@ RSpec.describe 'Tx Phase C: Layer 3 component-hash memos — §3 contract table'
       expect(tx.send(:hash_prevouts, false)).to be_frozen
       expect(tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)).to be_frozen
       expect(tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)).to be_frozen
+    end
+  end
+end
+
+# Locking script used in Phase D wire-invalidation contract-table specs.
+# Defined at file scope to avoid RSpec/LeakyConstantDeclaration inside the block.
+PHD_LOCK = BSV::Script::Script.from_asm(
+  "OP_DUP OP_HASH160 #{'ef' * 20} OP_EQUALVERIFY OP_CHECKSIG"
+)
+
+# rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Tx Phase D: Layer 2 wire-cache invalidation — §3 contract table' do
+  # rubocop:enable RSpec/DescribeClass
+
+  def make_input(sequence: 0xFFFFFFFF)
+    input = BSV::Transaction::TransactionInput.new(
+      prev_wtxid: "\x02".b * 32,
+      prev_tx_out_index: 0,
+      sequence: sequence
+    )
+    input.source_satoshis = 1000
+    input.source_locking_script = PHD_LOCK
+    input
+  end
+
+  def make_output(satoshis: 900)
+    BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: PHD_LOCK)
+  end
+
+  def build_wired_tx
+    tx = BSV::Transaction::Tx.new
+    tx.add_input(make_input)
+    tx.add_output(make_output)
+    tx
+  end
+
+  describe 'input.sequence= invalidates wire cache' do
+    it 'to_binary is a new object after sequence mutation' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.inputs[0].sequence = 0x00000001
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after sequence mutation' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.inputs[0].sequence = 0x00000001
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'input.unlocking_script= invalidates wire only' do
+    it 'to_binary is a new object after unlocking_script mutation' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after unlocking_script mutation' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+
+    it 'does NOT invalidate sighash component caches (hash_sequence unchanged)' do
+      tx = build_wired_tx
+      pre = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+      tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+      expect(pre).to equal(post)
+    end
+  end
+
+  describe 'output.satoshis= invalidates both wire and outputs components' do
+    it 'to_binary is a new object after satoshis mutation' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.outputs[0].satoshis = 1
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after satoshis mutation' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.outputs[0].satoshis = 1
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'output.locking_script= invalidates both wire and outputs components' do
+    it 'to_binary is a new object after locking_script mutation' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.outputs[0].locking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after locking_script mutation' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.outputs[0].locking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'add_input invalidates wire cache' do
+    it 'to_binary is a new object after add_input' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.add_input(make_input)
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after add_input' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.add_input(make_input)
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'add_output invalidates wire cache' do
+    it 'to_binary is a new object after add_output' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.add_output(make_output(satoshis: 50))
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after add_output' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.add_output(make_output(satoshis: 50))
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'invalidate_caches clears wire cache' do
+    it 'to_binary is a new object after invalidate_caches' do
+      tx = build_wired_tx
+      pre = tx.to_binary
+      tx.invalidate_caches
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid is a new object after invalidate_caches' do
+      tx = build_wired_tx
+      pre = tx.wtxid
+      tx.invalidate_caches
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
     end
   end
 end

@@ -8,9 +8,15 @@ CACHE_SPEC_LOCK = BSV::Script::Script.from_asm(
   "OP_DUP OP_HASH160 #{'00' * 20} OP_EQUALVERIFY OP_CHECKSIG"
 )
 
-# rubocop:disable RSpec/DescribeClass
+# Script used by Phase D wire-cache specs; defined at file scope to avoid
+# RSpec/LeakyConstantDeclaration inside the describe block.
+WIRE_SPEC_LOCK = BSV::Script::Script.from_asm(
+  "OP_DUP OP_HASH160 #{'cd' * 20} OP_EQUALVERIFY OP_CHECKSIG"
+)
+
+# rubocop:disable RSpec/DescribeClass, RSpec/MultipleDescribes
 RSpec.describe 'Tx sighash cache — structural regression (Phase C)' do
-  # rubocop:enable RSpec/DescribeClass
+  # rubocop:enable RSpec/DescribeClass, RSpec/MultipleDescribes
 
   # Builds an n_inputs/n_outputs Tx with all source data wired so that
   # #sighash can be called for every input without external dependencies.
@@ -143,6 +149,99 @@ RSpec.describe 'Tx sighash cache — structural regression (Phase C)' do
       sighash_after = tx.sighash(2, BSV::Transaction::Sighash::SINGLE_FORK_ID)
 
       expect(sighash_after).not_to eq(sighash_before)
+    end
+  end
+end
+
+# rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Tx Phase D: Layer 2 wire memos (Tx#to_binary, Tx#wtxid)' do
+  # rubocop:enable RSpec/DescribeClass
+
+  def build_wire_tx
+    tx = BSV::Transaction::Tx.new
+    input = BSV::Transaction::TransactionInput.new(
+      prev_wtxid: "\x01".b * 32,
+      prev_tx_out_index: 0
+    )
+    tx.add_input(input)
+    tx.add_output(BSV::Transaction::TransactionOutput.new(
+                    satoshis: 900,
+                    locking_script: WIRE_SPEC_LOCK
+                  ))
+    tx
+  end
+
+  describe 'Tx#to_binary memoisation' do
+    it 'returns the same object on repeated calls' do
+      tx = build_wire_tx
+      first = tx.to_binary
+      second = tx.to_binary
+      expect(first).to equal(second)
+    end
+
+    it 'returns a binary-encoded string' do
+      expect(build_wire_tx.to_binary.encoding).to eq(Encoding::BINARY)
+    end
+
+    it 'returns a frozen string' do
+      expect(build_wire_tx.to_binary).to be_frozen
+    end
+
+    it 'returns a new object after invalidate_caches' do
+      tx = build_wire_tx
+      before = tx.to_binary
+      tx.invalidate_caches
+      after = tx.to_binary
+      expect(before).not_to equal(after)
+    end
+  end
+
+  describe 'Tx#wtxid memoisation' do
+    it 'returns the same object on repeated calls' do
+      tx = build_wire_tx
+      first = tx.wtxid
+      second = tx.wtxid
+      expect(first).to equal(second)
+    end
+
+    it 'is 32 bytes' do
+      expect(build_wire_tx.wtxid.bytesize).to eq(32)
+    end
+
+    it 'is frozen' do
+      expect(build_wire_tx.wtxid).to be_frozen
+    end
+
+    it 'dtxid_hex is the display-order (reversed) hex of wtxid' do
+      tx = build_wire_tx
+      expect(tx.dtxid_hex).to eq(tx.wtxid.reverse.unpack1('H*'))
+    end
+  end
+
+  describe 'wire invalidation from mutation' do
+    it 'wtxid changes after input.unlocking_script= (signing flow)' do
+      tx = build_wire_tx
+      pre = tx.wtxid
+      tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
+      expect(pre).not_to eq(post)
+    end
+
+    it 'to_binary changes after input.unlocking_script=' do
+      tx = build_wire_tx
+      pre = tx.to_binary
+      tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_1')
+      post = tx.to_binary
+      expect(pre).not_to equal(post)
+    end
+
+    it 'wtxid changes after output.satoshis=' do
+      tx = build_wire_tx
+      pre = tx.wtxid
+      tx.outputs[0].satoshis = 1
+      post = tx.wtxid
+      expect(pre).not_to equal(post)
     end
   end
 end

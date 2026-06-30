@@ -141,15 +141,19 @@ module BSV
 
       # Serialise the transaction to its binary wire format.
       #
-      # @return [String] raw transaction bytes
+      # @return [String] raw transaction bytes (binary encoding, frozen)
       def to_binary
-        buf = [@version].pack('V')
-        buf << VarInt.encode(@inputs.length)
-        @inputs.each { |i| buf << i.to_binary }
-        buf << VarInt.encode(@outputs.length)
-        @outputs.each { |o| buf << o.to_binary }
-        buf << [@lock_time].pack('V')
-        buf
+        # rubocop:disable Naming/MemoizedInstanceVariableName
+        @to_binary_cache ||= begin
+          # rubocop:enable Naming/MemoizedInstanceVariableName
+          buf = [@version].pack('V')
+          buf << VarInt.encode(@inputs.length)
+          @inputs.each { |i| buf << i.to_binary }
+          buf << VarInt.encode(@outputs.length)
+          @outputs.each { |o| buf << o.to_binary }
+          buf << [@lock_time].pack('V')
+          buf.b.freeze
+        end
       end
 
       # Serialise the transaction to a hex string.
@@ -461,9 +465,13 @@ module BSV
       #
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
-        id = BSV::Primitives::Digest.sha256d(to_binary)
-        BSV.logger&.debug { "[Tx] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
-        id
+        # rubocop:disable Naming/MemoizedInstanceVariableName
+        @wtxid_cache ||= begin
+          # rubocop:enable Naming/MemoizedInstanceVariableName
+          id = BSV::Primitives::Digest.sha256d(to_binary)
+          BSV.logger&.debug { "[Tx] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
+          id.freeze
+        end
       end
 
       # The transaction ID as a hex string (display byte order).
@@ -1154,9 +1162,12 @@ module BSV
         @hash_outputs_per_index_cache = nil
       end
 
-      # No-op stub: Phase D wires the body when L2 wire-serialisation caches land.
-      # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
-      def invalidate_wire_cache; end
+      # Clears the L2 wire-serialisation caches (+to_binary+ and +wtxid+).
+      # Called by Phase B setter bubbles and +invalidate_caches+.
+      def invalidate_wire_cache
+        @to_binary_cache = nil
+        @wtxid_cache = nil
+      end
     end
   end
 end
