@@ -113,8 +113,9 @@ module DocsLint
           nil
         rescue SyntaxError => e
           # RubyVM reports lines relative to the block; add the file offset.
+          # Block form so +Regexp.last_match+ sees this match, not a stale prior one.
           msg = e.message
-                 .sub(/\(eval\):(\d+):/, "(eval):#{block_start_line + ::Regexp.last_match(1).to_i - 1}:")
+                 .sub(/\(eval\):(\d+):/) { "(eval):#{block_start_line + ::Regexp.last_match(1).to_i - 1}:" }
                  .gsub(/^.*\(eval\):\d+:.*\n/, '') # strip caret lines
                  .lines.first.to_s.strip
 
