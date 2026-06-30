@@ -121,16 +121,23 @@ module BSV
       end
 
       # Invalidate all cached state on this transaction (sighash components,
-      # wire serialisation, etc.).
+      # wire serialisation, etc.) AND restore the +@owning_tx+ backref on every
+      # current input and output. This is what makes the escape hatch complete:
+      # if a caller appended an input/output via direct array mutation
+      # (bypassing +add_input+ / +add_output+), the new struct's backref is nil
+      # and future +sequence=+ / +locking_script=+ / etc. setters would not
+      # bubble invalidation up. After +invalidate_caches+, the backref is
+      # rebound so subsequent setter mutations flow through correctly.
       #
-      # This is the public escape hatch for callers who mutate inputs or outputs
-      # directly (e.g. via +tx.inputs.push+). Prefer +add_input+ / +add_output+
-      # which maintain the cache automatically.
+      # Raises +ArgumentError+ if any input or output is already attached to a
+      # different +Transaction::Tx+ — matches the cross-Tx rebind contract of
+      # +add_input+ / +add_output+.
       #
       # @example After mutating the inputs array directly
-      #   tx.inputs.pop                  # bypasses the documented setter surface
-      #   tx.invalidate_caches           # clears all cache layers
-      #   tx.verify(...)                 # now safe
+      #   tx.inputs << input             # bypasses the documented setter surface
+      #   tx.invalidate_caches           # clears all cache layers + rebinds @owning_tx
+      #   input.sequence = 42            # now invalidates correctly
+      #   tx.verify(...)                 # safe
       #
       # @note Rarely needed. Normal mutation through the documented setter
       #   surface (input.sequence=, output.satoshis=, etc.) invalidates the
@@ -139,7 +146,10 @@ module BSV
       #   See {file:docs/reference/sighash-cache.md#escape-hatch}.
       #
       # @return [self] for chaining
+      # @raise [ArgumentError] if any input or output is attached to a different
+      #   Tx instance
       def invalidate_caches
+        rebind_owning_tx!
         @hash_prevouts = nil
         invalidate_sequence_components_cache
         invalidate_outputs_components_cache
@@ -1226,6 +1236,29 @@ module BSV
       def invalidate_wire_cache
         @to_binary = nil
         @wtxid = nil
+      end
+
+      # Restore +@owning_tx+ on every current input and output. Called by
+      # +invalidate_caches+ so the escape hatch covers direct array mutation
+      # (e.g. +tx.inputs << input+ bypasses +add_input+ and leaves the new
+      # struct's backref nil — subsequent setter mutations would not bubble
+      # invalidation).
+      #
+      # Raises if any struct is currently attached to a *different* Tx —
+      # matches the +add_input+ / +add_output+ cross-Tx rebind contract.
+      #
+      # @!visibility private
+      def rebind_owning_tx!
+        (@inputs + @outputs).each do |struct|
+          existing_owner = struct.instance_variable_get(:@owning_tx)
+          if existing_owner && !existing_owner.equal?(self)
+            raise ArgumentError,
+                  "#{struct.class.name.split('::').last} is already attached to a different Tx; " \
+                  'invalidate_caches cannot rebind across transactions'
+          end
+
+          struct.instance_variable_set(:@owning_tx, self)
+        end
       end
     end
   end

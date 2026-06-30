@@ -190,6 +190,45 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
       tx = make_tx
       expect(tx.invalidate_caches).to equal(tx)
     end
+
+    it 'rebinds @owning_tx on direct-mutated inputs so subsequent setters bubble' do
+      tx = make_tx
+      input = make_input
+      tx.inputs << input # direct array mutation bypasses add_input
+      expect(input.instance_variable_get(:@owning_tx)).to be_nil
+
+      tx.invalidate_caches
+
+      expect(input.instance_variable_get(:@owning_tx)).to equal(tx)
+
+      # Confirm the bubble actually fires by warming the wire cache, mutating
+      # via the documented setter, and asserting the cache invalidates.
+      tx.add_output(make_output)
+      tx.to_binary # warm @to_binary
+      input.sequence = 42
+      expect(tx.instance_variable_get(:@to_binary)).to be_nil
+    end
+
+    it 'rebinds @owning_tx on direct-mutated outputs' do
+      tx = make_tx
+      output = make_output
+      tx.outputs << output
+      expect(output.instance_variable_get(:@owning_tx)).to be_nil
+
+      tx.invalidate_caches
+
+      expect(output.instance_variable_get(:@owning_tx)).to equal(tx)
+    end
+
+    it 'raises ArgumentError when a current input is attached to a different Tx' do
+      tx1 = make_tx
+      tx2 = make_tx
+      input = make_input
+      tx1.add_input(input)
+      tx2.inputs << input # bypass — input.@owning_tx still points at tx1
+
+      expect { tx2.invalidate_caches }.to raise_error(ArgumentError, /different Tx/)
+    end
   end
 
   describe 'private slice-invalidator stubs' do
@@ -253,6 +292,17 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
       tx = make_tx
       tx.add_output(make_output)
       expect(tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)).to be_frozen
+    end
+
+    it 'Script#bytes is frozen on construction — closes the Tx-cache stale hazard via Script.bytes mutation' do
+      mutable = "\x6a".b.dup # OP_RETURN
+      script = BSV::Script::Script.new(mutable)
+      expect(script.bytes).to be_frozen
+
+      # Mutating the constructor argument after the fact does not reach @bytes
+      # because Script.new defensively copies.
+      mutable[0] = "\x00".b
+      expect(script.bytes.bytes.first).to eq(0x6a)
     end
   end
 end

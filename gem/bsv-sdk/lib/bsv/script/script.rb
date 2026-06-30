@@ -22,12 +22,20 @@ module BSV
     #   script.p2pkh? #=> true
     #   script.to_asm #=> "OP_DUP OP_HASH160 ... OP_EQUALVERIFY OP_CHECKSIG"
     class Script
-      # @return [String] the raw script bytes
+      # @return [String] the raw script bytes (frozen, binary encoding)
+      # @note Scripts are protocol-level immutable; the underlying bytes are
+      #   defensively copied + frozen on construction. Downstream callers
+      #   that need to build a script incrementally must compose bytes
+      #   into a new String and pass it to a fresh +Script.new+.
       attr_reader :bytes
 
       # @param bytes [String] raw script bytes (default: empty)
       def initialize(bytes = ''.b)
-        @bytes = bytes.b
+        # Defensive copy + freeze: scripts are immutable in the protocol; freezing
+        # @bytes prevents external in-place mutation from staling caches that
+        # depend on the script's serialisation (see
+        # docs/reference/sighash-cache.md).
+        @bytes = bytes.b.dup.freeze
         @chunks = nil
       end
 
