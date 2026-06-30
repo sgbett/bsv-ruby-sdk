@@ -30,12 +30,26 @@ module BSV
       attr_reader :unlocking_script
 
       # @return [Integer, nil] satoshi value of the source output (needed for sighash)
+      # @note Enters the BIP-143 preimage at step 6 but no current cache layer
+      #   memoises the per-input preimage, so no invalidator is required. If a
+      #   future change adds preimage or per-input digest memoisation, add a
+      #   setter override here that invalidates the relevant cache slice. See
+      #   {file:docs/reference/sighash-cache.md}.
       attr_accessor :source_satoshis
 
       # @return [Script::Script, nil] locking script of the source output (needed for sighash)
+      # @note Enters the BIP-143 preimage as scriptCode (step 5) when no
+      #   subscript override is supplied. Same caveat as {#source_satoshis}:
+      #   no current cache layer depends on this field, but a future preimage
+      #   cache would need a setter override here. See
+      #   {file:docs/reference/sighash-cache.md}.
       attr_accessor :source_locking_script
 
       # @return [Transaction::Tx, nil] the full source transaction (for BEEF wiring)
+      # @note Source data is lazily resolved from this Tx during {Tx#verify}
+      #   and {Tx#sighash_preimage}. Mutation of this field after resolution
+      #   has occurred has no effect on caches because no current cache layer
+      #   depends on resolved source data.
       attr_accessor :source_transaction
 
       # @return [UnlockingScriptTemplate, nil] template for deferred signing
