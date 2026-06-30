@@ -127,31 +127,28 @@ The `rate_limit` value is requests per second. Each provider factory sets a
 | `GorillaPool` | 3 | Public tier limit |
 | `TAAL` | `nil` | Depends on subscription tier |
 
-## SDK Facades
+## SDK Entry Points
 
-For convenience, the SDK provides facade classes that preserve the familiar API from
-the TypeScript and Go reference SDKs:
+The SDK exposes three stable entry points for the network layer:
 
 ```ruby
-# Broadcasting (ARC protocol via GorillaPool)
-arc = BSV::Network::ARC.default
-response = arc.broadcast(tx)
+# Broadcasting — via a provider (GorillaPool Arcade by default)
+provider = BSV::Network::Providers::GorillaPool.default
+result = provider.call(:broadcast, tx)
+puts result.data['txid'] if result.http_success?
 
-# Chain data (WoCREST protocol via WhatsOnChain)
-woc = BSV::Network::WhatsOnChain.default
-utxos = woc.fetch_utxos(address)
-tx = woc.fetch_transaction(txid)
+# Chain data — via the WoCREST provider
+woc = BSV::Network::Providers::WhatsOnChain.default
+result = woc.call(:get_utxos, address)
+result.data.each { |u| puts "#{u['tx_hash']}:#{u['tx_pos']}" } if result.http_success?
 
-# SPV verification (WoCREST protocol via WhatsOnChain)
+# SPV verification — ChainTrackers::WhatsOnChain wraps WoCREST with a higher-level API
 tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.new(network: :main)
 tracker.valid_root_for_height?(merkle_root, height)
 ```
 
-Facades are **contract translators** — they delegate to the protocol layer internally
-but return domain objects (UTXO, Transaction, BroadcastResponse) and raise exceptions
-(BroadcastError, ChainProviderError) that consumers expect. The protocol layer speaks
-Result types (Success, Error, NotFound); facades translate these into the imperative
-contracts that application code uses.
+The protocol layer returns `BSV::Network::ProtocolResponse` objects — check
+`result.http_success?` before reading `result.data`.
 
 > **Note on `ChainTrackers`:** `ChainTrackers::WhatsOnChain` is a legacy facade that
 > wraps WhatsOnChain's chain-info endpoint directly. It continues to work unchanged.

@@ -148,18 +148,20 @@ dtxid = tx.dtxid       # 64-char hex (display order — for JSON and UIs)
 
 ## Fee Estimation
 
-The SDK estimates transaction size to calculate fees:
+The SDK estimates transaction size to calculate fees via `FeeModel` implementations:
 
 ```ruby
 # Total values
 tx.total_input_satoshis    # sum of all input source_satoshis
 tx.total_output_satoshis   # sum of all output satoshis
 
-# Estimated fee at the default rate (0.5 sat/byte)
-fee = tx.estimated_fee
+# Estimated fee at the default rate (100 sat/kB)
+fee_model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new
+fee = fee_model.compute_fee(tx)
 
-# Custom fee rate
-fee = tx.estimated_fee(satoshis_per_byte: 1.0)
+# Custom fee rate (e.g. 500 sat/kB)
+fee_model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new(value: 500)
+fee = fee_model.compute_fee(tx)
 ```
 
 Fee estimation accounts for:
@@ -363,7 +365,7 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 ))
 
 # Change
-fee = tx.estimated_fee
+fee = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new.compute_fee(tx)
 tx.add_output(BSV::Transaction::TransactionOutput.new(
   satoshis: 1_000_000 - 500_000 - fee,
   locking_script: sender_lock
