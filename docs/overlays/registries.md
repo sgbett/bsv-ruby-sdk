@@ -86,7 +86,7 @@ basket.definition_data.registry_operator   # => pubkey hex of the publisher
 basket.satoshis                            # => 1
 basket.txid                                # => display-order txid
 basket.output_index                        # => 0
-basket.beef                                # => BSV::Transaction::Beef (verifiable, embeddable)
+basket.beef                                # => raw BEEF bytes (String); parse with BSV::Transaction::Beef.from_binary
 ```
 
 ### Trust model — filter by operator

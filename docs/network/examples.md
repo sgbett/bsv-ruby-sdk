@@ -73,7 +73,7 @@ puts gp.commands.to_a.sort
 woc = BSV::Network::Providers::WhatsOnChain.default
 
 result = woc.call(:get_tx, 'abc123...')
-puts result.data if result.success?  # raw hex
+puts result.data if result.http_success?  # raw hex
 
 result = woc.call(:is_utxo, 'abc123...', 0)
 puts result.data  # true (unspent) or false (spent)
