@@ -14,10 +14,19 @@ module BSV
       # @return [Integer] index of the output within the previous transaction
       attr_reader :prev_tx_out_index
 
-      # @return [Integer] sequence number (default: 0xFFFFFFFF)
+      # @!attribute [rw] sequence
+      #   @return [Integer] sequence number (default: 0xFFFFFFFF)
+      #   @note Setting this invalidates the owning Tx's wire cache and the
+      #     hash_sequence component of the sighash cache. See
+      #     {file:docs/reference/sighash-cache.md}.
       attr_reader :sequence
 
-      # @return [Script::Script, nil] the unlocking script (set after signing)
+      # @!attribute [rw] unlocking_script
+      #   @return [Script::Script, nil] the unlocking script (set after signing)
+      #   @note Setting this invalidates the owning Tx's wire cache only.
+      #     The unlocking script does not enter the BIP-143 preimage, so the
+      #     sighash component caches are not touched. See
+      #     {file:docs/reference/sighash-cache.md}.
       attr_reader :unlocking_script
 
       # @return [Integer, nil] satoshi value of the source output (needed for sighash)
@@ -79,6 +88,7 @@ module BSV
 
       # Serialise the input to its binary wire format.
       #
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] binary input (outpoint + varint + script + sequence)
       def to_binary
         @to_binary ||= begin
@@ -150,6 +160,7 @@ module BSV
       # Memoised: outpoint components are +attr_reader+ only so the value is
       # immutable after construction. Returns a frozen binary string.
       #
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] 36-byte outpoint
       def outpoint_binary
         @outpoint_binary ||= (@prev_wtxid + [@prev_tx_out_index].pack('V')).freeze

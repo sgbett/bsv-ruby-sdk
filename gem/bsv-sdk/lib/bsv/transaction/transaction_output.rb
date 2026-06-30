@@ -8,10 +8,16 @@ module BSV
     # Outputs are consumed by transaction inputs that provide matching
     # unlocking scripts.
     class TransactionOutput
-      # @return [Integer] the output value in satoshis
+      # @!attribute [rw] satoshis
+      #   @return [Integer] the output value in satoshis
+      #   @note Setting this invalidates the owning Tx's outputs-components
+      #     and wire caches. See {file:docs/reference/sighash-cache.md}.
       attr_reader :satoshis
 
-      # @return [Script::Script] the locking script (spending conditions)
+      # @!attribute [rw] locking_script
+      #   @return [Script::Script] the locking script (spending conditions)
+      #   @note Setting this invalidates the owning Tx's outputs-components
+      #     and wire caches. See {file:docs/reference/sighash-cache.md}.
       attr_reader :locking_script
 
       # @return [Boolean] whether this output receives change
@@ -59,6 +65,7 @@ module BSV
 
       # Serialise the output to its binary wire format.
       #
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] binary output (8-byte LE satoshis + varint + script)
       def to_binary
         @to_binary ||= begin

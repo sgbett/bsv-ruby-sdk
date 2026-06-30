@@ -9,6 +9,13 @@ module BSV
     # computation (with FORKID), signing, script verification, and fee
     # estimation.
     #
+    # @note Not thread-safe. Direct mutation of {#inputs} / {#outputs} arrays
+    #   (e.g. `tx.inputs << input`) bypasses the cache-invalidation contract
+    #   and may produce silently invalid sighashes. Use {#add_input} /
+    #   {#add_output} and the documented setter surface, or call
+    #   {#invalidate_caches} after direct mutation. See
+    #   {file:docs/reference/sighash-cache.md}.
+    #
     # @example Build, sign, and serialise a transaction
     #   tx = BSV::Transaction::Tx.new
     #   tx.add_input(input)
@@ -66,6 +73,10 @@ module BSV
       # @param input [Transaction::TransactionInput] the input to add
       # @return [self] for chaining
       # @raise [ArgumentError] if the input belongs to a different transaction
+      # @raise [ArgumentError] if the input is already attached to a different
+      #   Tx instance. Sharing across Tx instances is anti-idiomatic;
+      #   construct a fresh instance per Tx. See
+      #   {file:docs/reference/sighash-cache.md#one-owner}.
       def add_input(input)
         existing_owner = input.instance_variable_get(:@owning_tx)
         if existing_owner && !existing_owner.equal?(self)
@@ -87,6 +98,10 @@ module BSV
       # @param output [Transaction::TransactionOutput] the output to add
       # @return [self] for chaining
       # @raise [ArgumentError] if the output belongs to a different transaction
+      # @raise [ArgumentError] if the output is already attached to a different
+      #   Tx instance. Sharing across Tx instances is anti-idiomatic;
+      #   construct a fresh instance per Tx. See
+      #   {file:docs/reference/sighash-cache.md#one-owner}.
       def add_output(output)
         existing_owner = output.instance_variable_get(:@owning_tx)
         if existing_owner && !existing_owner.equal?(self)
@@ -108,7 +123,18 @@ module BSV
       # directly (e.g. via +tx.inputs.push+). Prefer +add_input+ / +add_output+
       # which maintain the cache automatically.
       #
-      # @return [self]
+      # @example After mutating the inputs array directly
+      #   tx.inputs.pop                  # bypasses the documented setter surface
+      #   tx.invalidate_caches           # clears all cache layers
+      #   tx.verify(...)                 # now safe
+      #
+      # @note Rarely needed. Normal mutation through the documented setter
+      #   surface (input.sequence=, output.satoshis=, etc.) invalidates the
+      #   right cache slices automatically. This method is an escape hatch
+      #   for code that mutates @inputs / @outputs through unsupported paths.
+      #   See {file:docs/reference/sighash-cache.md#escape-hatch}.
+      #
+      # @return [self] for chaining
       def invalidate_caches
         @hash_prevouts_cache = nil
         invalidate_sequence_components_cache
@@ -141,6 +167,7 @@ module BSV
 
       # Serialise the transaction to its binary wire format.
       #
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] raw transaction bytes (binary encoding, frozen)
       def to_binary
         # rubocop:disable Naming/MemoizedInstanceVariableName
@@ -463,6 +490,7 @@ module BSV
       # Used by BEEF, BUMPs, and merkle paths, which all work in wire byte order
       # to match {TransactionInput#prev_wtxid}.
       #
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
         # rubocop:disable Naming/MemoizedInstanceVariableName
@@ -939,6 +967,7 @@ module BSV
       ZERO_HASH = ("\x00".b * 32).freeze # rubocop:disable Style/RedundantFreeze
       private_constant :ZERO_HASH
 
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_prevouts(anyone_can_pay)
         return ZERO_HASH if anyone_can_pay
 
@@ -948,6 +977,7 @@ module BSV
         # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_sequence(anyone_can_pay, base_type)
         return ZERO_HASH if anyone_can_pay || base_type == Sighash::SINGLE || base_type == Sighash::NONE
 
@@ -957,6 +987,7 @@ module BSV
         # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_outputs(base_type, input_index)
         case base_type
         when Sighash::NONE
