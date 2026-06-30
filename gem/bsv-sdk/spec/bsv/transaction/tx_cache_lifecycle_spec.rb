@@ -168,4 +168,43 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
       expect(BSV::Transaction::Tx.private_method_defined?(:invalidate_wire_cache)).to be(true)
     end
   end
+
+  # Direct L1 unit asserts. The Phase C/D regression spec proves these
+  # invariants indirectly through the sha256d call count, but a regression
+  # that broke per-struct freezing or object identity without touching the
+  # count would slip past the structural test. These specs lock the
+  # invariants in directly.
+  describe 'L1 per-struct memo invariants' do
+    it 'TransactionInput#outpoint_binary returns the same object across calls' do
+      input = make_input
+      expect(input.outpoint_binary).to equal(input.outpoint_binary)
+    end
+
+    it 'TransactionInput#outpoint_binary returns a frozen binary' do
+      input = make_input
+      expect(input.outpoint_binary).to be_frozen
+    end
+
+    it 'TransactionInput#to_binary returns a frozen binary' do
+      input = make_input
+      expect(input.to_binary).to be_frozen
+    end
+
+    it 'TransactionOutput#to_binary returns a frozen binary' do
+      output = make_output
+      expect(output.to_binary).to be_frozen
+    end
+
+    it 'Tx#hash_prevouts caches a frozen result' do
+      tx = make_tx
+      tx.add_input(make_input)
+      expect(tx.send(:hash_prevouts, false)).to be_frozen
+    end
+
+    it 'Tx#hash_outputs caches a frozen result (ALL branch)' do
+      tx = make_tx
+      tx.add_output(make_output)
+      expect(tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)).to be_frozen
+    end
+  end
 end

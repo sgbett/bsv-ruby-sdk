@@ -72,7 +72,6 @@ module BSV
       #
       # @param input [Transaction::TransactionInput] the input to add
       # @return [self] for chaining
-      # @raise [ArgumentError] if the input belongs to a different transaction
       # @raise [ArgumentError] if the input is already attached to a different
       #   Tx instance. Sharing across Tx instances is anti-idiomatic;
       #   construct a fresh instance per Tx. See
@@ -97,7 +96,6 @@ module BSV
       #
       # @param output [Transaction::TransactionOutput] the output to add
       # @return [self] for chaining
-      # @raise [ArgumentError] if the output belongs to a different transaction
       # @raise [ArgumentError] if the output is already attached to a different
       #   Tx instance. Sharing across Tx instances is anti-idiomatic;
       #   construct a fresh instance per Tx. See
@@ -136,7 +134,7 @@ module BSV
       #
       # @return [self] for chaining
       def invalidate_caches
-        @hash_prevouts_cache = nil
+        @hash_prevouts = nil
         invalidate_sequence_components_cache
         invalidate_outputs_components_cache
         invalidate_wire_cache
@@ -170,9 +168,7 @@ module BSV
       # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] raw transaction bytes (binary encoding, frozen)
       def to_binary
-        # rubocop:disable Naming/MemoizedInstanceVariableName
-        @to_binary_cache ||= begin
-          # rubocop:enable Naming/MemoizedInstanceVariableName
+        @to_binary ||= begin
           buf = [@version].pack('V')
           buf << VarInt.encode(@inputs.length)
           @inputs.each { |i| buf << i.to_binary }
@@ -493,9 +489,7 @@ module BSV
       # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
-        # rubocop:disable Naming/MemoizedInstanceVariableName
-        @wtxid_cache ||= begin
-          # rubocop:enable Naming/MemoizedInstanceVariableName
+        @wtxid ||= begin
           id = BSV::Primitives::Digest.sha256d(to_binary)
           BSV.logger&.debug { "[Tx] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
           id.freeze
@@ -971,20 +965,16 @@ module BSV
       def hash_prevouts(anyone_can_pay)
         return ZERO_HASH if anyone_can_pay
 
-        # rubocop:disable Naming/MemoizedInstanceVariableName
-        @hash_prevouts_cache ||=
+        @hash_prevouts ||=
           BSV::Primitives::Digest.sha256d(@inputs.map(&:outpoint_binary).join).freeze
-        # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
       # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_sequence(anyone_can_pay, base_type)
         return ZERO_HASH if anyone_can_pay || base_type == Sighash::SINGLE || base_type == Sighash::NONE
 
-        # rubocop:disable Naming/MemoizedInstanceVariableName
-        @hash_sequence_cache ||=
+        @hash_sequence ||=
           BSV::Primitives::Digest.sha256d(@inputs.map { |i| [i.sequence].pack('V') }.join).freeze
-        # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
       # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
@@ -997,15 +987,28 @@ module BSV
           # out-of-range may move in-range; a cached ZERO_HASH would be stale.
           return ZERO_HASH if input_index >= @outputs.length
 
-          @hash_outputs_per_index_cache ||= {}
-          @hash_outputs_per_index_cache[input_index] ||=
-            BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary).freeze
+          hash_outputs_single(input_index)
         else # ALL (and any non-standard base type per BIP-143)
-          # rubocop:disable Naming/MemoizedInstanceVariableName
-          @hash_outputs_all_cache ||=
-            BSV::Primitives::Digest.sha256d(@outputs.map(&:to_binary).join).freeze
-          # rubocop:enable Naming/MemoizedInstanceVariableName
+          hash_outputs_all
         end
+      end
+
+      # Memoises the +hash_outputs+ ALL branch (sha256d of all outputs joined).
+      #
+      # @!visibility private
+      def hash_outputs_all
+        @hash_outputs_all ||= BSV::Primitives::Digest.sha256d(@outputs.map(&:to_binary).join).freeze
+      end
+
+      # Memoises +hash_outputs+ for the SIGHASH_SINGLE branch, keyed by input
+      # index. The Hash itself is the ivar; per-key lookup uses +Hash#[]= ||=+
+      # which does not trigger +Naming/MemoizedInstanceVariableName+.
+      #
+      # @!visibility private
+      def hash_outputs_single(input_index)
+        @hash_outputs_single ||= {}
+        @hash_outputs_single[input_index] ||=
+          BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary).freeze
       end
 
       # Collect this transaction and all its ancestors in dependency order
@@ -1180,24 +1183,30 @@ module BSV
 
       # Clears the +hash_sequence+ component-hash memo. Called by
       # +TransactionInput#sequence=+ via the owning-Tx backref.
+      #
+      # @!visibility private
       def invalidate_sequence_components_cache
-        @hash_sequence_cache = nil
+        @hash_sequence = nil
       end
 
       # Clears the +hash_outputs+ component-hash memos (both the ALL branch and
       # the SIGHASH_SINGLE per-index cache). Called by
       # +TransactionOutput#satoshis=+ and +TransactionOutput#locking_script=+
       # via the owning-Tx backref.
+      #
+      # @!visibility private
       def invalidate_outputs_components_cache
-        @hash_outputs_all_cache = nil
-        @hash_outputs_per_index_cache = nil
+        @hash_outputs_all = nil
+        @hash_outputs_single&.clear
       end
 
       # Clears the L2 wire-serialisation caches (+to_binary+ and +wtxid+).
-      # Called by Phase B setter bubbles and +invalidate_caches+.
+      # Called by per-struct setter bubbles and +invalidate_caches+.
+      #
+      # @!visibility private
       def invalidate_wire_cache
-        @to_binary_cache = nil
-        @wtxid_cache = nil
+        @to_binary = nil
+        @wtxid = nil
       end
     end
   end
