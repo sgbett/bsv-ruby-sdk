@@ -165,3 +165,34 @@ The asymptotic argument is arithmetic, not empirical: N × (N + M) → N + M is 
 ## 12. Open questions
 
 None outstanding. Design calls in §2, §3, §4, §5 confirmed in conversation 2026-06-30.
+
+## 13. Amendments — 2026-06-30 specialist co-production
+
+Synthesis of 10 specialist augmentations (Systems Architect, Domain Expert, Security, Maintainability, Performance, Implementation Strategist, Pragmatic Enforcer, QA, Ruby Expert, Cryptography) refines this plan. The canonical breakdown lives in HLR #881 comment `issuecomment-4840700888`; deltas vs. the original sections:
+
+**Dropped from scope**
+- **L4 (sighash_preimage memo) and L5 (sighash digest memo).** The interpreter at `gem/bsv-sdk/lib/bsv/script/interpreter/operations/crypto.rb:128` always passes `subscript:` to `Tx#sighash` for every OP_CHECKSIG/OP_CHECKMULTISIG, and the plan correctly bypasses L4/L5 when `subscript:` is non-nil. Verify also doesn't re-enter the same `(idx, type)`. Net: L4/L5 would never fire on the verify hot path. L3 alone delivers the asymptotic O(N×(N+M)) → O(N+M) win. Convergent finding from Pragmatic, Security, Performance, Cryptography specialists; no specialist defended L4/L5 as load-bearing.
+- **`source_transaction=` / `source_*=` invalidation hooks.** With L4/L5 gone, source data doesn't flow into any remaining cache layer (L1, L2, L3 are all independent of source data). The §3 contract table loses those four rows.
+
+**Added to scope**
+- **`#initialize_copy` overrides on Tx, TransactionInput, TransactionOutput.** `gem/bsv-sdk/lib/bsv/transaction/beef.rb:703,707` does `beef_tx.transaction.dup` (shallow). With the backref, duped Tx shares input/output instances whose `@owning_tx` points at the *original* Tx → mutating the dup silently invalidates the original's cache. Tx#initialize_copy deep-dups `@inputs` / `@outputs` and rebinds `@owning_tx`; the per-struct `#initialize_copy` clears `@owning_tx` on clone. Systems Architect + Security both flagged this as P0/CRITICAL.
+- **No-op slice-invalidator stubs in Phase A.** Phase B's setter bubbles call methods Phase C defines. `&.` swallows nil but not NoMethodError. Stubs let B/C ship green standalone. Implementation Strategist.
+- **Spec-suite audit task in Phase A.** Grep `spec/` for shared-input/output patterns the rebind raise would break (none today, locks the contract in). Security.
+
+**Changed**
+- **Rebind raises only when `@owning_tx && @owning_tx != self`.** Same-Tx re-add stays idempotent. (Implementation Strategist, Domain Expert, QA converge.)
+- **`Tx#invalidate_sighash_cache!` → `Tx#invalidate_caches`** (no bang, broader name). Project precedent: `Tx#sign`, `Tx#fee` mutate without bang. Name also covers the L2 wire clear. (Ruby Expert, Maintainability.)
+- **Backref set via `instance_variable_set`** from `Tx#add_input` / `add_output`. Matches existing precedent (`tx.rb:178, 246, 296`). No public setter on `@owning_tx`. (Ruby Expert.)
+- **`hash_outputs_single` → `hash_outputs_per_index`** (internal). Describes the data shape, not the SIGHASH variant. (Maintainability.)
+- **Regression spec moves from Phase F into Phase C** — proves the structural property at the moment the win lands. (Implementation Strategist.)
+- **YARD on `attr_accessor` setters** via explicit `# @!attribute [rw]` blocks, calling out invalidation cost at the call-site. (QA, Ruby Expert.)
+- **Spec organisation by §3 contract row, not by phase** — `spec/bsv/transaction/tx_cache_invalidation_spec.rb` with one `describe` per row, parameterised shared examples. Phase-aligned files rot after merge. (Maintainability.)
+
+**Phase count: 5 (not 6).** Plan §7's phases compress to A (Foundations + initialize_copy + no-op stubs) → B (L1 memos) → C (L3 + regression spec) → D (L2 wire memos) → E (Docs + YARD + spec reorganisation). Original Phase D and Phase F are folded.
+
+**Deferred follow-ups (file when justified, not blocking #881)**
+- L4 + L5 memos paired with interpreter subscript-skip optimisation. Sibling Issue when signing/multisig profiles justify.
+- Interpreter subscript-skip: when `sub_script == input.source_locking_script` and no `OP_CODESEPARATOR` seen, omit `subscript:`. Unlocks ~2–6× additional on verify hot path. (Security Specialist's "interpreter integration task".)
+- `Tx#verified_under` flag: short-circuits the input loop when the same chain_tracker has already verified the Tx. Potential ~270× on warm-graph wallet workload. (Performance Specialist's "real prize".)
+
+Specialist reports are in the conversation transcript; the breakdown comment is the durable input to `/plan:tasks`.
