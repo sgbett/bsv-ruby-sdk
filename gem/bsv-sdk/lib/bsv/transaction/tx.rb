@@ -9,6 +9,13 @@ module BSV
     # computation (with FORKID), signing, script verification, and fee
     # estimation.
     #
+    # @note Not thread-safe. Direct mutation of {#inputs} / {#outputs} arrays
+    #   (e.g. `tx.inputs << input`) bypasses the cache-invalidation contract
+    #   and may produce silently invalid sighashes. Use {#add_input} /
+    #   {#add_output} and the documented setter surface, or call
+    #   {#invalidate_caches} after direct mutation. See
+    #   {file:docs/reference/sighash-cache.md}.
+    #
     # @example Build, sign, and serialise a transaction
     #   tx = BSV::Transaction::Tx.new
     #   tx.add_input(input)
@@ -59,35 +66,151 @@ module BSV
 
       # Append a transaction input.
       #
+      # Idempotent on re-add: calling +add_input(x)+ twice with the same input
+      # on the same +Transaction::Tx+ returns +self+ on the second call without
+      # appending a duplicate or invalidating caches. Raises +ArgumentError+
+      # if the input is already attached to a different +Transaction::Tx+.
+      #
       # @param input [Transaction::TransactionInput] the input to add
       # @return [self] for chaining
+      # @raise [ArgumentError] if the input is already attached to a different
+      #   Tx instance. Sharing across Tx instances is anti-idiomatic;
+      #   construct a fresh instance per Tx. See
+      #   {file:docs/reference/sighash-cache.md#one-owner}.
       def add_input(input)
+        existing_owner = input.instance_variable_get(:@owning_tx)
+        if existing_owner
+          return self if existing_owner.equal?(self)
+
+          raise ArgumentError,
+                "TransactionInput #{input.dtxid_hex}:#{input.prev_tx_out_index} is already attached to a Tx"
+        end
+
+        input.instance_variable_set(:@owning_tx, self)
         @inputs << input
+        # Avoid the O(N+M) rebind walk inside invalidate_caches — the new
+        # input's backref was just set above and every existing input/output
+        # was rebound when it was originally added. clear_caches is O(1).
+        clear_caches
         self
       end
 
       # Append a transaction output.
       #
+      # Idempotent on re-add: calling +add_output(x)+ twice with the same output
+      # on the same +Transaction::Tx+ returns +self+ on the second call without
+      # appending a duplicate or invalidating caches. Raises +ArgumentError+
+      # if the output is already attached to a different +Transaction::Tx+.
+      #
       # @param output [Transaction::TransactionOutput] the output to add
       # @return [self] for chaining
+      # @raise [ArgumentError] if the output is already attached to a different
+      #   Tx instance. Sharing across Tx instances is anti-idiomatic;
+      #   construct a fresh instance per Tx. See
+      #   {file:docs/reference/sighash-cache.md#one-owner}.
       def add_output(output)
+        existing_owner = output.instance_variable_get(:@owning_tx)
+        if existing_owner
+          return self if existing_owner.equal?(self)
+
+          asm_fragment = output.locking_script&.to_asm || '<nil locking_script>'
+          asm_fragment = "#{asm_fragment[0, 40]}..." if asm_fragment.length > 40
+          raise ArgumentError,
+                "TransactionOutput (#{asm_fragment}) is already attached to a Tx"
+        end
+
+        output.instance_variable_set(:@owning_tx, self)
         @outputs << output
+        # Avoid the O(N+M) rebind walk inside invalidate_caches — the new
+        # output's backref was just set above and every existing input/output
+        # was rebound when it was originally added. clear_caches is O(1).
+        clear_caches
         self
+      end
+
+      # Invalidate all cached state on this transaction (sighash components,
+      # wire serialisation, etc.) AND restore the +@owning_tx+ backref on every
+      # current input and output. This is what makes the escape hatch complete:
+      # if a caller appended an input/output via direct array mutation
+      # (bypassing +add_input+ / +add_output+), the new struct's backref is nil
+      # and future +sequence=+ / +locking_script=+ / etc. setters would not
+      # bubble invalidation up. After +invalidate_caches+, the backref is
+      # rebound so subsequent setter mutations flow through correctly.
+      #
+      # Raises +ArgumentError+ if any input or output is already attached to a
+      # different +Transaction::Tx+ — matches the cross-Tx rebind contract of
+      # +add_input+ / +add_output+.
+      #
+      # @example After mutating the inputs array directly
+      #   tx.inputs << input             # bypasses the documented setter surface
+      #   tx.invalidate_caches           # clears all cache layers + rebinds @owning_tx
+      #   input.sequence = 42            # now invalidates correctly
+      #   tx.verify(...)                 # safe
+      #
+      # @note Rarely needed. Normal mutation through the documented setter
+      #   surface (input.sequence=, output.satoshis=, etc.) invalidates the
+      #   right cache slices automatically. This method is an escape hatch
+      #   for code that mutates @inputs / @outputs through unsupported paths.
+      #   See {file:docs/reference/sighash-cache.md#escape-hatch}.
+      #
+      # @return [self] for chaining
+      # @raise [ArgumentError] if any input or output is attached to a different
+      #   Tx instance
+      def invalidate_caches
+        rebind_owning_tx!
+        clear_caches
+        self
+      end
+
+      # Called by +#dup+ and +#clone+. Deep-dups +@inputs+ and +@outputs+ so that
+      # the copy and the original do not share mutable input/output state. Rebinds
+      # +@owning_tx+ on each copied struct to +self+ (the new transaction). Resets
+      # all cache ivars directly so the dup does not share mutable cache state
+      # (especially +@hash_outputs_single+, a Hash) with the original.
+      #
+      # This closes the hazard at +beef.rb:703,707+ where a shallow dup would leave
+      # the copied inputs/outputs pointing at the original transaction's cache.
+      #
+      # Note: we cannot delegate to +invalidate_caches+ here because that method
+      # calls +Hash#clear+ on +@hash_outputs_single+, which would mutate the
+      # shared Hash and evict the *original*'s per-index cache too. Direct
+      # +ivar = nil+ assignments on +self+ leave the original untouched.
+      def initialize_copy(other)
+        super
+        @inputs = @inputs.map do |i|
+          dup_input = i.dup
+          dup_input.instance_variable_set(:@owning_tx, self)
+          dup_input
+        end
+        @outputs = @outputs.map do |o|
+          dup_output = o.dup
+          dup_output.instance_variable_set(:@owning_tx, self)
+          dup_output
+        end
+        @to_binary = nil
+        @wtxid = nil
+        @hash_prevouts = nil
+        @hash_sequence = nil
+        @hash_outputs_all = nil
+        @hash_outputs_single = nil
       end
 
       # --- Serialisation ---
 
       # Serialise the transaction to its binary wire format.
       #
-      # @return [String] raw transaction bytes
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
+      # @return [String] raw transaction bytes (binary encoding, frozen)
       def to_binary
-        buf = [@version].pack('V')
-        buf << VarInt.encode(@inputs.length)
-        @inputs.each { |i| buf << i.to_binary }
-        buf << VarInt.encode(@outputs.length)
-        @outputs.each { |o| buf << o.to_binary }
-        buf << [@lock_time].pack('V')
-        buf
+        @to_binary ||= begin
+          buf = [@version].pack('V')
+          buf << VarInt.encode(@inputs.length)
+          @inputs.each { |i| buf << i.to_binary }
+          buf << VarInt.encode(@outputs.length)
+          @outputs.each { |o| buf << o.to_binary }
+          buf << [@lock_time].pack('V')
+          buf.b.freeze
+        end
       end
 
       # Serialise the transaction to a hex string.
@@ -397,11 +520,14 @@ module BSV
       # Used by BEEF, BUMPs, and merkle paths, which all work in wire byte order
       # to match {TransactionInput#prev_wtxid}.
       #
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       # @return [String] 32-byte transaction ID in wire byte order
       def wtxid
-        id = BSV::Primitives::Digest.sha256d(to_binary)
-        BSV.logger&.debug { "[Tx] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
-        id
+        @wtxid ||= begin
+          id = BSV::Primitives::Digest.sha256d(to_binary)
+          BSV.logger&.debug { "[Tx] wtxid computed (dtxid=#{id.reverse.unpack1('H*')})" }
+          id.freeze
+        end
       end
 
       # The transaction ID as a hex string (display byte order).
@@ -866,35 +992,57 @@ module BSV
                                     "outputs (#{output_total}) exceed inputs (#{input_total}) for transaction #{tx.txid_hex}")
       end
 
-      ZERO_HASH = "\x00".b * 32
+      ZERO_HASH = ("\x00".b * 32).freeze # rubocop:disable Style/RedundantFreeze
       private_constant :ZERO_HASH
 
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_prevouts(anyone_can_pay)
         return ZERO_HASH if anyone_can_pay
 
-        buf = @inputs.map(&:outpoint_binary).join
-        BSV::Primitives::Digest.sha256d(buf)
+        @hash_prevouts ||=
+          BSV::Primitives::Digest.sha256d(@inputs.map(&:outpoint_binary).join).freeze
       end
 
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_sequence(anyone_can_pay, base_type)
         return ZERO_HASH if anyone_can_pay || base_type == Sighash::SINGLE || base_type == Sighash::NONE
 
-        buf = @inputs.map { |i| [i.sequence].pack('V') }.join
-        BSV::Primitives::Digest.sha256d(buf)
+        @hash_sequence ||=
+          BSV::Primitives::Digest.sha256d(@inputs.map { |i| [i.sequence].pack('V') }.join).freeze
       end
 
+      # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
       def hash_outputs(base_type, input_index)
         case base_type
         when Sighash::NONE
           ZERO_HASH
         when Sighash::SINGLE
+          # NEVER cache the ZERO_HASH branch — after add_output, an idx that was
+          # out-of-range may move in-range; a cached ZERO_HASH would be stale.
           return ZERO_HASH if input_index >= @outputs.length
 
-          BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary)
+          hash_outputs_single(input_index)
         else # ALL (and any non-standard base type per BIP-143)
-          buf = @outputs.map(&:to_binary).join
-          BSV::Primitives::Digest.sha256d(buf)
+          hash_outputs_all
         end
+      end
+
+      # Memoises the +hash_outputs+ ALL branch (sha256d of all outputs joined).
+      #
+      # @!visibility private
+      def hash_outputs_all
+        @hash_outputs_all ||= BSV::Primitives::Digest.sha256d(@outputs.map(&:to_binary).join).freeze
+      end
+
+      # Memoises +hash_outputs+ for the SIGHASH_SINGLE branch, keyed by input
+      # index. The Hash itself is the ivar; per-key lookup uses +Hash#[]= ||=+
+      # which does not trigger +Naming/MemoizedInstanceVariableName+.
+      #
+      # @!visibility private
+      def hash_outputs_single(input_index)
+        @hash_outputs_single ||= {}
+        @hash_outputs_single[input_index] ||=
+          BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary).freeze
       end
 
       # Collect this transaction and all its ancestors in dependency order
@@ -1065,6 +1213,75 @@ module BSV
       def benford_number(min, max)
         scale_factor = LOG10_RECIPROCAL_D_VALUES_1TO9[Random.rand(9)] # Array indexing starts at 0
         (min + (scale_factor * (max - min))).floor
+      end
+
+      # Clears the +hash_sequence+ component-hash memo. Called by
+      # +TransactionInput#sequence=+ via the owning-Tx backref.
+      #
+      # @!visibility private
+      def invalidate_sequence_components_cache
+        @hash_sequence = nil
+      end
+
+      # Clears the +hash_outputs+ component-hash memos (both the ALL branch and
+      # the SIGHASH_SINGLE per-index cache). Called by
+      # +TransactionOutput#satoshis=+ and +TransactionOutput#locking_script=+
+      # via the owning-Tx backref.
+      #
+      # @!visibility private
+      def invalidate_outputs_components_cache
+        @hash_outputs_all = nil
+        @hash_outputs_single&.clear
+      end
+
+      # Clears the L2 wire-serialisation caches (+to_binary+ and +wtxid+).
+      # Called by per-struct setter bubbles and +invalidate_caches+.
+      #
+      # @!visibility private
+      def invalidate_wire_cache
+        @to_binary = nil
+        @wtxid = nil
+      end
+
+      # Clears every cache slice on this Tx without the +rebind_owning_tx!+
+      # walk. Called from +add_input+ / +add_output+ where the new struct's
+      # backref was just set inline and existing structs' backrefs were
+      # established when they were added — making the rebind walk redundant
+      # and reducing N-input construction from O(N²) to O(N).
+      #
+      # The public +invalidate_caches+ keeps the rebind walk because it is
+      # the documented escape hatch for direct array mutation, where the
+      # walk is required.
+      #
+      # @!visibility private
+      def clear_caches
+        @hash_prevouts = nil
+        invalidate_sequence_components_cache
+        invalidate_outputs_components_cache
+        invalidate_wire_cache
+      end
+
+      # Restore +@owning_tx+ on every current input and output. Called by
+      # +invalidate_caches+ so the escape hatch covers direct array mutation
+      # (e.g. +tx.inputs << input+ bypasses +add_input+ and leaves the new
+      # struct's backref nil — subsequent setter mutations would not bubble
+      # invalidation).
+      #
+      # Raises if any struct is currently attached to a *different* Tx —
+      # matches the +add_input+ / +add_output+ cross-Tx rebind contract.
+      #
+      # @!visibility private
+      def rebind_owning_tx!
+        (@inputs + @outputs).each do |struct|
+          existing_owner = struct.instance_variable_get(:@owning_tx)
+          if existing_owner && !existing_owner.equal?(self)
+            raise ArgumentError,
+                  "#{struct.class.name.split('::').last} is already attached to a different Tx; " \
+                  'invalidate_caches cannot rebind across transactions'
+          end
+
+          struct.instance_variable_set(:@owning_tx, self)
+        end
       end
     end
   end
