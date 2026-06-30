@@ -9,10 +9,10 @@ module BSV
     # unlocking scripts.
     class TransactionOutput
       # @return [Integer] the output value in satoshis
-      attr_accessor :satoshis
+      attr_reader :satoshis
 
       # @return [Script::Script] the locking script (spending conditions)
-      attr_accessor :locking_script
+      attr_reader :locking_script
 
       # @return [Boolean] whether this output receives change
       attr_accessor :change
@@ -35,12 +35,36 @@ module BSV
         @owning_tx = nil
       end
 
+      # Sets the satoshi value and invalidates the L1 binary memo and the
+      # owning-Tx outputs-components and wire caches.
+      #
+      # @param value [Integer] new satoshi value
+      def satoshis=(value)
+        @satoshis = value
+        @to_binary = nil
+        @owning_tx&.send(:invalidate_outputs_components_cache)
+        @owning_tx&.send(:invalidate_wire_cache)
+      end
+
+      # Sets the locking script and invalidates the L1 binary memo and the
+      # owning-Tx outputs-components and wire caches.
+      #
+      # @param value [Script::Script] new locking script
+      def locking_script=(value)
+        @locking_script = value
+        @to_binary = nil
+        @owning_tx&.send(:invalidate_outputs_components_cache)
+        @owning_tx&.send(:invalidate_wire_cache)
+      end
+
       # Serialise the output to its binary wire format.
       #
       # @return [String] binary output (8-byte LE satoshis + varint + script)
       def to_binary
-        script_bytes = @locking_script.to_binary
-        [satoshis].pack('Q<') + VarInt.encode(script_bytes.bytesize) + script_bytes
+        @to_binary ||= begin
+          script_bytes = @locking_script.to_binary
+          ([@satoshis].pack('Q<') + VarInt.encode(script_bytes.bytesize) + script_bytes).freeze
+        end
       end
 
       # Deserialise a transaction output from binary data.

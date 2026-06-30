@@ -15,10 +15,10 @@ module BSV
       attr_reader :prev_tx_out_index
 
       # @return [Integer] sequence number (default: 0xFFFFFFFF)
-      attr_accessor :sequence
+      attr_reader :sequence
 
       # @return [Script::Script, nil] the unlocking script (set after signing)
-      attr_accessor :unlocking_script
+      attr_reader :unlocking_script
 
       # @return [Integer, nil] satoshi value of the source output (needed for sighash)
       attr_accessor :source_satoshis
@@ -54,16 +54,41 @@ module BSV
         @owning_tx = nil
       end
 
+      # Sets the sequence number and invalidates the L1 binary memo and any
+      # owning-Tx slice caches that incorporate sequence (BIP-143 preimage
+      # and wire format).
+      #
+      # @param value [Integer] new sequence number
+      def sequence=(value)
+        @sequence = value
+        @to_binary = nil
+        @owning_tx&.send(:invalidate_sequence_components_cache)
+        @owning_tx&.send(:invalidate_wire_cache)
+      end
+
+      # Sets the unlocking script and invalidates the L1 binary memo and the
+      # owning-Tx wire cache. Unlocking script does not enter the BIP-143
+      # preimage, so the sequence/outputs components caches are not touched.
+      #
+      # @param value [Script::Script, nil] new unlocking script
+      def unlocking_script=(value)
+        @unlocking_script = value
+        @to_binary = nil
+        @owning_tx&.send(:invalidate_wire_cache)
+      end
+
       # Serialise the input to its binary wire format.
       #
       # @return [String] binary input (outpoint + varint + script + sequence)
       def to_binary
-        script_bytes = @unlocking_script ? @unlocking_script.to_binary : ''.b
-        @prev_wtxid +
-          [@prev_tx_out_index].pack('V') +
-          VarInt.encode(script_bytes.bytesize) +
-          script_bytes +
-          [@sequence].pack('V')
+        @to_binary ||= begin
+          script_bytes = @unlocking_script ? @unlocking_script.to_binary : ''.b
+          (@prev_wtxid +
+            [@prev_tx_out_index].pack('V') +
+            VarInt.encode(script_bytes.bytesize) +
+            script_bytes +
+            [@sequence].pack('V')).freeze
+        end
       end
 
       # Deserialise a transaction input from binary data.
@@ -122,9 +147,12 @@ module BSV
 
       # Serialise the outpoint (prev_wtxid + output index) as binary.
       #
+      # Memoised: outpoint components are +attr_reader+ only so the value is
+      # immutable after construction. Returns a frozen binary string.
+      #
       # @return [String] 36-byte outpoint
       def outpoint_binary
-        @prev_wtxid + [@prev_tx_out_index].pack('V')
+        @outpoint_binary ||= (@prev_wtxid + [@prev_tx_out_index].pack('V')).freeze
       end
 
       # The previous transaction ID in display-order hex.

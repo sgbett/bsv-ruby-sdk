@@ -2,9 +2,9 @@
 
 require 'spec_helper'
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable RSpec/DescribeClass, RSpec/MultipleDescribes
 RSpec.describe 'Tx Phase A: owning-Tx backref, #initialize_copy, invalidator stubs' do
-  # rubocop:enable RSpec/DescribeClass
+  # rubocop:enable RSpec/DescribeClass, RSpec/MultipleDescribes
 
   let(:wtxid) { "\x00".b * 32 }
 
@@ -163,6 +163,253 @@ RSpec.describe 'Tx Phase A: owning-Tx backref, #initialize_copy, invalidator stu
 
     it 'defines invalidate_wire_cache as a private method' do
       expect(BSV::Transaction::Tx.private_method_defined?(:invalidate_wire_cache)).to be(true)
+    end
+  end
+end
+
+# rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Tx Phase B: Layer 1 per-struct binary memos' do
+  # rubocop:enable RSpec/DescribeClass
+
+  let(:wtxid) { "\x00".b * 32 }
+
+  def make_input(sequence: 0xFFFFFFFF)
+    BSV::Transaction::TransactionInput.new(prev_wtxid: wtxid, prev_tx_out_index: 0, sequence: sequence)
+  end
+
+  def make_output(satoshis: 1000)
+    script = BSV::Script::Script.from_asm('OP_RETURN')
+    BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: script)
+  end
+
+  def make_tx_with_input_and_output
+    tx = BSV::Transaction::Tx.new
+    input = make_input
+    output = make_output
+    tx.add_input(input)
+    tx.add_output(output)
+    [tx, input, output]
+  end
+
+  describe 'TransactionInput#outpoint_binary' do
+    let(:input) { make_input }
+
+    it 'memoises — returns the same object on repeated calls' do
+      first = input.outpoint_binary
+      second = input.outpoint_binary
+      expect(first).to equal(second)
+    end
+
+    it 'returns a frozen binary string' do
+      result = input.outpoint_binary
+      expect(result).to be_frozen
+      expect(result.encoding).to eq(Encoding::BINARY)
+    end
+
+    it 'is 36 bytes (32-byte wtxid + 4-byte index)' do
+      expect(input.outpoint_binary.bytesize).to eq(36)
+    end
+  end
+
+  describe 'TransactionInput#to_binary' do
+    let(:input) { make_input }
+
+    it 'memoises — returns the same object on repeated calls' do
+      first = input.to_binary
+      second = input.to_binary
+      expect(first).to equal(second)
+    end
+
+    it 'returns a frozen binary string' do
+      expect(input.to_binary).to be_frozen
+    end
+  end
+
+  describe 'TransactionOutput#to_binary' do
+    let(:output) { make_output }
+
+    it 'memoises — returns the same object on repeated calls' do
+      first = output.to_binary
+      second = output.to_binary
+      expect(first).to equal(second)
+    end
+
+    it 'returns a frozen binary string' do
+      expect(output.to_binary).to be_frozen
+    end
+  end
+
+  describe 'L1 memo invalidation on mutation' do
+    describe 'TransactionInput#sequence=' do
+      it 'invalidates #to_binary so the next call recomputes' do
+        input = make_input(sequence: 0xFFFFFFFF)
+        before = input.to_binary
+        input.sequence = 0x00000001
+        after = input.to_binary
+        expect(before).not_to equal(after)
+      end
+
+      it 'new #to_binary encodes the updated sequence' do
+        input = make_input(sequence: 0xFFFFFFFF)
+        input.sequence = 0x00000001
+        expect(input.to_binary[-4..]).to eq([0x00000001].pack('V'))
+      end
+    end
+
+    describe 'TransactionInput#unlocking_script=' do
+      it 'invalidates #to_binary so the next call recomputes' do
+        input = make_input
+        before = input.to_binary
+        new_script = BSV::Script::Script.from_asm('OP_1')
+        input.unlocking_script = new_script
+        after = input.to_binary
+        expect(before).not_to equal(after)
+      end
+
+      it 'new #to_binary encodes the updated unlocking script bytes' do
+        input = make_input
+        new_script = BSV::Script::Script.from_asm('OP_1')
+        input.unlocking_script = new_script
+        expect(input.to_binary).to include(new_script.to_binary)
+      end
+    end
+
+    describe 'TransactionOutput#satoshis=' do
+      it 'invalidates #to_binary so the next call recomputes' do
+        output = make_output(satoshis: 1000)
+        before = output.to_binary
+        output.satoshis = 9999
+        after = output.to_binary
+        expect(before).not_to equal(after)
+      end
+
+      it 'new #to_binary encodes the updated satoshi value' do
+        output = make_output(satoshis: 1000)
+        output.satoshis = 9999
+        expect(output.to_binary[0, 8]).to eq([9999].pack('Q<'))
+      end
+    end
+
+    describe 'TransactionOutput#locking_script=' do
+      it 'invalidates #to_binary so the next call recomputes' do
+        output = make_output
+        before = output.to_binary
+        new_script = BSV::Script::Script.from_asm('OP_1')
+        output.locking_script = new_script
+        after = output.to_binary
+        expect(before).not_to equal(after)
+      end
+
+      it 'new #to_binary encodes the updated locking script bytes' do
+        output = make_output
+        new_script = BSV::Script::Script.from_asm('OP_1')
+        output.locking_script = new_script
+        expect(output.to_binary).to include(new_script.to_binary)
+      end
+    end
+  end
+
+  describe 'setter bubble verification (spy assertions)' do
+    let(:tx) { BSV::Transaction::Tx.new }
+    let(:input) do
+      i = make_input
+      tx.add_input(i)
+      i
+    end
+    let(:output) do
+      o = make_output
+      tx.add_output(o)
+      o
+    end
+
+    before do
+      allow(tx).to receive(:invalidate_sequence_components_cache).and_call_original
+      allow(tx).to receive(:invalidate_outputs_components_cache).and_call_original
+      allow(tx).to receive(:invalidate_wire_cache).and_call_original
+    end
+
+    describe 'input.sequence=' do
+      it 'calls invalidate_sequence_components_cache exactly once on owning Tx' do
+        input.sequence = 42
+        expect(tx).to have_received(:invalidate_sequence_components_cache).once
+      end
+
+      it 'calls invalidate_wire_cache exactly once on owning Tx' do
+        input.sequence = 42
+        expect(tx).to have_received(:invalidate_wire_cache).once
+      end
+
+      it 'does NOT call invalidate_outputs_components_cache' do
+        input.sequence = 42
+        expect(tx).not_to have_received(:invalidate_outputs_components_cache)
+      end
+    end
+
+    describe 'input.unlocking_script=' do
+      it 'calls invalidate_wire_cache exactly once on owning Tx' do
+        input.unlocking_script = BSV::Script::Script.from_asm('OP_1')
+        expect(tx).to have_received(:invalidate_wire_cache).once
+      end
+
+      it 'does NOT call invalidate_sequence_components_cache' do
+        input.unlocking_script = BSV::Script::Script.from_asm('OP_1')
+        expect(tx).not_to have_received(:invalidate_sequence_components_cache)
+      end
+
+      it 'does NOT call invalidate_outputs_components_cache' do
+        input.unlocking_script = BSV::Script::Script.from_asm('OP_1')
+        expect(tx).not_to have_received(:invalidate_outputs_components_cache)
+      end
+    end
+
+    describe 'output.satoshis=' do
+      it 'calls invalidate_outputs_components_cache exactly once on owning Tx' do
+        the_output = output
+        the_output.satoshis = 5000
+        expect(tx).to have_received(:invalidate_outputs_components_cache).once
+      end
+
+      it 'calls invalidate_wire_cache exactly once on owning Tx' do
+        the_output = output
+        the_output.satoshis = 5000
+        expect(tx).to have_received(:invalidate_wire_cache).once
+      end
+    end
+
+    describe 'output.locking_script=' do
+      it 'calls invalidate_outputs_components_cache exactly once on owning Tx' do
+        the_output = output
+        the_output.locking_script = BSV::Script::Script.from_asm('OP_1')
+        expect(tx).to have_received(:invalidate_outputs_components_cache).once
+      end
+
+      it 'calls invalidate_wire_cache exactly once on owning Tx' do
+        the_output = output
+        the_output.locking_script = BSV::Script::Script.from_asm('OP_1')
+        expect(tx).to have_received(:invalidate_wire_cache).once
+      end
+    end
+  end
+
+  describe 'free-floating struct (no @owning_tx)' do
+    it 'setting sequence= on a detached input does not raise' do
+      input = make_input
+      expect { input.sequence = 0 }.not_to raise_error
+    end
+
+    it 'setting unlocking_script= on a detached input does not raise' do
+      input = make_input
+      expect { input.unlocking_script = BSV::Script::Script.from_asm('OP_1') }.not_to raise_error
+    end
+
+    it 'setting satoshis= on a detached output does not raise' do
+      output = make_output
+      expect { output.satoshis = 0 }.not_to raise_error
+    end
+
+    it 'setting locking_script= on a detached output does not raise' do
+      output = make_output
+      expect { output.locking_script = BSV::Script::Script.from_asm('OP_1') }.not_to raise_error
     end
   end
 end
