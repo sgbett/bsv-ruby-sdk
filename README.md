@@ -135,14 +135,7 @@ The [BSV Protocol Documentation](https://hub.bsvblockchain.org/bitcoin-protocol-
 
 ## Contribution Guidelines
 
-Contributions are welcome — bug reports, feature requests, and pull requests.
-
-1. **Fork & Clone** — Fork this repository and clone it locally.
-2. **Set Up** — Run `bundle install` to install dependencies.
-3. **Branch** — Create a new branch for your changes.
-4. **Test** — Ensure all specs pass with `bundle exec rake` and lint passes with `bundle exec rubocop`.
-5. **Commit** — Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
-6. **Pull Request** — Open a pull request against `master`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branching, commits, docs conventions, and the security disclosure flow.
 
 ## Support & Contacts
 
