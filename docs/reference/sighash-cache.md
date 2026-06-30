@@ -19,7 +19,7 @@ could read stale state and produce silently invalid signatures.
 L3 — sighash component hashes      hash_prevouts: 32 B ivar
                                    hash_sequence: 32 B ivar
                                    hash_outputs_all: 32 B ivar
-                                   hash_outputs_per_index: Hash{idx => 32 B}
+                                   hash_outputs_single: Hash{idx => 32 B}
 L2 — wire format                   Tx#to_binary, Tx#wtxid (32 B)
 L1 — per-struct binaries           TransactionInput#outpoint_binary,
                                    TransactionInput#to_binary,

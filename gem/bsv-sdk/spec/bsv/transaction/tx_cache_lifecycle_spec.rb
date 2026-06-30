@@ -130,6 +130,39 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
         expect(i.instance_variable_get(:@owning_tx)).to equal(tx)
       end
     end
+
+    it 'isolates cache ivars — dup mutation does not evict original per-index cache' do
+      # Warm @hash_outputs_single on the original by reading per-index entries
+      tx.send(:hash_outputs, BSV::Transaction::Sighash::SINGLE, 0)
+      tx.send(:hash_outputs, BSV::Transaction::Sighash::SINGLE, 1)
+      original_per_index = tx.instance_variable_get(:@hash_outputs_single)
+      expect(original_per_index.keys).to contain_exactly(0, 1)
+
+      # Dup, then mutate the dup. The mutation triggers
+      # invalidate_outputs_components_cache which calls .clear on the dup's
+      # @hash_outputs_single. Pre-fix this would clear the SHARED Hash and
+      # evict the original's entries. Post-fix the dup starts cold (its
+      # @hash_outputs_single is nil), so .clear is a no-op on the dup and
+      # the original's Hash is untouched.
+      dup_tx = tx.dup
+      dup_tx.outputs[0].satoshis = 9999
+
+      expect(original_per_index).to equal(tx.instance_variable_get(:@hash_outputs_single))
+      expect(original_per_index.keys).to contain_exactly(0, 1)
+    end
+
+    it 'isolates cache ivars — dup starts with cold caches' do
+      tx.send(:hash_prevouts, false)
+      tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      dup_tx = tx.dup
+
+      expect(dup_tx.instance_variable_get(:@hash_prevouts)).to be_nil
+      expect(dup_tx.instance_variable_get(:@hash_outputs_all)).to be_nil
+      expect(dup_tx.instance_variable_get(:@hash_outputs_single)).to be_nil
+      expect(dup_tx.instance_variable_get(:@to_binary)).to be_nil
+      expect(dup_tx.instance_variable_get(:@wtxid)).to be_nil
+    end
   end
 
   describe 'TransactionInput#initialize_copy' do

@@ -109,7 +109,7 @@ module BSV
         if existing_owner
           return self if existing_owner.equal?(self)
 
-          asm_fragment = output.locking_script.to_asm
+          asm_fragment = output.locking_script&.to_asm || '<nil locking_script>'
           asm_fragment = "#{asm_fragment[0, 40]}..." if asm_fragment.length > 40
           raise ArgumentError,
                 "TransactionOutput (#{asm_fragment}) is already attached to a Tx"
@@ -149,10 +149,17 @@ module BSV
 
       # Called by +#dup+ and +#clone+. Deep-dups +@inputs+ and +@outputs+ so that
       # the copy and the original do not share mutable input/output state. Rebinds
-      # +@owning_tx+ on each copied struct to +self+ (the new transaction).
+      # +@owning_tx+ on each copied struct to +self+ (the new transaction). Resets
+      # all cache ivars directly so the dup does not share mutable cache state
+      # (especially +@hash_outputs_single+, a Hash) with the original.
       #
       # This closes the hazard at +beef.rb:703,707+ where a shallow dup would leave
       # the copied inputs/outputs pointing at the original transaction's cache.
+      #
+      # Note: we cannot delegate to +invalidate_caches+ here because that method
+      # calls +Hash#clear+ on +@hash_outputs_single+, which would mutate the
+      # shared Hash and evict the *original*'s per-index cache too. Direct
+      # +ivar = nil+ assignments on +self+ leave the original untouched.
       def initialize_copy(other)
         super
         @inputs = @inputs.map do |i|
@@ -165,6 +172,12 @@ module BSV
           dup_output.instance_variable_set(:@owning_tx, self)
           dup_output
         end
+        @to_binary = nil
+        @wtxid = nil
+        @hash_prevouts = nil
+        @hash_sequence = nil
+        @hash_outputs_all = nil
+        @hash_outputs_single = nil
       end
 
       # --- Serialisation ---
