@@ -8,22 +8,25 @@ parent: Network
 
 ## Quick Start — Using Defaults
 
-The simplest path uses `.default` on the facade classes. No configuration needed.
+The simplest path uses `.default` on provider and tracker classes. No configuration needed.
 
 ### Broadcast a transaction
 
 ```ruby
-arc = BSV::Network::ARC.default
-response = arc.broadcast(tx)
-puts response.txid
+# GorillaPool Arcade (public endpoint, no auth required)
+provider = BSV::Network::Providers::GorillaPool.default
+result = provider.call(:broadcast, tx)
+puts result.data['txid'] if result.http_success?
 ```
 
 ### Fetch UTXOs for an address
 
 ```ruby
-woc = BSV::Network::WhatsOnChain.default
-utxos = woc.fetch_utxos('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
-utxos.each { |u| puts "#{u.tx_hash}:#{u.tx_pos} — #{u.satoshis} sats" }
+woc = BSV::Network::Providers::WhatsOnChain.default
+result = woc.call(:get_utxos, '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+if result.http_success?
+  result.data.each { |u| puts "#{u['tx_hash']}:#{u['tx_pos']} — #{u['value']} sats" }
+end
 ```
 
 ### Verify a merkle root (SPV)
@@ -39,8 +42,8 @@ puts valid ? 'confirmed' : 'not found'
 Every `.default` accepts `testnet: true`:
 
 ```ruby
-arc = BSV::Network::ARC.default(testnet: true)
-woc = BSV::Network::WhatsOnChain.default(testnet: true)
+provider = BSV::Network::Providers::GorillaPool.default(testnet: true)
+woc = BSV::Network::Providers::WhatsOnChain.default(testnet: true)
 tracker = BSV::Transaction::ChainTrackers::WhatsOnChain.default(testnet: true)
 ```
 
@@ -103,8 +106,12 @@ end
 
 ```ruby
 # Use TAAL's ARC instance instead of GorillaPool
-arc = BSV::Network::ARC.new('https://arc.taal.com', api_key: 'my-taal-key')
-response = arc.broadcast(tx)
+arc = BSV::Network::Protocols::ARC.new(
+  base_url: 'https://arc.taal.com',
+  api_key: 'my-taal-key'
+)
+result = arc.call(:broadcast, tx)
+puts result.data['txid'] if result.http_success?
 ```
 
 ### Build a provider from scratch
@@ -183,20 +190,18 @@ result = arcade.call(:broadcast, tx)
 
 ### Result types
 
-All protocol calls return Result objects:
+All protocol calls return a `BSV::Network::ProtocolResponse`:
 
 ```ruby
 result = woc_protocol.call(:get_tx, txid)
 
-case
-when result.success?
-  puts result.data         # the response payload
-when result.not_found?
+if result.http_success?
+  puts result.data           # the response payload
+elsif result.http_not_found?
   puts 'transaction not found'
-when result.error?
-  puts result.message      # error description
-  puts result.retryable?   # can we try another provider?
-  puts result.metadata     # structured data (e.g. arc_status)
+else
+  puts result.error_message  # error description
+  puts result.retryable?     # can we try another provider?
 end
 ```
 
@@ -295,11 +300,11 @@ The new `auth:` hash is the preferred form. Both work; `auth:` takes precedence 
 both are supplied.
 
 ```ruby
-# Legacy — still works
-arc = BSV::Network::ARC.default(api_key: 'my-key')
+# Legacy — still works on providers
+provider = BSV::Network::Providers::GorillaPool.default(api_key: 'my-key')
 
 # Preferred — explicit about the mechanism
-arc = BSV::Network::ARC.default(auth: { bearer: 'my-key' })
+provider = BSV::Network::Providers::GorillaPool.default(auth: { bearer: 'my-key' })
 ```
 
 For WhatsOnChain, the protocol sends a bare key (no `Bearer` prefix). Both the
