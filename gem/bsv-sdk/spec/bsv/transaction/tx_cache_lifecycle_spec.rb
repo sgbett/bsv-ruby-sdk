@@ -229,6 +229,36 @@ RSpec.describe 'Tx cache lifecycle — backref, dup, and invalidator stubs' do
 
       expect { tx2.invalidate_caches }.to raise_error(ArgumentError, /different Tx/)
     end
+
+    # Structural regression: the rebind walk is O(N+M) and must NOT run during
+    # normal add_input/add_output construction (those use the O(1) clear_caches
+    # path). Without this guard a single-line refactor could re-route through
+    # the rebind walk, making N-input construction O(N²) again — invisible at
+    # unit-test scale, real at wallet-fragmentation scale (the workload that
+    # motivated #881).
+    it 'add_input does NOT call rebind_owning_tx! (O(1) construction path)' do
+      tx = make_tx
+      tx.add_input(make_input) # warm any first-call branches
+      allow(tx).to receive(:rebind_owning_tx!).and_call_original
+      tx.add_input(make_input)
+      expect(tx).not_to have_received(:rebind_owning_tx!)
+    end
+
+    it 'add_output does NOT call rebind_owning_tx! (O(1) construction path)' do
+      tx = make_tx
+      tx.add_output(make_output) # warm
+      allow(tx).to receive(:rebind_owning_tx!).and_call_original
+      tx.add_output(make_output)
+      expect(tx).not_to have_received(:rebind_owning_tx!)
+    end
+
+    it 'invalidate_caches DOES call rebind_owning_tx! (escape hatch path)' do
+      tx = make_tx
+      tx.add_input(make_input)
+      allow(tx).to receive(:rebind_owning_tx!).and_call_original
+      tx.invalidate_caches
+      expect(tx).to have_received(:rebind_owning_tx!).once
+    end
   end
 
   describe 'private slice-invalidator stubs' do

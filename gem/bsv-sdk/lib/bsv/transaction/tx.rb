@@ -88,7 +88,11 @@ module BSV
 
         input.instance_variable_set(:@owning_tx, self)
         @inputs << input
-        invalidate_caches
+        # Avoid the O(N+M) rebind walk inside invalidate_caches — the new
+        # input's backref was just set above and every existing input/output
+        # was rebound when it was originally added. clear_caches is O(1).
+        clear_caches
+        self
       end
 
       # Append a transaction output.
@@ -117,7 +121,11 @@ module BSV
 
         output.instance_variable_set(:@owning_tx, self)
         @outputs << output
-        invalidate_caches
+        # Avoid the O(N+M) rebind walk inside invalidate_caches — the new
+        # output's backref was just set above and every existing input/output
+        # was rebound when it was originally added. clear_caches is O(1).
+        clear_caches
+        self
       end
 
       # Invalidate all cached state on this transaction (sighash components,
@@ -150,10 +158,7 @@ module BSV
       #   Tx instance
       def invalidate_caches
         rebind_owning_tx!
-        @hash_prevouts = nil
-        invalidate_sequence_components_cache
-        invalidate_outputs_components_cache
-        invalidate_wire_cache
+        clear_caches
         self
       end
 
@@ -1236,6 +1241,24 @@ module BSV
       def invalidate_wire_cache
         @to_binary = nil
         @wtxid = nil
+      end
+
+      # Clears every cache slice on this Tx without the +rebind_owning_tx!+
+      # walk. Called from +add_input+ / +add_output+ where the new struct's
+      # backref was just set inline and existing structs' backrefs were
+      # established when they were added — making the rebind walk redundant
+      # and reducing N-input construction from O(N²) to O(N).
+      #
+      # The public +invalidate_caches+ keeps the rebind walk because it is
+      # the documented escape hatch for direct array mutation, where the
+      # walk is required.
+      #
+      # @!visibility private
+      def clear_caches
+        @hash_prevouts = nil
+        invalidate_sequence_components_cache
+        invalidate_outputs_components_cache
+        invalidate_wire_cache
       end
 
       # Restore +@owning_tx+ on every current input and output. Called by
