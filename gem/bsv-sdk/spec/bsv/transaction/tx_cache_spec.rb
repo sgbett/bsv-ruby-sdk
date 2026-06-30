@@ -323,6 +323,10 @@ RSpec.describe 'Tx Phase B: Layer 1 per-struct binary memos' do
     end
 
     before do
+      # Force lazy let evaluation BEFORE installing spies so that add_input /
+      # add_output (which now call invalidate_caches) are not counted by the spy.
+      input
+      output
       allow(tx).to receive(:invalidate_sequence_components_cache).and_call_original
       allow(tx).to receive(:invalidate_outputs_components_cache).and_call_original
       allow(tx).to receive(:invalidate_wire_cache).and_call_original
@@ -410,6 +414,240 @@ RSpec.describe 'Tx Phase B: Layer 1 per-struct binary memos' do
     it 'setting locking_script= on a detached output does not raise' do
       output = make_output
       expect { output.locking_script = BSV::Script::Script.from_asm('OP_1') }.not_to raise_error
+    end
+  end
+end
+
+# Simple locking script used in Phase C contract-table specs.
+# Defined at file scope to avoid RSpec/LeakyConstantDeclaration inside the block.
+PHC_LOCK = BSV::Script::Script.from_asm(
+  "OP_DUP OP_HASH160 #{'ab' * 20} OP_EQUALVERIFY OP_CHECKSIG"
+)
+
+# rubocop:disable RSpec/DescribeClass
+RSpec.describe 'Tx Phase C: Layer 3 component-hash memos — §3 contract table' do
+  # rubocop:enable RSpec/DescribeClass
+
+  def make_input(sequence: 0xFFFFFFFF)
+    input = BSV::Transaction::TransactionInput.new(
+      prev_wtxid: "\x01".b * 32,
+      prev_tx_out_index: 0,
+      sequence: sequence
+    )
+    input.source_satoshis = 1000
+    input.source_locking_script = PHC_LOCK
+    input
+  end
+
+  def make_output(satoshis: 900)
+    BSV::Transaction::TransactionOutput.new(satoshis: satoshis, locking_script: PHC_LOCK)
+  end
+
+  def build_wired_tx
+    tx = BSV::Transaction::Tx.new
+    tx.add_input(make_input)
+    tx.add_output(make_output)
+    tx
+  end
+
+  describe 'hash_sequence invalidation on input.sequence=' do
+    it 'next hash_sequence call recomputes (not the same object) after sequence mutation' do
+      tx = build_wired_tx
+
+      # Warm the L3 cache
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      tx.inputs[0].sequence = 0x00000001
+
+      post = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'hash_outputs ALL invalidation on output.satoshis=' do
+    it 'next hash_outputs(ALL) call recomputes after satoshis mutation' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      tx.outputs[0].satoshis = 1
+
+      post = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'hash_outputs ALL invalidation on output.locking_script=' do
+    it 'next hash_outputs(ALL) call recomputes after locking_script mutation' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      tx.outputs[0].locking_script = BSV::Script::Script.from_asm('OP_1')
+
+      post = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'hash_outputs SINGLE invalidation on output.locking_script=' do
+    it 'next hash_outputs(SINGLE, 0) call recomputes after locking_script mutation' do
+      tx = build_wired_tx
+
+      # Warm SINGLE cache for idx 0
+      tx.sighash(0, BSV::Transaction::Sighash::SINGLE_FORK_ID)
+      pre = tx.send(:hash_outputs, BSV::Transaction::Sighash::SINGLE, 0)
+
+      tx.outputs[0].locking_script = BSV::Script::Script.from_asm('OP_1')
+
+      post = tx.send(:hash_outputs, BSV::Transaction::Sighash::SINGLE, 0)
+
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'add_input — all three components recompute' do
+    it 'recomputes hash_prevouts after add_input' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_prevouts, false)
+
+      new_input = make_input
+      tx.add_input(new_input)
+
+      post = tx.send(:hash_prevouts, false)
+
+      expect(pre).not_to equal(post)
+    end
+
+    it 'recomputes hash_sequence after add_input' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      new_input = make_input
+      tx.add_input(new_input)
+
+      post = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'add_output — hash_outputs recomputes' do
+    it 'recomputes hash_outputs(ALL) after add_output' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      tx.add_output(make_output(satoshis: 50))
+
+      post = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      expect(pre).not_to equal(post)
+    end
+  end
+
+  describe 'invalidate_caches — public escape hatch clears everything' do
+    it 'after invalidate_caches, hash_prevouts recomputes' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_prevouts, false)
+
+      tx.invalidate_caches
+
+      post = tx.send(:hash_prevouts, false)
+
+      expect(pre).not_to equal(post)
+    end
+
+    it 'after invalidate_caches, hash_sequence recomputes' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      tx.invalidate_caches
+
+      post = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      expect(pre).not_to equal(post)
+    end
+
+    it 'after invalidate_caches, hash_outputs(ALL) recomputes' do
+      tx = build_wired_tx
+
+      tx.sighash(0, BSV::Transaction::Sighash::ALL_FORK_ID)
+      pre = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      tx.invalidate_caches
+
+      post = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      expect(pre).not_to equal(post)
+    end
+
+    it 'returns self' do
+      tx = build_wired_tx
+      expect(tx.invalidate_caches).to equal(tx)
+    end
+  end
+
+  describe 'memoisation — same object returned on repeated calls (cache hit)' do
+    it 'hash_prevouts returns the same object on second call' do
+      tx = build_wired_tx
+
+      first = tx.send(:hash_prevouts, false)
+      second = tx.send(:hash_prevouts, false)
+
+      expect(first).to equal(second)
+    end
+
+    it 'hash_sequence returns the same object on second call' do
+      tx = build_wired_tx
+
+      first = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+      second = tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)
+
+      expect(first).to equal(second)
+    end
+
+    it 'hash_outputs(ALL) returns the same object on second call' do
+      tx = build_wired_tx
+
+      first = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+      second = tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)
+
+      expect(first).to equal(second)
+    end
+
+    it 'ZERO_HASH branches (anyone_can_pay=true) are never cached — each call returns frozen ZERO_HASH' do
+      tx = build_wired_tx
+
+      first = tx.send(:hash_prevouts, true)
+      second = tx.send(:hash_prevouts, true)
+
+      expect(first).to eq("\x00".b * 32)
+      expect(first).to be_frozen
+      expect(first).to equal(second) # same constant object, not independently memoised
+    end
+
+    it 'cached hashes are frozen' do
+      tx = build_wired_tx
+
+      expect(tx.send(:hash_prevouts, false)).to be_frozen
+      expect(tx.send(:hash_sequence, false, BSV::Transaction::Sighash::ALL)).to be_frozen
+      expect(tx.send(:hash_outputs, BSV::Transaction::Sighash::ALL, 0)).to be_frozen
     end
   end
 end

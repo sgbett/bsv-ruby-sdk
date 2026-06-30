@@ -75,7 +75,7 @@ module BSV
 
         input.instance_variable_set(:@owning_tx, self)
         @inputs << input
-        self
+        invalidate_caches
       end
 
       # Append a transaction output.
@@ -98,7 +98,7 @@ module BSV
 
         output.instance_variable_set(:@owning_tx, self)
         @outputs << output
-        self
+        invalidate_caches
       end
 
       # Invalidate all cached state on this transaction (sighash components,
@@ -110,6 +110,10 @@ module BSV
       #
       # @return [self]
       def invalidate_caches
+        @hash_prevouts_cache = nil
+        invalidate_sequence_components_cache
+        invalidate_outputs_components_cache
+        invalidate_wire_cache
         self
       end
 
@@ -924,21 +928,25 @@ module BSV
                                     "outputs (#{output_total}) exceed inputs (#{input_total}) for transaction #{tx.txid_hex}")
       end
 
-      ZERO_HASH = "\x00".b * 32
+      ZERO_HASH = ("\x00".b * 32).freeze # rubocop:disable Style/RedundantFreeze
       private_constant :ZERO_HASH
 
       def hash_prevouts(anyone_can_pay)
         return ZERO_HASH if anyone_can_pay
 
-        buf = @inputs.map(&:outpoint_binary).join
-        BSV::Primitives::Digest.sha256d(buf)
+        # rubocop:disable Naming/MemoizedInstanceVariableName
+        @hash_prevouts_cache ||=
+          BSV::Primitives::Digest.sha256d(@inputs.map(&:outpoint_binary).join).freeze
+        # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
       def hash_sequence(anyone_can_pay, base_type)
         return ZERO_HASH if anyone_can_pay || base_type == Sighash::SINGLE || base_type == Sighash::NONE
 
-        buf = @inputs.map { |i| [i.sequence].pack('V') }.join
-        BSV::Primitives::Digest.sha256d(buf)
+        # rubocop:disable Naming/MemoizedInstanceVariableName
+        @hash_sequence_cache ||=
+          BSV::Primitives::Digest.sha256d(@inputs.map { |i| [i.sequence].pack('V') }.join).freeze
+        # rubocop:enable Naming/MemoizedInstanceVariableName
       end
 
       def hash_outputs(base_type, input_index)
@@ -946,12 +954,18 @@ module BSV
         when Sighash::NONE
           ZERO_HASH
         when Sighash::SINGLE
+          # NEVER cache the ZERO_HASH branch — after add_output, an idx that was
+          # out-of-range may move in-range; a cached ZERO_HASH would be stale.
           return ZERO_HASH if input_index >= @outputs.length
 
-          BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary)
+          @hash_outputs_per_index_cache ||= {}
+          @hash_outputs_per_index_cache[input_index] ||=
+            BSV::Primitives::Digest.sha256d(@outputs[input_index].to_binary).freeze
         else # ALL (and any non-standard base type per BIP-143)
-          buf = @outputs.map(&:to_binary).join
-          BSV::Primitives::Digest.sha256d(buf)
+          # rubocop:disable Naming/MemoizedInstanceVariableName
+          @hash_outputs_all_cache ||=
+            BSV::Primitives::Digest.sha256d(@outputs.map(&:to_binary).join).freeze
+          # rubocop:enable Naming/MemoizedInstanceVariableName
         end
       end
 
@@ -1125,13 +1139,20 @@ module BSV
         (min + (scale_factor * (max - min))).floor
       end
 
-      # No-op stub: Phase C wires the body when L3 component-hash caches land.
-      # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
-      def invalidate_sequence_components_cache; end
+      # Clears the +hash_sequence+ component-hash memo. Called by
+      # +TransactionInput#sequence=+ via the owning-Tx backref.
+      def invalidate_sequence_components_cache
+        @hash_sequence_cache = nil
+      end
 
-      # No-op stub: Phase C wires the body when L3 component-hash caches land.
-      # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
-      def invalidate_outputs_components_cache; end
+      # Clears the +hash_outputs+ component-hash memos (both the ALL branch and
+      # the SIGHASH_SINGLE per-index cache). Called by
+      # +TransactionOutput#satoshis=+ and +TransactionOutput#locking_script=+
+      # via the owning-Tx backref.
+      def invalidate_outputs_components_cache
+        @hash_outputs_all_cache = nil
+        @hash_outputs_per_index_cache = nil
+      end
 
       # No-op stub: Phase D wires the body when L2 wire-serialisation caches land.
       # Must exist so Phase B setter bubbles resolve without +NoMethodError+.
