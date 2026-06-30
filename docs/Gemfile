@@ -22,7 +22,7 @@ gem 'jekyll-redirect-from', '= 0.16.0'
 # Rewrites relative .md links in markdown to their permalink form at build
 # time. MkDocs did this transparently; Jekyll does not — without this plugin,
 # every internal [link](path/to/file.md) breaks in the rendered HTML.
-gem 'jekyll-relative-links', '= 0.6.1'
+gem 'jekyll-relative-links', '0.7.0'
 
 group :development do
   # Jekyll-aware link checker — handles baseurl via swap_urls (lychee can't
