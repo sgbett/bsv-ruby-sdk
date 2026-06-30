@@ -9,7 +9,8 @@ INV_LOCK = BSV::Script::Script.from_asm(
 )
 
 # Shared examples for "warm a cache, mutate, assert cache missed".
-# The caller must define `let(:mutate_tx)` that performs the mutation on the yielded tx.
+# The caller must define `let(:mutate)` as a proc/lambda; each shared example
+# invokes it as `mutate.call(tx)` to perform the mutation on the yielded tx.
 # We use a proc parameter rather than a block to avoid the describe-time evaluation issue.
 
 # rubocop:disable RSpec/DescribeClass, RSpec/MultipleDescribes
