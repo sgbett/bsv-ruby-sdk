@@ -18,9 +18,10 @@ typically the entity who owns the namespace. Anyone can publish a
 definition; clients decide which operators they trust by passing
 `registry_operators` filters in their queries.
 
-The SDK ships the **read paths** (`resolve_basket`, `resolve_protocol`,
-`resolve_certificate`). Publishing, updating, and revoking definitions
-need a wallet and live in `bsv-wallet`.
+The SDK ships both the **read paths** (`resolve_basket`, `resolve_protocol`,
+`resolve_certificate`) and the **write paths** (`register_definition`,
+`update_definition`, `revoke_definition`). Write paths require a BRC-100 wallet
+to create and sign transactions.
 
 ## Why it exists
 
@@ -110,26 +111,99 @@ with the typed API in the TypeScript, Go, and Python SDKs.
 See [SDK reference: Ecosystem Clients](../sdk/ecosystem-clients.md) for
 the full method surface.
 
-## What the wallet provides
+## Write paths
 
-`Registry::Client` accepts a `wallet:` because its **write paths** are
-on the same class:
+`Registry::Client` includes write paths on the same class. These methods need a BRC-100-compatible wallet (e.g. `bsv-wallet`'s `Wallet::Client`) because they create and sign on-chain transactions. Passing `wallet: nil` and calling a write path raises `NoMethodError`.
 
-- `register_definition(type, data)` — publish a new definition (broadcast
-  to the corresponding `tm_*` topic).
-- `update_definition(...)` — spend the existing UTXO and publish a new
-  version.
-- `revoke_definition(...)` — spend the UTXO to take the definition out of
-  circulation.
-- `list_own_registry_entries(type)` — query the wallet for definitions
-  *this* identity has published.
+### `register_definition`
 
-Those methods need a BRC-100 wallet because they create-and-sign new
-transactions. The Ruby SDK's `Client` requires one for those — pass any
-BRC-100-compatible wallet (typically `bsv-wallet`'s `Wallet::Client`).
+Publishes a new definition as a PushDrop UTXO and broadcasts it to the appropriate overlay topic:
 
-If you're only reading, you can pass `wallet: nil` and use only the
-typed resolve methods. The constructor accepts it.
+```ruby
+require 'bsv-sdk'
+
+client = BSV::Registry::Client.new(wallet: my_wallet, originator: 'myapp.example.com')
+
+data = BSV::Registry::BasketDefinitionData.new(
+  basket_id:         'my-tokens',
+  name:              'My Token Collection',
+  icon_url:          'https://example.com/icon.png',
+  description:       'Stores my custom tokens',
+  documentation_url: 'https://example.com/docs'
+)
+
+result = client.register_definition(BSV::Registry::DefinitionType::BASKET, data)
+# result is a BSV::Overlay::OverlayBroadcastResult
+# raises BSV::Overlay::OverlayError (or a subclass) if the broadcast fails
+```
+
+Protocol and certificate definitions work the same way — swap the type constant and the data class:
+
+```ruby
+# Protocol definition
+proto_data = BSV::Registry::ProtocolDefinitionData.new(
+  protocol_id:       [1, 'my-protocol'],
+  name:              'My Protocol',
+  icon_url:          'https://example.com/icon.png',
+  description:       'What this protocol does',
+  documentation_url: 'https://example.com/spec'
+)
+client.register_definition(BSV::Registry::DefinitionType::PROTOCOL, proto_data)
+
+# Certificate type definition
+cert_data = BSV::Registry::CertificateDefinitionData.new(
+  type:              'aW1hZ2U=',   # Base64 type identifier
+  name:              'Profile',
+  icon_url:          'https://example.com/cert.png',
+  description:       'Basic identity profile',
+  documentation_url: 'https://example.com/cert-spec',
+  fields:            {}
+)
+client.register_definition(BSV::Registry::DefinitionType::CERTIFICATE, cert_data)
+```
+
+### `update_definition`
+
+Replaces an existing definition by spending its UTXO and publishing a new one. The update is two sequential operations (revoke then register) — not atomic. If registration fails after revocation, the old definition will have been removed without replacement.
+
+```ruby
+# Find the definition you want to update
+existing = client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET).first
+
+updated_data = BSV::Registry::BasketDefinitionData.new(
+  basket_id:         existing.definition_data.basket_id,
+  name:              'My Token Collection (v2)',
+  icon_url:          existing.definition_data.icon_url,
+  description:       'Updated description',
+  documentation_url: existing.definition_data.documentation_url
+)
+
+client.update_definition(existing, updated_data)
+# The existing UTXO is spent; a new one is published with the updated data
+```
+
+### `revoke_definition`
+
+Spends the definition UTXO to remove it from overlay lookup responses. Only definitions belonging to the current wallet's identity key can be revoked — `revoke_definition` raises `RuntimeError` if the registry operator pubkey does not match the wallet's identity key.
+
+```ruby
+my_entries = client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET)
+to_revoke  = my_entries.find { |d| d.definition_data.basket_id == 'my-tokens' }
+
+client.revoke_definition(to_revoke)
+# The UTXO is spent; the definition disappears from resolve responses
+```
+
+### `list_own_registry_entries`
+
+Queries the wallet for spendable outputs in the registry basket and returns them as `RegisteredDefinition` objects:
+
+```ruby
+my_baskets = client.list_own_registry_entries(BSV::Registry::DefinitionType::BASKET)
+my_baskets.each { |d| puts d.definition_data.name }
+```
+
+If you are only reading, inject a `resolver:` and pass `wallet: nil` — the constructor accepts it and the typed resolve methods work without a wallet.
 
 ## Edge cases worth knowing
 
