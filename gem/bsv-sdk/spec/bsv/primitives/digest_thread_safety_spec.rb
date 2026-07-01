@@ -84,18 +84,22 @@ RSpec.describe 'BSV::Primitives::Digest thread safety' do
     it 'produces correct output on the call immediately following an exception' do
       call_count = 0
       raise_on = 3
-      original_update = OpenSSL::Digest.instance_method(:update)
 
-      patched = Module.new do
-        define_method(:update) do |data|
-          call_count += 1
-          raise 'injected failure' if call_count == raise_on
+      # Prime the cache with a fresh instance we can attach a singleton method
+      # to.  Patching this specific instance (via define_singleton_method)
+      # scopes the injected failure to just this cached context — no global
+      # OpenSSL::Digest class-wide mutation, no residue for later specs.
+      Thread.current[:bsv_sdk_sha256_digest] = nil
+      digest.sha256('warmup')
+      cached = Thread.current[:bsv_sdk_sha256_digest]
+      original_update = cached.method(:update)
 
-          original_update.bind(self).call(data)
-        end
+      cached.define_singleton_method(:update) do |data|
+        call_count += 1
+        raise 'injected failure' if call_count == raise_on
+
+        original_update.call(data)
       end
-
-      OpenSSL::Digest.prepend(patched)
 
       begin
         (raise_on + 2).times do |i|
@@ -114,9 +118,8 @@ RSpec.describe 'BSV::Primitives::Digest thread safety' do
                             "got #{result.unpack1('H*')}"
         end
       ensure
-        # Clear the cached context so subsequent specs start fresh.
-        # Ruby does not expose Module#unprepend, so resetting the cached
-        # instance is the safest mitigation.
+        # Drop the singleton-patched instance so subsequent specs get a fresh,
+        # unpatched OpenSSL::Digest on the next digest call.
         Thread.current[:bsv_sdk_sha256_digest] = nil
       end
     end

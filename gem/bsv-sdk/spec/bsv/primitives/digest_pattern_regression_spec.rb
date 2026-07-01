@@ -16,7 +16,8 @@ require 'spec_helper'
 # rubocop:disable RSpec/DescribeClass
 RSpec.describe 'OpenSSL::Digest:: bypass regression guard' do
   it 'has no direct OpenSSL::Digest:: calls in lib/ outside primitives/digest.rb' do
-    lib_root = File.expand_path('../../../../../../lib', __dir__)
+    # spec/bsv/primitives → up 3 levels lands in gem/bsv-sdk, then /lib.
+    lib_root = File.expand_path('../../../lib', __dir__)
     digest_rb = File.join(lib_root, 'bsv', 'primitives', 'digest.rb')
 
     offenders = []
