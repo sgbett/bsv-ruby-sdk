@@ -166,6 +166,28 @@ RSpec.describe DocsLint::Symbols do
         )
       end
     end
+
+    context 'with a PascalCase constant alias' do
+      let(:source) do
+        <<~RUBY
+          module BSV
+            module Primitives
+              Secp256k1 = ::Secp256k1
+            end
+          end
+        RUBY
+      end
+
+      it 'registers the alias as a defined constant' do
+        expect(constants).to include('BSV::Primitives::Secp256k1')
+      end
+    end
+  end
+
+  describe 'KNOWN_EXTERNAL companion-gem whitelist' do
+    it 'lists BSV::Wallet::Client (bsv-wallet lives in a separate repo)' do
+      expect(DocsLint::Symbols::KNOWN_EXTERNAL).to include('BSV::Wallet::Client')
+    end
   end
 
   describe '.tokens_on' do

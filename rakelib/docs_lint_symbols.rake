@@ -32,6 +32,14 @@ module DocsLint
     CONSTANT_RE = /BSV(?:::[A-Z][A-Za-z0-9_]*)+/
     IGNORE_COMMENT = '<!-- docs:lint:ignore Symbol -->'
 
+    # Constants that live in companion gems (separate repos) — legitimate to
+    # reference from docs but not resolvable via the local lib tree. Keep this
+    # list small and explicit; wholesale prefix-whitelisting would mask real
+    # drift inside shared namespaces (e.g. BSV::Wallet::ProtoWallet is in-tree).
+    KNOWN_EXTERNAL = Set.new(%w[
+      BSV::Wallet::Client
+    ]).freeze
+
     # Lines that open a new `end`-consuming scope but are not module/class.
     # Kept at module level so the constant is not scoped to the singleton class.
     END_CONSUMING_RE = /
@@ -65,7 +73,9 @@ module DocsLint
           @files_checked += 1
           content.each_line.with_index(1) do |line, lineno|
             tokens_on(line).each do |token|
-              errors << "#{path}:#{lineno}: undefined constant #{token}" unless known.include?(token)
+              next if known.include?(token) || KNOWN_EXTERNAL.include?(token)
+
+              errors << "#{path}:#{lineno}: undefined constant #{token}"
             end
           end
         end
@@ -189,9 +199,10 @@ module DocsLint
           end
 
           # --- Bare constant assignment inside a BSV namespace -----------------
-          # e.g. `ALL_FORK_ID = ALL | FORK_ID` inside `module Sighash`
+          # Covers SCREAMING_SNAKE (`ALL_FORK_ID = ...`) AND PascalCase aliases
+          # (`Secp256k1 = ::Secp256k1`). Both are legitimate constant definitions.
           if ns_stack.first == 'BSV' &&
-             (m = line.match(/\A([A-Z_][A-Z0-9_]*)\s*=(?!=)/)) &&
+             (m = line.match(/\A([A-Z][A-Za-z0-9_]*)\s*=(?!=)/)) &&
              !line.match(/\A(?:class|module|def)\s/)
             full = (ns_stack + [m[1]]).join('::')
             constants << full
