@@ -9,6 +9,13 @@
 #   <!-- docs:lint:ignore Symbol -->
 #
 # Use sparingly; add a prose comment next to the directive explaining why.
+#
+# Companion-gem references (e.g. BSV::Wallet::Client, which lives in the
+# separate bsv-wallet repo) are whitelisted via +.docs-lint.yml+ at the
+# repo root.
+
+require 'prism'
+require 'yaml'
 
 namespace :docs do
   namespace :lint do
@@ -32,31 +39,15 @@ module DocsLint
     CONSTANT_RE = /BSV(?:::[A-Z][A-Za-z0-9_]*)+/
     IGNORE_COMMENT = '<!-- docs:lint:ignore Symbol -->'
 
-    # Constants that live in companion gems (separate repos) — legitimate to
-    # reference from docs but not resolvable via the local lib tree. Keep this
-    # list small and explicit; wholesale prefix-whitelisting would mask real
-    # drift inside shared namespaces (e.g. BSV::Wallet::ProtoWallet is in-tree).
-    KNOWN_EXTERNAL = Set.new(%w[
-      BSV::Wallet::Client
-    ]).freeze
-
-    # Lines that open a new `end`-consuming scope but are not module/class.
-    # Kept at module level so the constant is not scoped to the singleton class.
-    END_CONSUMING_RE = /
-      \A(?:
-        def\s              |  # method definition
-        begin\b            |  # begin…rescue…ensure…end
-        do\b               |  # do…end block literal
-        \w.*\bdo\b\s*(?:\|.*\|)?\s*$ |  # method call with trailing do
-        if\b               |  # if…elsif…else…end
-        unless\b           |  # unless…end
-        while\b            |  # while…end
-        until\b            |  # until…end
-        for\b              |  # for…in…end
-        case\b             |  # case…when…end
-        class\s*<<\s*\w       # singleton class reopening
-      )
-    /x
+    # Companion-gem whitelist, loaded from +.docs-lint.yml+ at repo root.
+    # Contributors edit the YAML file rather than this source when a legitimate
+    # cross-repo constant reference lands in the docs — see that file's header
+    # for the rationale on why this list stays small and explicit.
+    KNOWN_EXTERNAL = begin
+      config_path = File.expand_path('../.docs-lint.yml', __dir__)
+      config = File.exist?(config_path) ? YAML.safe_load_file(config_path) : {}
+      Set.new((config || {})['known_external'] || [])
+    end.freeze
 
     class << self
       attr_reader :files_checked
@@ -138,102 +129,73 @@ module DocsLint
         known
       end
 
-      # Walk a Ruby source file line-by-line, maintaining a namespace stack,
-      # and emit fully-qualified constant names for every module/class/constant
-      # declaration encountered.
+      # Parse a Ruby source file with Prism and emit fully-qualified constant
+      # names for every module, class, and constant declaration inside a BSV
+      # namespace. Prism gives us correct scope tracking for free — no need to
+      # count +end+ keywords by hand.
       #
-      # Tracks `module`/`class` pushes and `def`/`do`/`begin`/`if`/etc. pushes
-      # so that `end` keywords are correctly attributed. Correctly handles:
-      #   - Multi-level qualified names: `module BSV::Transaction` pushes two levels
-      #   - Single-line class declarations: `class Foo; end` — push + immediate pop
-      #   - Constant assignments inside namespaces: `CONST = ...`
-      #   - Qualified top-level assignments: `BSV::Foo::Bar = ...`
-      #
-      # Not a full Ruby parser — but sufficient for the SDK's consistent style.
+      # Handles:
+      #   - Multi-level qualified declarations: +module BSV::Transaction+
+      #   - Nested modules and classes
+      #   - Bare constant assignments (SCREAMING_SNAKE and PascalCase aliases)
+      #   - Qualified top-level assignments: +BSV::Foo::Bar = ...+
       def extract_constants(source)
+        result = Prism.parse(source)
+        return [] if result.failure?
+
         constants = []
-
-        # `ns_stack` is the current namespace path, e.g. ['BSV', 'Transaction'].
-        # `end_stack` is a parallel stack of symbols: `:ns` when a module/class
-        # was pushed, `:block` for every other `end`-consuming construct (def,
-        # do, begin, if, unless, while, until, for, case, rescue, ensure, else,
-        # defined?, proc, lambda).  We only pop `ns_stack` when we see `:ns`.
-        ns_stack  = []
-        end_stack = []
-
-        source.each_line do |raw_line|
-          line = raw_line.strip
-          next if line.empty? || line.start_with?('#')
-
-          # --- Single-line class/module (ends with `; end`) --------------------
-          # e.g. `class Foo < Bar; end` or `class Error < StandardError; end`
-          # Register the constant but do not push to stacks.
-          if (m = line.match(/\A(?:class|module)\s+([A-Z][A-Za-z0-9_:]*)/)) &&
-             line.match(/;\s*end\s*(?:#.*)?$/)
-            parts = m[1].split('::')
-            parts.length.times do |i|
-              slice = (ns_stack + parts)[0, ns_stack.length + i + 1]
-              full  = slice.join('::')
-              constants << full if full.start_with?('BSV::') || full == 'BSV'
-            end
-            next
-          end
-
-          # --- Multi-line class/module ------------------------------------------
-          if (m = line.match(/\A(?:class|module)\s+([A-Z][A-Za-z0-9_:]*)/))
-            parts = m[1].split('::')
-            parts.each { |p| ns_stack << p }
-            parts.length.times do |i|
-              slice = ns_stack[0, ns_stack.length - parts.length + i + 1]
-              full  = slice.join('::')
-              constants << full if full.start_with?('BSV::') || full == 'BSV'
-            end
-            end_stack << [:ns, parts.length]
-            next
-          end
-
-          # --- Qualified top-level constant assignment: BSV::Foo::Bar = ... ----
-          if (m = line.match(/\A(BSV(?:::[A-Z][A-Za-z0-9_]*)+)\s*=(?!=)/))
-            constants << m[1]
-            # No `end` will follow, so skip push
-          end
-
-          # --- Bare constant assignment inside a BSV namespace -----------------
-          # Covers SCREAMING_SNAKE (`ALL_FORK_ID = ...`) AND PascalCase aliases
-          # (`Secp256k1 = ::Secp256k1`). Both are legitimate constant definitions.
-          if ns_stack.first == 'BSV' &&
-             (m = line.match(/\A([A-Z][A-Za-z0-9_]*)\s*=(?!=)/)) &&
-             !line.match(/\A(?:class|module|def)\s/)
-            full = (ns_stack + [m[1]]).join('::')
-            constants << full
-          end
-
-          # --- def / do-block / begin / if / case etc. push a :block entry ----
-          # These consume an `end` but don't alter the namespace.
-          if end_consuming?(line)
-            end_stack << [:block, 1]
-            next
-          end
-
-          # --- `end` pops the most recent entry --------------------------------
-          next unless line == 'end' || line.start_with?('end ') || line.start_with?('end#')
-          next unless end_stack.any?
-
-          kind, count = end_stack.pop
-          count.times { ns_stack.pop } if kind == :ns
-          # :block entries just consume the `end`
-        end
-
+        walk_ast(result.value, [], constants)
         constants
       end
 
-      def end_consuming?(line)
-        return false if line.match(/\A(?:class|module)\s/) # already handled
+      # AST traversal. +ns_stack+ is the enclosing namespace path from the file
+      # root, e.g. +['BSV', 'Transaction']+ inside +module BSV; module Transaction+.
+      def walk_ast(node, ns_stack, constants)
+        return if node.nil?
 
-        # Single-line forms don't consume an end at block level
-        return false if line.match(/;\s*end\s*(?:#.*)?$/)
+        case node
+        when Prism::ModuleNode, Prism::ClassNode
+          parts = flatten_constant_path(node.constant_path)
+          # For +module BSV::Foo::Bar+ (with ns_stack=[]) emit each ancestor:
+          # +BSV+, +BSV::Foo+, +BSV::Foo::Bar+.
+          parts.each_index do |i|
+            full = (ns_stack + parts[0..i]).join('::')
+            constants << full if bsv_scoped?(full)
+          end
+          walk_ast(node.body, ns_stack + parts, constants)
 
-        line.match?(END_CONSUMING_RE)
+        when Prism::ConstantWriteNode
+          # +CONST = ...+ — the parser only emits this when the LHS is a bare
+          # constant, so no path flattening needed. Only emit inside a BSV::
+          # namespace; a bare top-level constant assignment isn't in scope.
+          constants << (ns_stack + [node.name.to_s]).join('::') if ns_stack.first == 'BSV'
+
+        when Prism::ConstantPathWriteNode
+          # +BSV::Foo::Bar = ...+ regardless of enclosing scope.
+          full = flatten_constant_path(node.target).join('::')
+          constants << full if bsv_scoped?(full)
+
+        else
+          node.child_nodes.compact.each { |child| walk_ast(child, ns_stack, constants) }
+        end
+      end
+
+      # Reduce a ConstantPathNode / ConstantReadNode chain to an array of
+      # simple name strings, dropping any leading +::+ (absolute reference).
+      def flatten_constant_path(node)
+        case node
+        when Prism::ConstantReadNode
+          [node.name.to_s]
+        when Prism::ConstantPathNode
+          parent = node.parent ? flatten_constant_path(node.parent) : []
+          parent + [node.name.to_s]
+        else
+          []
+        end
+      end
+
+      def bsv_scoped?(full)
+        full == 'BSV' || full.start_with?('BSV::')
       end
     end
   end

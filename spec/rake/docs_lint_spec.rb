@@ -8,22 +8,24 @@
 
 require 'tmpdir'
 require 'fileutils'
+require 'rake'
 
-# Load the three rakelib files.  They define Rake tasks (which we don't need
-# to run) as well as the DocsLint::* modules (which we test directly).  We
-# stub the Rake DSL methods so the files load cleanly outside a Rake context.
-module Rake
-  def self.application = self
-end
-
-def namespace(_name, &block) = block.call
-def desc(_str); end
-def task(*args, &); end
+# Load the three rakelib files under real Rake DSL — the same mechanism the
+# Rake CLI uses to load Rakefiles. The previous approach stubbed
+# +namespace+/+desc+/+task+ as no-op top-level methods, which persisted for the
+# whole spec run and could interfere with any Rake-aware code loaded later.
+#
+# Extending +main+ with +Rake::DSL+ mirrors what +Rake::Application+ does when
+# it loads a Rakefile; the tasks register against a scratch Rake::Application
+# that these specs never run, and the DocsLint::* module definitions land at
+# their normal top-level constants for the specs to use.
+Rake.application = Rake::Application.new
+TOPLEVEL_BINDING.receiver.extend(Rake::DSL)
 
 RAKELIB = File.expand_path('../../rakelib', __dir__)
-load File.join(RAKELIB, 'docs_lint_symbols.rake')
-load File.join(RAKELIB, 'docs_lint_kwargs.rake')
-load File.join(RAKELIB, 'docs_lint_syntax.rake')
+%w[docs_lint_symbols docs_lint_kwargs docs_lint_syntax].each do |name|
+  load File.join(RAKELIB, "#{name}.rake")
+end
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -185,8 +187,12 @@ RSpec.describe DocsLint::Symbols do
   end
 
   describe 'KNOWN_EXTERNAL companion-gem whitelist' do
-    it 'lists BSV::Wallet::Client (bsv-wallet lives in a separate repo)' do
+    it 'loads BSV::Wallet::Client from .docs-lint.yml' do
       expect(DocsLint::Symbols::KNOWN_EXTERNAL).to include('BSV::Wallet::Client')
+    end
+
+    it 'is a frozen Set' do
+      expect(DocsLint::Symbols::KNOWN_EXTERNAL).to be_a(Set).and be_frozen
     end
   end
 
