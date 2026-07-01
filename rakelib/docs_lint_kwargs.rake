@@ -253,7 +253,16 @@ module DocsLint
       def kwargs_from_def(def_node)
         params = def_node.parameters
         return [] if params.nil?
-        return :accepts_any if params.rest || params.keyword_rest
+
+        # +*args+ alone doesn't accept unknown kwargs in Ruby 3+ (only +**opts+
+        # or +...+ does). Ignore +params.rest+ here — treating it as accepts-any
+        # would silently skip kwarg validation for classes with positional-only
+        # signatures. +**nil+ (+NoKeywordsParameterNode+) is explicit rejection,
+        # so it also falls through to the empty-kwargs path.
+        case params.keyword_rest
+        when Prism::KeywordRestParameterNode, Prism::ForwardingParameterNode
+          return :accepts_any
+        end
 
         (params.keywords || []).map { |kw| kw.name.to_s.chomp(':') }
       end

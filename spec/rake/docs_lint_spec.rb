@@ -484,12 +484,18 @@ RSpec.describe DocsLint::Syntax do
     end
 
     context 'with invalid Ruby syntax' do
-      it 'returns an error string with the file and line' do
+      it 'returns an error string with the file and the absolute error line' do
         result = described_class.send(:compile_block, 'docs/sdk/tx.md', 20,
                                       "def foo(\n  # unclosed paren\n")
         expect(result).to be_a(String)
-        expect(result).to start_with('docs/sdk/tx.md:20:')
         expect(result).to include('Ruby syntax error')
+        # Prefix is +path:absolute_line:+ — absolute line = block_start_line
+        # + (relative line - 1), which for an unclosed paren lands at or after
+        # +block_start_line+ (20). Assert the *shape* rather than a specific
+        # offset, since Ruby's exact error-reporting line varies by version.
+        expect(result).to match(%r{\Adocs/sdk/tx\.md:(\d+): Ruby syntax error:})
+        line = result[%r{\Adocs/sdk/tx\.md:(\d+):}, 1].to_i
+        expect(line).to be >= 20
       end
     end
 

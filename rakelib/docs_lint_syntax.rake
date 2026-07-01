@@ -112,14 +112,21 @@ module DocsLint
           RubyVM::InstructionSequence.compile(block_body)
           nil
         rescue SyntaxError => e
-          # RubyVM reports lines relative to the block; add the file offset.
-          # Block form so +Regexp.last_match+ sees this match, not a stale prior one.
+          # RubyVM tags the location either +(eval):N+ (Ruby 3.3) or
+          # +<compiled>:N+ (Ruby 3.4+); the number is 1-based relative to the
+          # block's first line. Compute the absolute file line so the
+          # +path:line:+ prefix jumps to the actual error, not the fence.
+          rel = e.message[/(?:\(eval\)|<compiled>):(\d+):/, 1].to_i
+          absolute_line = rel.zero? ? block_start_line : block_start_line + rel - 1
+
+          # Strip the caret lines and the leading location tag from the body;
+          # the prefix already carries the file:line.
           msg = e.message
-                 .sub(/\(eval\):(\d+):/) { "(eval):#{block_start_line + ::Regexp.last_match(1).to_i - 1}:" }
-                 .gsub(/^.*\(eval\):\d+:.*\n/, '') # strip caret lines
+                 .gsub(/^.*(?:\(eval\)|<compiled>):\d+:.*\n/, '')
+                 .sub(/\A(?:\(eval\)|<compiled>):\d+:\s*/, '')
                  .lines.first.to_s.strip
 
-          "#{path}:#{block_start_line}: Ruby syntax error: #{msg}"
+          "#{path}:#{absolute_line}: Ruby syntax error: #{msg}"
         ensure
           $VERBOSE = verbose_was
         end
