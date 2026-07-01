@@ -96,9 +96,12 @@ puts response.status  # => 200 if payment succeeded, 402 if max retries exhauste
 
 ### Session caching
 
-`SessionManager` caches authenticated sessions per base URL. The default TTL is **3,600 seconds**
-(one hour). Pass `nil` to disable expiry entirely — suitable for long-running daemons that
-connect to a fixed set of servers.
+Caching happens at two layers. `AuthFetch` caches a `Peer` instance per base URL — subsequent
+requests to the same host reuse the mutual-auth handshake. Each `Peer` in turn holds a
+`SessionManager` that stores authenticated sessions dual-indexed by session nonce and peer
+identity key (supporting multiple concurrent sessions per peer). The default session TTL is
+**3,600 seconds** (one hour). Pass `nil` to disable expiry entirely — suitable for long-running
+daemons that connect to a fixed set of servers.
 
 ```ruby
 # No expiry
@@ -111,9 +114,7 @@ client_a = BSV::Auth::AuthFetch.new(wallet: wallet, session_manager: session_mgr
 client_b = BSV::Auth::AuthFetch.new(wallet: wallet, session_manager: session_mgr)
 ```
 
-The `SessionManager` is dual-indexed (by session nonce and by peer identity key) and supports
-multiple concurrent sessions per peer. Call `session_mgr.sweep_expired` periodically in
-long-running servers to reclaim memory.
+Call `session_mgr.sweep_expired` periodically in long-running servers to reclaim memory.
 
 ### Thread safety
 

@@ -61,13 +61,13 @@ The server reads configuration from environment variables at startup:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BSV_NETWORK` | `main` | Network: `main` or `test` |
+| `BSV_NETWORK` | `mainnet` | Network: `mainnet` or `testnet` (unknown values warn + fall back to `mainnet`) |
 | `BSV_ARC_URL` | GorillaPool Arcade | Custom ARC endpoint URL |
 | `BSV_ARC_API_KEY` | *(none)* | ARC API key for authenticated access |
 
 ### Testnet
 
-Set `BSV_NETWORK=test` to target testnet for all network operations:
+Set `BSV_NETWORK=testnet` to target testnet for all network operations:
 
 ```json
 {
@@ -77,7 +77,7 @@ Set `BSV_NETWORK=test` to target testnet for all network operations:
       "args": ["exec", "bsv-mcp"],
       "cwd": "/path/to/your/project",
       "env": {
-        "BSV_NETWORK": "test"
+        "BSV_NETWORK": "testnet"
       }
     }
   }

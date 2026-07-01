@@ -372,7 +372,9 @@ Merkle paths (BUMPs) prove transaction inclusion in a block. A `MerklePath` stor
 
 ```ruby
 mp = BSV::Transaction::MerklePath.from_hex(bump_hex)
-mp = BSV::Transaction::MerklePath.from_binary(raw_bytes).first  # returns [path, bytes_consumed]
+
+# from_binary returns [merkle_path, bytes_consumed]; take the first element for just the path.
+mp = BSV::Transaction::MerklePath.from_binary(raw_bytes).first
 
 mp.block_height  # Integer — the block height
 mp.path          # Array<Array<PathElement>> — tree levels; level 0 holds the leaf(es)
