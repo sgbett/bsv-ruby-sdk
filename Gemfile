@@ -17,6 +17,7 @@ group :development, :test do
   gem 'yard'
   gem 'yard-markdown'
 
+  gem 'benchmark-ips'
   gem 'prime'
   gem 'rack'
 end
