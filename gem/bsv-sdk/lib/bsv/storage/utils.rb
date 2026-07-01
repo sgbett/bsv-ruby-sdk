@@ -38,7 +38,7 @@ module BSV
       # @param data [String] binary file content
       # @return [String] Base58Check-encoded UHRP URL
       def get_url_for_file(data)
-        hash = OpenSSL::Digest::SHA256.digest(data.b)
+        hash = BSV::Primitives::Digest.sha256(data.b)
         get_url_for_hash(hash)
       end
 
