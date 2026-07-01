@@ -229,8 +229,11 @@ class FixedTracker < BSV::Transaction::ChainTracker
 end
 
 tracker = FixedTracker.new(800_000 => 'abcd1234...')
-mp.verify('txid_hex...', tracker)
+tracker.current_height                                   #=> 800_000
+tracker.valid_root_for_height?('abcd1234...', 800_000)   #=> true
 ```
+
+A ChainTracker satisfying that interface can then be passed to `MerklePath#verify` (see [Merkle Paths](#merkle-paths) below) or any other consumer that needs SPV root verification.
 
 Any object responding to `valid_root_for_height?` and `current_height` satisfies the interface — inheriting from `Transaction::ChainTracker` is optional.
 

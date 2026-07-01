@@ -259,9 +259,10 @@ locking_script = template.lock(
 locking_script.pushdrop?  #=> true
 ```
 
-When `include_signature: true` (the default), an ECDSA signature over the concatenation of all fields is appended as a final field. This authenticates the token at creation time using the same derived key.
+When `include_signature: true` (the default), an ECDSA signature over the concatenation of all fields is appended as a final field. What this signature *proves* depends on the counterparty:
 
-When `counterparty: 'anyone'` is used, the locking key is the secp256k1 generator point (PrivateKey(1)), meaning the output is publicly spendable by any party. This is by design for overlay tokens where public revocability is intended.
+- **`counterparty: 'self'` or a specific hex pubkey** — the signing key is derived from the wallet's identity via BRC-42, so a verifier who knows the wallet's identity key can confirm the token came from that wallet. This is the case where the signature meaningfully authenticates the token.
+- **`counterparty: 'anyone'`** — the locking *and* signing key are both derived from `PrivateKey(1)` (the secp256k1 generator point, publicly known). Anyone can produce a valid signature, and anyone can spend the output. Treat the signature as ceremonial in this mode, not as evidence of provenance. This is by design for overlay tokens where public revocability is intended.
 
 ### Unlocking
 
