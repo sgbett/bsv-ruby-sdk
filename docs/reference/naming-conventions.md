@@ -99,6 +99,9 @@ BSV::Transaction::Tx.new                  # empty transaction
 TypeScript APIs commonly pass a single options object. Ruby uses keyword arguments directly. Every option becomes a keyword, with the same names (in snake_case).
 
 ```ruby
+# illustrative — the TS block is not valid Ruby; the Ruby block uses `[...]`
+# ellipsis placeholders. Compare the shape of the two calls, not the literal syntax.
+
 # TS:
 wallet.createAction({
   description: 'Payment',
