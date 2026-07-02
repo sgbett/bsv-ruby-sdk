@@ -60,8 +60,14 @@ BSV::Primitives::Digest.define_singleton_method(:sha256d) do |data|
   call_counter += 1
   original_sha256d.call(data)
 end
-10.times { |i| tx_probe.sighash(i, BSV::Transaction::Sighash::ALL_FORK_ID) }
-BSV::Primitives::Digest.define_singleton_method(:sha256d, original_sha256d)
+begin
+  10.times { |i| tx_probe.sighash(i, BSV::Transaction::Sighash::ALL_FORK_ID) }
+ensure
+  # Always restore — otherwise the counting singleton would linger and add
+  # per-call dispatch overhead to every subsequent benchmark iteration,
+  # skewing the cold/warm measurement.
+  BSV::Primitives::Digest.define_singleton_method(:sha256d, original_sha256d)
+end
 
 puts "Ruby #{RUBY_VERSION} | OpenSSL #{OpenSSL::VERSION} (#{OpenSSL::OPENSSL_VERSION})"
 puts 'Tx: 10 inputs × 10 outputs | sighash ALL|FORKID for all 10 inputs'
@@ -69,9 +75,11 @@ puts "sha256d call count per full sign round: #{call_counter} (expected 13 with 
 puts '(pre-#881 baseline was ~30; #882 reduces per-call cost of each)'
 puts
 
-# Build a fresh tx for benchmarking (cache starts empty each time we rebuild
-# for the cold path; the tx's own memoised component hashes are preserved
-# across iterations so only per-input preimage hashes recur per iteration).
+# Build a single tx once so we don't pay tx-construction cost per iteration.
+# Each iteration calls bench_tx.invalidate_caches below, so both cold and
+# warm branches consistently exercise all 13 sha256d calls per round; the
+# only variable between them is whether the per-thread OpenSSL::Digest
+# context is present.
 bench_tx = build_bench_tx
 
 # Warm the memoisation cache and the digest context cache.
