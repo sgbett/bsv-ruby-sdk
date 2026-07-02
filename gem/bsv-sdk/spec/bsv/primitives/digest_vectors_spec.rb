@@ -58,6 +58,20 @@ RSpec.describe BSV::Primitives::Digest do
   end
 
   # ---------------------------------------------------------------------------
+  # SHA-256 long-message vector — NIST FIPS 180-4 §B.3
+  # 1 000 000 repetitions of 'a' (spans thousands of compression rounds).
+  # Verifies that context reuse does not corrupt midstream state across block
+  # boundaries.
+  # ---------------------------------------------------------------------------
+  describe '.sha256 (NIST 1M-"a" long-message vector)', :slow do
+    it 'computes the correct hash for 1 000 000 "a" characters' do
+      # NIST FIPS 180-4, Appendix B.3
+      result = described_class.sha256('a' * 1_000_000)
+      expect(result.unpack1('H*')).to eq('cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0')
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # SHA-1 — NIST FIPS 180-4
   # ---------------------------------------------------------------------------
   describe '.sha1 (NIST vectors)' do

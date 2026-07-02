@@ -145,7 +145,7 @@ module BSV
         body = response.body.to_s
         return nil if body.empty?
 
-        actual_hash = OpenSSL::Digest::SHA256.digest(body)
+        actual_hash = BSV::Primitives::Digest.sha256(body)
         return nil unless actual_hash == expected_hash
 
         DownloadResult.new(data: body, mime_type: response['Content-Type'])

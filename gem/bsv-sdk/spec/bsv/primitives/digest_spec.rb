@@ -12,6 +12,11 @@ RSpec.describe BSV::Primitives::Digest do
     it 'returns ASCII-8BIT encoded binary' do
       expect(described_class.sha256('test').encoding).to eq(Encoding::ASCII_8BIT)
     end
+
+    it 'returns a new String object on every call (output buffers are not cached)' do
+      x = 'test'
+      expect(described_class.sha256(x).equal?(described_class.sha256(x))).to be(false)
+    end
   end
 
   describe '.sha256d' do
@@ -19,6 +24,40 @@ RSpec.describe BSV::Primitives::Digest do
       result = described_class.sha256d('abc')
       single = described_class.sha256('abc')
       expect(result).to eq(described_class.sha256(single))
+    end
+
+    it 'returns ASCII-8BIT encoded binary' do
+      expect(described_class.sha256d('test').encoding).to eq(Encoding::ASCII_8BIT)
+    end
+
+    # Property test — catches silent second-reset omission in the inlined chain.
+    #
+    # Each input is hashed via the module (which uses the cached context path),
+    # then verified against a *freshly-allocated* OpenSSL::Digest::SHA256
+    # (which bypasses the cache entirely).  The lengths span SHA-256 block
+    # boundaries: 0, 1, 55, 56, 63, 64, 65, 1024, and 1_000_000 bytes.
+    it 'produces bit-identical output to a freshly-allocated double-SHA-256 for 100 random inputs' do
+      lengths = [0, 1, 55, 56, 63, 64, 65, 1024, 1_000_000]
+      rng = Random.new(0x42)
+
+      lengths.each do |len|
+        10.times do
+          input = rng.bytes(len)
+
+          # Fresh-allocation reference path — bypasses the module's cached context.
+          fresh = OpenSSL::Digest.new('SHA256')
+          fresh.update(input)
+          round1 = fresh.digest
+          fresh.reset
+          fresh.update(round1)
+          expected = fresh.digest
+
+          cached = described_class.sha256d(input)
+
+          expect(cached).to eq(expected),
+                            "sha256d mismatch for #{len}-byte input (first 8 bytes: #{input.bytes.first(8).inspect})"
+        end
+      end
     end
   end
 
@@ -40,6 +79,10 @@ RSpec.describe BSV::Primitives::Digest do
       expected = 'ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a' \
                  '2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f'
       expect(result.unpack1('H*')).to eq(expected)
+    end
+
+    it 'returns ASCII-8BIT encoded binary' do
+      expect(described_class.sha512('test').encoding).to eq(Encoding::ASCII_8BIT)
     end
   end
 

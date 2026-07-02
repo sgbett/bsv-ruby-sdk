@@ -96,6 +96,7 @@ Metrics/AbcSize:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'gem/*/bench/**/*'
     - 'rakelib/**/*'
     - 'spec/rake/**/*'
 
@@ -104,6 +105,7 @@ Metrics/MethodLength:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'gem/*/bench/**/*'
     - 'rakelib/**/*'
     - 'spec/rake/**/*'
 
@@ -112,6 +114,7 @@ Metrics/CyclomaticComplexity:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'gem/*/bench/**/*'
     - 'rakelib/**/*'
 
 Metrics/PerceivedComplexity:
@@ -119,6 +122,7 @@ Metrics/PerceivedComplexity:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'gem/*/bench/**/*'
     - 'rakelib/**/*'
 
 Metrics/ModuleLength:
