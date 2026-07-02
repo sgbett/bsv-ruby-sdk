@@ -4,97 +4,148 @@ nav_order: 7
 parent: Reference
 ---
 
-# Verify Cache Seed (`verified:` kwarg)
+# Bidirectional Verify Cache (`verified:` kwarg)
 
 `Transaction::Tx#verify` accepts an optional `verified:` keyword argument — a
-`Set` of 32-byte binary wire-order wtxids that the caller asserts are already
-verified. When a non-merkle-proven ancestor appears in this set, its subtree is
-skipped; the caller warrants its script validity.
+`Hash` mapping 32-byte binary wire-order wtxids to `true`. It is a bidirectional
+dedup surface: the caller can pre-seed it to short-circuit ancestor walks, and
+the SDK writes into it as it walks so the caller can read the accumulated wtxid
+set afterwards.
 
-This is a **novel Ruby-side seam**. The TypeScript, Go, and Python reference SDKs
-repeat the full walk on every `verify` call. This kwarg exists for wallet-side
-persistent-cache short-circuit (see `bsv-wallet` HLR #516).
+The `Hash` is mutated in place — the caller's object identity is preserved.
+Passing `nil` (the default) tells the SDK to use an internal `Hash` the caller
+cannot access.
 
-## What it is
+This is a **novel Ruby-side seam**. The TypeScript, Go, and Python reference
+SDKs repeat the full walk on every `verify` call. It exists for wallet-side
+persistent-cache scenarios (see `bsv-wallet` HLR #516).
 
-A wallet that has already verified an ancestor transaction chain in a prior session
-can pre-seed the in-call dedup set. The SDK skips enqueueing those ancestors'
-subtrees, reducing redundant script executions to zero for the seeded portion of
-the graph.
+## Three usage patterns
+
+### 1. Pre-seed (short-circuit)
+
+Skip already-verified ancestors:
 
 ```ruby
-# wallet has already verified source_tx in a prior session
-cache = Set.new([source_tx.wtxid])
+# Wallet has already verified source_tx in a prior session.
+cache = { source_tx.wtxid => true }
 tx.verify(chain_tracker: tracker, verified: cache)
+```
+
+### 2. Post-read (accumulate)
+
+Read the walked wtxids into a wallet-side persistent verification cache:
+
+```ruby
+walked = {}
+tx.verify(chain_tracker: tracker, verified: walked)
+walked.keys # => [subject_wtxid, ancestor1_wtxid, ...]
+persistent_cache.store(walked.keys)
+```
+
+### 3. Bidirectional round-trip
+
+Load a persistent cache, use it to short-circuit, and store the updated cache
+back:
+
+```ruby
+cache = load_persistent_verified_cache
+tx.verify(chain_tracker: tracker, verified: cache)
+save_persistent_verified_cache(cache) # includes newly-walked wtxids
 ```
 
 ## Walk order {#walk-order}
 
-The walk processes each queued transaction in this strict order:
+The walk processes each queued transaction in this order:
 
 | Step | Action | Bypassed by seed? |
 |------|--------|-------------------|
-| 1 | Skip if already `visited` (in-call dedup) | n/a — precedes seed check |
-| 2 | If `merkle_path` present → verify against chain tracker | **No** — defence-in-depth |
-| 3 | If root transaction + `fee_model` given → validate fee | **No** — caller-passed policy |
-| 4 | If wtxid is in seed → mark visited, skip subtree | Yes (this is the short-circuit) |
-| 5 | Full input script verification (interpreter) | Yes — bypassed when seed short-circuits at step 4 |
-| 6 | Output ≤ input satoshi check | Yes — bypassed when seed short-circuits at step 4 |
-| 7 | Mark visited | Reached only when 4 didn't hit |
+| 0 | (before the loop) If `fee_model` given → validate root fee | **No** — fee is a caller-passed policy, not a cached script-validity claim |
+| 1 | Skip if `verified[wtxid]` is truthy (top-of-loop dedup) | Yes — seeded and walked entries both hit here |
+| 2 | If `merkle_path` present → verify against chain tracker | Yes — seeded wtxid short-circuits at step 1 before this runs |
+| 3 | Verify each input script through the interpreter | Yes — seeded wtxid short-circuits at step 1 before this runs |
+| 4 | Output ≤ input satoshi check | Yes — seeded wtxid short-circuits at step 1 before this runs |
+| 5 | Mark `verified[wtxid] = true` | Reached only when step 1 didn't hit (walked live) |
 
-A seeded subject transaction skips **all of steps 5, 6, and 7** — the caller's warrant covers the full script + output-constraint claim, not just input verification. The subject's own `merkle_path` (if any) and `fee_model` gate still run because they precede the seed check.
+**Trust contract.** A seeded wtxid short-circuits everything after step 0 —
+including the merkle proof. The caller warrants full trust: script validity
+AND chain-anchor claim. This is the intentional consequence of the single-Hash
+presence-only design (see [Format contract](#format-contract)).
 
-**Strict merkle ordering rationale:** a stale seed cannot mask a bad chain-anchor
-claim. A transaction with a `merkle_path` always has its proof verified against the
-chain tracker, regardless of whether its wtxid appears in the seed.
-
-**Fee gate ordering rationale:** `fee_model` is a caller-passed policy, not a
-cached claim about script validity. It runs before the seed short-circuit so a
-wallet cannot accidentally disable fee validation by pre-seeding the subject
-transaction's wtxid.
+**Fee gate ordering rationale.** Fee validation is a caller-passed policy — it
+lives outside the "already verified" claim the seed makes. If you pass a
+`fee_model`, it runs once at the start of the call, regardless of what's in the
+Hash. A wallet cannot accidentally disable fee validation by pre-seeding the
+subject transaction's wtxid.
 
 ## Format contract {#format-contract}
 
-- Elements must be **32-byte binary strings** (wire-order wtxid, `String#encoding`
-  must be `ASCII-8BIT`), not hex strings.
-- **Encoding matters for `Set` membership.** `Set#include?` uses `String#hash` +
-  `#eql?`, which are encoding-sensitive for high-bit bytes. A wtxid re-encoded as
-  UTF-8 (e.g. via JSON round-trip, or accidental string interpolation into a
-  UTF-8 buffer) will silently miss the seed and cause a full walk. Persist wtxids
-  as ASCII-8BIT throughout.
-- Use `BSV::Transaction::TransactionInput.wtxid_from_hex(dtxid_hex)` to convert a
-  display-order hex txid to a wire-order binary wtxid.
-- The SDK validates the first element of a non-empty set at entry via
-  `BSV::Primitives::Hex.validate_wtxid!` (O(1) sanity check) and raises
-  `ArgumentError` with a `"looks like a hex txid — use wtxid_from_hex to convert"`
-  hint if the first element looks like hex. Malformed elements *after* the first
-  cause silent seed-misses rather than errors — they degrade safely to full-walk.
-- Passing a non-`Set` value (e.g. an `Array`) raises `ArgumentError`.
+- **Keys** — 32-byte binary wire-order wtxids. `String#encoding` must be
+  `ASCII-8BIT`.
+- **Values** — any truthy value counts as "already verified". The SDK writes
+  `true`. `nil` or `false` values are treated as absent (the walk will visit
+  those wtxids normally).
+
+### Encoding foot-gun
+
+`Hash#[]` uses `String#hash` + `String#eql?`, which are encoding-sensitive for
+strings containing high-bit bytes. A wtxid re-encoded as UTF-8 (via JSON
+round-trip, or accidental string interpolation into a UTF-8 buffer) will
+silently miss the cache and cause a full walk. Persist wtxids as `ASCII-8BIT`
+throughout.
+
+### Converting a display-order hex txid
+
+If you have a display-order hex txid string (from a block explorer, an ARC
+response, etc.) rather than a wire-order binary wtxid, use:
 
 ```ruby
-# Wrong — hex string raises ArgumentError with a helpful hint
-Set.new([source_tx.txid_hex])  # 64-char hex
-
-# Correct — 32-byte binary wire-order wtxid
-Set.new([source_tx.wtxid])
+wtxid = BSV::Transaction::TransactionInput.wtxid_from_hex(hex_txid)
 ```
+
+The SDK does not validate individual Hash keys — malformed keys degrade safely
+to seed-misses (the wtxid won't match anything in the walk).
+
+### Type validation
+
+Passing a non-`Hash` value (e.g. an `Array` or a `Set`) raises `ArgumentError`.
+`Set` is explicitly rejected — an earlier iteration of this feature accepted
+`Set`, but the bidirectional shape requires the caller to be able to read
+values back, so `Hash` is now the only accepted collection type.
 
 ## Caller responsibilities {#caller-responsibilities}
 
 - **Correctness.** The SDK cannot verify that a seeded wtxid actually passed
-  script validation. If the cache is wrong, `verify` returns `true` for a subtree
-  that has not actually been verified. The network is the backstop — ARC and miners
-  will reject a broadcast whose inputs are invalid — but the wallet will have
-  returned `true` in the interim.
-- **Staleness invalidation.** If a transaction's script validity status changes
-  (e.g. due to a chain reorganisation), remove its wtxid from the cache before
-  calling `verify`.
-- **Consensus-flag invalidation.** Cached wtxids are pinned to the consensus flags
-  under which they were originally verified. Invalidate the cache when consensus
-  flags change (rare on BSV mainnet, but worth noting).
-- **Thread-safety.** Do not mutate the `Set` on another thread while `verify` is
-  running. The SDK freezes the set on entry (idempotent — already-frozen sets are
-  accepted) to catch accidental in-call mutation, but concurrent mutation from
-  outside the call is not prevented.
-- **No merkle bypass.** You cannot use the seed to bypass merkle-proof verification.
-  If a transaction has a `merkle_path`, the proof is always verified.
+  script validation or has a real chain anchor. If the cache is wrong,
+  `verify` returns `true` for a subtree that has not actually been verified.
+  The network is the backstop — ARC and miners will reject a broadcast whose
+  inputs are invalid — but the wallet may have committed to downstream state
+  (returning `true` to a UI, marking a UTXO spendable) in the interim.
+
+- **Staleness invalidation.** If a transaction's script validity or chain
+  anchor could have changed (chain reorganisation, consensus flag update),
+  remove its wtxid from the cache before calling `verify`. The seed treats the
+  wtxid as fully trusted — merkle proofs are not re-verified for seeded
+  entries.
+
+- **Consensus-flag invalidation.** Cached wtxids are pinned to the consensus
+  flags under which they were originally verified. Invalidate the cache when
+  consensus flags change.
+
+- **Thread-safety.** Do not mutate the `Hash` from another thread while
+  `verify` is running. The SDK does **not** freeze the caller's Hash (it needs
+  to write to it) and does not defend against concurrent mutation.
+
+- **No isolated reads.** If `verified:` is `nil` (or omitted), the SDK uses an
+  internal Hash the caller cannot access — you get no post-read. Pass an
+  empty Hash if you want the SDK to accumulate walked wtxids you can read.
+
+## Compatibility
+
+- Backwards-compatible with the default `verified: nil` — every existing caller
+  path is byte-identical to the pre-kwarg behaviour.
+
+- **Not** backwards-compatible with an intermediate design that accepted `Set`
+  (present in PR #912 before the amendment). If you tracked this at that
+  stage, migrate: `Set.new(cache.keys)` → `cache` (drop the Set wrap; hand the
+  Hash directly).
