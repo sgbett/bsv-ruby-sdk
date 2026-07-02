@@ -997,7 +997,10 @@ module BSV
       #
       # @param seed_arg [Set<String>, nil]
       # @return [Set<String>, nil] the frozen set (same object), or nil
-      # @raise [ArgumentError] if +seed_arg+ is not nil or a Set, or contains a non-32-byte element
+      # @raise [ArgumentError] if +seed_arg+ is not nil or a Set, or if the Set's
+      #   first element is not a valid 32-byte binary wtxid (O(1) sanity check —
+      #   other malformed elements degrade to seed-misses at lookup time rather
+      #   than raising)
       def normalise_verified(seed_arg)
         return nil if seed_arg.nil?
 
