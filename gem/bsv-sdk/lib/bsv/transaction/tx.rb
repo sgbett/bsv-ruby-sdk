@@ -747,37 +747,66 @@ module BSV
       # - +:output_overflow+ — Ruby raises; TS/Python return +false+; Go omits the check
       # - +:script_failure+ — Ruby raises; TS/Python return +false+; Go also propagates errors
       # - +:missing_source+ — Ruby raises; consistent with TS/Go/Python (all raise/error)
+      # - +verified:+ kwarg — Ruby-only; no equivalent seam exists in the TS, Go, or Python SDKs.
+      #   This is a novel Ruby-side extension designed for wallet-side persistent-cache short-circuit
+      #   (see {file:docs/reference/verify-kwarg.md}). The reference SDKs repeat the full walk every
+      #   time +verify+ is called.
       #
       # @param chain_tracker [Transaction::ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
+      # @param verified [Set<String>, nil] optional pre-seeded set of 32-byte wire-order wtxids
+      #   (binary, not hex) that the caller asserts are already verified. When a non-merkle-proven
+      #   ancestor's wtxid appears in this set, its subtree is skipped — the caller warrants its
+      #   script validity. Merkle proofs still run regardless of this set (defence-in-depth).
+      #   The fee gate on the root transaction also runs regardless of this set.
+      #   Must be +nil+ or a +Set+ of 32-byte binary strings; anything else raises +ArgumentError+.
+      #   The set is frozen on entry — the caller's object is preserved (same +object_id+).
       # @return [true] on successful verification
+      # @raise [ArgumentError] if +verified:+ is not +nil+ or a +Set+, or if it contains a
+      #   non-32-byte element
       # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
       # @raise [VerificationError] with code +:insufficient_fee+ if the fee is below the model's threshold
       # @raise [VerificationError] with code +:output_overflow+ if outputs exceed inputs
       # @raise [VerificationError] with code +:script_failure+ if script execution fails
       # @raise [VerificationError] with code +:missing_source+ if an input is missing required source data
-      def verify(chain_tracker:, fee_model: nil)
-        verified = {}
+      # @note Security: caller warrants script validity for all wtxids in +verified:+. A stale or
+      #   incorrect seed will cause +verify+ to return +true+ for ancestry that has not actually been
+      #   verified. Merkle proofs and the fee gate are not affected by this set.
+      #   Invalidate the caller's cache whenever consensus flags change.
+      # @example Wallet-cache short-circuit
+      #   # wallet has already verified source_tx in a prior session
+      #   cache = Set.new([source_tx.wtxid])
+      #   tx.verify(chain_tracker: tracker, verified: cache)
+      # @since 0.11.0
+      def verify(chain_tracker:, fee_model: nil, verified: nil)
+        seed = normalise_verified(verified)
+        visited = {}
         queue = [self]
 
         until queue.empty?
           tx = queue.shift
           wtxid = tx.wtxid
-          next if verified[wtxid]
+          next if visited[wtxid]
 
-          # Merkle path short-circuit: proven transaction needs no input verification
+          # defence-in-depth: merkle proof runs regardless of seed
           if tx.merkle_path
             unless tx.merkle_path.verify(tx.txid_hex, chain_tracker)
               raise VerificationError.new(:invalid_merkle_proof,
                                           "invalid merkle proof for transaction #{tx.txid_hex}")
             end
 
-            verified[wtxid] = true
+            visited[wtxid] = true
             next
           end
 
-          # Fee validation (root transaction only)
+          # runs BEFORE seed — fee is a caller-passed policy, not part of the cached script-validity claim
           verify_fee(fee_model) if tx.equal?(self) && fee_model
+
+          # Caller-supplied trust: skip subtree for seeded (already-verified) ancestors
+          if seed&.include?(wtxid)
+            visited[wtxid] = true
+            next
+          end
 
           # Verify each input
           tx.inputs.each_with_index do |input, index|
@@ -802,15 +831,20 @@ module BSV
               )
             end
 
-            # Enqueue source transaction for verification if not yet verified
+            # Enqueue source transaction for verification if not yet visited.
+            # Skip enqueue only when the source has no merkle_path AND the seed will short-circuit it;
+            # if it has a merkle_path, always enqueue so defence-in-depth runs.
             source_tx = input.source_transaction
-            queue << source_tx if source_tx && !verified[source_tx.wtxid]
+            next unless source_tx && !visited[source_tx.wtxid]
+            next if source_tx.merkle_path.nil? && seed&.include?(source_tx.wtxid)
+
+            queue << source_tx
           end
 
           # Output ≤ input check
           verify_output_constraint(tx)
 
-          verified[wtxid] = true
+          visited[wtxid] = true
         end
 
         true
@@ -956,6 +990,24 @@ module BSV
 
         raise ArgumentError,
               "input #{idx} source_transaction has no output at index #{input.prev_tx_out_index}"
+      end
+
+      # Validate and normalise the +verified:+ kwarg for {#verify}.
+      #
+      # @param seed_arg [Set<String>, nil]
+      # @return [Set<String>, nil] the frozen set (same object), or nil
+      # @raise [ArgumentError] if +seed_arg+ is not nil or a Set, or contains a non-32-byte element
+      def normalise_verified(seed_arg)
+        return nil if seed_arg.nil?
+
+        unless seed_arg.is_a?(Set)
+          raise ArgumentError,
+                "verified: must be nil or Set of 32-byte binary wtxids (got #{seed_arg.class})"
+        end
+
+        BSV::Primitives::Hex.validate_wtxid!(seed_arg.first, name: 'verified element') if seed_arg.any?
+
+        seed_arg.freeze
       end
 
       def verify_input_requirements(tx, input, index)
