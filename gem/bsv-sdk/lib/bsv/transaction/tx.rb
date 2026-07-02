@@ -762,8 +762,8 @@ module BSV
       #   Must be +nil+ or a +Set+ of 32-byte binary strings; anything else raises +ArgumentError+.
       #   The set is frozen on entry — the caller's object is preserved (same +object_id+).
       # @return [true] on successful verification
-      # @raise [ArgumentError] if +verified:+ is not +nil+ or a +Set+, or if it contains a
-      #   non-32-byte element
+      # @raise [ArgumentError] if +verified:+ is not +nil+ or a +Set+, or if the first element
+      #   of a non-empty +Set+ is not a 32-byte binary wtxid (O(1) sanity check on entry)
       # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
       # @raise [VerificationError] with code +:insufficient_fee+ if the fee is below the model's threshold
       # @raise [VerificationError] with code +:output_overflow+ if outputs exceed inputs
@@ -771,8 +771,9 @@ module BSV
       # @raise [VerificationError] with code +:missing_source+ if an input is missing required source data
       # @note Security: caller warrants script validity for all wtxids in +verified:+. A stale or
       #   incorrect seed will cause +verify+ to return +true+ for ancestry that has not actually been
-      #   verified. Merkle proofs and the fee gate are not affected by this set.
-      #   Invalidate the caller's cache whenever consensus flags change.
+      #   verified. Merkle proofs and the fee gate are not affected by this set. Cached wtxids are
+      #   pinned to the consensus flags under which they were originally verified — invalidate the
+      #   caller's cache whenever consensus flags change.
       # @example Wallet-cache short-circuit
       #   # wallet has already verified source_tx in a prior session
       #   cache = Set.new([source_tx.wtxid])

@@ -34,13 +34,15 @@ The walk processes each queued transaction in this strict order:
 
 | Step | Action | Bypassed by seed? |
 |------|--------|-------------------|
-| 1 | Skip if already `visited` (in-call dedup) | n/a |
+| 1 | Skip if already `visited` (in-call dedup) | n/a — precedes seed check |
 | 2 | If `merkle_path` present → verify against chain tracker | **No** — defence-in-depth |
 | 3 | If root transaction + `fee_model` given → validate fee | **No** — caller-passed policy |
-| 4 | If wtxid is in seed → mark visited, skip subtree | Yes |
-| 5 | Full input script verification (interpreter) | n/a |
-| 6 | Output ≤ input satoshi check | n/a |
-| 7 | Mark visited | n/a |
+| 4 | If wtxid is in seed → mark visited, skip subtree | Yes (this is the short-circuit) |
+| 5 | Full input script verification (interpreter) | Yes — bypassed when seed short-circuits at step 4 |
+| 6 | Output ≤ input satoshi check | Yes — bypassed when seed short-circuits at step 4 |
+| 7 | Mark visited | Reached only when 4 didn't hit |
+
+A seeded subject transaction skips **all of steps 5, 6, and 7** — the caller's warrant covers the full script + output-constraint claim, not just input verification. The subject's own `merkle_path` (if any) and `fee_model` gate still run because they precede the seed check.
 
 **Strict merkle ordering rationale:** a stale seed cannot mask a bad chain-anchor
 claim. A transaction with a `merkle_path` always has its proof verified against the
@@ -54,13 +56,19 @@ transaction's wtxid.
 ## Format contract {#format-contract}
 
 - Elements must be **32-byte binary strings** (wire-order wtxid, `String#encoding`
-  `ASCII-8BIT`), not hex strings.
-- Use `BSV::Primitives::Hex.wtxid_from_hex(dtxid_hex)` to convert a display-order
-  hex txid to a wire-order binary wtxid.
+  must be `ASCII-8BIT`), not hex strings.
+- **Encoding matters for `Set` membership.** `Set#include?` uses `String#hash` +
+  `#eql?`, which are encoding-sensitive for high-bit bytes. A wtxid re-encoded as
+  UTF-8 (e.g. via JSON round-trip, or accidental string interpolation into a
+  UTF-8 buffer) will silently miss the seed and cause a full walk. Persist wtxids
+  as ASCII-8BIT throughout.
+- Use `BSV::Transaction::TransactionInput.wtxid_from_hex(dtxid_hex)` to convert a
+  display-order hex txid to a wire-order binary wtxid.
 - The SDK validates the first element of a non-empty set at entry via
-  `BSV::Primitives::Hex.validate_wtxid!` and raises `ArgumentError` with a
-  `"looks like a hex txid — use wtxid_from_hex to convert"` hint if you pass a
-  hex string by mistake.
+  `BSV::Primitives::Hex.validate_wtxid!` (O(1) sanity check) and raises
+  `ArgumentError` with a `"looks like a hex txid — use wtxid_from_hex to convert"`
+  hint if the first element looks like hex. Malformed elements *after* the first
+  cause silent seed-misses rather than errors — they degrade safely to full-walk.
 - Passing a non-`Set` value (e.g. an `Array`) raises `ArgumentError`.
 
 ```ruby
