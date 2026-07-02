@@ -10,16 +10,19 @@ module BSV
     # the hash algorithms used throughout the BSV protocol: SHA-1, SHA-256,
     # double-SHA-256, SHA-512, RIPEMD-160, Hash160, HMAC, and PBKDF2.
     #
-    # @note **Per-thread cached OpenSSL contexts**
+    # @note **Per-fibre cached OpenSSL contexts (via +Thread.current+)**
     #
     #   +sha256+, +sha256d+, +sha1+, and +sha512+ each cache one
-    #   +OpenSSL::Digest+ instance per thread in +Thread.current+ under a
-    #   namespaced key (e.g. +:bsv_sdk_sha256_digest+).  On every call the
-    #   context is reset with +OpenSSL::Digest#reset+, which calls
-    #   +EVP_DigestInit_ex+ against the +EVP_MD*+ already stored on the
-    #   context.  This skips the +EVP_get_digestbyname+ namemap lookup that
+    #   +OpenSSL::Digest+ instance per fibre in +Thread.current+ under a
+    #   namespaced key (e.g. +:bsv_sdk_sha256_digest+).  Because MRI has no
+    #   fibres in this SDK's +lib/+ today, "per fibre" and "per thread" are
+    #   the same in practice — but the primitive is fibre-local, so the more
+    #   precise term is used throughout.  On every call the context is reset
+    #   with +OpenSSL::Digest#reset+, which calls +EVP_DigestInit_ex+ against
+    #   the +EVP_MD*+ already stored on the context.  This skips the
+    #   +EVP_get_digestbyname+ namemap lookup that
     #   +OpenSSL::Digest::SHA256.new+ (or +.digest+) performs on every fresh
-    #   allocation.  The namemap cost is paid exactly once per thread per
+    #   allocation.  The namemap cost is paid exactly once per fibre per
     #   algorithm.
     #
     #   **Fibre-local semantics.**  +Thread.current[:key]+ is *fibre-local*

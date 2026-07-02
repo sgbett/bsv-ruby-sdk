@@ -50,12 +50,21 @@ RSpec.describe 'BSV::Primitives::Digest thread safety' do
       threads = 16.times.map do
         Thread.new do
           1000.times do
-            errors << [:sha256, digest.sha256('abc'), DIGEST_TS_VECTORS[:sha256_abc]] unless digest.sha256('abc') == DIGEST_TS_VECTORS[:sha256_abc]
-            unless digest.sha256d('abc') == DIGEST_TS_VECTORS[:sha256d_abc]
-              errors << [:sha256d, digest.sha256d('abc'), DIGEST_TS_VECTORS[:sha256d_abc]]
-            end
-            errors << [:sha1, digest.sha1('abc'), DIGEST_TS_VECTORS[:sha1_abc]] unless digest.sha1('abc') == DIGEST_TS_VECTORS[:sha1_abc]
-            errors << [:sha512, digest.sha512('abc'), DIGEST_TS_VECTORS[:sha512_abc]] unless digest.sha512('abc') == DIGEST_TS_VECTORS[:sha512_abc]
+            # Capture each digest result once — if the check fails we want the
+            # recorded `got` payload to be *exactly* the value that failed,
+            # not a recomputed value that may differ under transient
+            # contamination.
+            r256 = digest.sha256('abc')
+            errors << [:sha256, r256, DIGEST_TS_VECTORS[:sha256_abc]] unless r256 == DIGEST_TS_VECTORS[:sha256_abc]
+
+            r256d = digest.sha256d('abc')
+            errors << [:sha256d, r256d, DIGEST_TS_VECTORS[:sha256d_abc]] unless r256d == DIGEST_TS_VECTORS[:sha256d_abc]
+
+            r1 = digest.sha1('abc')
+            errors << [:sha1, r1, DIGEST_TS_VECTORS[:sha1_abc]] unless r1 == DIGEST_TS_VECTORS[:sha1_abc]
+
+            r512 = digest.sha512('abc')
+            errors << [:sha512, r512, DIGEST_TS_VECTORS[:sha512_abc]] unless r512 == DIGEST_TS_VECTORS[:sha512_abc]
           end
         end
       end
