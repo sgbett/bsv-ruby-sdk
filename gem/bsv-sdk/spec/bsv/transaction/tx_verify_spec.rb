@@ -358,5 +358,215 @@ RSpec.describe BSV::Transaction::Tx do
         expect(result).to be true
       end
     end
+
+    describe '#verify with verified: (verification cache seed)' do
+      let(:bogus_wtxid) { "\x00".b * 32 }
+
+      # Spec 1 — kwarg default (regression guard)
+      # Calling verify without verified: must be byte-identical to the pre-kwarg behaviour.
+      it 'kwarg default: accepts without verified: (regression guard)' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        expect(tx.verify(chain_tracker: chain_tracker)).to be true
+      end
+
+      it 'kwarg default: still raises :script_failure when verified: is omitted and script is bad' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+        tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_0')
+
+        expect { tx.verify(chain_tracker: chain_tracker) }
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:script_failure)
+          }
+      end
+
+      # Spec 2 — cross-BEEF ancestor (headline)
+      # X is an intermediate ancestor with no merkle_path. Subject spends X.
+      # After cold-verifying, re-verify with verified: Set.new([X.wtxid]).
+      # The interpreter must never touch X's inputs on the seeded run.
+      it 'cross-BEEF ancestor: skips X subtree and returns true when X is seeded' do
+        grandparent = build_source_tx(satoshis: 200_000)
+        grandparent.merkle_path = make_merkle_path
+
+        ancestor_x = build_spending_tx(grandparent, output_sats: 150_000)
+        subject_tx = build_spending_tx(ancestor_x, output_sats: 100_000)
+
+        expect(subject_tx.verify(chain_tracker: chain_tracker)).to be true
+
+        # Spy on interpreter calls — X's inputs must not be touched on the seeded run
+        allow(BSV::Script::Interpreter).to receive(:verify).and_call_original
+
+        result = subject_tx.verify(chain_tracker: chain_tracker, verified: Set.new([ancestor_x.wtxid]))
+        expect(result).to be true
+        # Only the subject's 1 input is verified; X's 1 input is skipped by the seed
+        expect(BSV::Script::Interpreter).to have_received(:verify).exactly(1).times
+      end
+
+      # Spec 3 — invalid-signature ancestor with seed → passes (ANCHOR TEST)
+      # CONTRACT LOCK: do not weaken this spec. If it ever changes, the trust
+      # contract silently changes and the seeding feature becomes undetectably unsafe.
+      it 'invalid-signature ancestor with seed: passes (ANCHOR TEST — trust contract lock)' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        bad_ancestor = build_spending_tx(source_tx, output_sats: 50_000)
+        subject_tx = build_spending_tx(bad_ancestor, output_sats: 40_000)
+
+        # Corrupt bad_ancestor — full verification must fail
+        bad_ancestor.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_0')
+
+        expect { subject_tx.verify(chain_tracker: chain_tracker) }
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:script_failure)
+          }
+
+        # Same structure, fresh objects — seed short-circuits the corrupted ancestor
+        source_tx2 = build_source_tx
+        source_tx2.merkle_path = make_merkle_path
+        bad_ancestor2 = build_spending_tx(source_tx2, output_sats: 50_000)
+        subject_tx2 = build_spending_tx(bad_ancestor2, output_sats: 40_000)
+        bad_ancestor2.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_0')
+
+        result = subject_tx2.verify(
+          chain_tracker: chain_tracker,
+          verified: Set.new([bad_ancestor2.wtxid])
+        )
+        expect(result).to be true
+      end
+
+      # Spec 4 — caller's Set unchanged
+      it "caller's Set: object_id preserved and Set is frozen after verify" do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        seed = Set.new([source_tx.wtxid])
+        captured_id = seed.object_id
+
+        tx.verify(chain_tracker: chain_tracker, verified: seed)
+
+        expect(seed.object_id).to eq(captured_id)
+        expect(seed.frozen?).to be true
+      end
+
+      # Spec 5 — merkle-proven ignores seed
+      it 'merkle-proven ignores seed: raises :invalid_merkle_proof even when the wtxid is seeded' do
+        source_tx = build_source_tx
+        bad_path = instance_double(BSV::Transaction::MerklePath,
+                                   block_height: 800_000,
+                                   verify: false)
+        source_tx.merkle_path = bad_path
+
+        tx = build_spending_tx(source_tx)
+
+        expect { tx.verify(chain_tracker: chain_tracker, verified: Set.new([source_tx.wtxid])) }
+          .to raise_error(BSV::Transaction::VerificationError, /invalid merkle proof/)
+      end
+
+      # Spec 6 — subject wtxid in seed → immediate accept
+      it 'subject wtxid in seed: returns true without verifying inputs' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        # Sabotage the unlocking script — if verify_input were called, it would raise
+        tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_0')
+
+        result = tx.verify(chain_tracker: chain_tracker, verified: Set.new([tx.wtxid]))
+
+        expect(result).to be true
+      end
+
+      # Spec 7 — fee gate still runs when subject is seeded
+      it 'fee gate still runs when subject is seeded: raises :insufficient_fee' do
+        source_tx = build_source_tx(satoshis: 100_000)
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx, output_sats: 99_999)
+
+        rejecting_model = instance_double(BSV::Transaction::FeeModel)
+        allow(rejecting_model).to receive(:compute_fee).and_return(100)
+
+        expect do
+          tx.verify(
+            chain_tracker: chain_tracker,
+            fee_model: rejecting_model,
+            verified: Set.new([tx.wtxid])
+          )
+        end.to raise_error(BSV::Transaction::VerificationError) { |e|
+          expect(e.code).to eq(:insufficient_fee)
+        }
+      end
+
+      # Spec 8 — conformance re-run under benign seed
+      # Three representative P2PKH chain shapes verified with and without a bogus seed.
+      # The seed wtxid never matches any transaction in the graph, so behaviour must
+      # be identical to the unseeded run. Defence-in-depth against sighash regressions.
+      it 'benign seed: 2-hop P2PKH chain behaves identically with and without seed' do
+        source = build_source_tx
+        source.merkle_path = make_merkle_path
+        tx = build_spending_tx(source)
+
+        seeded_result = tx.verify(chain_tracker: chain_tracker, verified: Set.new([bogus_wtxid]))
+        expect(seeded_result).to be true
+        expect(tx.verify(chain_tracker: chain_tracker)).to eq(seeded_result)
+      end
+
+      it 'benign seed: 3-hop P2PKH chain (grandparent proven) behaves identically with and without seed' do
+        grandparent = build_source_tx(satoshis: 200_000)
+        grandparent.merkle_path = make_merkle_path
+        parent = build_spending_tx(grandparent, output_sats: 150_000)
+        child = build_spending_tx(parent, output_sats: 100_000)
+
+        seeded_result = child.verify(chain_tracker: chain_tracker, verified: Set.new([bogus_wtxid]))
+        expect(seeded_result).to be true
+        expect(child.verify(chain_tracker: chain_tracker)).to eq(seeded_result)
+      end
+
+      it 'benign seed: bad-script chain raises :script_failure with and without seed' do
+        source = build_source_tx
+        source.merkle_path = make_merkle_path
+        tx = build_spending_tx(source)
+        tx.inputs[0].unlocking_script = BSV::Script::Script.from_asm('OP_0')
+
+        seed = Set.new([bogus_wtxid])
+
+        expect { tx.verify(chain_tracker: chain_tracker) }
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:script_failure)
+          }
+        expect { tx.verify(chain_tracker: chain_tracker, verified: seed) }
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:script_failure)
+          }
+      end
+
+      # Spec 9 — format validation
+      it 'format validation: raises ArgumentError with wtxid/hex hint when Set contains a hex string' do
+        hex_string = 'a' * 64
+        seed = Set.new([hex_string])
+
+        expect { build_spending_tx(build_source_tx).verify(chain_tracker: chain_tracker, verified: seed) }
+          .to raise_error(ArgumentError) { |e|
+            expect(e.message).to include('wtxid')
+            expect(e.message).to include('hex')
+          }
+      end
+
+      # Spec 10 — wrong type
+      it 'wrong type: raises ArgumentError naming Set and received type when given an Array' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        expect { tx.verify(chain_tracker: chain_tracker, verified: [source_tx.wtxid]) }
+          .to raise_error(ArgumentError) { |e|
+            expect(e.message).to include('Set')
+            expect(e.message).to include('Array')
+          }
+      end
+    end
   end
 end
