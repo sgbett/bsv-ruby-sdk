@@ -748,64 +748,82 @@ module BSV
       # - +:script_failure+ — Ruby raises; TS/Python return +false+; Go also propagates errors
       # - +:missing_source+ — Ruby raises; consistent with TS/Go/Python (all raise/error)
       # - +verified:+ kwarg — Ruby-only; no equivalent seam exists in the TS, Go, or Python SDKs.
-      #   This is a novel Ruby-side extension designed for wallet-side persistent-cache short-circuit
-      #   (see {file:docs/reference/verify-kwarg.md}). The reference SDKs repeat the full walk every
-      #   time +verify+ is called.
+      #   This is a novel Ruby-side extension: a bidirectional wtxid-dedup Hash that the caller
+      #   can seed (short-circuit ancestors already verified) and read after +verify+ returns
+      #   (populate a persistent verification cache). See {file:docs/reference/verify-kwarg.md}.
+      #   The reference SDKs repeat the full walk every time +verify+ is called.
       #
       # @param chain_tracker [Transaction::ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
-      # @param verified [Set<String>, nil] optional pre-seeded set of 32-byte wire-order wtxids
-      #   (binary, not hex) that the caller asserts are already verified. When a non-merkle-proven
-      #   ancestor's wtxid appears in this set, its subtree is skipped — the caller warrants its
-      #   script validity. Merkle proofs still run regardless of this set (defence-in-depth).
-      #   The fee gate on the root transaction also runs regardless of this set.
-      #   Must be +nil+ or a +Set+ of 32-byte binary strings; anything else raises +ArgumentError+.
-      #   The set is frozen on entry — the caller's object is preserved (same +object_id+).
+      # @param verified [Hash{String => Boolean}, nil] bidirectional wtxid dedup Hash.
+      #   Keys are 32-byte wire-order binary wtxids (not hex). Values are presence-only —
+      #   the SDK treats any truthy value as "already verified" and writes +true+ for wtxids
+      #   it walks. Callers use this three ways:
+      #
+      #   - **Pre-seed** (short-circuit): pass a Hash pre-populated with wtxids you have
+      #     verified in an earlier session. Their subtrees are skipped.
+      #   - **Post-read** (accumulate): pass an empty Hash; after +verify+ returns, read the
+      #     keys to see which wtxids the SDK walked. Populates a persistent verification cache.
+      #   - **Bidirectional** (both): pass a Hash that seeds the walk AND collects the walked
+      #     wtxids in one call.
+      #
+      #   The Hash is mutated in place — the caller's object identity is preserved.
+      #   +nil+ (default) means "no seed, no post-read" — the SDK uses an internal Hash the
+      #   caller cannot access. Anything other than +nil+ or +Hash+ raises +ArgumentError+.
       # @return [true] on successful verification
-      # @raise [ArgumentError] if +verified:+ is not +nil+ or a +Set+, or if the first element
-      #   of a non-empty +Set+ is not a 32-byte binary wtxid (O(1) sanity check on entry)
+      # @raise [ArgumentError] if +verified:+ is not +nil+ or a +Hash+
       # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
       # @raise [VerificationError] with code +:insufficient_fee+ if the fee is below the model's threshold
       # @raise [VerificationError] with code +:output_overflow+ if outputs exceed inputs
       # @raise [VerificationError] with code +:script_failure+ if script execution fails
       # @raise [VerificationError] with code +:missing_source+ if an input is missing required source data
-      # @note Security: caller warrants script validity for all wtxids in +verified:+. A stale or
-      #   incorrect seed will cause +verify+ to return +true+ for ancestry that has not actually been
-      #   verified. Merkle proofs and the fee gate are not affected by this set. Cached wtxids are
-      #   pinned to the consensus flags under which they were originally verified — invalidate the
-      #   caller's cache whenever consensus flags change.
-      # @example Wallet-cache short-circuit
+      # @note Security (trust contract): the caller warrants that every wtxid present in
+      #   +verified:+ at method entry is fully verified — script AND chain-anchor (merkle proof)
+      #   AND any consensus-flag context. A seeded wtxid is treated as fully verified regardless
+      #   of what proof or script data it carries. The SDK does **not** re-run the merkle proof
+      #   for a seeded ancestor. If the caller's cache is stale or compromised, +verify+ will
+      #   return +true+ for ancestry that has not actually been verified. Cached wtxids are
+      #   pinned to the consensus flags under which they were originally verified — invalidate
+      #   the caller's cache when consensus flags change, on chain reorganisation, or on any
+      #   event that could invalidate a prior verification. Fee validation is not affected by
+      #   this set — the fee gate is a caller-passed policy, not a cached claim, and runs once
+      #   at the start of every +verify+ call when +fee_model+ is given.
+      # @example Pre-seed short-circuit
       #   # wallet has already verified source_tx in a prior session
-      #   cache = Set.new([source_tx.wtxid])
+      #   cache = { source_tx.wtxid => true }
       #   tx.verify(chain_tracker: tracker, verified: cache)
+      # @example Post-read accumulate
+      #   walked = {}
+      #   tx.verify(chain_tracker: tracker, verified: walked)
+      #   walked.keys # => [subject_wtxid, ancestor1_wtxid, ...]
+      # @example Bidirectional round-trip
+      #   cache = load_persistent_verified_cache
+      #   tx.verify(chain_tracker: tracker, verified: cache)
+      #   save_persistent_verified_cache(cache) # includes newly-walked wtxids
       # @since 0.11.0
       def verify(chain_tracker:, fee_model: nil, verified: nil)
-        seed = normalise_verified(verified)
-        visited = {}
+        verified = normalise_verified(verified)
+        # Fee gate runs once at the start of every verify call. Fee is a caller-passed policy,
+        # not a cached script-validity claim — seeding the subject wtxid cannot silently disable it.
+        verify_fee(fee_model) if fee_model
+
         queue = [self]
 
         until queue.empty?
           tx = queue.shift
           wtxid = tx.wtxid
-          next if visited[wtxid]
+          # Top-of-loop dedup covers both walked-during-this-call and caller-seeded wtxids.
+          # A seeded wtxid short-circuits everything — including the merkle proof — because
+          # the caller warrants full trust. See @note Security.
+          next if verified[wtxid]
 
-          # defence-in-depth: merkle proof runs regardless of seed
           if tx.merkle_path
             unless tx.merkle_path.verify(tx.txid_hex, chain_tracker)
               raise VerificationError.new(:invalid_merkle_proof,
                                           "invalid merkle proof for transaction #{tx.txid_hex}")
             end
 
-            visited[wtxid] = true
-            next
-          end
-
-          # runs BEFORE seed — fee is a caller-passed policy, not part of the cached script-validity claim
-          verify_fee(fee_model) if tx.equal?(self) && fee_model
-
-          # Caller-supplied trust: skip subtree for seeded (already-verified) ancestors
-          if seed&.include?(wtxid)
-            visited[wtxid] = true
+            verified[wtxid] = true
             next
           end
 
@@ -832,20 +850,15 @@ module BSV
               )
             end
 
-            # Enqueue source transaction for verification if not yet visited.
-            # Skip enqueue only when the source has no merkle_path AND the seed will short-circuit it;
-            # if it has a merkle_path, always enqueue so defence-in-depth runs.
+            # Enqueue source transaction unless it's already dealt with (seeded or walked).
             source_tx = input.source_transaction
-            next unless source_tx && !visited[source_tx.wtxid]
-            next if source_tx.merkle_path.nil? && seed&.include?(source_tx.wtxid)
-
-            queue << source_tx
+            queue << source_tx if source_tx && !verified[source_tx.wtxid]
           end
 
           # Output ≤ input check
           verify_output_constraint(tx)
 
-          visited[wtxid] = true
+          verified[wtxid] = true
         end
 
         true
@@ -993,25 +1006,21 @@ module BSV
               "input #{idx} source_transaction has no output at index #{input.prev_tx_out_index}"
       end
 
-      # Validate and normalise the +verified:+ kwarg for {#verify}.
+      # Validate the +verified:+ kwarg for {#verify}.
       #
-      # @param seed_arg [Set<String>, nil]
-      # @return [Set<String>, nil] the frozen set (same object), or nil
-      # @raise [ArgumentError] if +seed_arg+ is not nil or a Set, or if the Set's
-      #   first element is not a valid 32-byte binary wtxid (O(1) sanity check —
-      #   other malformed elements degrade to seed-misses at lookup time rather
-      #   than raising)
-      def normalise_verified(seed_arg)
-        return nil if seed_arg.nil?
+      # Returns the caller's Hash directly (no dup, no freeze) so the SDK can mutate it in place —
+      # the bidirectional contract from {#verify}. When +arg+ is +nil+, returns a fresh empty
+      # Hash that the caller has no reference to; that Hash is discarded when +verify+ returns.
+      #
+      # @param arg [Hash, nil]
+      # @return [Hash] the caller's Hash unchanged, or a fresh empty Hash if arg was nil
+      # @raise [ArgumentError] if +arg+ is neither +nil+ nor a Hash
+      def normalise_verified(arg)
+        return {} if arg.nil?
+        return arg if arg.is_a?(Hash)
 
-        unless seed_arg.is_a?(Set)
-          raise ArgumentError,
-                "verified: must be nil or Set of 32-byte binary wtxids (got #{seed_arg.class})"
-        end
-
-        BSV::Primitives::Hex.validate_wtxid!(seed_arg.first, name: 'verified element') if seed_arg.any?
-
-        seed_arg.freeze
+        raise ArgumentError,
+              "verified: must be nil or Hash of wtxid => truthy entries (got #{arg.class})"
       end
 
       def verify_input_requirements(tx, input, index)
