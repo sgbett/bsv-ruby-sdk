@@ -49,7 +49,7 @@ The `docs/_config.yml` `defaults:` block **replaces** the just-the-docs theme de
 
 ### Callout syntax
 
-Use Kramdown block IAL, **not** GFM admonitions. The wrong form will not render as a callout — `rake docs:lint` will flag it.
+Use Kramdown block IAL, **not** GFM admonitions. The wrong form is a soft failure — it renders as a plain blockquote without the callout styling, and nothing in `rake docs:lint` catches it today. Check your preview locally with `rake docs:serve` when adding callouts.
 
 **Wrong (GFM / GitHub-flavoured Markdown):**
 
@@ -71,7 +71,7 @@ Available callout classes: `note` (blue), `important` (yellow), `warning` (red).
 
 ```bash
 bundle exec rake docs:serve      # local Jekyll server
-bundle exec rake docs:lint       # frontmatter + callout checks (matches CI)
+bundle exec rake docs:lint       # frontmatter + BSV:: symbol / kwarg / Ruby-syntax checks (matches CI)
 bundle exec rake docs:proofread  # link checker (matches CI)
 ```
 

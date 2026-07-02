@@ -141,14 +141,15 @@ module DocsLint
         errors
       end
 
-      # Collect the argument string starting from the opening `(`, spanning
-      # multiple continuation lines if needed, up to the balanced `)`.
+      # Collect the argument string starting from the opening +(+, spanning
+      # continuation lines until parens balance or the block ends. No
+      # arbitrary line cap — a valid multi-line call will always balance;
+      # any cap would silently skip kwarg validation for long-arg calls.
       def collect_args(from_paren, all_lines, start_idx)
         depth  = 0
         result = +''
 
-        # Start with the fragment from the current line
-        candidates = [from_paren] + all_lines[(start_idx + 1)..]&.first(10).to_a
+        candidates = [from_paren] + (all_lines[(start_idx + 1)..] || [])
 
         candidates.each do |fragment|
           fragment.each_char do |ch|
