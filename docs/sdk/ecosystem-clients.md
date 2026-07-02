@@ -1,6 +1,6 @@
 ---
 title: Ecosystem Clients
-nav_order: 8
+nav_order: 10
 parent: SDK
 ---
 

@@ -79,8 +79,10 @@ locking_script = BSV::Script::Script.p2pkh_lock(pubkey_hash)
 tx = BSV::Transaction::Tx.new
 
 # Add an input referencing a previous transaction output
+# wtxid_from_hex converts a display-order hex txid to wire-order binary
+utxo_txid = '5884e5db9de218238671572340b207ee85b628074e7e467096c267266baf77a4'
 input = BSV::Transaction::TransactionInput.new(
-  prev_tx_id: source_txid_bytes,   # 32-byte binary txid of the UTXO
+  prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo_txid),
   prev_tx_out_index: 0
 )
 input.source_satoshis = 100_000
@@ -135,14 +137,7 @@ The [BSV Protocol Documentation](https://hub.bsvblockchain.org/bitcoin-protocol-
 
 ## Contribution Guidelines
 
-Contributions are welcome — bug reports, feature requests, and pull requests.
-
-1. **Fork & Clone** — Fork this repository and clone it locally.
-2. **Set Up** — Run `bundle install` to install dependencies.
-3. **Branch** — Create a new branch for your changes.
-4. **Test** — Ensure all specs pass with `bundle exec rake` and lint passes with `bundle exec rubocop`.
-5. **Commit** — Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
-6. **Pull Request** — Open a pull request against `master`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branching, commits, docs conventions, and the security disclosure flow.
 
 ## Support & Contacts
 

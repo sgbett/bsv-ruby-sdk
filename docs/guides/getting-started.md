@@ -92,7 +92,7 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 ))
 
 # Add a change output (send remaining funds back)
-fee = tx.estimated_fee
+fee = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new.compute_fee(tx)
 tx.add_output(BSV::Transaction::TransactionOutput.new(
   satoshis: 1_000_000 - fee,
   locking_script: locking_script
@@ -101,10 +101,10 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 # Sign the input
 tx.sign(0, private_key)
 
-# Broadcast via Arcade (GorillaPool)
-arc = BSV::Network::ARC.default
-response = arc.broadcast(tx)
-puts response.txid  # display-order hex (ARC API boundary)
+# Broadcast via GorillaPool (Arcade protocol, public endpoint)
+provider = BSV::Network::Providers::GorillaPool.default
+result = provider.call(:broadcast, tx)
+puts result.data['txid'] if result.http_success?  # display-order hex (ARC API boundary)
 ```
 
 ## Using Templates for Signing

@@ -24,6 +24,9 @@ Or install directly:
 gem install bsv-sdk
 ```
 
+> **New in these docs:** dedicated SDK pages for [Auth](sdk/auth.md) and [Identity](sdk/identity.md); coverage of `Transaction` chain trackers and fee models, `Script::PushDropTemplate`, and Primitives BRC-94 Schnorr ZKP and Shamir key shares; Reference page on the [Sighash & Wire Cache](reference/sighash-cache.md).
+{: .note }
+
 ## Modules
 
 The SDK is organised into three top-level modules:

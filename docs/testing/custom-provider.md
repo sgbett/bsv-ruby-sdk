@@ -102,8 +102,8 @@ result.data  # => "0100000083..." (480 hex chars = 3 x 80-byte headers)
 
 # Error handling
 result = tracker.call(:find_header, height: 999_999_999)
-result.success?    # => false
-result.not_found?  # => true
+result.http_success?    # => false
+result.http_not_found?  # => true
 ```
 
 ### Introspection

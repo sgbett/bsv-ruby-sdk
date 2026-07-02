@@ -1,0 +1,11 @@
+# Configuration for rake docs:lint.
+#
+# Loaded by rakelib/docs_lint_symbols.rake at task-run time.
+
+# Constants that live in companion gems (separate repos) and are legitimate
+# to reference from docs but cannot be resolved by walking the local lib
+# tree. Kept small and explicit — wholesale prefix-whitelisting would mask
+# real drift inside shared namespaces (e.g. BSV::Wallet::ProtoWallet is
+# in-tree in bsv-sdk while BSV::Wallet::Client is in bsv-wallet).
+known_external:
+  - BSV::Wallet::Client

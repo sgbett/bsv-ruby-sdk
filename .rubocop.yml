@@ -38,6 +38,8 @@ Metrics/BlockLength:
   Exclude:
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'rakelib/**/*'
+    - 'spec/rake/**/*'
 
 Naming/FileName:
   Exclude:
@@ -94,24 +96,30 @@ Metrics/AbcSize:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'rakelib/**/*'
+    - 'spec/rake/**/*'
 
 Metrics/MethodLength:
   Exclude:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'rakelib/**/*'
+    - 'spec/rake/**/*'
 
 Metrics/CyclomaticComplexity:
   Exclude:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'rakelib/**/*'
 
 Metrics/PerceivedComplexity:
   Exclude:
     - 'bin/**/*'
     - 'gem/*/lib/**/*'
     - 'gem/*/spec/**/*'
+    - 'rakelib/**/*'
 
 Metrics/ModuleLength:
   Exclude:
@@ -126,6 +134,7 @@ Metrics/ModuleLength:
     - 'gem/bsv-sdk/lib/bsv/wallet/**/*'
     - 'gem/bsv-sdk/lib/bsv/wire_format.rb'
     - 'gem/*/spec/**/*'
+    - 'rakelib/**/*'
 
 Metrics/ClassLength:
   Exclude:
@@ -142,6 +151,7 @@ Metrics/ClassLength:
     - 'gem/bsv-sdk/lib/bsv/registry/**/*'
     - 'gem/bsv-sdk/lib/bsv/mcp/**/*'
     - 'gem/bsv-sdk/lib/bsv/kv_store/**/*'
+    - 'rakelib/**/*'
 
 Metrics/ParameterLists:
   Exclude:
@@ -199,6 +209,7 @@ RSpec/MultipleExpectations:
     - 'gem/bsv-sdk/spec/integration/**/*'
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-sdk/spec/bin/**/*'
+    - 'spec/rake/**/*'
 
 RSpec/MultipleMemoizedHelpers:
   Exclude:
@@ -239,12 +250,19 @@ RSpec/ExampleLength:
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-sdk/spec/bsv/wire_format_spec.rb'
     - 'gem/bsv-sdk/spec/bin/**/*'
+    - 'spec/rake/**/*'
 
 # Bitcoin opcodes use numbered names (OP_1, OP_2, etc.) — protocol constants.
 # Wire protocol helpers use base64_32 to denote 32-byte base64 values (protocol constraint).
 Naming/VariableNumber:
   Exclude:
     - 'gem/*/spec/**/*'
+
+# Rake-task specs describe multiple independent modules in one file;
+# splitting into separate files would obscure the thematic grouping.
+RSpec/MultipleDescribes:
+  Exclude:
+    - 'spec/rake/**/*'
 
 # Interpreter sub-specs and conformance specs legitimately describe parent
 # classes or use string descriptions for cross-cutting vector suites.
@@ -260,6 +278,7 @@ RSpec/SpecFilePathFormat:
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bsv/network/providers/**/*'
     - 'gem/bsv-sdk/spec/bin/**/*'
+    - 'spec/rake/**/*'
 
 # Vector and conformance specs use string describes for cross-cutting test suites.
 # Hardening specs test multiple classes/modules together and use a string description.
@@ -273,6 +292,7 @@ RSpec/DescribeClass:
     - 'gem/bsv-sdk/spec/conformance/**/*'
     - 'gem/bsv-sdk/spec/bsv/registry/**/*'
     - 'gem/bsv-sdk/spec/bin/**/*'
+    - 'spec/rake/**/*'
 
 # Vector specs define constants at spec scope for shared test infrastructure.
 Lint/ConstantDefinitionInBlock:

@@ -252,6 +252,77 @@ key.parent_fingerprint   # 4-byte parent fingerprint
 key.identifier           # 20-byte key identifier (Hash160 of public key)
 ```
 
+## Schnorr ZKP (BRC-94)
+
+`BSV::Primitives::Schnorr` is **not** BIP-340 (Taproot) signatures, not a general-purpose signature primitive, and not used for transaction signing — BSV transaction signatures use deterministic ECDSA (RFC 6979). `BSV::Primitives::Schnorr` implements the **BRC-94 Schnorr zero-knowledge proof of ECDH shared-secret knowledge**: given public keys A and B and a shared secret S = a·B (where a is A's private key), the prover demonstrates knowledge of the discrete log relationship without revealing the private key. The proof is used in Auth and certificate flows where one party needs to prove they computed the correct shared secret without transmitting the private key. See [BRC-94](https://github.com/bitcoin-sv/BRCs/blob/master/peer-to-peer/0094.md) for the specification.
+
+The two verification equations are `z·G = R + e·A` and `z·B = S' + e·S`, where R is the commitment point, S' is the blinded shared secret, z is the response scalar, and e is the challenge hash.
+
+```ruby
+alice = BSV::Primitives::PrivateKey.generate
+bob   = BSV::Primitives::PrivateKey.generate
+
+# Alice computes the ECDH shared secret: alice_private * bob_public
+shared = BSV::Primitives::PublicKey.new(
+  BSV::Primitives::Curve.multiply_point(bob.public_key.point, alice.bn)
+)
+
+# Alice generates a ZK proof that she knows the private key yielding `shared`
+proof = BSV::Primitives::Schnorr.generate_proof(
+  alice, alice.public_key, bob.public_key, shared
+)
+
+# Bob (or any verifier) checks the proof without learning Alice's private key
+valid = BSV::Primitives::Schnorr.verify_proof(
+  alice.public_key, bob.public_key, shared, proof
+)
+#=> true
+```
+
+The `Proof` struct carries three fields: `r` (commitment point, `PublicKey`), `s_prime` (blinded shared secret, `PublicKey`), and `z` (response scalar, `OpenSSL::BN`). Binary serialisation is `R(33 B) + S'(33 B) + z(variable)` — the variable-length z accommodates both this SDK's fixed 32-byte encoding and the TS SDK's minimal encoding.
+
+## Key Shares (Shamir backup)
+
+`BSV::Primitives::KeyShares` implements **Shamir's Secret Sharing over the secp256k1 scalar field** as a backup and recovery mechanism. It is **not** threshold signatures, **not** MuSig, FROST, or 2P-ECDSA, and does **not** permit distributed signing — reconstruction yields the original private key in plaintext at a single location.
+
+The use case is offline backup: split a private key into n shares and store them separately (paper wallets, hardware tokens, trusted parties). Any threshold-many shares reconstruct the key; fewer than threshold shares reveal nothing.
+
+### Cross-SDK format compatibility
+
+The backup format — `Base58(x).Base58(y).threshold.integrity` per share — is byte-compatible with the TypeScript and Go SDKs. The integrity tag is the first 8 hex characters of Hash160(compressed public key), **not an HMAC tag**. It acts as a lightweight sanity check that reconstruction produced the correct key.
+
+```ruby
+original = BSV::Primitives::PrivateKey.generate
+
+# Split into 3 shares; any 2 reconstruct the key (threshold=2, total=3)
+shares = original.to_key_shares(2, 3)
+shares.threshold    #=> 2
+shares.integrity    #=> e.g. "7a58deb5" (first 8 hex chars of Hash160(pubkey))
+
+# Serialise for storage — one human-readable string per share
+backup = shares.to_backup_format
+# e.g. ["7RWw...2.7a58deb5", "...", "..."]
+
+# Later: reconstruct from any 2 of the 3 shares
+rebuilt       = BSV::Primitives::KeyShares.from_backup_format(backup[0..1])
+reconstructed = BSV::Primitives::PrivateKey.from_key_shares(rebuilt)
+reconstructed.to_hex == original.to_hex  #=> true
+```
+
+`PrivateKey#to_key_shares_backup` is a one-call shortcut that combines `to_key_shares` and `to_backup_format`. `PrivateKey.from_key_shares_backup` accepts the backup strings directly and returns the reconstructed private key.
+
+## secp256k1-native acceleration
+
+The `secp256k1-native` gem provides the secp256k1 curve implementation used throughout `BSV::Primitives`. When the gem's optional C extension compiles successfully, it replaces the pure-Ruby field, scalar, and Jacobian point operations with native C implementations — approximately a 22× speedup. If the extension fails to build (e.g. Alpine Linux without `build-base` installed), the gem falls back to pure Ruby automatically, printing a warning to stderr.
+
+To check which is active at runtime:
+
+```ruby
+BSV::Primitives::Secp256k1.native?  #=> true if C extension is loaded, false for pure Ruby
+```
+
+The speedup applies wherever secp256k1 arithmetic is used — key generation, ECDSA signing and verification, and ECDH. Batch signing (e.g. `tx.sign_all` across many inputs) inherits the full speedup automatically.
+
 ## BIP-39 Mnemonics
 
 Generate human-readable seed phrases:

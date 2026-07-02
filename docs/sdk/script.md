@@ -219,6 +219,70 @@ result  = BSV::Script::BIP276.decode_template(encoded)
 
 **Field order note:** the two header bytes are `<version><network>` — version first, then network. This matches the BIP-276 specification and the Go SDK reference implementation. The Python SDK has these two fields reversed, a known bug that is invisible when both values are `0x01` (the default) but produces incorrect output for testnet or non-default versions. See `spec/bsv/script/bip276_spec.rb` for Go SDK cross-SDK conformance vectors that prove the correct byte order.
 
+## PushDropTemplate
+
+`BSV::Script::PushDropTemplate` is a wallet-integrated template for embedding arbitrary token data in a spendable output. It generalises the pattern used by overlay registries and token applications: push data fields onto the stack, drop them, then lock with a P2PKH condition derived from a wallet key. The pattern is sometimes called "PushDrop" because the data fields are pushed then dropped as a unit.
+
+The script layout (default `lock_position: :before`) is:
+
+```
+OP_DUP OP_HASH160 <hash160(pubkey)> OP_EQUALVERIFY OP_CHECKSIG
+<field0> <field1> ... <fieldN>
+OP_2DROP [...OP_2DROP] [OP_DROP]
+```
+
+With `lock_position: :after` the lock condition follows the drops instead:
+
+```
+<field0> ... <fieldN> OP_2DROP [...OP_2DROP] [OP_DROP]
+OP_DUP OP_HASH160 <hash160(pubkey)> OP_EQUALVERIFY OP_CHECKSIG
+```
+
+### Cross-SDK byte compatibility
+
+The Ruby SDK's default `lock_position: :before` matches the TS SDK's default since `ts-sdk` v1.1+. Both embed the fields immediately after the P2PKH locking condition and use `OP_2DROP` pairs (then a single `OP_DROP` when the field count is odd) to clean the stack. The field bytes are pushed with minimal encoding matching Bitcoin's standard push opcodes. Scripts produced by both SDKs with the same inputs are byte-identical — a requirement for cross-SDK token resolution, since the script hash is computed from the raw bytes.
+
+If you are interoperating with older tooling using `lock_position: :after`, pass that keyword explicitly; the byte layout is not interchangeable.
+
+### Construction
+
+```ruby
+# wallet must implement the BRC-100 interface (e.g. bsv-wallet's Wallet::Client)
+template = BSV::Script::PushDropTemplate.new(wallet: my_wallet, originator: 'myapp.example.com')
+
+locking_script = template.lock(
+  fields:       ['hello'.b, 'world'.b],  # binary strings
+  protocol_id:  [1, 'my-protocol'],      # BRC-43 [security_level, name]
+  key_id:       '1',
+  counterparty: 'self'                   # 'self', 'anyone', or a hex public key
+)
+locking_script.pushdrop?  #=> true
+```
+
+When `include_signature: true` (the default), an ECDSA signature over the concatenation of all fields is appended as a final field. What this signature *proves* depends on the counterparty:
+
+- **`counterparty: 'self'` or a specific hex pubkey** — the signing key is derived from the wallet's identity via BRC-42, so a verifier who knows the wallet's identity key can confirm the token came from that wallet. This is the case where the signature meaningfully authenticates the token.
+- **`counterparty: 'anyone'`** — the locking *and* signing key are both derived from `PrivateKey(1)` (the secp256k1 generator point, publicly known). Anyone can produce a valid signature, and anyone can spend the output. Treat the signature as ceremonial in this mode, not as evidence of provenance. This is by design for overlay tokens where public revocability is intended.
+
+### Unlocking
+
+```ruby
+unlocker = template.unlock(
+  protocol_id:  [1, 'my-protocol'],
+  key_id:       '1',
+  counterparty: 'self'
+)
+input.unlocking_script_template = unlocker
+tx.sign_all
+```
+
+### Reading token fields
+
+```ruby
+locking_script.pushdrop?        #=> true
+locking_script.pushdrop_fields  #=> Array<String> — the binary field bytes
+```
+
 ## Script Interpreter
 
 Verify that an unlocking script satisfies a locking script:

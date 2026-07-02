@@ -1,6 +1,6 @@
 ---
 title: Sighash & Wire Cache
-nav_order: 6
+nav_order: 5
 parent: Reference
 ---
 
@@ -65,6 +65,7 @@ array methods that bypass the documented setter surface), call
 layer and returns `self` for chaining.
 
 ```ruby
+# illustrative — `tx.verify(...)` is a placeholder for whatever verification call follows.
 tx.inputs.pop                  # bypasses the documented setter surface
 tx.invalidate_caches           # clears all cache layers
 tx.verify(...)                 # now safe
