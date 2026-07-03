@@ -597,6 +597,37 @@ RSpec.describe BSV::Transaction::Tx do
             expect(e.message).to include('Set')
           }
       end
+
+      # Frozen Hash — clear error at entry rather than FrozenError deep in the walk.
+      it 'wrong type: raises ArgumentError when Hash is frozen (SDK cannot mutate it)' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        expect { tx.verify(chain_tracker: chain_tracker, verified: {}.freeze) }
+          .to raise_error(ArgumentError) { |e|
+            expect(e.message).to include('mutable')
+          }
+      end
+
+      # Semantic-change pin: moving the fee gate outside the walk loop means a merkle-proven
+      # subject now gets fee-checked. Under pre-amendment master's inside-the-loop fee check,
+      # the merkle branch's `next` skipped the fee gate for a proven subject — silent bypass.
+      # This spec locks in the new (correct) behaviour.
+      it 'fee gate runs on merkle-proven subject: raises :insufficient_fee even when subject has merkle_path' do
+        source_tx = build_source_tx(satoshis: 100_000)
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx, output_sats: 99_999)
+        tx.merkle_path = make_merkle_path # subject IS merkle-proven
+
+        rejecting_model = instance_double(BSV::Transaction::FeeModel)
+        allow(rejecting_model).to receive(:compute_fee).and_return(100)
+
+        expect { tx.verify(chain_tracker: chain_tracker, fee_model: rejecting_model) }
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:insufficient_fee)
+          }
+      end
     end
   end
 end

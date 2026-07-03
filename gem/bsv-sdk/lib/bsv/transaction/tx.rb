@@ -1014,13 +1014,22 @@ module BSV
       #
       # @param arg [Hash, nil]
       # @return [Hash] the caller's Hash unchanged, or a fresh empty Hash if arg was nil
-      # @raise [ArgumentError] if +arg+ is neither +nil+ nor a Hash
+      # @raise [ArgumentError] if +arg+ is neither +nil+ nor a Hash, or if +arg+ is a frozen Hash
+      #   (the SDK writes walked wtxids into it and cannot mutate a frozen Hash)
       def normalise_verified(arg)
         return {} if arg.nil?
-        return arg if arg.is_a?(Hash)
 
-        raise ArgumentError,
-              "verified: must be nil or Hash of wtxid => truthy entries (got #{arg.class})"
+        unless arg.is_a?(Hash)
+          raise ArgumentError,
+                "verified: must be nil or Hash of wtxid => truthy entries (got #{arg.class})"
+        end
+
+        if arg.frozen?
+          raise ArgumentError,
+                'verified: Hash must be mutable — the SDK writes walked wtxids into it'
+        end
+
+        arg
       end
 
       def verify_input_requirements(tx, input, index)
