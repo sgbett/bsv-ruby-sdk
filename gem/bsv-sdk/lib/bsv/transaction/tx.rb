@@ -755,7 +755,7 @@ module BSV
       #
       # @param chain_tracker [Transaction::ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
-      # @param verified [Hash{String => TrueClass}, nil] bidirectional wtxid dedup Hash.
+      # @param verified [Hash{String => Boolean}, nil] bidirectional wtxid dedup Hash.
       #   Keys are 32-byte wire-order binary wtxids (not hex). Values are presence-only —
       #   the SDK writes +true+ for wtxids it walks and treats any truthy value as
       #   "already verified". A +false+ value is treated as absent (does not short-circuit)
@@ -771,9 +771,15 @@ module BSV
       #
       #   The Hash is mutated in place — the caller's object identity is preserved.
       #   +nil+ (default) means "no seed, no post-read" — the SDK uses an internal Hash the
-      #   caller cannot access. Anything other than +nil+ or +Hash+ raises +ArgumentError+.
+      #   caller cannot access. Rejected at entry with +ArgumentError+: anything that is not
+      #   +nil+ or a mutable +Hash+; a frozen +Hash+; or a +Hash+ with a truthy +default+
+      #   value or any +default_proc+ (funds risk — missing keys would return truthy and
+      #   silently short-circuit verification).
       # @return [true] on successful verification
-      # @raise [ArgumentError] if +verified:+ is not +nil+ or a +Hash+
+      # @raise [ArgumentError] if +verified:+ is (a) not +nil+ or a +Hash+, (b) a frozen
+      #   +Hash+ (the SDK writes walked wtxids into it and cannot mutate a frozen one), or
+      #   (c) a +Hash+ with a truthy +default+ value or a +default_proc+ (missing keys
+      #   would return truthy and silently short-circuit verification — funds risk)
       # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
       # @raise [VerificationError] with code +:insufficient_fee+ if the fee is below the model's threshold
       # @raise [VerificationError] with code +:output_overflow+ if outputs exceed inputs
