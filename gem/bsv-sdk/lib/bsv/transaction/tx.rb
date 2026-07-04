@@ -818,7 +818,17 @@ module BSV
         verified = normalise_verified(verified)
         # Fee gate runs once at the start of every verify call. Fee is a caller-passed policy,
         # not a cached script-validity claim — seeding the subject wtxid cannot silently disable it.
-        verify_fee(fee_model) if fee_model
+        # verify_fee → total_input_satoshis raises ArgumentError when source data is missing;
+        # translate that to :missing_source VerificationError so callers see a consistent error
+        # taxonomy from #verify (all failure modes raise VerificationError, not ArgumentError).
+        if fee_model
+          begin
+            verify_fee(fee_model)
+          rescue ArgumentError => e
+            raise VerificationError.new(:missing_source,
+                                        "cannot compute fee: #{e.message}")
+          end
+        end
 
         queue = [self]
 

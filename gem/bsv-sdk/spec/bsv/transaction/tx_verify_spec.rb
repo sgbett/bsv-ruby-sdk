@@ -668,6 +668,33 @@ RSpec.describe BSV::Transaction::Tx do
         expect { tx.verify(chain_tracker: chain_tracker, verified: seed) }
           .not_to raise_error
       end
+
+      # Regression pin: with the fee gate moved outside the walk loop, verify_fee →
+      # total_input_satoshis could raise raw ArgumentError when source data is missing,
+      # breaking the "verify raises VerificationError" taxonomy documented in @raise.
+      # Translate to :missing_source so callers can `rescue VerificationError` consistently.
+      it 'fee gate on missing source data: raises VerificationError(:missing_source), not ArgumentError' do
+        tx = described_class.new
+        input = BSV::Transaction::TransactionInput.new(
+          prev_wtxid: BSV::Primitives::Digest.sha256d('missing-source'),
+          prev_tx_out_index: 0
+        )
+        input.unlocking_script = BSV::Script::Script.from_asm('OP_TRUE')
+        # NOTE: no source_satoshis, no source_transaction — will trip total_input_satoshis
+        tx.add_input(input)
+        tx.add_output(BSV::Transaction::TransactionOutput.new(
+                        satoshis: 100,
+                        locking_script: lock_script
+                      ))
+
+        fee_model = instance_double(BSV::Transaction::FeeModel, compute_fee: 1)
+
+        expect { tx.verify(chain_tracker: chain_tracker, fee_model: fee_model) }
+          .to raise_error(BSV::Transaction::VerificationError) { |e|
+            expect(e.code).to eq(:missing_source)
+            expect(e.message).to include('cannot compute fee')
+          }
+      end
     end
   end
 end
