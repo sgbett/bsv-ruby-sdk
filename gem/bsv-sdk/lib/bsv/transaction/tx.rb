@@ -747,25 +747,103 @@ module BSV
       # - +:output_overflow+ — Ruby raises; TS/Python return +false+; Go omits the check
       # - +:script_failure+ — Ruby raises; TS/Python return +false+; Go also propagates errors
       # - +:missing_source+ — Ruby raises; consistent with TS/Go/Python (all raise/error)
+      # - +verified:+ kwarg — Ruby-only; no equivalent seam exists in the TS, Go, or Python SDKs.
+      #   This is a novel Ruby-side extension: a bidirectional wtxid-dedup Hash that the caller
+      #   can seed (short-circuit ancestors already verified) and read after +verify+ returns
+      #   (populate a persistent verification cache). See {file:docs/reference/verify-kwarg.md}.
+      #   The reference SDKs repeat the full walk every time +verify+ is called.
       #
       # @param chain_tracker [Transaction::ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
+      # @param verified [Hash{String => Boolean}, nil] bidirectional wtxid dedup Hash.
+      #   Keys are 32-byte wire-order binary wtxids (not hex). Values are presence-only —
+      #   the SDK writes +true+ for wtxids it walks and treats any truthy value as
+      #   "already verified". A +false+ value is treated as absent (does not short-circuit)
+      #   and will be overwritten with +true+ if the wtxid is subsequently walked.
+      #   Callers use this three ways:
+      #
+      #   - **Pre-seed** (short-circuit): pass a Hash pre-populated with wtxids you have
+      #     verified in an earlier session. Their subtrees are skipped.
+      #   - **Post-read** (accumulate): pass an empty Hash; after +verify+ returns, read the
+      #     keys to see which wtxids the SDK walked. Populates a persistent verification cache.
+      #   - **Bidirectional** (both): pass a Hash that seeds the walk AND collects the walked
+      #     wtxids in one call.
+      #
+      #   The Hash is mutated in place — the caller's object identity is preserved.
+      #   +nil+ (default) means "no seed, no post-read" — the SDK uses an internal Hash the
+      #   caller cannot access. Rejected at entry with +ArgumentError+: anything that is not
+      #   +nil+ or a mutable +Hash+; a frozen +Hash+; or a +Hash+ with a truthy +default+
+      #   value or any +default_proc+ (funds risk — missing keys would return truthy and
+      #   silently short-circuit verification).
       # @return [true] on successful verification
+      # @raise [ArgumentError] if +verified:+ is (a) not +nil+ or a +Hash+, (b) a frozen
+      #   +Hash+ (the SDK writes walked wtxids into it and cannot mutate a frozen one), or
+      #   (c) a +Hash+ with a truthy +default+ value or a +default_proc+ (missing keys
+      #   would return truthy and silently short-circuit verification — funds risk)
       # @raise [VerificationError] with code +:invalid_merkle_proof+ if a merkle proof is invalid
       # @raise [VerificationError] with code +:insufficient_fee+ if the fee is below the model's threshold
       # @raise [VerificationError] with code +:output_overflow+ if outputs exceed inputs
       # @raise [VerificationError] with code +:script_failure+ if script execution fails
       # @raise [VerificationError] with code +:missing_source+ if an input is missing required source data
-      def verify(chain_tracker:, fee_model: nil)
-        verified = {}
+      # @note Security (trust contract): the caller warrants that every wtxid present in
+      #   +verified:+ at method entry is fully verified — script AND chain-anchor (merkle proof)
+      #   AND any consensus-flag context. A seeded wtxid is treated as fully verified regardless
+      #   of what proof or script data it carries. The SDK does **not** re-run the merkle proof
+      #   for a seeded ancestor. If the caller's cache is stale or compromised, +verify+ will
+      #   return +true+ for ancestry that has not actually been verified. Cached wtxids are
+      #   pinned to the consensus flags under which they were originally verified — invalidate
+      #   the caller's cache when consensus flags change, on chain reorganisation, or on any
+      #   event that could invalidate a prior verification. Fee validation is not affected by
+      #   this set — the fee gate is a caller-passed policy, not a cached claim, and runs once
+      #   at the start of every +verify+ call when +fee_model+ is given.
+      # @note Concurrency: the SDK writes to +verified:+ in place without locking. Passing the
+      #   same Hash to concurrent +verify+ calls is a race — guard it externally, or give each
+      #   thread its own Hash and merge the results afterwards. The class-level
+      #   "Not thread-safe" note on {Tx} covers direct-mutation concerns; this is the
+      #   specific footgun that comes with the in-place-mutation contract of this kwarg.
+      # @example Pre-seed short-circuit
+      #   # wallet has already verified source_tx in a prior session
+      #   cache = { source_tx.wtxid => true }
+      #   tx.verify(chain_tracker: tracker, verified: cache)
+      # @example Post-read accumulate
+      #   walked = {}
+      #   tx.verify(chain_tracker: tracker, verified: walked)
+      #   walked.keys # => [subject_wtxid, ancestor1_wtxid, ...]
+      # @example Bidirectional round-trip
+      #   cache = load_persistent_verified_cache
+      #   tx.verify(chain_tracker: tracker, verified: cache)
+      #   save_persistent_verified_cache(cache) # includes newly-walked wtxids
+      # @since 0.11.0
+      def verify(chain_tracker:, fee_model: nil, verified: nil)
+        verified = normalise_verified(verified)
+        # Fee gate runs once at the start of every verify call. Fee is a caller-passed policy,
+        # not a cached script-validity claim — seeding the subject wtxid cannot silently disable it.
+        # verify_fee → total_input_satoshis raises ArgumentError when source data is missing;
+        # translate that to :missing_source VerificationError so callers see a consistent error
+        # taxonomy from #verify (all failure modes raise VerificationError, not ArgumentError).
+        if fee_model
+          begin
+            verify_fee(fee_model)
+          rescue ArgumentError => e
+            raise VerificationError.new(:missing_source,
+                                        "cannot compute fee: #{e.message}")
+          end
+        end
+
         queue = [self]
 
         until queue.empty?
           tx = queue.shift
           wtxid = tx.wtxid
-          next if verified[wtxid]
+          # Top-of-loop dedup covers both walked-during-this-call and caller-seeded wtxids.
+          # A seeded wtxid short-circuits everything — including the merkle proof — because
+          # the caller warrants full trust. See @note Security.
+          # fetch(k, false) bypasses any custom Hash default / default_proc — critical, because
+          # Hash.new(true)[missing_key] would return true and short-circuit verification silently
+          # (funds risk). normalise_verified also rejects such Hashes at entry, but this is
+          # defence in depth.
+          next if verified.fetch(wtxid, false)
 
-          # Merkle path short-circuit: proven transaction needs no input verification
           if tx.merkle_path
             unless tx.merkle_path.verify(tx.txid_hex, chain_tracker)
               raise VerificationError.new(:invalid_merkle_proof,
@@ -775,9 +853,6 @@ module BSV
             verified[wtxid] = true
             next
           end
-
-          # Fee validation (root transaction only)
-          verify_fee(fee_model) if tx.equal?(self) && fee_model
 
           # Verify each input
           tx.inputs.each_with_index do |input, index|
@@ -802,9 +877,10 @@ module BSV
               )
             end
 
-            # Enqueue source transaction for verification if not yet verified
+            # Enqueue source transaction unless it's already dealt with (seeded or walked).
+            # fetch(k, false) bypasses any custom Hash default — see note above at top-of-loop dedup.
             source_tx = input.source_transaction
-            queue << source_tx if source_tx && !verified[source_tx.wtxid]
+            queue << source_tx if source_tx && !verified.fetch(source_tx.wtxid, false)
           end
 
           # Output ≤ input check
@@ -956,6 +1032,44 @@ module BSV
 
         raise ArgumentError,
               "input #{idx} source_transaction has no output at index #{input.prev_tx_out_index}"
+      end
+
+      # Validate the +verified:+ kwarg for {#verify}.
+      #
+      # Returns the caller's Hash directly (no dup, no freeze) so the SDK can mutate it in place —
+      # the bidirectional contract from {#verify}. When +arg+ is +nil+, returns a fresh empty
+      # Hash that the caller has no reference to; that Hash is discarded when +verify+ returns.
+      #
+      # @param arg [Hash, nil]
+      # @return [Hash] the caller's Hash unchanged, or a fresh empty Hash if arg was nil
+      # @raise [ArgumentError] if +arg+ is neither +nil+ nor a Hash, a frozen Hash (the SDK writes
+      #   walked wtxids into it and cannot mutate a frozen Hash), or a Hash with a truthy default
+      #   value or a default_proc (missing keys would return truthy and silently short-circuit
+      #   verification for un-seeded wtxids — funds risk)
+      def normalise_verified(arg)
+        return {} if arg.nil?
+
+        unless arg.is_a?(Hash)
+          raise ArgumentError,
+                "verified: must be nil or Hash of wtxid => truthy entries (got #{arg.class})"
+        end
+
+        if arg.frozen?
+          raise ArgumentError,
+                'verified: Hash must be mutable — the SDK writes walked wtxids into it'
+        end
+
+        # A Hash with a truthy default or a default_proc could return a truthy value for missing
+        # keys, silently short-circuiting verification for un-seeded wtxids. The walk sites use
+        # `fetch(k, false)` as defence in depth, but reject at entry so the caller sees a clear
+        # error rather than an opaquely-behaving verify.
+        if arg.default_proc || arg.default
+          raise ArgumentError,
+                'verified: Hash must not have a truthy default or a default_proc — ' \
+                'missing keys must return falsy so verification cannot be silently skipped'
+        end
+
+        arg
       end
 
       def verify_input_requirements(tx, input, index)

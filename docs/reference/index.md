@@ -13,5 +13,6 @@ Canonical reference documents and auto-generated API documentation.
 - [Conformance Vectors](conformance-vectors.md) — cross-SDK test vector validation
 - [Wycheproof Malleability Analysis](wycheproof-malleability-analysis.md) — ECDSA vector analysis
 - [Sighash & Wire Cache](sighash-cache.md) — Russian-doll memo cache, invalidation contract, escape hatch
+- [Verify Cache Seed](verify-kwarg.md) — verified: kwarg, walk order, format contract, caller responsibilities
 - [MCP Server](mcp.md) — built-in Model Context Protocol server for AI assistants
 - [API Reference](api/) — auto-generated from YARD annotations

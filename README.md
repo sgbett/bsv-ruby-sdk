@@ -128,6 +128,7 @@ Full documentation is available at **[sgbett.github.io/bsv-ruby-sdk](https://sgb
 
 - [API Reference](https://sgbett.github.io/bsv-ruby-sdk/reference/api/) — auto-generated from YARD annotations
 - [Sighash & Wire Cache](https://sgbett.github.io/bsv-ruby-sdk/reference/sighash-cache/) — Russian-doll memo cache, invalidation contract, escape hatch
+- [Verify Cache Seed](https://sgbett.github.io/bsv-ruby-sdk/reference/verify-kwarg/) — verified: kwarg, walk order, format contract, caller responsibilities
 - [spec/ directory](https://github.com/sgbett/bsv-ruby-sdk/tree/master/spec) — runnable usage examples
 - Changelogs: [sdk](gem/bsv-sdk/CHANGELOG.md) · [attest](gem/bsv-attest/CHANGELOG.md)
 
