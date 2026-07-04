@@ -822,7 +822,11 @@ module BSV
           # Top-of-loop dedup covers both walked-during-this-call and caller-seeded wtxids.
           # A seeded wtxid short-circuits everything — including the merkle proof — because
           # the caller warrants full trust. See @note Security.
-          next if verified[wtxid]
+          # fetch(k, false) bypasses any custom Hash default / default_proc — critical, because
+          # Hash.new(true)[missing_key] would return true and short-circuit verification silently
+          # (funds risk). normalise_verified also rejects such Hashes at entry, but this is
+          # defence in depth.
+          next if verified.fetch(wtxid, false)
 
           if tx.merkle_path
             unless tx.merkle_path.verify(tx.txid_hex, chain_tracker)
@@ -858,8 +862,9 @@ module BSV
             end
 
             # Enqueue source transaction unless it's already dealt with (seeded or walked).
+            # fetch(k, false) bypasses any custom Hash default — see note above at top-of-loop dedup.
             source_tx = input.source_transaction
-            queue << source_tx if source_tx && !verified[source_tx.wtxid]
+            queue << source_tx if source_tx && !verified.fetch(source_tx.wtxid, false)
           end
 
           # Output ≤ input check
@@ -1021,8 +1026,10 @@ module BSV
       #
       # @param arg [Hash, nil]
       # @return [Hash] the caller's Hash unchanged, or a fresh empty Hash if arg was nil
-      # @raise [ArgumentError] if +arg+ is neither +nil+ nor a Hash, or if +arg+ is a frozen Hash
-      #   (the SDK writes walked wtxids into it and cannot mutate a frozen Hash)
+      # @raise [ArgumentError] if +arg+ is neither +nil+ nor a Hash, a frozen Hash (the SDK writes
+      #   walked wtxids into it and cannot mutate a frozen Hash), or a Hash with a truthy default
+      #   value or a default_proc (missing keys would return truthy and silently short-circuit
+      #   verification for un-seeded wtxids — funds risk)
       def normalise_verified(arg)
         return {} if arg.nil?
 
@@ -1034,6 +1041,16 @@ module BSV
         if arg.frozen?
           raise ArgumentError,
                 'verified: Hash must be mutable — the SDK writes walked wtxids into it'
+        end
+
+        # A Hash with a truthy default or a default_proc could return a truthy value for missing
+        # keys, silently short-circuiting verification for un-seeded wtxids. The walk sites use
+        # `fetch(k, false)` as defence in depth, but reject at entry so the caller sees a clear
+        # error rather than an opaquely-behaving verify.
+        if arg.default_proc || arg.default
+          raise ArgumentError,
+                'verified: Hash must not have a truthy default or a default_proc — ' \
+                'missing keys must return falsy so verification cannot be silently skipped'
         end
 
         arg

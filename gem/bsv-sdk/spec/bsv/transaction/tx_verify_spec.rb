@@ -628,6 +628,46 @@ RSpec.describe BSV::Transaction::Tx do
             expect(e.code).to eq(:insufficient_fee)
           }
       end
+
+      # Funds-at-risk guard: Hash.new(true) would return true for every missing key, silently
+      # short-circuiting verification for un-seeded wtxids and returning true for a subtree that
+      # was never actually verified. The SDK rejects such Hashes at entry AND uses fetch(k, false)
+      # at the walk sites for defence in depth.
+      it 'wrong type: raises ArgumentError when Hash has a truthy default value (funds risk)' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        expect { tx.verify(chain_tracker: chain_tracker, verified: Hash.new(true)) }
+          .to raise_error(ArgumentError) { |e|
+            expect(e.message).to include('default')
+            expect(e.message).to include('funds').or include('silently')
+          }
+      end
+
+      it 'wrong type: raises ArgumentError when Hash has a default_proc (funds risk)' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        seed = Hash.new { |_h, _k| true }
+
+        expect { tx.verify(chain_tracker: chain_tracker, verified: seed) }
+          .to raise_error(ArgumentError) { |e|
+            expect(e.message).to include('default_proc').or include('default')
+          }
+      end
+
+      it 'accepts Hash with a falsy default (safe — missing keys return falsy, no bypass)' do
+        source_tx = build_source_tx
+        source_tx.merkle_path = make_merkle_path
+        tx = build_spending_tx(source_tx)
+
+        seed = Hash.new(false)
+
+        expect { tx.verify(chain_tracker: chain_tracker, verified: seed) }
+          .not_to raise_error
+      end
     end
   end
 end
