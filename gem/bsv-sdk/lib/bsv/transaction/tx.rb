@@ -755,10 +755,12 @@ module BSV
       #
       # @param chain_tracker [Transaction::ChainTracker] chain tracker for merkle root validation
       # @param fee_model [FeeModel, nil] optional fee model to validate the root transaction's fee
-      # @param verified [Hash{String => Boolean}, nil] bidirectional wtxid dedup Hash.
+      # @param verified [Hash{String => TrueClass}, nil] bidirectional wtxid dedup Hash.
       #   Keys are 32-byte wire-order binary wtxids (not hex). Values are presence-only —
-      #   the SDK treats any truthy value as "already verified" and writes +true+ for wtxids
-      #   it walks. Callers use this three ways:
+      #   the SDK writes +true+ for wtxids it walks and treats any truthy value as
+      #   "already verified". A +false+ value is treated as absent (does not short-circuit)
+      #   and will be overwritten with +true+ if the wtxid is subsequently walked.
+      #   Callers use this three ways:
       #
       #   - **Pre-seed** (short-circuit): pass a Hash pre-populated with wtxids you have
       #     verified in an earlier session. Their subtrees are skipped.
@@ -788,6 +790,11 @@ module BSV
       #   event that could invalidate a prior verification. Fee validation is not affected by
       #   this set — the fee gate is a caller-passed policy, not a cached claim, and runs once
       #   at the start of every +verify+ call when +fee_model+ is given.
+      # @note Concurrency: the SDK writes to +verified:+ in place without locking. Passing the
+      #   same Hash to concurrent +verify+ calls is a race — guard it externally, or give each
+      #   thread its own Hash and merge the results afterwards. The class-level
+      #   "Not thread-safe" note on {Tx} covers direct-mutation concerns; this is the
+      #   specific footgun that comes with the in-place-mutation contract of this kwarg.
       # @example Pre-seed short-circuit
       #   # wallet has already verified source_tx in a prior session
       #   cache = { source_tx.wtxid => true }
