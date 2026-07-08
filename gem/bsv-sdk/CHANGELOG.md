@@ -5,6 +5,40 @@ All notable changes to the `bsv-sdk` gem are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this gem adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.26.0 — 2026-07-08
+
+### Breaking Changes
+- `Transaction::Tx#verify` — the `verified:` kwarg now accepts `nil | Hash{String => Boolean}`
+  (previously `nil | Set<String>`). The Hash is mutated in place, so a caller can both pre-seed
+  the already-verified wtxid set and read back the wtxids walked during verification. A frozen
+  Hash, or a Hash with a truthy `default`/`default_proc`, is rejected at entry (funds risk) (#904).
+
+### Added
+- `Transaction::Tx#verify(verified:)` bidirectional verification cache: pre-seeding short-circuits
+  already-verified ancestor subtrees; post-read exposes the walked wtxid set for a persistent
+  verification cache (#904, #909, #910).
+- Transaction memoisation: per-struct binary, component-hash, and wire-order memos across `Tx`,
+  inputs, and outputs, invalidated on mutation — repeated `to_binary`/`wtxid`/hash computation is
+  now cached (#881).
+- Conformance canonical corpus: a pinned-revision loader plus fetch/sync tooling and cache layout,
+  with the BEEF, BUMP, sighash, SHA-256, ECIES, BRC-42 key-derivation, and script-test specs
+  migrated onto it (#840, #841, #842–#847).
+
+### Fixed
+- Interpreter consensus hardening: correct Chronicle gating of `OP_VER`/`OP_VERIF` (with
+  tx_version), `OP_2MUL`/`OP_2DIV`, and multi-`OP_ELSE` (relaxed mode); enforce the `CLEANSTACK`
+  and `SIGPUSHONLY` verification flags; whitelist verification flags (#837, #850, #851, #852, #853,
+  #854).
+- `Transaction::Tx#verify` — translate the fee-gate `ArgumentError` (missing source data) into a
+  `VerificationError` (`:missing_source`) so every failure mode raises a consistent error type
+  (#904).
+- `Transaction::Tx#verify` — fix a funds-risk bug where a Hash with a truthy default could silently
+  short-circuit verification for unseen wtxids (#904).
+
+### Changed
+- Performance: reuse OpenSSL digest contexts in primitives hashing (thread-safety documented); split
+  `clear_caches` from `invalidate_caches` in the transaction cache lifecycle (#881, #882).
+
 ## 0.25.0 — 2026-06-18
 
 ### Added
