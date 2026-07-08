@@ -132,6 +132,14 @@ values back, so `Hash` is now the only accepted collection type.
   flags under which they were originally verified. Invalidate the cache when
   consensus flags change.
 
+- **Chain-tracker binding.** A cache is bound to the `chain_tracker` (and its
+  network and consensus context) that populated it. The SDK records only *that*
+  a wtxid was verified, not *which* tracker proved it, so a seeded wtxid
+  short-circuits verification regardless of the `chain_tracker` passed to a
+  later `verify`. Do not reuse a cache across different trackers or networks —
+  a subtree proven under a weak or attacker-influenced tracker would then be
+  trusted by an authoritative one.
+
 - **Thread-safety.** Do not mutate the `Hash` from another thread while
   `verify` is running. The SDK does **not** freeze the caller's Hash (it needs
   to write to it) and does not defend against concurrent mutation.
