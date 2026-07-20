@@ -122,6 +122,19 @@ values back, so `Hash` is now the only accepted collection type.
   inputs are invalid — but the wallet may have committed to downstream state
   (returning `true` to a UI, marking a UTXO spendable) in the interim.
 
+- **Anchoring policy is the caller's.** `verify` accepts a leaf as verified
+  on script alone — `unlocking_script` + `source_locking_script` +
+  `source_satoshis` — so an input with `source_transaction: nil` can pass
+  and be written to the cache without ever reaching a merkle proof. If your
+  policy requires every persisted verdict to bottom out in a merkle-anchored
+  ancestor (i.e. SPV-proven), enforce that upstream: reject the input before
+  calling `verify`, or gate the cache write on the walk terminating in a
+  proof. In BEEF-shaped ingress this happens implicitly — an unresolved leaf
+  has nil source data and raises `VerificationError(:missing_source)`
+  — but the SDK itself makes no anchoring guarantee. See
+  [#914](https://github.com/sgbett/bsv-ruby-sdk/issues/914) for the
+  discussion that landed on this boundary.
+
 - **Staleness invalidation.** If a transaction's script validity or chain
   anchor could have changed (chain reorganisation, consensus flag update),
   remove its wtxid from the cache before calling `verify`. The seed treats the
