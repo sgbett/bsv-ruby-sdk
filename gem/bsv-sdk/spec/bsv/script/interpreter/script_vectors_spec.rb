@@ -196,7 +196,7 @@ RSpec.describe 'Bitcoin Core script vectors' do
       comment = vec[4] || ''
       flags = flags_str.split(',')
 
-      if flags.any? { |f| UNSUPPORTED_FLAGS.include?(f) }
+      if flags.intersect?(UNSUPPORTED_FLAGS)
         skipped_count += 1
         next
       end
