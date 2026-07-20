@@ -356,7 +356,11 @@ module BSV
         when 'all'
           @topics.all? { |t| acked.include?(t) }
         when 'any'
-          @topics.any? { |t| acked.include?(t) }
+          # +Set#intersect?+ accepts any Enumerable and handles the mixed types:
+          # +acked+ is a Set<String>, +@topics+ is an Array<String>. Rubocop's
+          # +Style/ArrayIntersect+ autocorrect flipped it to +@topics.intersect?(acked)+,
+          # which raises TypeError because +Array#intersect?+ won't accept a Set.
+          acked.intersect?(@topics)
         when Array
           requirement.all? { |t| acked.include?(t) }
         else
