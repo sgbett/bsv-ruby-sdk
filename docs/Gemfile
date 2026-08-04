@@ -28,5 +28,5 @@ group :development do
   # Jekyll-aware link checker — handles baseurl via swap_urls (lychee can't
   # resolve root-relative URLs like /bsv-ruby-sdk/... against a local _site
   # tree, since baseurl is a URL concept not a filesystem path).
-  gem 'html-proofer', '~> 5.0'
+  gem 'html-proofer', '~> 5.2'
 end
