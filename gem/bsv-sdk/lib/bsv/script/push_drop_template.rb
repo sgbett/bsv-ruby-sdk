@@ -107,15 +107,14 @@ module BSV
             key_id: @key_id,
             counterparty: @counterparty
           }
-          orig_kw = @originator ? { originator: @originator } : {}
-          result = @wallet.create_signature(**sig_args, **orig_kw)
+          result = @wallet.create_signature(**sig_args, **originator_kw)
 
           sig_bytes = result[:signature].pack('C*')
           sig_with_hashtype = sig_bytes + [sighash_type].pack('C')
 
           # Fetch the derived public key so the P2PKH unlock can include it
           pub_args = { protocol_id: @protocol_id, key_id: @key_id, counterparty: @counterparty }
-          pub_result = @wallet.get_public_key(**pub_args, **orig_kw)
+          pub_result = @wallet.get_public_key(**pub_args, **originator_kw)
           pubkey_bytes = [pub_result[:public_key]].pack('H*')
 
           BSV::Script::Script.pushdrop_unlock(
@@ -130,6 +129,12 @@ module BSV
         # @return [Integer]
         def estimated_length(_tx, _input_index)
           ESTIMATED_LENGTH
+        end
+
+        private
+
+        def originator_kw
+          @originator ? { originator: @originator } : {}
         end
       end
 
@@ -175,8 +180,7 @@ module BSV
                          [GENERATOR_PUBKEY_HEX].pack('H*')
                        else
                          pub_args = { protocol_id: protocol_id, key_id: key_id, counterparty: counterparty }
-                         orig_kw = @originator ? { originator: @originator } : {}
-                         pub_result = @wallet.get_public_key(**pub_args, **orig_kw)
+                         pub_result = @wallet.get_public_key(**pub_args, **originator_kw)
                          [pub_result[:public_key]].pack('H*')
                        end
 
@@ -186,8 +190,7 @@ module BSV
         if include_signature
           data_to_sign = all_fields.reduce(''.b) { |acc, f| acc + f }.unpack('C*')
           sig_args = { data: data_to_sign, protocol_id: protocol_id, key_id: key_id, counterparty: counterparty }
-          orig_kw = @originator ? { originator: @originator } : {}
-          sig_result = @wallet.create_signature(**sig_args, **orig_kw)
+          sig_result = @wallet.create_signature(**sig_args, **originator_kw)
           all_fields << sig_result[:signature].pack('C*')
         end
 
@@ -209,6 +212,12 @@ module BSV
       # @return [Unlocker] object with +#sign+ and +#estimated_length+
       def unlock(protocol_id:, key_id:, counterparty:)
         Unlocker.new(@wallet, protocol_id, key_id, counterparty, @originator)
+      end
+
+      private
+
+      def originator_kw
+        @originator ? { originator: @originator } : {}
       end
     end
   end

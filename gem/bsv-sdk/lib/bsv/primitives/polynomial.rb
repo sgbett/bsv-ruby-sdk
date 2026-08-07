@@ -18,6 +18,8 @@ module BSV
     #   share1 = poly.value_at(OpenSSL::BN.new('1'))
     #   share0 = poly.value_at(OpenSSL::BN.new('0'))  # recovers the secret
     class Polynomial
+      include FieldMath
+
       P = PointInFiniteField::P
 
       # @return [Array<PointInFiniteField>] the defining points of the polynomial
@@ -81,14 +83,6 @@ module BSV
         end
 
         y
-      end
-
-      private
-
-      # Unsigned modulo — always returns a result in [0, P).
-      def umod(n, m)
-        result = n % m
-        result.negative? ? result + m : result
       end
     end
   end
