@@ -134,6 +134,28 @@ OpenSSL is used for hashing (SHA-256, RIPEMD-160, SHA-512), HMAC, PBKDF2, AES en
 
 Custom implementations: RFC 6979 deterministic signing, Schnorr signatures, Base58Check, BIP-32/39, secp256k1 field/point arithmetic.
 
+## Security focus
+
+The SDK handles private keys, signatures and untrusted blockchain data. Security reviews of this repository pay special attention to:
+
+- **Private key handling**: Exposure in memory, logs, error messages, serialisation
+- **Signature malleability**: DER encoding issues, low-S enforcement, sighash edge cases
+- **Transaction malleability**: Script manipulation that changes txid without invalidating
+- **Cryptographic implementation flaws**: RFC 6979 deterministic k-value generation, curve point validation, cofactor issues
+- **Script interpreter bugs**: Stack manipulation exploits, OP_CODE edge cases, script size limits
+- **Deserialisation of untrusted blockchain data**: Malformed transactions, scripts, merkle proofs
+- **Hash collision/preimage attacks**: Anywhere hashes are used for identity or commitment
+- **Fee manipulation**: Attacks via crafted transaction inputs/outputs
+- **Replay attacks**: Cross-chain or cross-fork transaction replay
+
+Changes to these areas always get a security review, however small:
+
+- **Cryptography** — `gem/bsv-sdk/lib/bsv/primitives/` (curves, hashing, ECDSA, Schnorr, encryption)
+- **Keys and signatures** — `private_key.rb`, `public_key.rb`, `extended_key.rb` and `signature.rb` in `primitives/`, `gem/bsv-sdk/lib/bsv/transaction/sighash.rb`, and `BSV::Wallet::ProtoWallet` (`gem/bsv-sdk/lib/bsv/wallet/proto_wallet/`)
+- **BEEF** — `gem/bsv-sdk/lib/bsv/transaction/beef.rb` and `beef_party.rb`
+- **Merkle proofs** — `gem/bsv-sdk/lib/bsv/transaction/merkle_path.rb`
+- **Script interpreter** — `gem/bsv-sdk/lib/bsv/script/interpreter/`, including the opcode handlers in `gem/bsv-sdk/lib/bsv/script/interpreter/operations/`
+
 ## Conventions
 
 - `Gemfile.lock` is **not committed** (standard for gems; consumers resolve their own dependency tree)
