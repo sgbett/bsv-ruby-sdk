@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Overlay types' do
   describe BSV::Overlay::TaggedBEEF do
     subject(:tagged_beef) { described_class.new(beef: "\x01\x02\x03", topics: ['tm_example']) }
@@ -162,4 +162,3 @@ RSpec.describe 'BSV::Overlay types' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

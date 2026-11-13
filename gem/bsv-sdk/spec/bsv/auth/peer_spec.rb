@@ -9,8 +9,8 @@ RSpec.describe BSV::Auth::Peer do
   let(:bob_wallet)   { BSV::Wallet::ProtoWallet.new(bob_key) }
 
   # Create two peers connected via PairedTransport.
-  let(:transport_a)  { PairedTransport.new }
-  let(:transport_b)  { PairedTransport.new }
+  let(:transport_a) { PairedTransport.new }
+  let(:transport_b) { PairedTransport.new }
   let(:alice) { described_class.new(wallet: alice_wallet, transport: transport_a) }
   let(:bob)   { described_class.new(wallet: bob_wallet,   transport: transport_b) }
 

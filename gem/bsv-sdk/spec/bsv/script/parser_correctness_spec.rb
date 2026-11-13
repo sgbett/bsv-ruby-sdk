@@ -5,7 +5,7 @@ require 'spec_helper'
 # A5 parser correctness spec — covers findings F3.1, F3.2, F3.3, F3.4, F3.6,
 # F3.10, F3.12, F3.14/F3.21, F3.16 from HLR #317.
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'A5 parser correctness' do
   let(:op) { BSV::Script::Opcodes }
   let(:script) { BSV::Script::Script }
@@ -446,4 +446,3 @@ RSpec.describe 'A5 parser correctness' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

@@ -363,6 +363,17 @@ RSpec.describe BSV::Script::Interpreter do
   end
 
   describe 'signature encoding validation' do
+    def checksig_error_code(full_sig)
+      interp = build_interpreter
+      interp.dstack.push_bytes(full_sig)
+      interp.dstack.push_bytes(BSV::Primitives::PrivateKey.generate.public_key.compressed)
+      interp.instance_variable_set(:@current_script, BSV::Script::Script.new)
+      interp.send(:op_checksig)
+      nil
+    rescue BSV::Script::ScriptError => e
+      e.code
+    end
+
     it 'rejects signature missing FORKID' do
       interp = build_interpreter
       # Signature with sighash type 0x01 (ALL, no FORKID)
@@ -377,6 +388,31 @@ RSpec.describe BSV::Script::Interpreter do
       end.to raise_error(BSV::Script::ScriptError) { |e|
         expect(e.code).to eq(:invalid_sighash_type)
       }
+    end
+
+    it 'rejects a FORKID signature with a negative S by DER error code' do
+      expect(checksig_error_code("\x30\x06\x02\x01\x01\x02\x01\x80\x41".b)).to eq(:sig_der)
+    end
+
+    it 'rejects a FORKID signature whose DER length byte has the high bit set by DER error code' do
+      # 0x82 equals the true content length (130), so only the multi-byte length rule rejects it.
+      sig = "\x30\x82\x02\x7d".b + ("\x01".b * 125) + "\x02\x01\x01\x41".b
+      expect(checksig_error_code(sig)).to eq(:sig_der)
+    end
+
+    it 'accepts hashtypes with FORKID set past the sighash type check' do
+      interp = build_interpreter
+      [0x41, 0xC1].each do |type|
+        expect { interp.send(:validate_sighash_type!, type) }.not_to raise_error
+      end
+    end
+
+    it 'rejects hashtypes without FORKID' do
+      interp = build_interpreter
+      [0x01, 0x81].each do |type|
+        expect { interp.send(:validate_sighash_type!, type) }
+          .to raise_error(BSV::Script::ScriptError) { |e| expect(e.code).to eq(:invalid_sighash_type) }
+      end
     end
 
     it 'rejects invalid pubkey encoding' do

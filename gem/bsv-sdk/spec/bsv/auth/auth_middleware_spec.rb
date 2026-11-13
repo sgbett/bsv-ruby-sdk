@@ -208,12 +208,11 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
       # Step 1: client creates request
       # We create a disposable client peer with a capturing transport.
       sent_messages = []
-      received_callback = nil
 
       client_transport = Object.new
       client_transport.extend(BSV::Auth::Transport)
       client_transport.define_singleton_method(:send)    { |msg| sent_messages << msg }
-      client_transport.define_singleton_method(:on_data) { |&blk| received_callback = blk }
+      client_transport.define_singleton_method(:on_data) { |&_blk| }
 
       client_peer = BSV::Auth::Peer.new(
         wallet: client_wallet,
@@ -496,12 +495,11 @@ RSpec.describe 'BSV::Auth::AuthMiddleware' do
       # We need a real handshake first
       client_sm = BSV::Auth::SessionManager.new
       sent_msgs = []
-      received_cb = nil
 
       t = Object.new
       t.extend(BSV::Auth::Transport)
       t.define_singleton_method(:send)    { |msg| sent_msgs << msg }
-      t.define_singleton_method(:on_data) { |&blk| received_cb = blk }
+      t.define_singleton_method(:on_data) { |&_blk| }
 
       cp = BSV::Auth::Peer.new(wallet: client_wallet, transport: t, session_manager: client_sm)
       req_msg  = cp.send(:create_initial_request)

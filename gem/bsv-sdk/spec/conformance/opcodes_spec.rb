@@ -203,8 +203,8 @@ RSpec.describe BSV::Script::Opcodes do
     it('OP_VERNOTIF is defined (0x66, disabled)')  { expect(described_class::OP_VERNOTIF).to eq(0x66) }
 
     # Protocol docs: OP_2MUL "DISABLED", OP_2DIV "DISABLED"
-    it('OP_2MUL is defined (0x8d, disabled)')  { expect(described_class::OP_2MUL).to eq(0x8d) }
-    it('OP_2DIV is defined (0x8e, disabled)')  { expect(described_class::OP_2DIV).to eq(0x8e) }
+    it('OP_2MUL is defined (0x8d, disabled)') { expect(described_class::OP_2MUL).to eq(0x8d) }
+    it('OP_2DIV is defined (0x8e, disabled)') { expect(described_class::OP_2DIV).to eq(0x8e) }
   end
 
   describe 'completeness' do

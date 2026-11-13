@@ -55,7 +55,22 @@ RSpec.describe BSV::Primitives::Signature do
 
     it 'raises on negative R' do
       expect { described_class.from_der("\x30\x06\x02\x01\x80\x02\x01\x01".b) }
-        .to raise_error(ArgumentError, /negative/)
+        .to raise_error(ArgumentError, /R has negative flag/)
+    end
+
+    it 'raises on negative S' do
+      expect { described_class.from_der("\x30\x06\x02\x01\x01\x02\x01\x80".b) }
+        .to raise_error(ArgumentError, /S has negative flag/)
+    end
+
+    it 'accepts zero-padded S when high bit is set' do
+      sig = described_class.from_der("\x30\x07\x02\x01\x01\x02\x02\x00\x80".b)
+      expect(sig.s).to eq(OpenSSL::BN.new('128'))
+    end
+
+    it 'zero-pads high-bit R and S when encoding to DER' do
+      der = described_class.new(OpenSSL::BN.new('128'), OpenSSL::BN.new('255')).to_der
+      expect(der.unpack1('H*')).to eq('300802020080020200ff')
     end
 
     it 'raises on excessive padding in R' do

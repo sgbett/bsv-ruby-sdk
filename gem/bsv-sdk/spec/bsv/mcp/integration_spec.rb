@@ -13,7 +13,7 @@ require 'spec_helper'
 # `MCP::Content::Text` objects intact in `result[:content]`. Access their
 # text payload via `.text` (not `[:text]`).
 #
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV MCP server — protocol integration' do
   # A single server instance shared across the suite — the server is
   # stateless between calls so this is safe.
@@ -268,4 +268,3 @@ RSpec.describe 'BSV MCP server — protocol integration' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

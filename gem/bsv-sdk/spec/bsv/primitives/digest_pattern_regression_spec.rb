@@ -13,7 +13,7 @@ require 'spec_helper'
 # instantiation anywhere else in the lib/ tree.  It runs on every `bundle
 # exec rake` invocation (fast — pure grep, no digest computation).
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'OpenSSL::Digest:: bypass regression guard' do
   it 'has no direct OpenSSL::Digest:: calls in lib/ outside primitives/digest.rb' do
     # spec/bsv/primitives → up 3 levels lands in gem/bsv-sdk, then /lib.
@@ -35,4 +35,3 @@ RSpec.describe 'OpenSSL::Digest:: bypass regression guard' do
                          "route through BSV::Primitives::Digest instead:\n#{offenders.join("\n")}"
   end
 end
-# rubocop:enable RSpec/DescribeClass

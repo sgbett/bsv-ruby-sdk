@@ -5,8 +5,8 @@ RSpec.describe 'BSV::Network::Provider' do
 
   let(:http_client) { double('http_client') } # rubocop:disable RSpec/VerifiedDoubles
 
-  let(:arc_class)        { BSV::Network::Protocols::ARC }
-  let(:woc_class)        { BSV::Network::Protocols::WoCREST }
+  let(:arc_class) { BSV::Network::Protocols::ARC }
+  let(:woc_class) { BSV::Network::Protocols::WoCREST }
   let(:chaintracks_class) { BSV::Network::Protocols::Chaintracks }
   let(:ordinals_class) { BSV::Network::Protocols::Ordinals }
 

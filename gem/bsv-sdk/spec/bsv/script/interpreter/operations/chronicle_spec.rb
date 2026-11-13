@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'Chronicle opcodes' do
   def evaluate(unlock_asm, lock_asm)
     unlock = unlock_asm.empty? ? BSV::Script::Script.new : BSV::Script::Script.from_asm(unlock_asm)
@@ -440,4 +440,3 @@ RSpec.describe 'Chronicle opcodes' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

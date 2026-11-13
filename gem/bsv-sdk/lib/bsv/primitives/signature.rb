@@ -41,7 +41,7 @@ module BSV
         # BIP-66 strict DER: length must be a single byte (0x00–0x7F).
         # Multi-byte length encoding (where the high bit of bytes[1] is set,
         # e.g. 0x81, 0x82 …) is not permitted in ECDSA signatures.
-        raise ArgumentError, 'non-canonical DER length (multi-byte encoding not allowed)' if bytes[1] & 0x80 != 0
+        raise ArgumentError, 'non-canonical DER length (multi-byte encoding not allowed)' if bytes[1].anybits?(0x80)
 
         total_len = bytes[1]
         raise ArgumentError, 'length mismatch' unless total_len == bytes.length - 2
@@ -54,8 +54,8 @@ module BSV
         raise ArgumentError, 'R is zero length' if r_len.zero?
 
         r_bytes = bytes[4, r_len]
-        raise ArgumentError, 'R has negative flag' if r_bytes[0] & 0x80 != 0
-        raise ArgumentError, 'R has excessive padding' if r_len > 1 && r_bytes[0].zero? && (r_bytes[1] & 0x80).zero? # rubocop:disable Style/BitwisePredicate
+        raise ArgumentError, 'R has negative flag' if r_bytes[0].anybits?(0x80)
+        raise ArgumentError, 'R has excessive padding' if r_len > 1 && r_bytes[0].zero? && r_bytes[1].nobits?(0x80)
 
         # Parse S
         s_offset = 4 + r_len
@@ -68,8 +68,8 @@ module BSV
         raise ArgumentError, 'S is zero length' if s_len.zero?
 
         s_bytes = bytes[s_offset + 2, s_len]
-        raise ArgumentError, 'S has negative flag' if s_bytes[0] & 0x80 != 0
-        raise ArgumentError, 'S has excessive padding' if s_len > 1 && s_bytes[0].zero? && (s_bytes[1] & 0x80).zero? # rubocop:disable Style/BitwisePredicate
+        raise ArgumentError, 'S has negative flag' if s_bytes[0].anybits?(0x80)
+        raise ArgumentError, 'S has excessive padding' if s_len > 1 && s_bytes[0].zero? && s_bytes[1].nobits?(0x80)
 
         raise ArgumentError, 'trailing bytes' unless s_offset + 2 + s_len == bytes.length
 
@@ -135,7 +135,7 @@ module BSV
       def canonicalise_int(bn)
         bytes = bn.to_s(2).bytes
         bytes = [0] if bytes.empty?
-        bytes.unshift(0) if bytes[0] & 0x80 != 0
+        bytes.unshift(0) if bytes[0].anybits?(0x80)
         bytes
       end
     end

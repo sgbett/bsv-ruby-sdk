@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → WalletWireProcessor → ProtoWallet)' do
   let(:private_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
   let(:other_key)   { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(99)) }
@@ -84,13 +84,12 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
 
         attr_reader :calls
 
-        # rubocop:disable Naming/PredicateMethod
+        # rubocop:disable-next Naming/PredicateMethod
         def authenticated?(**_args)
           @calls ||= []
           @calls << :authenticated?
           { authenticated: true }
         end
-        # rubocop:enable Naming/PredicateMethod
       end.new
 
       spy_client = BSV::Wallet::WalletWireTransceiver.new(
@@ -448,4 +447,3 @@ RSpec.describe 'BSV::Wallet loopback integration (WalletWireTransceiver → Wall
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

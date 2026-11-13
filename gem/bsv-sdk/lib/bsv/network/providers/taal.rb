@@ -45,8 +45,8 @@ module BSV
           resolved_auth = auth || (opts[:api_key] ? { bearer: opts[:api_key] } : :none)
           common = opts.slice(:api_key, :http_client).merge(auth: auth)
           Provider.new('TAAL', auth: resolved_auth, rate_limit: rate_limit) do |p|
-            p.protocol Protocols::ARC,        base_url: 'https://arc.taal.com',  auth: auth, **opts
-            p.protocol Protocols::TAALBinary, base_url: 'https://api.taal.com',  **common
+            p.protocol Protocols::ARC,        base_url: 'https://arc.taal.com', auth: auth, **opts
+            p.protocol Protocols::TAALBinary, base_url: 'https://api.taal.com', **common
           end
         end
 
