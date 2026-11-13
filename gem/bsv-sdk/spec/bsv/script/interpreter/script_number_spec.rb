@@ -227,6 +227,16 @@ RSpec.describe BSV::Script::ScriptNumber do
     it 'returns empty for negative zero' do
       expect(described_class.minimally_encode("\x80".b)).to eq(''.b)
     end
+
+    # Cross-checked against go-sdk script/interpreter/number.go MinimallyEncode
+    it 'keeps a sign-extension byte after trimming padding below a high-bit byte' do
+      expect(described_class.minimally_encode("\x80\x00\x00".b).unpack1('H*')).to eq('8000')
+      expect(described_class.minimally_encode("\x01\x80\x00\x00".b).unpack1('H*')).to eq('018000')
+    end
+
+    it 'keeps a negative sign byte after trimming padding below a high-bit byte' do
+      expect(described_class.minimally_encode("\x80\x00\x80".b).unpack1('H*')).to eq('8080')
+    end
   end
 
   describe 'large numbers (after-genesis)' do

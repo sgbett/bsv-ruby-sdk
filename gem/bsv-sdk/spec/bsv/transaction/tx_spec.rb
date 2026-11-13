@@ -112,6 +112,32 @@ RSpec.describe BSV::Transaction::Tx do
       expect(preimage.unpack1('H*')).to eq(expected)
     end
 
+    context 'with the FORKID guard' do
+      let(:tx) do
+        described_class.from_hex(vector1_hex).tap do |t|
+          t.inputs[0].source_satoshis = 100_000_000
+          t.inputs[0].source_locking_script = source_script_single
+        end
+      end
+
+      it 'accepts hashtypes with FORKID set' do
+        [0x41, 0xC1].each do |type|
+          expect { tx.sighash_preimage(0, type) }.not_to raise_error
+        end
+      end
+
+      it 'rejects hashtypes without FORKID' do
+        [0x01, 0x81].each do |type|
+          expect { tx.sighash_preimage(0, type) }
+            .to raise_error(ArgumentError, /only SIGHASH_FORKID types are supported/)
+        end
+      end
+
+      it 'raises for a nil sighash type' do
+        expect { tx.sighash_preimage(0, nil) }.to raise_error(StandardError)
+      end
+    end
+
     it 'computes the correct preimage for vector 2 index 0' do
       tx = described_class.from_hex(vector2_hex)
       tx.inputs[0].source_satoshis = 2_000_000_000
