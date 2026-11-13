@@ -15,7 +15,7 @@ group :development, :test do
   gem 'simplecov', require: false
   gem 'simplecov-cobertura', require: false
   gem 'yard'
-  gem 'yard-markdown'
+  gem 'yard-markdown', '~> 0.10.0'
 
   gem 'benchmark-ips'
   gem 'prime'

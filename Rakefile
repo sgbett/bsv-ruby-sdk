@@ -94,7 +94,14 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
     output_dir = 'docs/reference/api'
     FileUtils.rm_rf(output_dir)
     FileUtils.mkdir_p(output_dir)
-    sh "bundle exec yardoc --plugin markdown --format markdown --output-dir #{output_dir} gem/*/lib/**/*.rb"
+    # yard-markdown >= 0.9 copies every Markdown file under the working
+    # directory into the output (in CI that includes the gems installed in
+    # vendor/bundle), plus YARD's auto-detected README, which no option
+    # disables (#926). The exclude mirrors the plugin's FILE_PATTERN. The API
+    # reference should hold generated pages only.
+    sh "bundle exec yardoc --plugin markdown --format markdown --exclude '\\.(?:md|markdown)\\z' " \
+       "--output-dir #{output_dir} gem/*/lib/**/*.rb"
+    FileUtils.rm_f(File.join(output_dir, 'README.md'))
     generate_reference_index(output_dir)
   end
 
