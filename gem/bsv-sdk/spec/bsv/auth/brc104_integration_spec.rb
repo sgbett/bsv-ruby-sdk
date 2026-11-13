@@ -215,11 +215,10 @@ RSpec.describe 'BRC-104 AuthFetch <-> AuthMiddleware integration' do # rubocop:d
       auth_fetch = build_auth_fetch(client_wallet, middleware)
 
       handshake_count = 0
-      original_handle = BSV::Auth::AuthMiddleware.instance_method(:handle_auth_endpoint)
 
-      allow_any_instance_of(BSV::Auth::AuthMiddleware).to receive(:handle_auth_endpoint) do |mw, env| # rubocop:disable RSpec/AnyInstance
+      allow(middleware).to receive(:handle_auth_endpoint).and_wrap_original do |original, env|
         handshake_count += 1
-        original_handle.bind(mw).call(env)
+        original.call(env)
       end
 
       auth_fetch.fetch('http://example.com/protected')
