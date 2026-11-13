@@ -1106,7 +1106,7 @@ module BSV
                                     "outputs (#{output_total}) exceed inputs (#{input_total}) for transaction #{tx.txid_hex}")
       end
 
-      ZERO_HASH = ("\x00".b * 32).freeze # rubocop:disable Style/RedundantFreeze
+      ZERO_HASH = ("\x00".b * 32).freeze
       private_constant :ZERO_HASH
 
       # @note Memoised; see {file:docs/reference/sighash-cache.md} for the invalidation contract.
