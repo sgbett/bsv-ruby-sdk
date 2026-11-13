@@ -56,7 +56,7 @@ module BSV
         end
 
         # Extract sign from MSB of last byte
-        if bytes.getbyte(bytes.bytesize - 1) & 0x80 != 0
+        if bytes.getbyte(bytes.bytesize - 1).anybits?(0x80)
           val ^= 0x80 << (8 * (bytes.bytesize - 1))
           val = -val
         end
@@ -78,7 +78,7 @@ module BSV
           v >>= 8
         end
 
-        if result.last & 0x80 != 0
+        if result.last.anybits?(0x80)
           # MSB conflicts with sign bit — add padding byte
           result << (negative ? 0x80 : 0x00)
         elsif negative
@@ -103,7 +103,7 @@ module BSV
         return ''.b if data.bytesize == 1
 
         # If second-to-last byte needs the sign extension, keep it
-        return data.dup if data.getbyte(data.bytesize - 2) & 0x80 != 0
+        return data.dup if data.getbyte(data.bytesize - 2).anybits?(0x80)
 
         # Scan backwards to find last non-zero byte
         i = data.bytesize - 2
@@ -112,7 +112,7 @@ module BSV
         if data.getbyte(i).zero?
           # All zeros
           ''.b
-        elsif data.getbyte(i) & 0x80 != 0
+        elsif data.getbyte(i).anybits?(0x80)
           # This byte has high bit set — keep sign extension byte
           result = data.byteslice(0, i + 1)
           result << [last].pack('C')
@@ -202,7 +202,7 @@ module BSV
         raise ScriptError.new(ScriptErrorCode::MINIMAL_DATA, 'non-minimal script number encoding') if bytes.bytesize == 1
 
         # Padding is justified if second-to-last byte has high bit set
-        return if bytes.getbyte(bytes.bytesize - 2) & 0x80 != 0
+        return if bytes.getbyte(bytes.bytesize - 2).anybits?(0x80)
 
         raise ScriptError.new(ScriptErrorCode::MINIMAL_DATA, 'non-minimal script number encoding')
       end

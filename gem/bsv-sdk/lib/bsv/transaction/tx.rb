@@ -562,7 +562,7 @@ module BSV
       # @return [String] the raw preimage bytes (hash this to get the sighash)
       # @raise [ArgumentError] if sighash_type does not include FORKID
       def sighash_preimage(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
-        raise ArgumentError, 'only SIGHASH_FORKID types are supported' unless sighash_type & Sighash::FORK_ID != 0
+        raise ArgumentError, 'only SIGHASH_FORKID types are supported' if sighash_type.nobits?(Sighash::FORK_ID)
 
         input = @inputs[input_index]
         raise ArgumentError, "no input at index #{input_index}" if input.nil?

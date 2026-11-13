@@ -171,7 +171,7 @@ module BSV
 
           # Validate sighash type has FORKID set and valid base type.
           def validate_sighash_type!(sighash_type)
-            unless sighash_type & BSV::Transaction::Sighash::FORK_ID != 0
+            if sighash_type.nobits?(BSV::Transaction::Sighash::FORK_ID)
               raise ScriptError.new(ScriptErrorCode::INVALID_SIGHASH_TYPE, 'sighash type missing FORKID')
             end
 
