@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'base64'
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Auth.validate_certificates' do
   let(:subject_key)   { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(21)) }
   let(:certifier_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(22)) }
@@ -246,4 +246,3 @@ RSpec.describe 'BSV::Auth.validate_certificates' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

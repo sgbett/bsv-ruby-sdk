@@ -32,7 +32,7 @@ DIGEST_TS_VECTORS = {
   sha512_xy: BSV::Primitives::Digest.sha512('xy').freeze
 }.freeze
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Primitives::Digest thread safety' do
   subject(:digest) { BSV::Primitives::Digest }
 
@@ -233,4 +233,3 @@ RSpec.describe 'BSV::Primitives::Digest thread safety' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Overlay error classes' do
   describe BSV::Overlay::OverlayError do
     it 'inherits from StandardError' do
@@ -53,4 +53,3 @@ RSpec.describe 'BSV::Overlay error classes' do
     expect { BSV::Overlay }.not_to raise_error
   end
 end
-# rubocop:enable RSpec/DescribeClass

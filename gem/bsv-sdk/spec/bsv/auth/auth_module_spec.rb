@@ -10,7 +10,7 @@ require 'spec_helper'
 # - BSV::Auth.validate_certificates delegates correctly
 # - BSV::Auth.get_verifiable_certificates delegates correctly
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Auth module delegation' do
   describe 'autoload resolution' do
     it 'resolves BSV::Auth::ValidateCertificates without errors' do
@@ -48,4 +48,3 @@ RSpec.describe 'BSV::Auth module delegation' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

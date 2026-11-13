@@ -5,7 +5,7 @@ require 'json'
 
 WYCHEPROOF_VECTORS_PATH = File.join(__dir__, 'vectors', 'wycheproof_ecdsa_secp256k1.json')
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'Wycheproof ECDSA secp256k1 vectors' do
   before(:all) do # rubocop:disable RSpec/BeforeAfterAll
     skip 'Wycheproof vectors not vendored' unless File.exist?(WYCHEPROOF_VECTORS_PATH)
@@ -53,4 +53,3 @@ RSpec.describe 'Wycheproof ECDSA secp256k1 vectors' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

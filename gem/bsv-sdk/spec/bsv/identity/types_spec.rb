@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# rubocop:disable RSpec/DescribeClass
+# rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV::Identity types' do
   describe BSV::Identity::DisplayableIdentity do
     subject(:identity) do
@@ -132,4 +132,3 @@ RSpec.describe 'BSV::Identity types' do
     end
   end
 end
-# rubocop:enable RSpec/DescribeClass

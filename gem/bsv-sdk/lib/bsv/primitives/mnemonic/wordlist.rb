@@ -3,7 +3,7 @@
 module BSV
   module Primitives
     class Mnemonic
-      # rubocop:disable Metrics/CollectionLiteralLength
+      # rubocop:disable-next Metrics/CollectionLiteralLength
       ENGLISH_WORDLIST = %w[
         abandon ability able about above absent absorb abstract
         absurd abuse access accident account accuse achieve acid
@@ -262,7 +262,6 @@ module BSV
         wrap wreck wrestle wrist write wrong yard year
         yellow you young youth zebra zero zone zoo
       ].freeze
-      # rubocop:enable Metrics/CollectionLiteralLength
 
       ENGLISH_WORD_MAP = ENGLISH_WORDLIST.each_with_index.to_h.freeze
     end

@@ -12,7 +12,7 @@ require 'tmpdir'
 # example. Running the harness per example would be ~25x slower with no
 # semantic benefit. The shared state (@openssl_dir / @shim_dir) is read-only
 # after setup and explicitly cleaned up in after(:context).
-# rubocop:disable RSpec/InstanceVariable, RSpec/BeforeAfterAll
+# rubocop:disable-next RSpec/InstanceVariable, RSpec/BeforeAfterAll
 RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
   before(:context) do
     @harness      = File.expand_path('integration_harness.rb', __dir__)
@@ -78,4 +78,3 @@ RSpec.describe 'OpenSSL EC Shim Integration (process-isolated)' do
     end
   end
 end
-# rubocop:enable RSpec/InstanceVariable, RSpec/BeforeAfterAll

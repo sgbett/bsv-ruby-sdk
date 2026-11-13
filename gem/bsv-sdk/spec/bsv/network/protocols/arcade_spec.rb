@@ -8,9 +8,8 @@ RSpec.describe BSV::Network::Protocols::Arcade do
     )
   end
 
-  # rubocop:disable RSpec/VerifiedDoubles
+  # rubocop:disable-next RSpec/VerifiedDoubles
   let(:http_client) { double('HttpClient') }
-  # rubocop:enable RSpec/VerifiedDoubles
 
   def stub_response(code, body)
     response = fake_http_response(code, body)
