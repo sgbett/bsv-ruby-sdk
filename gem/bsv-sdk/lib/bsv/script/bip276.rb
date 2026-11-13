@@ -46,8 +46,8 @@ module BSV
       # @return [String] BIP-276 encoded string
       # @raise [ArgumentError] if version or network is out of the range 1..255
       def encode(data, prefix: PREFIX_SCRIPT, network: NETWORK_MAINNET, version: CURRENT_VERSION)
-        raise ArgumentError, "version must be 1..255, got #{version}"  unless (1..255).cover?(version)
-        raise ArgumentError, "network must be 1..255, got #{network}"  unless (1..255).cover?(network)
+        raise ArgumentError, "version must be 1..255, got #{version}" unless (1..255).cover?(version)
+        raise ArgumentError, "network must be 1..255, got #{network}" unless (1..255).cover?(network)
 
         preimage = build_preimage(prefix, version, network, data)
         preimage + checksum(preimage)

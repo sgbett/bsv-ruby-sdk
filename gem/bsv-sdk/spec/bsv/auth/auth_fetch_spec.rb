@@ -7,8 +7,8 @@ require_relative '../../support/paired_transport'
 
 RSpec.describe 'BSV::Auth::AuthFetch' do
   # Deterministic keys for reproducibility
-  let(:client_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
-  let(:server_key)  { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(43)) }
+  let(:client_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(42)) }
+  let(:server_key) { BSV::Primitives::PrivateKey.new(OpenSSL::BN.new(43)) }
   let(:client_wallet) { BSV::Wallet::ProtoWallet.new(client_key) }
   let(:server_wallet) { BSV::Wallet::ProtoWallet.new(server_key) }
 
