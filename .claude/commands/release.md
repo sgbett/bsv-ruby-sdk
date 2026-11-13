@@ -179,6 +179,22 @@ Apply bump rules (applied in order, first match wins):
 - Any commit matching `feat:` → **MINOR**
 - Otherwise → **PATCH**
 
+**Pre-1.0.0 (`0.y.z`) shifts one position down.** While the gem's major version is
+`0`, the public API is treated as unstable. The `0` is pinned, the **minor** acts as
+the breaking-change position and the **patch** as the compatible-change position — the
+same reading Cargo and npm's `^0.y.z` caret use, and the one that makes Ruby's `~>`
+operator meaningful (`~> 0.26.1` admits patch bumps but not a minor bump):
+
+- **MAJOR** (breaking) → bump the **minor** position — a `0.1` release
+  (e.g. `0.26.0` → `0.27.0`)
+- **MINOR** (`feat:`) or **PATCH** → bump the **patch** position — a `0.0.1` release
+  (e.g. `0.26.0` → `0.26.1`)
+
+Pre-1.0 the only distinction that carries compatibility meaning is breaking vs
+non-breaking: a new feature and a bug fix are both backward-compatible, so both land on
+the patch position. Once the gem reaches `1.0.0`, apply the MAJOR/MINOR/PATCH mapping
+directly.
+
 Show suggested bump with reasoning:
 
 ```
