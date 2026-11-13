@@ -245,7 +245,7 @@ module BSV
 
         grace_cv    = ConditionVariable.new
         done_mu     = Mutex.new
-        done        = false
+        done        = false # rubocop:disable Lint/UselessAssignment -- retained deliberately; see #917
 
         threads = hosts.map do |host|
           Thread.new do
@@ -284,7 +284,7 @@ module BSV
             grace_cv.wait(done_mu, QUERY_GRACE_SECONDS) if remaining_threads.positive?
           end
 
-          done = true
+          done = true # rubocop:disable Lint/UselessAssignment -- retained deliberately; see #917
         end
 
         threads.each(&:join)

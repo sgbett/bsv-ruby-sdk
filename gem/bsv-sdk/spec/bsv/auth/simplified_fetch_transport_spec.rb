@@ -118,8 +118,7 @@ RSpec.describe 'BSV::Auth::SimplifiedFetchTransport' do
     end
 
     it 'POSTs to /.well-known/auth' do
-      received = nil
-      transport.on_data { |msg| received = msg }
+      transport.on_data { |_msg| }
 
       message = {
         version: '0.1',
