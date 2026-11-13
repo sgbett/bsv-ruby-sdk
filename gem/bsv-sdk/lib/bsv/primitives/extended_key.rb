@@ -163,7 +163,7 @@ module BSV
         if index >= HARDENED
           raise ArgumentError, 'cannot derive hardened child from public key' if public?
 
-          data = "\x00".b + padded_key + [index].pack('N')
+          data = "\x00".b + pad_to_32(@key.b) + [index].pack('N')
         else
           data = compressed_pubkey_bytes + [index].pack('N')
         end
@@ -181,7 +181,7 @@ module BSV
                             child_key_bn = il_bn.mod_add(OpenSSL::BN.new(@key, 2), Curve::N)
                             raise ArgumentError, 'invalid child: derived key is zero' if child_key_bn.zero?
 
-                            bn_to_32bytes(child_key_bn)
+                            pad_to_32(child_key_bn.to_s(2))
                           else
                             parent_point = Curve.point_from_bytes(@key)
                             il_point = Curve.multiply_generator_ct(il_bn)
@@ -248,7 +248,7 @@ module BSV
       #
       # @return [String] the Base58Check-encoded extended key
       def to_s
-        key_data = private? ? "\x00".b + padded_key : @key
+        key_data = private? ? "\x00".b + pad_to_32(@key.b) : @key
 
         payload = @version +
                   [@depth].pack('C') +
@@ -267,7 +267,7 @@ module BSV
       def private_key
         raise ArgumentError, 'not a private extended key' unless private?
 
-        PrivateKey.from_bytes(padded_key)
+        PrivateKey.from_bytes(pad_to_32(@key.b))
       end
 
       # Extract the {PublicKey} from this extended key.
@@ -303,14 +303,8 @@ module BSV
         end
       end
 
-      def padded_key
-        raw = @key.b
-        raw.length < 32 ? ("\x00".b * (32 - raw.length)) + raw : raw
-      end
-
-      def bn_to_32bytes(bn)
-        raw = bn.to_s(2)
-        raw.length < 32 ? ("\x00".b * (32 - raw.length)) + raw : raw
+      def pad_to_32(bytes) # rubocop:disable Naming/VariableNumber
+        bytes.length < 32 ? ("\x00".b * (32 - bytes.length)) + bytes : bytes
       end
     end
   end
