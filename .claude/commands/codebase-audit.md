@@ -114,7 +114,7 @@ After presenting findings, ask the user if they want to proceed with creating is
    - Body: Finding details, proposed fix, acceptance criteria
    - Link as sub-issues to the HLR using the GraphQL API
 
-3. **Output the task list** so the user can run `/do-hlr <number>` to execute
+3. **Output the task list** so the user can run `/do <number>` to execute
 
 ## Lessons from Previous Audits
 
