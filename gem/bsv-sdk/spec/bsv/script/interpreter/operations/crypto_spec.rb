@@ -394,8 +394,10 @@ RSpec.describe BSV::Script::Interpreter do
       expect(checksig_error_code("\x30\x06\x02\x01\x01\x02\x01\x80\x41".b)).to eq(:sig_der)
     end
 
-    it 'rejects a FORKID signature with a long-form DER length by DER error code' do
-      expect(checksig_error_code("\x30\x81\x06\x02\x01\x01\x02\x01\x01\x41".b)).to eq(:sig_der)
+    it 'rejects a FORKID signature whose DER length byte has the high bit set by DER error code' do
+      # 0x82 equals the true content length (130), so only the multi-byte length rule rejects it.
+      sig = "\x30\x82\x02\x7d".b + ("\x01".b * 125) + "\x02\x01\x01\x41".b
+      expect(checksig_error_code(sig)).to eq(:sig_der)
     end
 
     it 'accepts hashtypes with FORKID set past the sighash type check' do

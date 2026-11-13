@@ -560,8 +560,9 @@ module BSV
       # @param sighash_type [Integer] sighash flags (default: ALL|FORKID)
       # @param subscript [Script::Script, nil] override locking script for the input
       # @return [String] the raw preimage bytes (hash this to get the sighash)
-      # @raise [ArgumentError] if sighash_type does not include FORKID
+      # @raise [ArgumentError] if sighash_type is not an Integer or does not include FORKID
       def sighash_preimage(input_index, sighash_type = Sighash::ALL_FORK_ID, subscript: nil)
+        raise ArgumentError, 'sighash_type must be an Integer' unless sighash_type.is_a?(Integer)
         raise ArgumentError, 'only SIGHASH_FORKID types are supported' if sighash_type.nobits?(Sighash::FORK_ID)
 
         input = @inputs[input_index]

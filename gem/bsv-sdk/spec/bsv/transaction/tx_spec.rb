@@ -133,8 +133,11 @@ RSpec.describe BSV::Transaction::Tx do
         end
       end
 
-      it 'raises for a nil sighash type' do
-        expect { tx.sighash_preimage(0, nil) }.to raise_error(StandardError)
+      it 'raises ArgumentError for a non-Integer sighash type' do
+        [nil, true, false, '65'].each do |type|
+          expect { tx.sighash_preimage(0, type) }
+            .to raise_error(ArgumentError, /sighash_type must be an Integer/)
+        end
       end
     end
 
