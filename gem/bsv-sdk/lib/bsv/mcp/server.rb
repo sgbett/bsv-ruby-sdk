@@ -6,8 +6,8 @@ module BSV
   module MCP
     # Builds and returns an MCP::Server instance configured for the BSV SDK.
     #
-    # Tools are registered here as the feature set grows. Currently returns an
-    # empty tool list — Tasks 2 and 3 will add concrete tools.
+    # The server-level configuration reaches the tools through a frozen
+    # +server_context+ (see {.server_context}), which clients cannot override.
     #
     # Logging goes to $stderr only; $stdout is the MCP protocol channel.
     module Server
@@ -22,8 +22,24 @@ module BSV
           name: 'bsv-sdk',
           version: BSV::VERSION,
           instructions: server_instructions(config),
-          tools: registered_tools
+          tools: registered_tools,
+          server_context: server_context(config)
         )
+      end
+
+      # Builds the context handed to every tool call.
+      #
+      # The ARC key is wrapped in a {Secret} so it stays out of +inspect+
+      # output for the context and the server that holds it.
+      #
+      # @param config [BSV::MCP::Config]
+      # @return [Hash] frozen hash with :bsv_network, :arc_url and :arc_api_key
+      def self.server_context(config)
+        {
+          bsv_network: config.network,
+          arc_url: config.arc_url,
+          arc_api_key: (Secret.new(config.arc_api_key) if config.arc_api_key)
+        }.freeze
       end
 
       # Returns the list of tool classes registered with this server.

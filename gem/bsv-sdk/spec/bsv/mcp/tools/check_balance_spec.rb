@@ -14,7 +14,14 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
         @body = body
       end
 
-      def request(_uri, _req)
+      # URIs requested through this client, so specs can assert which
+      # network and host a tool really talked to.
+      def self.requested
+        @requested ||= []
+      end
+
+      def request(uri, _req)
+        self.class.requested << uri.to_s
         fake_http_response(@code, @body)
       end
     end
@@ -33,11 +40,15 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
   end
 
   let(:address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
+  let(:testnet_address) { BSV::Primitives::PrivateKey.generate.public_key.address(network: :testnet) }
 
-  def stub_woc(code, body, network: :mainnet)
+  # Inject the fake HTTP client but keep the network the tool asked for, so
+  # the requested URIs show which network was really used.
+  def stub_woc(code, body)
     http = mock_http_class.new(code, body)
-    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
-    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_wrap_original do |original, **opts|
+      original.call(**opts, http_client: http)
+    end
   end
 
   describe '.call with an address' do
@@ -52,27 +63,27 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
     end
 
     it 'returns the correct balance' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       expect(result[:balance_satoshis]).to eq(150_000)
     end
 
     it 'returns the correct utxo_count' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       expect(result[:utxo_count]).to eq(2)
     end
 
     it 'returns the address' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       expect(result[:address]).to eq(address)
     end
 
     it 'returns the network' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       expect(result[:network]).to eq('mainnet')
     end
 
     it 'returns utxo details' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       first = result[:utxos].first
       expect(first[:tx_hash]).to eq('aabb1122')
       expect(first[:satoshis]).to eq(100_000)
@@ -91,12 +102,12 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
     before { stub_woc(200, utxo_response_body) }
 
     it 'derives the address from the WIF and returns it' do
-      result = JSON.parse(tool.call(address_or_wif: private_key.to_wif).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: private_key.to_wif).content.first[:text], symbolize_names: true)
       expect(result[:address]).to eq(derived_address)
     end
 
     it 'returns the correct balance' do
-      result = JSON.parse(tool.call(address_or_wif: private_key.to_wif).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: private_key.to_wif).content.first[:text], symbolize_names: true)
       expect(result[:balance_satoshis]).to eq(150_000)
     end
   end
@@ -105,18 +116,20 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
     before { stub_woc(200, '[]') }
 
     it 'returns zero balance' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       expect(result[:balance_satoshis]).to eq(0)
       expect(result[:utxo_count]).to eq(0)
     end
   end
 
   describe '.call with testnet' do
-    before { stub_woc(200, utxo_response_body, network: :testnet) }
+    before { stub_woc(200, utxo_response_body) }
 
     it 'reports testnet in the result' do
-      result = JSON.parse(tool.call(address_or_wif: address, network: 'testnet').content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: testnet_address, network: 'testnet').content.first[:text], symbolize_names: true)
       expect(result[:network]).to eq('testnet')
+      expect(mock_http_class.requested).not_to be_empty
+      expect(mock_http_class.requested).to all(include('/v1/bsv/test/'))
     end
   end
 
@@ -128,8 +141,44 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
     end
 
     it 'includes the error message' do
-      result = JSON.parse(tool.call(address_or_wif: address).content.first.text, symbolize_names: true)
+      result = JSON.parse(tool.call(address_or_wif: address).content.first[:text], symbolize_names: true)
       expect(result[:error]).not_to be_nil
+    end
+  end
+
+  describe '.call input validation' do
+    let(:key) { BSV::Primitives::PrivateKey.generate }
+
+    before { allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_raise('nothing may be requested') }
+
+    {
+      'a testnet address on mainnet' => ->(k) { [k.public_key.address(network: :testnet), nil] },
+      'a mainnet address on testnet' => ->(k) { [k.public_key.address(network: :mainnet), 'testnet'] },
+      'a testnet WIF on mainnet' => ->(k) { [k.to_wif(network: :testnet), nil] },
+      'a mainnet WIF on testnet' => ->(k) { [k.to_wif(network: :mainnet), 'testnet'] },
+      'a P2SH address' => ->(_k) { [BSV::Primitives::Base58.check_encode("\x05".b + ("\x11".b * 20)), nil] },
+      'a WIF with one character replaced by 0' => ->(k) { [k.to_wif.sub(/.(.{10})\z/, '0\\1'), nil] },
+      'a WIF with a bad checksum' => ->(k) { [k.to_wif[0..-2] + (k.to_wif[-1] == 'a' ? 'b' : 'a'), nil] },
+      'a payload of the wrong length' => ->(_k) { [BSV::Primitives::Base58.check_encode("\x00".b + ("\x11".b * 19)), nil] }
+    }.each do |label, build|
+      it "rejects #{label} without a request or echoing the input" do
+        input, network = build.call(key)
+        response = tool.call(address_or_wif: input, **(network ? { network: network } : {}))
+        text = response.content.first[:text]
+        expect(response.error?).to be true
+        expect(text).not_to include(input)
+        expect(JSON.parse(text)['error']).to include('not a P2PKH address or WIF private key for')
+      end
+    end
+  end
+
+  describe '.call with a WIF for the call network' do
+    before { stub_woc(200, utxo_response_body) }
+
+    it 'accepts a compressed testnet WIF and queries the derived testnet address' do
+      key = BSV::Primitives::PrivateKey.generate
+      result = JSON.parse(tool.call(address_or_wif: key.to_wif(network: :testnet), network: 'testnet').content.first[:text])
+      expect(result['address']).to eq(key.public_key.address(network: :testnet))
     end
   end
 end

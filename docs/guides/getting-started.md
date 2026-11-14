@@ -155,5 +155,5 @@ For the full picture including edge cases and rationale, see **[Naming Conventio
 - **[Transaction Guide](../sdk/transaction.md)** — building, signing, fee estimation, BEEF
 - **[Network Guide](../sdk/network.md)** — broadcasting, chain tracking, SPV verification
 - **[bsv-wallet](https://github.com/sgbett/bsv-wallet)** — BRC-100 wallet interface, storage, broadcasting (standalone gem)
-- **[MCP Server Guide](../general/mcp.md)** — use BSV operations as AI assistant tools via Claude Code
+- **[MCP Server Guide](../reference/mcp.md)** — use BSV operations as AI assistant tools via Claude Code
 - **[Naming Conventions](../reference/naming-conventions.md)** — Ruby naming idioms for developers coming from other SDKs
