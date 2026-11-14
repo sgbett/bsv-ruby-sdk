@@ -28,6 +28,7 @@ module BSV
 
           Returns:
           - address: the resolved P2PKH address
+          - network: the network queried
           - balance_satoshis: total balance across all UTXOs
           - utxo_count: number of unspent outputs
           - utxos: array of { tx_hash, tx_pos, satoshis, height } objects
@@ -37,7 +38,8 @@ module BSV
           (mempool) UTXO.
 
           Note: addresses and keys are network-specific. An address or WIF for
-          the other network is rejected without any request being made.
+          the other network, or an address that is not P2PKH, is rejected
+          without any request being made.
         DESC
 
         input_schema(

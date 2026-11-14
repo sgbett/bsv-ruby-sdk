@@ -22,11 +22,14 @@ module BSV
             starts with 'm' or 'n')
           - network: 'mainnet' or 'testnet' — overrides the server default
 
-          Returns an array of UTXO objects, each with:
-          - tx_hash: transaction ID of the UTXO
-          - tx_pos: output index within that transaction
-          - satoshis: value in satoshis
-          - height: block height (0 = unconfirmed)
+          Returns:
+          - address: the address queried
+          - network: the network queried
+          - utxos: an array of UTXO objects, each with:
+            - tx_hash: transaction ID of the UTXO
+            - tx_pos: output index within that transaction
+            - satoshis: value in satoshis
+            - height: block height (0 = unconfirmed)
 
           Note: addresses are network-specific. An address for the other
           network, or one that is not a P2PKH address, is rejected without

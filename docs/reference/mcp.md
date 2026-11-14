@@ -62,7 +62,7 @@ The server reads configuration from environment variables at startup:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BSV_NETWORK` | `mainnet` | Network: `mainnet` or `testnet`. The aliases `main` and `test` are also accepted. Any other value stops the server with an error. |
-| `BSV_ARC_URL` | *(none)* | Base URL of a classic ARC endpoint, for example `https://arc.taal.com`. The SDK appends `/v1/tx`, so give the base URL without `/v1`. Must be `https` (plain `http` is accepted only for a localhost or loopback host). |
+| `BSV_ARC_URL` | *(none)* | Base URL of a classic ARC endpoint, for example `https://arc.taal.com`. The SDK appends `/v1/tx`, so give the base URL without `/v1`. Must be `https` (plain `http` is accepted only for a localhost or loopback host), with no credentials, query or fragment. |
 | `BSV_ARC_API_KEY` | *(none)* | API key sent as a bearer token to `BSV_ARC_URL` only. |
 
 Blank values count as unset.
