@@ -57,6 +57,27 @@ module BSV
           raise ArgumentError, "#{name} is not a P2PKH address for #{net_sym}"
         end
 
+        # The private key behind a WIF for +net_sym+, decoded the way addresses
+        # are, so that a mistyped key is never echoed back: Base58's own error
+        # names the first invalid character.
+        #
+        # @param wif [Object]
+        # @param net_sym [Symbol] :mainnet or :testnet
+        # @param name [String] the argument's name, for the error message
+        # @return [BSV::Primitives::PrivateKey]
+        # @raise [ArgumentError] with a fixed message, whether the WIF is invalid
+        #   or belongs to the other network (so a testnet key never signs a
+        #   mainnet spend, or the reverse)
+        def self.private_key(wif, net_sym, name: 'wif')
+          ensure_length!(wif, name)
+          payload = decode_base58check(wif)
+          key = payload && wif_private_key(payload)
+          raise ArgumentError, "#{name} is not a valid WIF private key for #{net_sym}" unless key
+          raise ArgumentError, "WIF private key is not for #{net_sym}" unless payload.byteslice(0, 1) == WIF_VERSIONS.fetch(net_sym)
+
+          key
+        end
+
         # Resolve user input to a P2PKH address for +net_sym+, before anything
         # is sent over the network.
         #
@@ -97,8 +118,18 @@ module BSV
           return base58_address(payload) if p2pkh_hash(payload, net_sym)
           return unless allow_wif && payload.byteslice(0, 1) == WIF_VERSIONS.fetch(net_sym)
 
+          wif_private_key(payload)&.public_key&.address(network: net_sym)
+        rescue ArgumentError
+          nil
+        end
+
+        # The key of a WIF payload for either network.
+        # @api private
+        def self.wif_private_key(payload)
+          return unless WIF_VERSIONS.value?(payload.byteslice(0, 1))
+
           key_bytes = wif_key_bytes(payload.byteslice(1..))
-          BSV::Primitives::PrivateKey.from_bytes(key_bytes).public_key.address(network: net_sym) if key_bytes
+          BSV::Primitives::PrivateKey.from_bytes(key_bytes) if key_bytes
         rescue ArgumentError
           nil
         end

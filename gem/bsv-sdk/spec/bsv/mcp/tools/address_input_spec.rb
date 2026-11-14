@@ -154,6 +154,87 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
     end
   end
 
+  describe '.private_key' do
+    let(:message) { 'wif is not a valid WIF private key for mainnet' }
+
+    def wif_with_payload(version, bytes)
+      BSV::Primitives::Base58.check_encode(version.b + bytes.b)
+    end
+
+    it 'returns the key of a mainnet WIF' do
+      expect(described_class.private_key(mainnet_wif, :mainnet).to_hex).to eq(private_key.to_hex)
+    end
+
+    it 'returns the key of a testnet WIF' do
+      expect(described_class.private_key(testnet_wif, :testnet).to_hex).to eq(private_key.to_hex)
+    end
+
+    it 'accepts an uncompressed WIF' do
+      wif = wif_with_payload("\x80", private_key.to_bytes)
+      expect(described_class.private_key(wif, :mainnet).to_hex).to eq(private_key.to_hex)
+    end
+
+    it 'keeps the network-mismatch error' do
+      expect { described_class.private_key(testnet_wif, :mainnet) }
+        .to raise_error(ArgumentError, 'WIF private key is not for mainnet')
+      expect { described_class.private_key(mainnet_wif, :testnet) }
+        .to raise_error(ArgumentError, 'WIF private key is not for testnet')
+    end
+
+    it 'names the argument in the error' do
+      expect { described_class.private_key('nope', :testnet, name: 'key') }
+        .to raise_error(ArgumentError, 'key is not a valid WIF private key for testnet')
+    end
+
+    it 'checks the length before decoding' do
+      expect { described_class.private_key('1' * 65, :mainnet) }
+        .to raise_error(ArgumentError, 'wif is longer than 64 characters')
+    end
+
+    {
+      'an invalid Base58 character' => ->(wif) { "0#{wif[1..]}" },
+      'a bad checksum' => ->(wif) { "#{wif[0..-2]}#{wif[-1] == '2' ? '3' : '2'}" },
+      'a character above U+00FF' => ->(wif) { "Ā#{wif[1..]}" },
+      'whitespace' => ->(wif) { " #{wif}" },
+      'an empty string' => ->(_wif) { '' }
+    }.each do |label, mutate|
+      it "rejects a WIF with #{label}" do
+        input = mutate.call(mainnet_wif)
+        expect { described_class.private_key(input, :mainnet) }
+          .to raise_error(ArgumentError, message)
+      end
+    end
+
+    it 'rejects wrong-length payloads' do
+      ["\x11".b * 31, "\x11".b * 33, "\x11".b * 34, ''].each do |bytes|
+        expect { described_class.private_key(wif_with_payload("\x80", bytes), :mainnet) }
+          .to raise_error(ArgumentError, message)
+      end
+    end
+
+    it 'rejects a bad compression flag' do
+      wif = wif_with_payload("\x80", private_key.to_bytes + "\x02".b)
+      expect { described_class.private_key(wif, :mainnet) }.to raise_error(ArgumentError, message)
+    end
+
+    it 'rejects an unknown prefix, such as an address' do
+      expect { described_class.private_key(known_address, :mainnet) }.to raise_error(ArgumentError, message)
+    end
+
+    it 'rejects a zero key and one above the curve order' do
+      [("\x00".b * 32), ("\xff".b * 32)].each do |bytes|
+        expect { described_class.private_key(wif_with_payload("\x80", bytes), :mainnet) }
+          .to raise_error(ArgumentError, message)
+      end
+    end
+
+    it 'rejects non-strings' do
+      [nil, 42, [mainnet_wif]].each do |value|
+        expect { described_class.private_key(value, :mainnet) }.to raise_error(ArgumentError, message)
+      end
+    end
+  end
+
   describe '.resolve' do
     it 'returns a mainnet address as is' do
       expect(described_class.resolve(known_address, :mainnet)).to eq(known_address)

@@ -101,9 +101,7 @@ module BSV
           net_sym = Helpers.resolve_network_sym(network, server_context)
           broadcaster = select_broadcaster(net_sym, server_context)
 
-          AddressInput.ensure_length!(wif, 'wif')
-          private_key = BSV::Primitives::PrivateKey.from_wif(wif)
-          ensure_wif_network(wif, net_sym)
+          private_key = AddressInput.private_key(wif, net_sym)
           recipient_lock = BSV::Script::Script.p2pkh_lock(AddressInput.pubkey_hash(to_address, net_sym, name: 'to_address'))
           sender_address = private_key.public_key.address(network: net_sym)
 
@@ -244,18 +242,6 @@ module BSV
           tx
         end
         private_class_method :build_transaction
-
-        # Refuse a WIF whose prefix belongs to the other network, so a testnet
-        # key never signs a mainnet spend or the reverse. The message never
-        # includes the key.
-        # @api private
-        def self.ensure_wif_network(wif, net_sym)
-          expected = net_sym == :mainnet ? BSV::Primitives::PrivateKey::MAINNET_PREFIX : BSV::Primitives::PrivateKey::TESTNET_PREFIX
-          return if BSV::Primitives::Base58.check_decode(wif)[0] == expected
-
-          raise ArgumentError, "WIF private key is not for #{net_sym}"
-        end
-        private_class_method :ensure_wif_network
 
         # Choose the protocol that broadcasts the transaction.
         #
