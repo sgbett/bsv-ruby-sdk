@@ -251,15 +251,7 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 
 ### Configuration
 
-Environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BSV_NETWORK` | `main` | Network: `main` or `test` |
-| `BSV_ARC_URL` | GorillaPool | Custom ARC endpoint URL |
-| `BSV_ARC_API_KEY` | *(none)* | ARC API key — passed as `auth: { bearer: value }` |
-
-See the **[MCP Server Guide](../general/mcp.md)** for full setup instructions, testnet configuration, and example workflows.
+The server's environment variables (`BSV_NETWORK`, `BSV_ARC_URL`, `BSV_ARC_API_KEY`), setup, testnet configuration and example workflows are documented in the **[MCP Server reference](../reference/mcp.md)**.
 
 ## What's Next
 
@@ -267,4 +259,4 @@ See the **[MCP Server Guide](../general/mcp.md)** for full setup instructions, t
 - **[Network Examples](../network/examples.md)** — custom providers, failover, protocol DSL
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
 - **[Getting Started](../guides/getting-started.md)** — key generation, basic transaction construction
-- **[MCP Server Guide](../general/mcp.md)** — using BSV tools from AI assistants
+- **[MCP Server Guide](../reference/mcp.md)** — using BSV tools from AI assistants

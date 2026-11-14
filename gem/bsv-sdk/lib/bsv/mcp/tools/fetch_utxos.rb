@@ -22,14 +22,18 @@ module BSV
             starts with 'm' or 'n')
           - network: 'mainnet' or 'testnet' — overrides the server default
 
-          Returns an array of UTXO objects, each with:
-          - tx_hash: transaction ID of the UTXO
-          - tx_pos: output index within that transaction
-          - satoshis: value in satoshis
-          - height: block height (0 = unconfirmed)
+          Returns:
+          - address: the address queried
+          - network: the network queried
+          - utxos: an array of UTXO objects, each with:
+            - tx_hash: transaction ID of the UTXO
+            - tx_pos: output index within that transaction
+            - satoshis: value in satoshis
+            - height: block height (0 = unconfirmed)
 
-          Note: addresses are network-specific. A mainnet address on testnet
-          (or vice versa) will return no results or an error.
+          Note: addresses are network-specific. An address for the other
+          network, or one that is not a P2PKH address, is rejected without
+          any request being made.
         DESC
 
         input_schema(
@@ -37,6 +41,7 @@ module BSV
           properties: {
             address: {
               type: 'string',
+              maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
               description: 'BSV P2PKH address to look up.'
             },
             network: {
@@ -50,6 +55,7 @@ module BSV
 
         def self.call(address:, network: nil, server_context: nil)
           net_sym = Helpers.resolve_network_sym(network, server_context)
+          address = AddressInput.resolve(address, net_sym)
           provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           utxo_result = provider.call(:get_utxos_all, address)
 
@@ -73,10 +79,9 @@ module BSV
             utxos: utxos.map { |u| Helpers.utxo_to_h(u) }
           }
 
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(result.to_json)],
-            structured_content: result
-          )
+          Helpers.json_response(result)
+        rescue ArgumentError => e
+          Helpers.error_response(e.message)
         end
       end
     end

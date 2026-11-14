@@ -51,12 +51,10 @@ module BSV
           tx = BSV::Transaction::Tx.from_hex(hex)
           result = Helpers.transaction_to_h(tx)
 
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(result.to_json)],
-            structured_content: result
-          )
-        rescue ArgumentError => e
-          Helpers.error_response(e.message)
+          Helpers.json_response(result)
+        rescue ArgumentError
+          # The parser's message quotes the input, which may be a pasted secret.
+          Helpers.error_response('invalid transaction hex: could not be parsed')
         end
       end
     end

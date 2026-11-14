@@ -66,10 +66,7 @@ module BSV
             network: net_sym.to_s
           }.merge(Helpers.transaction_to_h(tx))
 
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(result.to_json)],
-            structured_content: result
-          )
+          Helpers.json_response(result)
         rescue ArgumentError => e
           Helpers.error_response(e.message)
         end

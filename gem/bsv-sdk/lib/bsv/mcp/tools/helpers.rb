@@ -9,14 +9,51 @@ module BSV
         #
         # Checks the per-call +network_arg+ first, then falls back to the
         # server-level config in +server_context+, then defaults to :mainnet.
+        # Only 'mainnet' and 'testnet' are accepted: guessing at anything else
+        # could put a spend on the wrong network.
         #
         # @param network_arg [String, nil] per-call override ('mainnet'/'testnet')
-        # @param server_context [Hash, nil] server context with :bsv_network key
+        # @param server_context [Hash, MCP::ServerContext, nil] server context with :bsv_network key
         # @return [Symbol] :mainnet or :testnet
+        # @raise [ArgumentError] when the per-call network is neither value
         def self.resolve_network_sym(network_arg, server_context)
           net = network_arg
-          net = server_context[:bsv_network] if net.nil? && server_context.is_a?(Hash) && server_context[:bsv_network]
-          net == 'testnet' ? :testnet : :mainnet
+          net = context_value(server_context, :bsv_network) if net.nil?
+          net = 'mainnet' if net.nil?
+
+          case net.to_s
+          when 'mainnet' then :mainnet
+          when 'testnet' then :testnet
+          else raise ArgumentError, "network must be 'mainnet' or 'testnet'"
+          end
+        end
+
+        # Read a value from the server context.
+        #
+        # The +mcp+ gem wraps the context in an +MCP::ServerContext+ before a
+        # tool runs. The wrapper forwards +[]+ to the hash inside it but is not
+        # a Hash, and one wrapping +nil+ does not respond to +[]+ at all.
+        #
+        # @param server_context [Hash, MCP::ServerContext, nil]
+        # @param key [Symbol]
+        # @return [Object, nil]
+        def self.context_value(server_context, key)
+          server_context[key] if server_context.respond_to?(:[])
+        end
+
+        # Replace the ARC key and URL in +message+ so that neither is returned
+        # to the client, whatever service or exception produced the text. The
+        # longer secret goes first so a URL that contains the key is redacted whole.
+        #
+        # @param message [String, nil]
+        # @param server_context [Hash, MCP::ServerContext, nil]
+        # @return [String]
+        def self.scrub(message, server_context)
+          secrets = [
+            Secret.reveal(context_value(server_context, :arc_api_key)),
+            context_value(server_context, :arc_url)
+          ].compact.map(&:to_s).reject(&:empty?).sort_by { |secret| -secret.length }
+          secrets.reduce(message.to_s) { |text, secret| text.gsub(secret, Secret::REDACTED) }
         end
 
         # Convert a Transaction to a hash suitable for JSON responses.
@@ -70,16 +107,32 @@ module BSV
           }
         end
 
+        # Build a successful tool response carrying +result+ as JSON text and
+        # as structured content.
+        #
+        # The text content is a plain hash because mcp's +Tool::Response#to_h+
+        # passes content objects through untouched, so a +Content::Text+ would
+        # reach the client as its +inspect+ string.
+        #
+        # @param result [Hash]
+        # @return [MCP::Tool::Response]
+        def self.json_response(result)
+          ::MCP::Tool::Response.new([text_content(result)], structured_content: result)
+        end
+
         # Build a standard MCP error response.
         #
         # @param message [String] error description
+        # @param details [Hash] extra fields for the payload (e.g. +txid:+)
         # @return [MCP::Tool::Response]
-        def self.error_response(message)
-          payload = { error: message }
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(payload.to_json)],
-            error: true
-          )
+        def self.error_response(message, **details)
+          payload = { error: message, **details }.compact
+          ::MCP::Tool::Response.new([text_content(payload)], error: true)
+        end
+
+        # @api private
+        def self.text_content(payload)
+          { type: 'text', text: payload.to_json }
         end
       end
     end
