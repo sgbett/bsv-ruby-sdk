@@ -108,20 +108,56 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
     context 'when the API returns an error' do
       before { stub_woc(404, 'Transaction not found') }
 
+      let(:unknown_txid) { 'ab' * 32 }
+
       it 'returns an error response' do
-        response = tool.call(txid: 'unknowntxid')
+        response = tool.call(txid: unknown_txid)
         expect(response.error?).to be true
       end
 
       it 'includes the error message' do
-        result = JSON.parse(tool.call(txid: 'unknowntxid').content.first[:text], symbolize_names: true)
+        result = JSON.parse(tool.call(txid: unknown_txid).content.first[:text], symbolize_names: true)
         expect(result[:error]).to be_a(String)
         expect(result[:error]).not_to be_empty
       end
 
       it 'includes the HTTP status code in the error message' do
-        result = JSON.parse(tool.call(txid: 'unknowntxid').content.first[:text], symbolize_names: true)
+        result = JSON.parse(tool.call(txid: unknown_txid).content.first[:text], symbolize_names: true)
         expect(result[:error]).to include('404')
+      end
+    end
+
+    context 'with a txid that is not 64-character hex' do
+      before do
+        allow(BSV::Network::Providers::WhatsOnChain).to receive(:default)
+          .and_raise('no WhatsOnChain request expected')
+      end
+
+      {
+        'a word' => 'unknowntxid',
+        'a 63-character hex string' => 'a' * 63,
+        'a 65-character hex string' => 'a' * 65,
+        'a path segment' => "#{'a' * 61}/..",
+        'a WIF private key' => 'KyAu1EQxJa7JfVFoD45o1Bfym2eKovvVobqQ9Vtz115kQVKfF28W'
+      }.each do |label, input|
+        it "rejects #{label} without a request and without echoing it" do
+          response = tool.call(txid: input)
+          error = JSON.parse(response.content.first[:text], symbolize_names: true)[:error]
+
+          expect(response.error?).to be true
+          expect(error).to include('txid')
+          expect(error).not_to include(input)
+        end
+      end
+
+      it 'is rejected by the input schema before the tool runs' do
+        server = BSV::MCP::Server.build(BSV::MCP::Config.new(network: 'mainnet'))
+        response = server.handle(
+          { jsonrpc: '2.0', id: 1, method: 'tools/call',
+            params: { name: 'fetch_tx', arguments: { txid: 'unknowntxid' } } }
+        )
+
+        expect(response.dig(:result, :isError) || response.key?(:error)).to be true
       end
     end
 

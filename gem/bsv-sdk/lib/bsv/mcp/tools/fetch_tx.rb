@@ -29,6 +29,9 @@ module BSV
           Note: WhatsOnChain returns raw transaction hex (not BEEF or EF format).
           The txid in the response is derived by double-SHA-256 of the parsed tx,
           and is shown in display byte order (matching block explorers).
+
+          Note: a txid that is not 64 hex characters is rejected without any
+          request being made.
         DESC
 
         input_schema(
@@ -36,6 +39,9 @@ module BSV
           properties: {
             txid: {
               type: 'string',
+              minLength: 64,
+              maxLength: 64,
+              pattern: '^[0-9a-fA-F]{64}$',
               description: '64-character hex transaction ID.'
             },
             network: {
@@ -47,7 +53,9 @@ module BSV
           required: ['txid']
         )
 
+        # @param txid [String] MCP tool boundary: display-order hex transaction ID, as shown in block explorers
         def self.call(txid:, network: nil, server_context: nil)
+          BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'txid')
           net_sym = Helpers.resolve_network_sym(network, server_context)
           provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           fetch_result = provider.call(:get_tx, txid)
