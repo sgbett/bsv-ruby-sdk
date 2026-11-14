@@ -259,4 +259,4 @@ The server's environment variables (`BSV_NETWORK`, `BSV_ARC_URL`, `BSV_ARC_API_K
 - **[Network Examples](../network/examples.md)** — custom providers, failover, protocol DSL
 - **[Transaction Guide](transaction.md)** — building, signing, fee estimation, BEEF
 - **[Getting Started](../guides/getting-started.md)** — key generation, basic transaction construction
-- **[MCP Server Guide](../general/mcp.md)** — using BSV tools from AI assistants
+- **[MCP Server Guide](../reference/mcp.md)** — using BSV tools from AI assistants
