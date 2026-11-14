@@ -290,6 +290,39 @@ RSpec.describe 'BSV MCP server — network and broadcaster routing' do
     end
   end
 
+  describe 'over-long address and key inputs' do
+    let!(:recorder) { stub_all_hosts }
+    let(:server) { build_server(network: 'mainnet') }
+    let(:long_input) { '1' * 200_000 }
+
+    {
+      'fetch_utxos' => ->(long, _addr) { { address: long } },
+      'check_balance' => ->(long, _addr) { { address_or_wif: long } },
+      'broadcast_p2pkh (wif)' => ->(long, addr) { { wif: long, to_address: addr, satoshis: 1000 } },
+      'broadcast_p2pkh (to_address)' => ->(long, _addr) { { wif: 'x', to_address: long, satoshis: 1000 } }
+    }.each do |label, build|
+      it "rejects the input to #{label} through server.handle without any request" do
+        tool = label.split.first
+        result, = call_tool(server, tool, build.call(long_input, address_for('mainnet')))
+        expect(result[:isError]).to be true
+        expect(recorder.entries).to be_empty
+      end
+    end
+
+    it 'rejects it on a direct call with a fixed message and no request' do
+      responses = [
+        BSV::MCP::Tools::FetchUtxos.call(address: long_input),
+        BSV::MCP::Tools::CheckBalance.call(address_or_wif: long_input),
+        BSV::MCP::Tools::BroadcastP2pkh.call(wif: long_input, to_address: address_for('mainnet'), satoshis: 1000),
+        BSV::MCP::Tools::BroadcastP2pkh.call(wif: wif_for('mainnet'), to_address: long_input, satoshis: 1000)
+      ]
+      expect(responses.map(&:error?)).to all(be(true))
+      expect(responses.map { |r| r.content.first[:text] }).to all(include('longer than 64 characters'))
+      expect(responses.map { |r| r.content.first[:text].length }).to all(be < 300)
+      expect(recorder.entries).to be_empty
+    end
+  end
+
   describe 'environment isolation' do
     it 'starts every MCP example with the BSV_* variables unset' do
       expect(EnvHelper::MCP_ENV_VARS.map { |name| ENV.fetch(name, nil) }).to all(be_nil)

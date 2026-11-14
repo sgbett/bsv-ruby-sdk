@@ -41,6 +41,7 @@ module BSV
           properties: {
             address: {
               type: 'string',
+              maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
               description: 'BSV P2PKH address to look up.'
             },
             network: {

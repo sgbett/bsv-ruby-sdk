@@ -74,10 +74,12 @@ module BSV
           properties: {
             wif: {
               type: 'string',
+              maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
               description: 'Sender private key in WIF format.'
             },
             to_address: {
               type: 'string',
+              maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
               description: 'Recipient P2PKH address.'
             },
             satoshis: {
@@ -99,6 +101,8 @@ module BSV
           net_sym = Helpers.resolve_network_sym(network, server_context)
           broadcaster = select_broadcaster(net_sym, server_context)
 
+          AddressInput.ensure_length!(wif, 'wif')
+          AddressInput.ensure_length!(to_address, 'to_address')
           private_key = BSV::Primitives::PrivateKey.from_wif(wif)
           ensure_wif_network(wif, net_sym)
           recipient_lock = recipient_locking_script(to_address, net_sym)

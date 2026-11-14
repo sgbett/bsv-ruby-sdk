@@ -47,6 +47,7 @@ module BSV
           properties: {
             address_or_wif: {
               type: 'string',
+              maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
               description: 'BSV P2PKH address or WIF private key to check.'
             },
             network: {

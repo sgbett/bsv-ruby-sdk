@@ -52,8 +52,9 @@ module BSV
           result = Helpers.transaction_to_h(tx)
 
           Helpers.json_response(result)
-        rescue ArgumentError => e
-          Helpers.error_response(e.message)
+        rescue ArgumentError
+          # The parser's message quotes the input, which may be a pasted secret.
+          Helpers.error_response('invalid transaction hex: could not be parsed')
         end
       end
     end

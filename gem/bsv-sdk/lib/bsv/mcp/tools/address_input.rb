@@ -10,6 +10,21 @@ module BSV
         WIF_VERSIONS = { mainnet: "\x80".b, testnet: "\xef".b }.freeze
         private_constant :ADDRESS_VERSIONS, :WIF_VERSIONS
 
+        # Addresses are at most 35 characters and WIFs 52. Base58 decoding is
+        # quadratic, so anything much longer could stall the single-threaded
+        # stdio server; the input schemas carry the same limit.
+        MAX_LENGTH = 64
+
+        # @param input [Object]
+        # @param name [String] the argument's name, for the error message
+        # @raise [ArgumentError] when a String input is over {MAX_LENGTH}; the
+        #   message never includes the input
+        def self.ensure_length!(input, name)
+          return unless input.is_a?(String) && input.length > MAX_LENGTH
+
+          raise ArgumentError, "#{name} is longer than #{MAX_LENGTH} characters"
+        end
+
         # Resolve user input to a P2PKH address for +net_sym+, before anything
         # is sent over the network.
         #
@@ -25,6 +40,7 @@ module BSV
         # @return [String] the address
         # @raise [ArgumentError] with a fixed message
         def self.resolve(input, net_sym, allow_wif: false)
+          ensure_length!(input, 'input')
           payload = decode_base58check(input)
           address = payload && address_from_payload(payload, net_sym, allow_wif)
           return address if address

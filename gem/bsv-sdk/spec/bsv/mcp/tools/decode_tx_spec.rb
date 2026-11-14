@@ -128,4 +128,15 @@ RSpec.describe 'BSV::MCP::Tools::DecodeTx' do
       expect(response.structured_content[:txid]).to be_a(String)
     end
   end
+
+  describe '.call error text' do
+    it 'does not echo the input' do
+      secret = 'L1aW4aubDFB7yfras2S1mN3bqg9nwySY8nkoLmJebSLD5BWv3ENZ'
+      response = tool.call(hex: secret)
+      text = response.content.first[:text]
+      expect(response.error?).to be true
+      expect(text).not_to include(secret)
+      expect(JSON.parse(text)['error']).to include('invalid transaction hex')
+    end
+  end
 end
