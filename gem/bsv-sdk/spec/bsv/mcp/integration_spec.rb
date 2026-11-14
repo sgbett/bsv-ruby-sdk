@@ -15,9 +15,8 @@ require 'spec_helper'
 #
 # rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV MCP server — protocol integration' do
-  # A single server instance shared across the suite — the server is
-  # stateless between calls so this is safe.
-  let(:server) { BSV::MCP::Server.build }
+  # Pinned so the examples do not depend on the BSV_* environment variables.
+  let(:server) { BSV::MCP::Server.build(BSV::MCP::Config.new(network: 'mainnet')) }
 
   # Build a well-formed JSON-RPC 2.0 request hash.
   # +req_id+ defaults to 1 and can be varied to avoid id collisions in examples.

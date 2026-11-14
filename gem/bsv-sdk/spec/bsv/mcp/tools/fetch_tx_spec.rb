@@ -14,7 +14,14 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
         @body = body
       end
 
-      def request(_uri, _req)
+      # URIs requested through this client, so specs can assert which
+      # network and host a tool really talked to.
+      def self.requested
+        @requested ||= []
+      end
+
+      def request(uri, _req)
+        self.class.requested << uri.to_s
         fake_http_response(@code, @body)
       end
     end
@@ -35,10 +42,13 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
 
   let(:txid) { 'abc1234500000000000000000000000000000000000000000000000000000000' }
 
-  def stub_woc(code, body, network: :mainnet)
+  # Inject the fake HTTP client but keep the network the tool asked for, so
+  # the requested URIs show which network was really used.
+  def stub_woc(code, body)
     http = mock_http_class.new(code, body)
-    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
-    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_wrap_original do |original, **opts|
+      original.call(**opts, http_client: http)
+    end
   end
 
   describe '.call' do
@@ -117,10 +127,11 @@ RSpec.describe 'BSV::MCP::Tools::FetchTx' do
 
     context 'when querying testnet' do
       it 'passes testnet to the provider' do
-        stub_woc(200, raw_tx_hex, network: :testnet)
+        stub_woc(200, raw_tx_hex)
 
         result = JSON.parse(tool.call(txid: txid, network: 'testnet').content.first.text, symbolize_names: true)
         expect(result[:network]).to eq('testnet')
+        expect(mock_http_class.requested).to all(include('/v1/bsv/test/'))
       end
     end
   end

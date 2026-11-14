@@ -3,15 +3,6 @@
 require 'spec_helper'
 
 RSpec.describe BSV::MCP::Config do
-  # Helper to temporarily set env vars for the duration of a block.
-  def with_env(vars)
-    old = vars.keys.to_h { |k| [k, ENV.fetch(k, nil)] }
-    vars.each { |k, v| v.nil? ? ENV.delete(k) : ENV.store(k, v) }
-    yield
-  ensure
-    old.each { |k, v| v.nil? ? ENV.delete(k) : ENV.store(k, v) }
-  end
-
   describe 'defaults' do
     subject(:config) do
       with_env('BSV_NETWORK' => nil, 'BSV_ARC_URL' => nil, 'BSV_ARC_API_KEY' => nil) do

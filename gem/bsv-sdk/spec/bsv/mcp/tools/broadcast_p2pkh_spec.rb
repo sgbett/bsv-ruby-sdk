@@ -14,6 +14,8 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
   let(:recipient_address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
 
+  let(:broadcaster_http_class) { Class.new(mock_http_class) }
+
   # A funded UTXO worth 100_000 satoshis
   let(:utxo_response_body) do
     {
@@ -40,7 +42,14 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
         @body = body
       end
 
-      def request(_uri, req)
+      # URIs requested through this client, so specs can assert which
+      # network and host a tool really talked to.
+      def self.requested
+        @requested ||= []
+      end
+
+      def request(uri, req)
+        self.class.requested << uri.to_s
         body = @body.respond_to?(:call) ? @body.call(req) : @body
         fake_http_response(@code, body)
       end
@@ -60,16 +69,20 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
-  def stub_woc(code, body, network: :mainnet)
+  # Inject the fake HTTP client but keep the network the tool asked for, so
+  # the requested URIs show which network was really used.
+  def stub_woc(code, body)
     http = mock_http_class.new(code, body)
-    provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: http)
-    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
+    allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_wrap_original do |original, **opts|
+      original.call(**opts, http_client: http)
+    end
   end
 
   def stub_broadcaster(code, body)
-    http = mock_http_class.new(code, body)
-    provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
-    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
+    http = broadcaster_http_class.new(code, body)
+    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_wrap_original do |original, **opts|
+      original.call(**opts, http_client: http)
+    end
   end
 
   def call_tool(**opts)
@@ -283,7 +296,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
   describe '.call with testnet' do
     before do
-      stub_woc(200, utxo_response_body, network: :testnet)
+      stub_woc(200, utxo_response_body)
       stub_broadcaster(200, broadcast_reply('RECEIVED'))
     end
 
@@ -295,6 +308,13 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       response = tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
       result = JSON.parse(response.content.first.text, symbolize_names: true)
       expect(result[:tx_status]).to eq('RECEIVED')
+    end
+
+    it 'talks to the testnet broadcaster and the testnet WhatsOnChain API' do
+      tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
+      testnet_host = URI(BSV::Network::Providers::GorillaPool.default(testnet: true).protocol_for(:broadcast).base_url).host
+      expect(broadcaster_http_class.requested).to all(include(testnet_host))
+      expect(mock_http_class.requested).to all(include('/v1/bsv/test/'))
     end
   end
 end
