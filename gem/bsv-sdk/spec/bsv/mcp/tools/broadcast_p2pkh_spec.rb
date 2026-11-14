@@ -288,6 +288,10 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     let(:mainnet_message) { 'to_address is not a P2PKH address for mainnet' }
     let(:testnet_message) { 'to_address is not a P2PKH address for testnet' }
     let(:invalid_wif_message) { 'wif is not a valid WIF private key for mainnet' }
+    # U+0100, the first character past Base58::DECODE_MAP's 256 entries (TypeError path)
+    let(:beyond_latin1) { 0x100.chr(Encoding::UTF_8) }
+    # Ten 2-byte characters make a 20-byte String, which Script.p2pkh_lock would take as a raw hash
+    let(:twenty_byte_text) { 0xE9.chr(Encoding::UTF_8) * 10 }
 
     # Addresses with a valid checksum and the right version byte but a payload
     # of +length+ bytes, so only the payload check can reject them.
@@ -331,9 +335,9 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     {
       'an invalid Base58 character' => ->(key) { "0#{key[1..]}" },
       'a bad checksum' => ->(key) { "#{key[0..-2]}#{key[-1] == '2' ? '3' : '2'}" },
-      'a character above U+00FF' => ->(key) { "Ā#{key[1..]}" },
+      'a character above U+00FF' => ->(key) { "#{0x100.chr(Encoding::UTF_8)}#{key[1..]}" },
       'a short payload' => ->(_key) { BSV::Primitives::Base58.check_encode("\x80".b + ("\x11".b * 31)) },
-      'a long payload' => ->(_key) { BSV::Primitives::Base58.check_encode("\x80".b + ("\x11".b * 33)) }
+      'a bad compression flag' => ->(_key) { BSV::Primitives::Base58.check_encode("\x80".b + ("\x11".b * 33)) }
     }.each do |label, mutate|
       it "returns a fixed message for a WIF with #{label}" do
         input = mutate.call(wif)
@@ -347,8 +351,8 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
 
     it 'echoes no character of a WIF with a character above U+00FF' do
-      _, result = call_tool(wif: "Ā#{wif[1..]}")
-      expect(result[:error]).not_to include(256.chr('UTF-8'))
+      _, result = call_tool(wif: "#{beyond_latin1}#{wif[1..]}")
+      expect(result[:error]).not_to include(beyond_latin1)
     end
 
     it 'returns the fixed message for a nil WIF' do
@@ -415,11 +419,11 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
 
     it 'rejects non-ASCII text as the recipient' do
-      expect_rejection(mainnet_message, to_address: 'é' * 10)
+      expect_rejection(mainnet_message, to_address: twenty_byte_text)
     end
 
     it 'rejects a character above U+00FF in the recipient' do
-      expect_rejection(mainnet_message, to_address: "#{recipient_address[0, 19]}Ā")
+      expect_rejection(mainnet_message, to_address: "#{recipient_address[0, 19]}#{beyond_latin1}")
     end
 
     [nil, 42, ['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa']].each do |value|

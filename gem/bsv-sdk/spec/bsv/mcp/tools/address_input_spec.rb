@@ -8,6 +8,10 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
   end
   let(:mainnet_wif) { private_key.to_wif }
   let(:testnet_wif) { private_key.to_wif(network: :testnet) }
+  # U+0100, the first character past Base58::DECODE_MAP's 256 entries (TypeError path)
+  let(:beyond_latin1) { 0x100.chr(Encoding::UTF_8) }
+  # Ten 2-byte characters make a 20-byte String, which Script.p2pkh_lock would take as a raw hash
+  let(:twenty_byte_text) { 0xE9.chr(Encoding::UTF_8) * 10 }
   # A mainnet address whose hash is the literal below.
   let(:known_address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
   let(:known_hash_hex) { '62e907b15cbf27d5425399ebf6f0fb50ebb88f18' }
@@ -119,11 +123,11 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
       end
 
       it 'rejects non-ASCII text' do
-        expect { described_class.pubkey_hash('é' * 10, :mainnet) }.to raise_error(ArgumentError, message)
+        expect { described_class.pubkey_hash(twenty_byte_text, :mainnet) }.to raise_error(ArgumentError, message)
       end
 
       it 'rejects a character above U+00FF' do
-        expect { described_class.pubkey_hash("#{known_address[0, 19]}Ā", :mainnet) }
+        expect { described_class.pubkey_hash("#{known_address[0, 19]}#{beyond_latin1}", :mainnet) }
           .to raise_error(ArgumentError, message)
       end
 
@@ -194,7 +198,7 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
     {
       'an invalid Base58 character' => ->(wif) { "0#{wif[1..]}" },
       'a bad checksum' => ->(wif) { "#{wif[0..-2]}#{wif[-1] == '2' ? '3' : '2'}" },
-      'a character above U+00FF' => ->(wif) { "Ā#{wif[1..]}" },
+      'a character above U+00FF' => ->(wif) { "#{0x100.chr(Encoding::UTF_8)}#{wif[1..]}" },
       'whitespace' => ->(wif) { " #{wif}" },
       'an empty string' => ->(_wif) { '' }
     }.each do |label, mutate|
@@ -206,15 +210,17 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
     end
 
     it 'rejects wrong-length payloads' do
-      ["\x11".b * 31, "\x11".b * 33, "\x11".b * 34, ''].each do |bytes|
+      ["\x11".b * 31, "\x11".b * 34, ''].each do |bytes|
         expect { described_class.private_key(wif_with_payload("\x80", bytes), :mainnet) }
           .to raise_error(ArgumentError, message)
       end
     end
 
     it 'rejects a bad compression flag' do
-      wif = wif_with_payload("\x80", private_key.to_bytes + "\x02".b)
-      expect { described_class.private_key(wif, :mainnet) }.to raise_error(ArgumentError, message)
+      ["\x02".b, "\x11".b].each do |flag|
+        wif = wif_with_payload("\x80", private_key.to_bytes + flag)
+        expect { described_class.private_key(wif, :mainnet) }.to raise_error(ArgumentError, message)
+      end
     end
 
     it 'rejects an unknown prefix, such as an address' do
@@ -279,7 +285,7 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
     end
 
     it 'rejects a character above U+00FF and non-strings' do
-      ["#{known_address[0, 19]}Ā", nil, 42].each do |value|
+      ["#{known_address[0, 19]}#{beyond_latin1}", nil, 42].each do |value|
         expect { described_class.resolve(value, :mainnet) }
           .to raise_error(ArgumentError, 'input is not a P2PKH address for mainnet')
       end

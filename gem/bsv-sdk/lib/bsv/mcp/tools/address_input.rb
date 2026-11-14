@@ -112,7 +112,6 @@ module BSV
           nil
         end
 
-        # The decoded payload is the version byte followed by the body.
         # @api private
         def self.address_from_payload(payload, net_sym, allow_wif)
           return base58_address(payload) if p2pkh_hash(payload, net_sym)
