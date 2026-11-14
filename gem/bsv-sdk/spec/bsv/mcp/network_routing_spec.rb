@@ -77,8 +77,7 @@ RSpec.describe 'BSV MCP server — network and broadcaster routing' do
     params[:_meta] = meta if meta
     response = server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: params })
     item = response[:result][:content].first
-    text = item.respond_to?(:text) ? item.text : item[:text]
-    [response[:result], parse_payload(text)]
+    [response[:result], parse_payload(item[:text])]
   end
 
   # Schema validation failures come back from the mcp gem as plain text.

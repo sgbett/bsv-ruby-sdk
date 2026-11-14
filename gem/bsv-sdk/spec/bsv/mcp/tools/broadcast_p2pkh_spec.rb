@@ -87,7 +87,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
   def call_tool(**opts)
     response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000, **opts)
-    [response, JSON.parse(response.content.first.text, symbolize_names: true)]
+    [response, JSON.parse(response.content.first[:text], symbolize_names: true)]
   end
 
   describe '.call with sufficient funds' do
@@ -134,7 +134,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
     it 'includes an error message mentioning insufficient funds' do
       result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 200_000).content.first.text,
+        tool.call(wif: wif, to_address: recipient_address, satoshis: 200_000).content.first[:text],
         symbolize_names: true
       )
       expect(result[:error]).to include('Insufficient funds')
@@ -151,7 +151,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
     it 'mentions no UTXOs found' do
       result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
+        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first[:text],
         symbolize_names: true
       )
       expect(result[:error]).to include('No UTXOs')
@@ -166,7 +166,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
     it 'includes an error message' do
       result = JSON.parse(
-        tool.call(wif: 'not-a-valid-wif', to_address: recipient_address, satoshis: 10_000).content.first.text,
+        tool.call(wif: 'not-a-valid-wif', to_address: recipient_address, satoshis: 10_000).content.first[:text],
         symbolize_names: true
       )
       expect(result[:error]).to be_a(String)
@@ -265,7 +265,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       stub_broadcaster(200, broadcast_reply('S3CRETKEY'))
       context = { arc_api_key: BSV::MCP::Secret.new('S3CRETKEY') }
       response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000, server_context: context)
-      expect(response.content.first.text).not_to include('S3CRETKEY')
+      expect(response.content.first[:text]).not_to include('S3CRETKEY')
     end
   end
 
@@ -344,7 +344,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
 
     it 'uses testnet for WhatsOnChain and Arcade' do
       response = tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
-      result = JSON.parse(response.content.first.text, symbolize_names: true)
+      result = JSON.parse(response.content.first[:text], symbolize_names: true)
       expect(result[:tx_status]).to eq('RECEIVED')
     end
 

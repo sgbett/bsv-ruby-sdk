@@ -107,6 +107,19 @@ module BSV
           }
         end
 
+        # Build a successful tool response carrying +result+ as JSON text and
+        # as structured content.
+        #
+        # The text content is a plain hash because mcp's +Tool::Response#to_h+
+        # passes content objects through untouched, so a +Content::Text+ would
+        # reach the client as its +inspect+ string.
+        #
+        # @param result [Hash]
+        # @return [MCP::Tool::Response]
+        def self.json_response(result)
+          ::MCP::Tool::Response.new([text_content(result)], structured_content: result)
+        end
+
         # Build a standard MCP error response.
         #
         # @param message [String] error description
@@ -114,10 +127,12 @@ module BSV
         # @return [MCP::Tool::Response]
         def self.error_response(message, **details)
           payload = { error: message, **details }.compact
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(payload.to_json)],
-            error: true
-          )
+          ::MCP::Tool::Response.new([text_content(payload)], error: true)
+        end
+
+        # @api private
+        def self.text_content(payload)
+          { type: 'text', text: payload.to_json }
         end
       end
     end

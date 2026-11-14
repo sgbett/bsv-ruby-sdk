@@ -28,8 +28,9 @@ module BSV
           - satoshis: value in satoshis
           - height: block height (0 = unconfirmed)
 
-          Note: addresses are network-specific. A mainnet address on testnet
-          (or vice versa) will return no results or an error.
+          Note: addresses are network-specific. An address for the other
+          network, or one that is not a P2PKH address, is rejected without
+          any request being made.
         DESC
 
         input_schema(
@@ -50,6 +51,7 @@ module BSV
 
         def self.call(address:, network: nil, server_context: nil)
           net_sym = Helpers.resolve_network_sym(network, server_context)
+          address = AddressInput.resolve(address, net_sym)
           provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           utxo_result = provider.call(:get_utxos_all, address)
 
@@ -73,10 +75,7 @@ module BSV
             utxos: utxos.map { |u| Helpers.utxo_to_h(u) }
           }
 
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(result.to_json)],
-            structured_content: result
-          )
+          Helpers.json_response(result)
         rescue ArgumentError => e
           Helpers.error_response(e.message)
         end

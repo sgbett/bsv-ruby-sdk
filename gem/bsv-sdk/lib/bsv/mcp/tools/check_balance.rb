@@ -8,7 +8,8 @@ module BSV
       #
       # Accepts either a WIF-encoded private key (from which the address is
       # derived) or a plain P2PKH address string. The tool auto-detects the
-      # input type via a try/rescue on +PrivateKey.from_wif+.
+      # input type from its Base58Check version byte. Either must be for the
+      # call's network, and nothing is sent to WhatsOnChain otherwise.
       class CheckBalance < ::MCP::Tool
         tool_name 'check_balance'
 
@@ -35,8 +36,8 @@ module BSV
           confirmed from unconfirmed. A height of 0 indicates an unconfirmed
           (mempool) UTXO.
 
-          Note: addresses are network-specific. A mainnet address queried
-          against testnet (or vice versa) will return no results or an error.
+          Note: addresses and keys are network-specific. An address or WIF for
+          the other network is rejected without any request being made.
         DESC
 
         input_schema(
@@ -57,7 +58,7 @@ module BSV
 
         def self.call(address_or_wif:, network: nil, server_context: nil)
           net_sym = Helpers.resolve_network_sym(network, server_context)
-          address = resolve_address(address_or_wif, net_sym)
+          address = AddressInput.resolve(address_or_wif, net_sym, allow_wif: true)
 
           provider = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
           utxo_result = provider.call(:get_utxos_all, address)
@@ -85,23 +86,10 @@ module BSV
             utxos: utxos.map { |u| Helpers.utxo_to_h(u) }
           }
 
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(result.to_json)],
-            structured_content: result
-          )
+          Helpers.json_response(result)
         rescue ArgumentError => e
           Helpers.error_response(e.message)
         end
-
-        # Resolve a WIF key or address string to a P2PKH address.
-        # @api private
-        def self.resolve_address(address_or_wif, net_sym)
-          key = BSV::Primitives::PrivateKey.from_wif(address_or_wif)
-          key.public_key.address(network: net_sym)
-        rescue ArgumentError
-          address_or_wif
-        end
-        private_class_method :resolve_address
       end
     end
   end

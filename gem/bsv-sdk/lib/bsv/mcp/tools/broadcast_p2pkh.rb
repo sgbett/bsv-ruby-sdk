@@ -137,10 +137,7 @@ module BSV
 
           result = { txid: txid, tx_status: reportable_status(data['txStatus'], server_context), hex: tx.to_hex }.compact
 
-          ::MCP::Tool::Response.new(
-            [::MCP::Content::Text.new(result.to_json)],
-            structured_content: result
-          )
+          Helpers.json_response(result)
         rescue StandardError => e
           # Catch broadly so MCP returns a structured error rather than
           # crashing the tool handler on unexpected exception types

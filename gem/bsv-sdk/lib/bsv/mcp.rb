@@ -10,6 +10,7 @@ module BSV
 
     module Tools
       autoload :Helpers,         'bsv/mcp/tools/helpers'
+      autoload :AddressInput,    'bsv/mcp/tools/address_input'
       autoload :GenerateKey,     'bsv/mcp/tools/generate_key'
       autoload :DecodeTx,        'bsv/mcp/tools/decode_tx'
       autoload :FetchUtxos,      'bsv/mcp/tools/fetch_utxos'

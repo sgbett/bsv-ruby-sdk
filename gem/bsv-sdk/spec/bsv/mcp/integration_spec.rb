@@ -10,8 +10,7 @@ require 'spec_helper'
 # (such as Claude Code) would send over stdio.
 #
 # `server.handle` returns the JSON-RPC response hash with the tool's
-# `MCP::Content::Text` objects intact in `result[:content]`. Access their
-# text payload via `.text` (not `[:text]`).
+# plain `{ type: 'text', text: ... }` hashes in `result[:content]`.
 #
 # rubocop:disable-next RSpec/DescribeClass
 RSpec.describe 'BSV MCP server — protocol integration' do
@@ -28,7 +27,7 @@ RSpec.describe 'BSV MCP server — protocol integration' do
 
   # Parse the first content item's text payload from a tools/call response.
   def payload_from(response)
-    JSON.parse(response[:result][:content].first.text, symbolize_names: true)
+    JSON.parse(response[:result][:content].first[:text], symbolize_names: true)
   end
 
   # ------------------------------------------------------------------
@@ -132,14 +131,14 @@ RSpec.describe 'BSV MCP server — protocol integration' do
       expect(response[:result][:content]).not_to be_empty
     end
 
-    it 'returns an MCP::Content::Text object as the first content item' do
+    it 'returns a plain text content hash as the first content item' do
       response = server.handle(call_request)
-      expect(response[:result][:content].first).to be_a(MCP::Content::Text)
+      expect(response[:result][:content].first).to include(type: 'text', text: a_kind_of(String))
     end
 
     it 'returns parseable JSON in the text field' do
       response = server.handle(call_request)
-      text = response[:result][:content].first.text
+      text = response[:result][:content].first[:text]
       expect { JSON.parse(text) }.not_to raise_error
     end
 
@@ -169,6 +168,29 @@ RSpec.describe 'BSV MCP server — protocol integration' do
       payload = payload_from(server.handle(call_request))
       key = BSV::Primitives::PrivateKey.from_wif(payload[:wif])
       expect(key.public_key.to_hex).to eq(payload[:public_key_hex])
+    end
+  end
+
+  # ------------------------------------------------------------------
+  # Over the JSON wire
+  # ------------------------------------------------------------------
+  describe 'handle_json' do
+    def decoded(request)
+      JSON.parse(server.handle_json(request.to_json), symbolize_names: true)
+    end
+
+    it 'serialises a successful result as parseable JSON text' do
+      response = decoded(rpc('tools/call', { name: 'generate_key', arguments: {} }))
+      item = response[:result][:content].first
+      expect(item[:type]).to eq('text')
+      expect(JSON.parse(item[:text], symbolize_names: true)).to include(network: 'mainnet')
+      expect(item[:text]).not_to include('#<')
+    end
+
+    it 'serialises an error as parseable JSON text with isError set' do
+      response = decoded(rpc('tools/call', { name: 'decode_tx', arguments: { hex: 'notvalidhex' } }))
+      expect(response[:result][:isError]).to be true
+      expect(JSON.parse(response[:result][:content].first[:text], symbolize_names: true)[:error]).to be_a(String)
     end
   end
 

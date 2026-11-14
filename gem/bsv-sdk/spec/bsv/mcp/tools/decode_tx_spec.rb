@@ -51,59 +51,59 @@ RSpec.describe 'BSV::MCP::Tools::DecodeTx' do
       end
 
       it 'returns a txid' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
       end
 
       it 'returns version 1' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:version]).to eq(1)
       end
 
       it 'returns lock_time 0' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:lock_time]).to eq(0)
       end
 
       it 'returns one input' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:inputs].length).to eq(1)
       end
 
       it 'returns one output' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:outputs].length).to eq(1)
       end
 
       it 'shows the input prev_txid in display byte order (hex string)' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:inputs].first[:prev_txid]).to match(/\A[0-9a-f]{64}\z/)
       end
 
       it 'shows the input vout' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:inputs].first[:vout]).to be_an(Integer)
       end
 
       it 'shows output satoshis' do
-        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: simple_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:outputs].first[:satoshis]).to eq(1)
       end
     end
 
     context 'with a P2PKH output' do
       it 'detects pubkeyhash script type' do
-        result = JSON.parse(tool.call(hex: p2pkh_output_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: p2pkh_output_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:outputs].first[:script_type]).to eq('pubkeyhash')
       end
 
       it 'returns the script in ASM' do
-        result = JSON.parse(tool.call(hex: p2pkh_output_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: p2pkh_output_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:outputs].first[:script_asm]).to include('OP_DUP')
       end
 
       it 'returns the script in hex' do
-        result = JSON.parse(tool.call(hex: p2pkh_output_tx_hex).content.first.text, symbolize_names: true)
+        result = JSON.parse(tool.call(hex: p2pkh_output_tx_hex).content.first[:text], symbolize_names: true)
         expect(result[:outputs].first[:script_hex]).to match(/\A[0-9a-f]+\z/)
       end
     end
@@ -116,7 +116,7 @@ RSpec.describe 'BSV::MCP::Tools::DecodeTx' do
 
       it 'includes an error message' do
         response = tool.call(hex: 'notvalidhex')
-        result = JSON.parse(response.content.first.text, symbolize_names: true)
+        result = JSON.parse(response.content.first[:text], symbolize_names: true)
         expect(result[:error]).to be_a(String)
         expect(result[:error]).not_to be_empty
       end
