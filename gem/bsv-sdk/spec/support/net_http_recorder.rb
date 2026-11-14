@@ -18,19 +18,20 @@ class NetHttpRecorder
   # Raised for a request to a host the spec did not expect.
   class UnexpectedHost < StandardError; end
 
-  Entry = Struct.new(:host, :path, :authorization, :request)
+  Entry = Struct.new(:host, :path, :authorization, :use_ssl, :request)
 
   # A stand-in for the connection yielded by +Net::HTTP.start+.
   class Connection
     include FakeHttpResponse
 
-    def initialize(recorder, host)
+    def initialize(recorder, host, use_ssl)
       @recorder = recorder
       @host = host
+      @use_ssl = use_ssl
     end
 
     def request(req)
-      @recorder.respond(@host, req)
+      @recorder.respond(@host, req, use_ssl: @use_ssl)
     end
   end
 
@@ -43,17 +44,17 @@ class NetHttpRecorder
     @unexpected_hosts = []
   end
 
-  def connect(host)
+  def connect(host, use_ssl: false)
     unless @responders.key?(host)
       @unexpected_hosts << host
       raise UnexpectedHost, "unexpected request to #{host}"
     end
 
-    Connection.new(self, host)
+    Connection.new(self, host, use_ssl)
   end
 
-  def respond(host, req)
-    @entries << Entry.new(host, req.path, req['Authorization'], req)
+  def respond(host, req, use_ssl: false)
+    @entries << Entry.new(host, req.path, req['Authorization'], use_ssl, req)
     status, body = @responders.fetch(host).call(req)
     FakeHttpResponse.fake_http_response(status, body)
   end
@@ -76,8 +77,8 @@ module NetHttpStubbing
   # @return [NetHttpRecorder]
   def stub_net_http(responders)
     recorder = NetHttpRecorder.new(responders)
-    allow(Net::HTTP).to receive(:start) do |host, _port, **_opts, &block|
-      block.call(recorder.connect(host))
+    allow(Net::HTTP).to receive(:start) do |host, _port, **opts, &block|
+      block.call(recorder.connect(host, use_ssl: opts[:use_ssl]))
     end
     recorder
   end

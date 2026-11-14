@@ -12,7 +12,8 @@ module BSV
     #                      ArgumentError so the server fails to start rather
     #                      than guessing a network.
     #   BSV_ARC_URL     -- optional ARC endpoint for broadcasts on the server's
-    #                      own network (https, or http for a loopback host)
+    #                      own network (https, or http for a loopback host; no
+    #                      credentials, query or fragment)
     #   BSV_ARC_API_KEY -- optional bearer token, sent only to BSV_ARC_URL.
     #                      Ignored (with a warning) when BSV_ARC_URL is unset.
     #
@@ -80,7 +81,8 @@ module BSV
       end
 
       def usable_arc_uri?(uri)
-        return false if uri.host.to_s.empty? || uri.userinfo
+        # ARC appends its path to the raw string, so a query or fragment would corrupt it.
+        return false if uri.host.to_s.empty? || uri.userinfo || uri.query || uri.fragment
 
         case uri.scheme&.downcase
         when 'https' then true
@@ -90,7 +92,7 @@ module BSV
       end
 
       def arc_url_error
-        'BSV_ARC_URL must be an https URL with a host and no credentials ' \
+        'BSV_ARC_URL must be an https URL with a host, no credentials, query or fragment ' \
           '(http is accepted only for localhost, 127.0.0.1 and ::1)'
       end
 

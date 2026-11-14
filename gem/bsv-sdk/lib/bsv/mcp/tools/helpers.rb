@@ -42,7 +42,8 @@ module BSV
         end
 
         # Replace the ARC key and URL in +message+ so that neither is returned
-        # to the client, whatever service or exception produced the text.
+        # to the client, whatever service or exception produced the text. The
+        # longer secret goes first so a URL that contains the key is redacted whole.
         #
         # @param message [String, nil]
         # @param server_context [Hash, MCP::ServerContext, nil]
@@ -51,7 +52,7 @@ module BSV
           secrets = [
             Secret.reveal(context_value(server_context, :arc_api_key)),
             context_value(server_context, :arc_url)
-          ].compact.map(&:to_s).reject(&:empty?)
+          ].compact.map(&:to_s).reject(&:empty?).sort_by { |secret| -secret.length }
           secrets.reduce(message.to_s) { |text, secret| text.gsub(secret, Secret::REDACTED) }
         end
 

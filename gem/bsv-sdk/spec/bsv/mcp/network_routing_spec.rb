@@ -139,12 +139,22 @@ RSpec.describe 'BSV MCP server — network and broadcaster routing' do
 
             it 'sends the ARC key only to the configured ARC host' do
               call_tool(server, 'broadcast_p2pkh', args)
+              expect(recorder.entries).not_to be_empty
               expect(recorder.entries.reject { |e| e.host == arc_host }.map(&:authorization)).to all(be_nil)
-              expect(recorder.authorisation_for(arc_host)).to all(eq("Bearer #{arc_key}")) if uses_custom_arc
+              expect(recorder.authorisation_for(arc_host)).to eq(["Bearer #{arc_key}"]) if uses_custom_arc
+            end
+
+            it 'uses TLS for every request to the configured ARC host' do
+              call_tool(server, 'broadcast_p2pkh', args)
+              next unless uses_custom_arc
+
+              expect(recorder.entries_for(arc_host)).not_to be_empty
+              expect(recorder.entries_for(arc_host).map(&:use_ssl)).to all(be(true))
             end
 
             it 'fetches UTXOs from the WhatsOnChain API for the effective network' do
               call_tool(server, 'broadcast_p2pkh', args)
+              expect(recorder.entries_for(woc_host)).not_to be_empty
               expect(recorder.entries_for(woc_host).map(&:path)).to all(start_with(woc_prefix(effective)))
             end
           end
@@ -159,6 +169,7 @@ RSpec.describe 'BSV MCP server — network and broadcaster routing' do
         server = nil
         expect { server = build_server(network: 'mainnet', arc_api_key: arc_key) }.to output(/ignored/).to_stderr
         call_tool(server, 'broadcast_p2pkh', broadcast_args('mainnet'))
+        expect(recorder.entries).not_to be_empty
         expect(recorder.entries.map(&:authorization)).to all(be_nil)
       end
     end
@@ -240,24 +251,28 @@ RSpec.describe 'BSV MCP server — network and broadcaster routing' do
         it 'check_balance queries the server network' do
           _, payload = call_tool(server, 'check_balance', { address_or_wif: address_for(server_network) })
           expect(payload[:network]).to eq(server_network)
+          expect(recorder.entries).not_to be_empty
           expect(recorder.entries.map(&:path)).to all(start_with(prefix))
         end
 
         it 'fetch_utxos queries the server network' do
           _, payload = call_tool(server, 'fetch_utxos', { address: address_for(server_network) })
           expect(payload[:network]).to eq(server_network)
+          expect(recorder.entries).not_to be_empty
           expect(recorder.entries.map(&:path)).to all(start_with(prefix))
         end
 
         it 'fetch_tx queries the server network' do
           _, payload = call_tool(server, 'fetch_tx', { txid: 'ab' * 32 })
           expect(payload[:network]).to eq(server_network)
+          expect(recorder.entries).not_to be_empty
           expect(recorder.entries.map(&:path)).to all(start_with(prefix))
         end
 
         it 'broadcast_p2pkh signs and broadcasts for the server network' do
           result, = call_tool(server, 'broadcast_p2pkh', broadcast_args(server_network))
           expect(result[:isError]).to be_falsey
+          expect(recorder.entries_for(woc_host)).not_to be_empty
           expect(recorder.entries_for(woc_host).map(&:path)).to all(start_with(prefix))
           expect(recorder.hosts - [woc_host]).to eq([default_broadcast_host(server_network)])
         end

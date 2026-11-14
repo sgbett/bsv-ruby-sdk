@@ -231,6 +231,44 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
+  describe '.call when the reply carries an orphan marker in extraInfo' do
+    before do
+      stub_woc(200, utxo_response_body)
+      stub_broadcaster(200, broadcast_reply('RECEIVED', extraInfo: 'parent is ORPHAN'))
+    end
+
+    it 'reports an error with the computed txid' do
+      response, result = call_tool
+      expect(response.error?).to be true
+      expect(result[:error]).to include('rejected')
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+    end
+  end
+
+  describe '.call when txStatus is service-controlled text' do
+    before { stub_woc(200, utxo_response_body) }
+
+    it 'omits a status that is not a plain token' do
+      stub_broadcaster(200, broadcast_reply('see https://evil.example/?x=1 now'))
+      response, result = call_tool
+      expect(response.error?).to be false
+      expect(result).not_to have_key(:tx_status)
+    end
+
+    it 'omits a non-string status' do
+      stub_broadcaster(200, broadcast_reply({ 'a' => 1 }))
+      _, result = call_tool
+      expect(result).not_to have_key(:tx_status)
+    end
+
+    it 'omits a status equal to the configured key' do
+      stub_broadcaster(200, broadcast_reply('S3CRETKEY'))
+      context = { arc_api_key: BSV::MCP::Secret.new('S3CRETKEY') }
+      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000, server_context: context)
+      expect(response.content.first.text).not_to include('S3CRETKEY')
+    end
+  end
+
   describe '.call when the reply carries no txid' do
     before do
       stub_woc(200, utxo_response_body)
@@ -313,7 +351,9 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     it 'talks to the testnet broadcaster and the testnet WhatsOnChain API' do
       tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
       testnet_host = URI(BSV::Network::Providers::GorillaPool.default(testnet: true).protocol_for(:broadcast).base_url).host
+      expect(broadcaster_http_class.requested).not_to be_empty
       expect(broadcaster_http_class.requested).to all(include(testnet_host))
+      expect(mock_http_class.requested).not_to be_empty
       expect(mock_http_class.requested).to all(include('/v1/bsv/test/'))
     end
   end

@@ -83,6 +83,17 @@ RSpec.describe BSV::MCP::Tools::Helpers do
       expect(scrubbed).to eq('bad [REDACTED] at [REDACTED]/v1/tx')
     end
 
+    it 'redacts a URL that contains the key whole' do
+      leaky = { arc_url: 'https://arc.example.com/s3cret', arc_api_key: BSV::MCP::Secret.new('s3cret') }
+      scrubbed = described_class.scrub('failed at https://arc.example.com/s3cret/v1/tx', wrap(leaky))
+      expect(scrubbed).to eq('failed at [REDACTED]/v1/tx')
+    end
+
+    it 'ignores empty and nil secrets' do
+      blank = { arc_url: '', arc_api_key: BSV::MCP::Secret.new('') }
+      expect(described_class.scrub('plain text', wrap(blank))).to eq('plain text')
+    end
+
     it 'leaves a message alone when there is nothing to remove' do
       expect(described_class.scrub('plain', nil)).to eq('plain')
     end

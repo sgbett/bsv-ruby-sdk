@@ -135,7 +135,7 @@ module BSV
           problem = broadcast_problem(data, txid)
           return Helpers.error_response(Helpers.scrub(problem, server_context), txid: txid) if problem
 
-          result = { txid: txid, tx_status: data['txStatus'], hex: tx.to_hex }.compact
+          result = { txid: txid, tx_status: reportable_status(data['txStatus'], server_context), hex: tx.to_hex }.compact
 
           ::MCP::Tool::Response.new(
             [::MCP::Content::Text.new(result.to_json)],
@@ -156,8 +156,10 @@ module BSV
         # @api private
         def self.broadcast_problem(data, computed_txid)
           tx_status = data['txStatus'].to_s.upcase
+          orphan_marker = BSV::Network::Protocols::ARC::ORPHAN_MARKER
           rejected = BSV::Network::Protocols::ARC::REJECTED_STATUSES.include?(tx_status) ||
-                     tx_status.include?(BSV::Network::Protocols::ARC::ORPHAN_MARKER)
+                     tx_status.include?(orphan_marker) ||
+                     data['extraInfo'].to_s.upcase.include?(orphan_marker)
           return "Broadcast rejected: transaction status #{tx_status}" if rejected
 
           reported = data['txid']
@@ -166,6 +168,18 @@ module BSV
           'Broadcast service reported a different txid from the one computed for this transaction'
         end
         private_class_method :broadcast_problem
+
+        # The service-controlled status is returned only when it is a plain
+        # token such as SEEN_ON_NETWORK, and never with the key or URL in it.
+        # @return [String, nil]
+        # @api private
+        def self.reportable_status(tx_status, server_context)
+          return unless tx_status.is_a?(String) && tx_status.match?(/\A[A-Z_]+\z/i)
+
+          scrubbed = Helpers.scrub(tx_status, server_context)
+          scrubbed unless scrubbed.include?(Secret::REDACTED)
+        end
+        private_class_method :reportable_status
 
         # Select UTXOs greedily until the total meets or exceeds the target.
         # Returns nil when total funds are insufficient.

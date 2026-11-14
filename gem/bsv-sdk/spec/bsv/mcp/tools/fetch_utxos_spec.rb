@@ -101,6 +101,7 @@ RSpec.describe 'BSV::MCP::Tools::FetchUtxos' do
 
         result = JSON.parse(tool.call(address: address, network: 'testnet').content.first.text, symbolize_names: true)
         expect(result[:network]).to eq('testnet')
+        expect(mock_http_class.requested).not_to be_empty
         expect(mock_http_class.requested).to all(include('/v1/bsv/test/'))
       end
     end

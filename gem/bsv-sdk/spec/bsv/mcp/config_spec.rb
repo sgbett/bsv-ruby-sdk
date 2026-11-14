@@ -139,6 +139,9 @@ RSpec.describe BSV::MCP::Config do
         'https://',
         'arc.example.com',
         'https://user:pass@arc.example.com',
+        'https://arc.example.com/?k=v',
+        'https://arc.example.com/path#frag',
+        'https://arc.example.com?',
         'https://arc.example.com:bad',
         'https://exa mple.com'
       ].each do |url|
