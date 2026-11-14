@@ -123,7 +123,7 @@ The assistant calls `generate_key` with `network: testnet`. The WIF is returned 
 
 > Send 1000 satoshis from WIF `cNbVuq...` to address `mtest...` on testnet.
 
-The assistant calls `broadcast_p2pkh`, which fetches UTXOs, builds and signs the transaction, and broadcasts it. On success it returns the txid it computed, the service's `txStatus` and the raw transaction hex.
+The assistant calls `broadcast_p2pkh`, which fetches UTXOs, builds and signs the transaction, and broadcasts it. On success it returns the txid it computed, the service's status as `tx_status` and the raw transaction hex.
 
 A status such as `RECEIVED` or `STORED` means the service has accepted the submission, not that the network has accepted the transaction. A 2xx response carrying a rejected status, or a txid that differs from the computed one, is reported as an error. The tool also rejects a recipient that is not a P2PKH address for the call's network (P2SH addresses included), and a WIF for the other network.
 
@@ -132,6 +132,6 @@ A status such as `RECEIVED` or `STORED` means the service has accepted the submi
 ## Security Considerations
 
 - WIF private keys are passed in tool arguments. They are used only within the call and are never persisted by the server, but they do appear in MCP request logs. Use testnet keys for experimentation.
-- The server runs locally over stdio and accepts no inbound connections, but the tools make outbound HTTPS calls: to WhatsOnChain for UTXOs, transactions and balances, and to the broadcaster for `broadcast_p2pkh`.
-- `BSV_ARC_API_KEY` is sent only to `BSV_ARC_URL`, which must be `https` (except for localhost), and never to the default broadcaster.
+- The server runs locally over stdio and accepts no inbound connections, but the tools make outbound calls, over HTTPS (plain HTTP only if `BSV_ARC_URL` points at a loopback host): to WhatsOnChain for UTXOs, transactions and balances, and to the broadcaster for `broadcast_p2pkh`.
+- `BSV_ARC_API_KEY` is sent only to `BSV_ARC_URL`, which must be `https` (plain `http` is accepted only for `localhost`, `127.0.0.1` and `::1`), and never to the default broadcaster.
 - `broadcast_p2pkh` performs real network operations. On mainnet this spends real funds; on testnet it uses testnet coins only.
