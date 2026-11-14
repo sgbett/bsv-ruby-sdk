@@ -100,6 +100,8 @@ module BSV
           broadcaster = select_broadcaster(net_sym, server_context)
 
           private_key = BSV::Primitives::PrivateKey.from_wif(wif)
+          ensure_wif_network(wif, net_sym)
+          recipient_lock = recipient_locking_script(to_address, net_sym)
           sender_address = private_key.public_key.address(network: net_sym)
 
           woc = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
@@ -120,7 +122,7 @@ module BSV
           selected = select_utxos(sorted, satoshis)
           return Helpers.error_response("Insufficient funds — available: #{all_utxos.sum(&:satoshis)} satoshis") if selected.nil?
 
-          tx = build_transaction(selected, satoshis, to_address, sender_address, private_key)
+          tx = build_transaction(selected, satoshis, recipient_lock, sender_address, private_key)
           txid = tx.txid_hex # MCP tool boundary: display-order hex for human consumption
 
           broadcast_result = broadcaster.call(:broadcast, tx)
@@ -183,18 +185,18 @@ module BSV
 
         # Build, fee-compute, and sign the transaction.
         # @api private
-        def self.build_transaction(selected_utxos, satoshis, to_address, sender_address, private_key)
+        def self.build_transaction(selected_utxos, satoshis, recipient_lock, sender_address, private_key)
           tx = BSV::Transaction::Tx.new
 
           # Wire inputs with EF metadata (source_satoshis + source_locking_script)
+          sender_lock = BSV::Script::Script.p2pkh_lock(sender_address)
           selected_utxos.each do |utxo|
-            locking_script = p2pkh_lock_for(sender_address)
             input = BSV::Transaction::TransactionInput.new(
               prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo.tx_hash),
               prev_tx_out_index: utxo.tx_pos
             )
             input.source_satoshis = utxo.satoshis
-            input.source_locking_script = locking_script
+            input.source_locking_script = sender_lock
             input.unlocking_script_template = BSV::Transaction::P2PKH.new(private_key)
             tx.add_input(input)
           end
@@ -202,13 +204,13 @@ module BSV
           # Payment output
           tx.add_output(BSV::Transaction::TransactionOutput.new(
                           satoshis: satoshis,
-                          locking_script: p2pkh_lock_for(to_address)
+                          locking_script: recipient_lock
                         ))
 
           # Change output (marked as change so tx.fee distributes into it)
           tx.add_output(BSV::Transaction::TransactionOutput.new(
                           satoshis: 0,
-                          locking_script: p2pkh_lock_for(sender_address),
+                          locking_script: sender_lock,
                           change: true
                         ))
 
@@ -229,13 +231,30 @@ module BSV
         end
         private_class_method :build_transaction
 
-        # Build a P2PKH locking script for the given address.
+        # Refuse a WIF whose prefix belongs to the other network, so a testnet
+        # key never signs a mainnet spend or the reverse. The message never
+        # includes the key.
         # @api private
-        def self.p2pkh_lock_for(address)
-          hash160 = BSV::Primitives::Base58.check_decode(address)[1..]
-          BSV::Script::Script.p2pkh_lock(hash160)
+        def self.ensure_wif_network(wif, net_sym)
+          expected = net_sym == :mainnet ? BSV::Primitives::PrivateKey::MAINNET_PREFIX : BSV::Primitives::PrivateKey::TESTNET_PREFIX
+          return if BSV::Primitives::Base58.check_decode(wif)[0] == expected
+
+          raise ArgumentError, "WIF private key is not for #{net_sym}"
         end
-        private_class_method :p2pkh_lock_for
+        private_class_method :ensure_wif_network
+
+        # Build the payment locking script, accepting only a P2PKH address for
+        # the call's network. +Script.p2pkh_lock+ also rejects P2SH addresses,
+        # which BSV does not support.
+        # @api private
+        def self.recipient_locking_script(to_address, net_sym)
+          expected = net_sym == :mainnet ? BSV::Primitives::PublicKey::MAINNET_PUBKEY_HASH : BSV::Primitives::PublicKey::TESTNET_PUBKEY_HASH
+          prefix = BSV::Primitives::Base58.check_decode(to_address, prefix_length: 1)[:prefix]
+          raise ArgumentError, "to_address is not a P2PKH address for #{net_sym}" unless prefix == expected
+
+          BSV::Script::Script.p2pkh_lock(to_address)
+        end
+        private_class_method :recipient_locking_script
 
         # Choose the protocol that broadcasts the transaction.
         #

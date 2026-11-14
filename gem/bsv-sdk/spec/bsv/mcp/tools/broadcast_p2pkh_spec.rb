@@ -231,6 +231,56 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
+  describe '.call input validation' do
+    let(:testnet_wif) { private_key.to_wif(network: :testnet) }
+    let(:testnet_address) { private_key.public_key.address(network: :testnet) }
+    let(:p2sh_address) { BSV::Primitives::Base58.check_encode("\x05".b + ('11' * 20).then { |h| [h].pack('H*') }) }
+
+    before { allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_raise('UTXOs must not be fetched') }
+
+    it 'rejects a P2SH recipient' do
+      response, result = call_tool(to_address: p2sh_address)
+      expect(response.error?).to be true
+      expect(result[:error]).to include('not a P2PKH address for mainnet')
+    end
+
+    it 'rejects a testnet recipient on a mainnet call' do
+      response, result = call_tool(to_address: testnet_address)
+      expect(response.error?).to be true
+      expect(result[:error]).to include('not a P2PKH address for mainnet')
+    end
+
+    it 'rejects a mainnet recipient on a testnet call' do
+      response, result = call_tool(wif: testnet_wif, network: 'testnet')
+      expect(response.error?).to be true
+      expect(result[:error]).to include('not a P2PKH address for testnet')
+    end
+
+    it 'rejects a testnet WIF on a mainnet call without echoing it' do
+      response, result = call_tool(wif: testnet_wif)
+      expect(response.error?).to be true
+      expect(result[:error]).to include('not for mainnet')
+      expect(result[:error]).not_to include(testnet_wif)
+    end
+
+    it 'rejects a mainnet WIF on a testnet call' do
+      response, result = call_tool(to_address: testnet_address, network: 'testnet')
+      expect(response.error?).to be true
+      expect(result[:error]).to include('not for testnet')
+    end
+
+    it 'rejects a per-call network other than mainnet or testnet' do
+      response, result = call_tool(network: 'regtest')
+      expect(response.error?).to be true
+      expect(result[:error]).to include("'mainnet' or 'testnet'")
+    end
+
+    it 'rejects a recipient with a bad checksum' do
+      response, = call_tool(to_address: "#{recipient_address[0..-2]}x")
+      expect(response.error?).to be true
+    end
+  end
+
   describe '.call with testnet' do
     before do
       stub_woc(200, utxo_response_body, network: :testnet)
