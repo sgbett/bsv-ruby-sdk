@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'mcp'
+
 module BSV
   module MCP
     autoload :Config, 'bsv/mcp/config'
