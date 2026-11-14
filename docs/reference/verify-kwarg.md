@@ -124,7 +124,7 @@ values back, so `Hash` is now the only accepted collection type.
 
 - **Anchoring policy is the caller's.** `verify` accepts a leaf as verified
   on script alone — `unlocking_script` + `source_locking_script` +
-  `source_satoshis` — so an input with `source_transaction: nil` can pass
+  `source_satoshis` — so an input whose `source_transaction` is `nil` can pass
   and be written to the cache without ever reaching a merkle proof. If your
   policy requires every persisted verdict to bottom out in a merkle-anchored
   ancestor (i.e. SPV-proven), enforce that upstream: reject the input before
