@@ -9,14 +9,23 @@ module BSV
         #
         # Checks the per-call +network_arg+ first, then falls back to the
         # server-level config in +server_context+, then defaults to :mainnet.
+        # Only 'mainnet' and 'testnet' are accepted: guessing at anything else
+        # could put a spend on the wrong network.
         #
         # @param network_arg [String, nil] per-call override ('mainnet'/'testnet')
         # @param server_context [Hash, MCP::ServerContext, nil] server context with :bsv_network key
         # @return [Symbol] :mainnet or :testnet
+        # @raise [ArgumentError] when the per-call network is neither value
         def self.resolve_network_sym(network_arg, server_context)
           net = network_arg
           net = context_value(server_context, :bsv_network) if net.nil?
-          net.to_s == 'testnet' ? :testnet : :mainnet
+          net = 'mainnet' if net.nil?
+
+          case net.to_s
+          when 'mainnet' then :mainnet
+          when 'testnet' then :testnet
+          else raise ArgumentError, "network must be 'mainnet' or 'testnet'"
+          end
         end
 
         # Read a value from the server context.

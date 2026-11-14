@@ -77,6 +77,8 @@ module BSV
             [::MCP::Content::Text.new(result.to_json)],
             structured_content: result
           )
+        rescue ArgumentError => e
+          Helpers.error_response(e.message)
         end
       end
     end
