@@ -22,6 +22,11 @@ module BSV
         @arc_api_key = arc_api_key || ENV.fetch('BSV_ARC_API_KEY', nil)
       end
 
+      # Keeps the ARC key out of logs and error reports.
+      def inspect
+        "#<#{self.class.name} network=#{@network.inspect}>"
+      end
+
       def mainnet?
         @network == MAINNET
       end

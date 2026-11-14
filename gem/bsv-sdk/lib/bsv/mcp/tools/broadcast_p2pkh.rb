@@ -87,6 +87,7 @@ module BSV
 
         def self.call(wif:, to_address:, satoshis:, network: nil, server_context: nil)
           net_sym = Helpers.resolve_network_sym(network, server_context)
+          broadcaster = select_broadcaster(net_sym, server_context)
 
           private_key = BSV::Primitives::PrivateKey.from_wif(wif)
           sender_address = private_key.public_key.address(network: net_sym)
@@ -111,11 +112,12 @@ module BSV
 
           tx = build_transaction(selected, satoshis, to_address, sender_address, private_key)
 
-          arc = build_arc(net_sym, server_context)
-          arc_result = arc.call(:broadcast, tx)
-          return Helpers.error_response("Broadcast failed: #{arc_result.message}") unless arc_result.http_success?
+          broadcast_result = broadcaster.call(:broadcast, tx)
+          unless broadcast_result.http_success?
+            return Helpers.error_response(Helpers.scrub("Broadcast failed: #{broadcast_result.message}", server_context))
+          end
 
-          data = arc_result.data || {}
+          data = broadcast_result.data || {}
           result = {
             txid: data['txid'], # MCP tool boundary: display-order hex from Arcade response (present on re-submission)
             tx_status: data['status'],
@@ -131,7 +133,7 @@ module BSV
           # Catch broadly so MCP returns a structured error rather than
           # crashing the tool handler on unexpected exception types
           # (e.g. NoMethodError on nil WIF input, encoding errors, etc.).
-          Helpers.error_response(e.message)
+          Helpers.error_response(Helpers.scrub(e.message, server_context))
         end
 
         # Select UTXOs greedily until the total meets or exceeds the target.
@@ -206,16 +208,30 @@ module BSV
         end
         private_class_method :p2pkh_lock_for
 
-        # Build an ARC protocol instance using server config when available.
+        # Choose the protocol that broadcasts the transaction.
+        #
+        # The configured ARC endpoint (+BSV_ARC_URL+) is used only for calls on
+        # the server's own network, so a transaction for the other network never
+        # reaches it. Its key is sent there and nowhere else: every other call
+        # goes to the GorillaPool provider's broadcaster, which takes no key and
+        # is built without any option derived from the context.
+        #
+        # @param net_sym [Symbol] the call's network (:mainnet or :testnet)
+        # @param server_context [Hash, MCP::ServerContext, nil]
+        # @return [BSV::Network::Protocol]
         # @api private
-        def self.build_arc(net_sym, server_context)
-          testnet = net_sym == :testnet
-          opts = {}
-          opts[:api_key] = server_context[:arc_api_key] if server_context.is_a?(Hash) && server_context[:arc_api_key]
-          provider = BSV::Network::Providers::GorillaPool.default(testnet: testnet, **opts)
-          provider.protocol_for(:broadcast)
+        def self.select_broadcaster(net_sym, server_context)
+          arc_url = Helpers.context_value(server_context, :arc_url)
+          server_network = Helpers.context_value(server_context, :bsv_network)
+
+          if !arc_url.to_s.strip.empty? && net_sym.to_s == server_network
+            api_key = Secret.reveal(Helpers.context_value(server_context, :arc_api_key))
+            return BSV::Network::Protocols::ARC.new(base_url: arc_url, api_key: api_key)
+          end
+
+          BSV::Network::Providers::GorillaPool.default(testnet: net_sym == :testnet).protocol_for(:broadcast)
         end
-        private_class_method :build_arc
+        private_class_method :select_broadcaster
       end
     end
   end

@@ -3,6 +3,7 @@
 module BSV
   module MCP
     autoload :Config, 'bsv/mcp/config'
+    autoload :Secret, 'bsv/mcp/secret'
     autoload :Server, 'bsv/mcp/server'
 
     module Tools

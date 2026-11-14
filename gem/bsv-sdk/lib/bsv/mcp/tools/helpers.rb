@@ -11,12 +11,39 @@ module BSV
         # server-level config in +server_context+, then defaults to :mainnet.
         #
         # @param network_arg [String, nil] per-call override ('mainnet'/'testnet')
-        # @param server_context [Hash, nil] server context with :bsv_network key
+        # @param server_context [Hash, MCP::ServerContext, nil] server context with :bsv_network key
         # @return [Symbol] :mainnet or :testnet
         def self.resolve_network_sym(network_arg, server_context)
           net = network_arg
-          net = server_context[:bsv_network] if net.nil? && server_context.is_a?(Hash) && server_context[:bsv_network]
-          net == 'testnet' ? :testnet : :mainnet
+          net = context_value(server_context, :bsv_network) if net.nil?
+          net.to_s == 'testnet' ? :testnet : :mainnet
+        end
+
+        # Read a value from the server context.
+        #
+        # The +mcp+ gem wraps the context in an +MCP::ServerContext+ before a
+        # tool runs. The wrapper forwards +[]+ to the hash inside it but is not
+        # a Hash, and one wrapping +nil+ does not respond to +[]+ at all.
+        #
+        # @param server_context [Hash, MCP::ServerContext, nil]
+        # @param key [Symbol]
+        # @return [Object, nil]
+        def self.context_value(server_context, key)
+          server_context[key] if server_context.respond_to?(:[])
+        end
+
+        # Replace the ARC key and URL in +message+ so that neither is returned
+        # to the client, whatever service or exception produced the text.
+        #
+        # @param message [String, nil]
+        # @param server_context [Hash, MCP::ServerContext, nil]
+        # @return [String]
+        def self.scrub(message, server_context)
+          secrets = [
+            Secret.reveal(context_value(server_context, :arc_api_key)),
+            context_value(server_context, :arc_url)
+          ].compact.map(&:to_s).reject(&:empty?)
+          secrets.reduce(message.to_s) { |text, secret| text.gsub(secret, Secret::REDACTED) }
         end
 
         # Convert a Transaction to a hash suitable for JSON responses.
