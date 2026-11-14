@@ -61,9 +61,17 @@ The server reads configuration from environment variables at startup:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BSV_NETWORK` | `mainnet` | Network: `mainnet` or `testnet` (unknown values warn + fall back to `mainnet`) |
-| `BSV_ARC_URL` | GorillaPool Arcade | Custom ARC endpoint URL |
-| `BSV_ARC_API_KEY` | *(none)* | ARC API key for authenticated access |
+| `BSV_NETWORK` | `mainnet` | Network: `mainnet` or `testnet`. The aliases `main` and `test` are also accepted. Any other value stops the server with an error. |
+| `BSV_ARC_URL` | *(none)* | Base URL of a classic ARC endpoint, for example `https://arc.taal.com`. The SDK appends `/v1/tx`, so give the base URL without `/v1`. Must be `https` (plain `http` is accepted only for a localhost or loopback host). |
+| `BSV_ARC_API_KEY` | *(none)* | API key sent as a bearer token to `BSV_ARC_URL` only. |
+
+Blank values count as unset.
+
+`BSV_NETWORK` applies to every network-aware tool, unless the call passes its own `network` parameter.
+
+`BSV_ARC_URL` is used only for broadcasts on the server's `BSV_NETWORK`. A call that passes the other network uses that network's default broadcaster. Without `BSV_ARC_URL`, `broadcast_p2pkh` uses the GorillaPool provider's broadcaster.
+
+`BSV_ARC_API_KEY` is ignored, with a warning, when `BSV_ARC_URL` is not set, and is never sent to the default broadcaster.
 
 ### Testnet
 
@@ -85,6 +93,8 @@ Set `BSV_NETWORK=testnet` to target testnet for all network operations:
 ```
 
 Individual tools also accept a `network` parameter to override the server default on a per-call basis.
+
+To broadcast through your own ARC endpoint, add `BSV_ARC_URL` (and, if the endpoint needs one, `BSV_ARC_API_KEY`) to the same `env` block.
 
 ## Example Workflows
 
@@ -113,12 +123,15 @@ The assistant calls `generate_key` with `network: testnet`. The WIF is returned 
 
 > Send 1000 satoshis from WIF `cNbVuq...` to address `mtest...` on testnet.
 
-The assistant calls `broadcast_p2pkh`, which fetches UTXOs, builds and signs the transaction, and broadcasts it via ARC. The txid is returned on success.
+The assistant calls `broadcast_p2pkh`, which fetches UTXOs, builds and signs the transaction, and broadcasts it. On success it returns the txid it computed, the service's `txStatus` and the raw transaction hex.
+
+A status such as `RECEIVED` or `STORED` means the service has accepted the submission, not that the network has accepted the transaction. A 2xx response carrying a rejected status, or a txid that differs from the computed one, is reported as an error. The tool also rejects a recipient that is not a P2PKH address for the call's network (P2SH addresses included), and a WIF for the other network.
 
 **Important:** `broadcast_p2pkh` spends real satoshis. Always confirm the network and amounts before authorising the call.
 
 ## Security Considerations
 
 - WIF private keys are passed in tool arguments. They are used only within the call and are never persisted by the server, but they do appear in MCP request logs. Use testnet keys for experimentation.
-- The server runs locally over stdio. There is no network exposure — MCP communication happens entirely within the process boundary.
+- The server runs locally over stdio and accepts no inbound connections, but the tools make outbound HTTPS calls: to WhatsOnChain for UTXOs, transactions and balances, and to the broadcaster for `broadcast_p2pkh`.
+- `BSV_ARC_API_KEY` is sent only to `BSV_ARC_URL`, which must be `https` (except for localhost), and never to the default broadcaster.
 - `broadcast_p2pkh` performs real network operations. On mainnet this spends real funds; on testnet it uses testnet coins only.
