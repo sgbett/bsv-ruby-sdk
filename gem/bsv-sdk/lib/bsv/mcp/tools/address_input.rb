@@ -3,12 +3,19 @@
 module BSV
   module MCP
     module Tools
-      # Validates address and WIF input for the tools that query an address,
-      # before anything is sent over the network.
+      # Validates address and WIF input for the tools that query an address or
+      # pay one, before anything is sent over the network.
       module AddressInput
-        ADDRESS_VERSIONS = { mainnet: "\x00".b, testnet: "\x6f".b }.freeze
-        WIF_VERSIONS = { mainnet: "\x80".b, testnet: "\xef".b }.freeze
-        private_constant :ADDRESS_VERSIONS, :WIF_VERSIONS
+        ADDRESS_VERSIONS = {
+          mainnet: BSV::Primitives::PublicKey::MAINNET_PUBKEY_HASH,
+          testnet: BSV::Primitives::PublicKey::TESTNET_PUBKEY_HASH
+        }.freeze
+        WIF_VERSIONS = {
+          mainnet: BSV::Primitives::PrivateKey::MAINNET_PREFIX,
+          testnet: BSV::Primitives::PrivateKey::TESTNET_PREFIX
+        }.freeze
+        P2PKH_HASH_BYTES = 20
+        private_constant :ADDRESS_VERSIONS, :WIF_VERSIONS, :P2PKH_HASH_BYTES
 
         # Addresses are at most 35 characters and WIFs 52. Base58 decoding is
         # quadratic, so anything much longer could stall the single-threaded
@@ -25,6 +32,31 @@ module BSV
           raise ArgumentError, "#{name} is longer than #{MAX_LENGTH} characters"
         end
 
+        # The 20-byte public key hash of a P2PKH address for +net_sym+, for
+        # building a locking script. Callers must lock to this hash and never pass
+        # the address string on: +Script.p2pkh_lock+ takes any 20-byte String as a
+        # raw hash, so a 20-character malformed address would be locked to its own
+        # ASCII bytes.
+        #
+        # The input is decoded as Base58Check and must carry the P2PKH version byte
+        # for the network and a 20-byte payload. Anything else (bad characters or
+        # checksum, P2SH, a WIF, the other network, wrong length, a non-String)
+        # raises an error that never includes the input.
+        #
+        # @param input [Object]
+        # @param net_sym [Symbol] :mainnet or :testnet
+        # @param name [String] the argument's name, for the error message
+        # @return [String] the frozen 20-byte binary hash
+        # @raise [ArgumentError] with a fixed message
+        def self.pubkey_hash(input, net_sym, name: 'input')
+          ensure_length!(input, name)
+          payload = decode_base58check(input)
+          hash = payload && p2pkh_hash(payload, net_sym)
+          return hash if hash
+
+          raise ArgumentError, "#{name} is not a P2PKH address for #{net_sym}"
+        end
+
         # Resolve user input to a P2PKH address for +net_sym+, before anything
         # is sent over the network.
         #
@@ -37,16 +69,17 @@ module BSV
         # @param input [String]
         # @param net_sym [Symbol] :mainnet or :testnet
         # @param allow_wif [Boolean] also accept a WIF private key
+        # @param name [String] the argument's name, for the error message
         # @return [String] the address
         # @raise [ArgumentError] with a fixed message
-        def self.resolve(input, net_sym, allow_wif: false)
-          ensure_length!(input, 'input')
+        def self.resolve(input, net_sym, allow_wif: false, name: 'input')
+          ensure_length!(input, name)
           payload = decode_base58check(input)
           address = payload && address_from_payload(payload, net_sym, allow_wif)
           return address if address
 
           accepted = allow_wif ? 'a P2PKH address or WIF private key' : 'a P2PKH address'
-          raise ArgumentError, "input is not #{accepted} for #{net_sym}"
+          raise ArgumentError, "#{name} is not #{accepted} for #{net_sym}"
         end
 
         # @api private
@@ -58,17 +91,25 @@ module BSV
           nil
         end
 
+        # The decoded payload is the version byte followed by the body.
         # @api private
         def self.address_from_payload(payload, net_sym, allow_wif)
-          version = payload[0]
-          body = payload[1..]
-          return base58_address(payload) if version == ADDRESS_VERSIONS.fetch(net_sym) && body.bytesize == 20
-          return unless allow_wif && version == WIF_VERSIONS.fetch(net_sym)
+          return base58_address(payload) if p2pkh_hash(payload, net_sym)
+          return unless allow_wif && payload.byteslice(0, 1) == WIF_VERSIONS.fetch(net_sym)
 
-          key_bytes = wif_key_bytes(body)
+          key_bytes = wif_key_bytes(payload.byteslice(1..))
           BSV::Primitives::PrivateKey.from_bytes(key_bytes).public_key.address(network: net_sym) if key_bytes
         rescue ArgumentError
           nil
+        end
+
+        # @return [String, nil] the frozen hash when the payload is a P2PKH one for the network
+        # @api private
+        def self.p2pkh_hash(payload, net_sym)
+          return unless payload.byteslice(0, 1) == ADDRESS_VERSIONS.fetch(net_sym)
+
+          body = payload.byteslice(1..)
+          body.freeze if body.bytesize == P2PKH_HASH_BYTES
         end
 
         # @api private

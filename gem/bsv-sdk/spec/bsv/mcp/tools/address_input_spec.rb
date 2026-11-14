@@ -1,0 +1,212 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+
+RSpec.describe BSV::MCP::Tools::AddressInput do
+  let(:private_key) do
+    BSV::Primitives::PrivateKey.from_hex('0101010101010101010101010101010101010101010101010101010101010101')
+  end
+  let(:mainnet_wif) { private_key.to_wif }
+  let(:testnet_wif) { private_key.to_wif(network: :testnet) }
+  # A mainnet address whose hash is the literal below.
+  let(:known_address) { '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' }
+  let(:known_hash_hex) { '62e907b15cbf27d5425399ebf6f0fb50ebb88f18' }
+  let(:known_testnet_address) do
+    BSV::Primitives::Base58.check_encode("\x6f".b + [known_hash_hex].pack('H*'))
+  end
+
+  # Valid checksum and version byte, +length+ payload bytes.
+  def encoded(version, length)
+    BSV::Primitives::Base58.check_encode(version.b + ("\x11".b * length))
+  end
+
+  describe '.pubkey_hash' do
+    it 'returns the literal hash of a mainnet address' do
+      expect(described_class.pubkey_hash(known_address, :mainnet).unpack1('H*')).to eq(known_hash_hex)
+    end
+
+    it 'returns the same hash for the testnet address of that hash' do
+      expect(described_class.pubkey_hash(known_testnet_address, :testnet).unpack1('H*')).to eq(known_hash_hex)
+    end
+
+    it 'keeps an all-zero hash' do
+      address = '1111111111111111111114oLvT2'
+      expect(described_class.pubkey_hash(address, :mainnet)).to eq("\x00".b * 20)
+    end
+
+    it 'returns a frozen, 20-byte, binary String' do
+      hash = described_class.pubkey_hash(known_address, :mainnet)
+      expect(hash).to be_frozen
+      expect(hash.bytesize).to eq(20)
+      expect(hash.encoding).to eq(Encoding::BINARY)
+    end
+
+    it 'returns the hash of an address derived from a key' do
+      address = private_key.public_key.address(network: :testnet)
+      expect(described_class.pubkey_hash(address, :testnet)).to eq(private_key.public_key.hash160)
+    end
+
+    it 'names the argument in the error' do
+      expect { described_class.pubkey_hash('nope', :mainnet, name: 'to_address') }
+        .to raise_error(ArgumentError, 'to_address is not a P2PKH address for mainnet')
+    end
+
+    it 'defaults the argument name to input' do
+      expect { described_class.pubkey_hash('nope', :testnet) }
+        .to raise_error(ArgumentError, 'input is not a P2PKH address for testnet')
+    end
+
+    it 'checks the length before decoding' do
+      expect { described_class.pubkey_hash('1' * 65, :mainnet, name: 'to_address') }
+        .to raise_error(ArgumentError, 'to_address is longer than 64 characters')
+    end
+
+    describe 'with malformed input' do
+      let(:message) { 'input is not a P2PKH address for mainnet' }
+
+      # 17GuhfEA8T1Zvj872QAa is 0x00 plus ten 0x11 bytes; the second is 0x00
+      # plus thirteen zero bytes. Script.p2pkh_lock would take either as a raw
+      # 20-byte hash.
+      %w[17GuhfEA8T1Zvj872QAa 111111111111114xynwY].each do |short|
+        it "rejects the 20-character short-payload address #{short}" do
+          expect(short.length).to eq(20)
+          expect { described_class.pubkey_hash(short, :mainnet) }.to raise_error(ArgumentError, message)
+        end
+      end
+
+      [0, 9, 11, 19, 21, 33].each do |length|
+        it "rejects a mainnet payload of #{length} bytes" do
+          expect { described_class.pubkey_hash(encoded("\x00", length), :mainnet) }
+            .to raise_error(ArgumentError, message)
+        end
+      end
+
+      [0, 9, 10, 19, 21].each do |length|
+        it "rejects a testnet payload of #{length} bytes" do
+          expect { described_class.pubkey_hash(encoded("\x6f", length), :testnet) }
+            .to raise_error(ArgumentError, 'input is not a P2PKH address for testnet')
+        end
+      end
+
+      it 'rejects a P2SH address' do
+        p2sh = encoded("\x05", 10)
+        expect(p2sh.length).to eq(20)
+        expect { described_class.pubkey_hash(p2sh, :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects a P2SH address with a 20-byte hash' do
+        expect { described_class.pubkey_hash(encoded("\x05", 20), :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects an address for the other network' do
+        expect { described_class.pubkey_hash(known_testnet_address, :mainnet) }.to raise_error(ArgumentError, message)
+        expect { described_class.pubkey_hash(known_address, :testnet) }
+          .to raise_error(ArgumentError, 'input is not a P2PKH address for testnet')
+      end
+
+      it 'rejects a WIF as an address' do
+        expect { described_class.pubkey_hash(mainnet_wif, :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects non-strings' do
+        [nil, 42, [known_address], { a: 1 }].each do |value|
+          expect { described_class.pubkey_hash(value, :mainnet) }.to raise_error(ArgumentError, message)
+        end
+      end
+
+      it 'rejects 20 raw binary bytes' do
+        expect { described_class.pubkey_hash("\x11".b * 20, :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects non-ASCII text' do
+        expect { described_class.pubkey_hash('é' * 10, :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects a character above U+00FF' do
+        expect { described_class.pubkey_hash("#{known_address[0, 19]}Ā", :mainnet) }
+          .to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects a paymail' do
+        expect { described_class.pubkey_hash('alice@example.com', :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects surrounding whitespace' do
+        expect { described_class.pubkey_hash(" #{known_address}", :mainnet) }.to raise_error(ArgumentError, message)
+        expect { described_class.pubkey_hash("#{known_address}\n", :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects an empty string' do
+        expect { described_class.pubkey_hash('', :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'rejects a bad checksum' do
+        expect { described_class.pubkey_hash("#{known_address[0..-2]}x", :mainnet) }
+          .to raise_error(ArgumentError, message)
+        expect { described_class.pubkey_hash('1' * 20, :mainnet) }.to raise_error(ArgumentError, message)
+      end
+
+      it 'never echoes the input' do
+        bad = "#{known_address[0..-2]}x"
+        expect { described_class.pubkey_hash(bad, :mainnet) }
+          .to raise_error(ArgumentError) { |error| expect(error.message).not_to include(bad) }
+      end
+    end
+  end
+
+  describe '.resolve' do
+    it 'returns a mainnet address as is' do
+      expect(described_class.resolve(known_address, :mainnet)).to eq(known_address)
+    end
+
+    it 'returns a testnet address as is' do
+      expect(described_class.resolve(known_testnet_address, :testnet)).to eq(known_testnet_address)
+    end
+
+    it 'derives the address of a WIF for the network when allowed' do
+      expect(described_class.resolve(mainnet_wif, :mainnet, allow_wif: true))
+        .to eq(private_key.public_key.address(network: :mainnet))
+      expect(described_class.resolve(testnet_wif, :testnet, allow_wif: true))
+        .to eq(private_key.public_key.address(network: :testnet))
+    end
+
+    it 'rejects a WIF unless allowed' do
+      expect { described_class.resolve(mainnet_wif, :mainnet) }
+        .to raise_error(ArgumentError, 'input is not a P2PKH address for mainnet')
+    end
+
+    it 'rejects a WIF for the other network' do
+      expect { described_class.resolve(testnet_wif, :mainnet, allow_wif: true) }
+        .to raise_error(ArgumentError, 'input is not a P2PKH address or WIF private key for mainnet')
+    end
+
+    it 'names the argument when asked' do
+      expect { described_class.resolve('nope', :mainnet, name: 'address') }
+        .to raise_error(ArgumentError, 'address is not a P2PKH address for mainnet')
+    end
+
+    it 'checks the length before decoding' do
+      expect { described_class.resolve('1' * 65, :mainnet, name: 'address') }
+        .to raise_error(ArgumentError, 'address is longer than 64 characters')
+    end
+
+    it 'rejects the 20-character short-payload strings' do
+      %w[17GuhfEA8T1Zvj872QAa 111111111111114xynwY].each do |short|
+        expect { described_class.resolve(short, :mainnet) }
+          .to raise_error(ArgumentError, 'input is not a P2PKH address for mainnet')
+      end
+    end
+
+    it 'rejects a character above U+00FF and non-strings' do
+      ["#{known_address[0, 19]}Ā", nil, 42].each do |value|
+        expect { described_class.resolve(value, :mainnet) }
+          .to raise_error(ArgumentError, 'input is not a P2PKH address for mainnet')
+      end
+    end
+
+    it 'rejects P2SH' do
+      expect { described_class.resolve(encoded("\x05", 20), :mainnet) }
+        .to raise_error(ArgumentError, 'input is not a P2PKH address for mainnet')
+    end
+  end
+end
