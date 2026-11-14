@@ -7,8 +7,8 @@ module BSV
       #
       # Fetches UTXOs for the sender's address, constructs a transaction
       # with one payment output and one change output, signs all inputs
-      # with the provided private key, and submits to ARC in Extended
-      # Format (EF/BRC-30).
+      # with the provided private key, and submits it in Extended Format
+      # (EF/BRC-30) through the broadcaster chosen by {.select_broadcaster}.
       #
       # This is the most complex MCP tool: it orchestrates WIF → PrivateKey
       # → PublicKey → address → UTXO fetch → tx build → sign → broadcast.
@@ -27,31 +27,43 @@ module BSV
           3. Selects sufficient UTXOs (greedy: largest first)
           4. Builds a transaction with a payment output and a change output
           5. Signs all inputs with the WIF key (P2PKH, SIGHASH_ALL|FORKID)
-          6. Submits to ARC in Extended Format (EF/BRC-30)
-          7. Returns txid, status, and the raw hex
+          6. Submits it in Extended Format (EF/BRC-30) to the broadcaster
+          7. Returns the txid, the service's transaction status and the raw hex
+
+          Where it broadcasts: the GorillaPool provider's broadcaster for the
+          network, or the ARC endpoint the server was configured with
+          (BSV_ARC_URL) for calls on the server's own network.
 
           Parameters:
           - wif: sender's private key in WIF format. The key is used only
-            for this call and is never stored by the server.
-          - to_address: recipient P2PKH address
+            for this call and is never stored by the server. It must be for
+            the network being used.
+          - to_address: recipient P2PKH address for the network being used
           - satoshis: amount to send in satoshis (must be > 0)
           - network: 'mainnet' or 'testnet' — overrides the server default
 
           Returns:
-          - txid: the broadcast transaction ID
-          - tx_status: ARC status string (e.g. 'SEEN_ON_NETWORK')
+          - txid: the transaction ID, computed by this tool
+          - tx_status: the transaction status reported by the broadcast
+            service (e.g. 'RECEIVED', 'SEEN_ON_NETWORK'), when it gives one.
+            States such as RECEIVED or STORED only mean the service has the
+            transaction; they do NOT mean the network has accepted it. Check
+            the transaction later (e.g. with fetch_tx) before relying on it.
           - hex: the raw transaction hex (plain format, not EF)
 
           Error conditions (returned as error responses, not raised):
-          - Invalid WIF key
+          - Invalid WIF key, or a WIF for a different network
+          - Recipient that is not a P2PKH address for the network
           - No UTXOs found for sender
           - Insufficient funds (balance < satoshis + estimated fee)
-          - Change below dust (546 sat): change is absorbed into the fee
-          - ARC broadcast rejection
+          - Broadcast failure, a rejected status, or a service reply naming a
+            different txid. Once the transaction has been built, the error
+            response also carries its txid.
+          Change below the dust limit is absorbed into the fee.
 
           Technical notes:
           - All inputs have source_satoshis and source_locking_script set,
-            enabling Extended Format (EF/BRC-30) submission to ARC.
+            enabling Extended Format (EF/BRC-30) submission.
           - Fee model: SatoshisPerKilobyte at 100 sat/kB (SDK default).
           - Change returns to the sender address.
           - UTXO selection: greedy descending by value.
@@ -82,10 +94,8 @@ module BSV
           required: %w[wif to_address satoshis]
         )
 
-        # Minimum output value to avoid dust rejection.
-        DUST_THRESHOLD = 546
-
         def self.call(wif:, to_address:, satoshis:, network: nil, server_context: nil)
+          txid = nil
           net_sym = Helpers.resolve_network_sym(network, server_context)
           broadcaster = select_broadcaster(net_sym, server_context)
 
@@ -111,19 +121,19 @@ module BSV
           return Helpers.error_response("Insufficient funds — available: #{all_utxos.sum(&:satoshis)} satoshis") if selected.nil?
 
           tx = build_transaction(selected, satoshis, to_address, sender_address, private_key)
+          txid = tx.txid_hex # MCP tool boundary: display-order hex for human consumption
 
           broadcast_result = broadcaster.call(:broadcast, tx)
           unless broadcast_result.http_success?
-            return Helpers.error_response(Helpers.scrub("Broadcast failed: #{broadcast_result.message}", server_context))
+            message = Helpers.scrub("Broadcast failed: #{broadcast_result.message}", server_context)
+            return Helpers.error_response(message, txid: txid)
           end
 
           data = broadcast_result.data || {}
-          result = {
-            txid: data['txid'], # MCP tool boundary: display-order hex from Arcade response (present on re-submission)
-            tx_status: data['status'],
-            state: data['state'],
-            hex: tx.to_hex
-          }.compact
+          problem = broadcast_problem(data, txid)
+          return Helpers.error_response(Helpers.scrub(problem, server_context), txid: txid) if problem
+
+          result = { txid: txid, tx_status: data['txStatus'], hex: tx.to_hex }.compact
 
           ::MCP::Tool::Response.new(
             [::MCP::Content::Text.new(result.to_json)],
@@ -133,8 +143,27 @@ module BSV
           # Catch broadly so MCP returns a structured error rather than
           # crashing the tool handler on unexpected exception types
           # (e.g. NoMethodError on nil WIF input, encoding errors, etc.).
-          Helpers.error_response(Helpers.scrub(e.message, server_context))
+          Helpers.error_response(Helpers.scrub(e.message, server_context), txid: txid)
         end
+
+        # Inspect a 2xx broadcast reply for signs that the transaction was not
+        # accepted. The Arcade parser only rejects +REJECTED+, so the wider ARC
+        # rejection set is checked here too.
+        #
+        # @return [String, nil] a description of the problem, or nil
+        # @api private
+        def self.broadcast_problem(data, computed_txid)
+          tx_status = data['txStatus'].to_s.upcase
+          rejected = BSV::Network::Protocols::ARC::REJECTED_STATUSES.include?(tx_status) ||
+                     tx_status.include?(BSV::Network::Protocols::ARC::ORPHAN_MARKER)
+          return "Broadcast rejected: transaction status #{tx_status}" if rejected
+
+          reported = data['txid']
+          return if reported.nil? || reported.to_s.downcase == computed_txid
+
+          'Broadcast service reported a different txid from the one computed for this transaction'
+        end
+        private_class_method :broadcast_problem
 
         # Select UTXOs greedily until the total meets or exceeds the target.
         # Returns nil when total funds are insufficient.

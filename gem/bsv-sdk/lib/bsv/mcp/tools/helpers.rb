@@ -109,9 +109,10 @@ module BSV
         # Build a standard MCP error response.
         #
         # @param message [String] error description
+        # @param details [Hash] extra fields for the payload (e.g. +txid:+)
         # @return [MCP::Tool::Response]
-        def self.error_response(message)
-          payload = { error: message }
+        def self.error_response(message, **details)
+          payload = { error: message, **details }.compact
           ::MCP::Tool::Response.new(
             [::MCP::Content::Text.new(payload.to_json)],
             error: true

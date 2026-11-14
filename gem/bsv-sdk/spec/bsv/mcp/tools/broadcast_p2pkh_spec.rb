@@ -40,24 +40,24 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
         @body = body
       end
 
-      def request(_uri, _req)
-        fake_http_response(@code, @body)
+      def request(_uri, req)
+        body = @body.respond_to?(:call) ? @body.call(req) : @body
+        fake_http_response(@code, body)
       end
     end
   end
 
-  # Arcade returns {"status":"submitted"} on fresh broadcast — no txid on first submission.
-  let(:arc_success_body) do
-    { 'status' => 'submitted' }.to_json
+  # The txid of the transaction a broadcast request carries (the tool
+  # submits Extended Format hex).
+  def submitted_txid(req)
+    BSV::Transaction::Tx.from_ef_hex(JSON.parse(req.body)['rawTx']).txid_hex
   end
 
-  # Arcade returns {"status":"already submitted","txid":...,"state":...} on re-submission.
-  let(:arc_resubmit_body) do
-    {
-      'status' => 'already submitted',
-      'txid' => 'deadbeef' * 8,
-      'state' => 'SEEN_ON_NETWORK'
-    }.to_json
+  # The broadcast services answer {txid, status: 202, txStatus}.
+  def broadcast_reply(tx_status, **overrides)
+    lambda do |req|
+      { 'txid' => submitted_txid(req), 'status' => 202, 'txStatus' => tx_status }.merge(overrides.transform_keys(&:to_s)).to_json
+    end
   end
 
   def stub_woc(code, body, network: :mainnet)
@@ -66,69 +66,48 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_return(provider)
   end
 
-  def stub_arc_success
-    http = mock_http_class.new(200, arc_success_body)
-    provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
-    arc_protocol = provider.protocol_for(:broadcast)
-    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
-    arc_protocol
-  end
-
-  def stub_arc_failure(code, body)
+  def stub_broadcaster(code, body)
     http = mock_http_class.new(code, body)
     provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
     allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
   end
 
-  def stub_arc_resubmit
-    http = mock_http_class.new(200, arc_resubmit_body)
-    provider = BSV::Network::Providers::GorillaPool.default(http_client: http)
-    allow(BSV::Network::Providers::GorillaPool).to receive(:default).and_return(provider)
+  def call_tool(**opts)
+    response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000, **opts)
+    [response, JSON.parse(response.content.first.text, symbolize_names: true)]
   end
 
   describe '.call with sufficient funds' do
     before do
       stub_woc(200, utxo_response_body)
-      stub_arc_success
+      stub_broadcaster(200, broadcast_reply('RECEIVED'))
     end
 
-    it 'returns an MCP::Tool::Response' do
-      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
+    it 'is a successful MCP::Tool::Response' do
+      response, = call_tool
       expect(response).to be_a(MCP::Tool::Response)
-    end
-
-    it 'is not an error response' do
-      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
       expect(response.error?).to be false
     end
 
-    it 'returns nil txid on fresh Arcade submission (txid absent in response)' do
-      result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
-        symbolize_names: true
-      )
-      expect(result).not_to have_key(:txid)
+    it 'returns the txid computed from the signed transaction' do
+      _, result = call_tool
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+      expect(BSV::Transaction::Tx.from_hex(result[:hex]).txid_hex).to eq(result[:txid])
     end
 
-    it 'returns tx_status from Arcade status field' do
-      result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
-        symbolize_names: true
-      )
-      expect(result[:tx_status]).to eq('submitted')
+    it 'returns the service txStatus, not the HTTP code' do
+      _, result = call_tool
+      expect(result[:tx_status]).to eq('RECEIVED')
     end
 
-    it 'returns a hex string' do
-      result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
-        symbolize_names: true
-      )
-      expect(result[:hex]).to match(/\A[0-9a-f]+\z/)
+    it 'does not return the retired status or state fields' do
+      _, result = call_tool
+      expect(result.keys).to contain_exactly(:txid, :tx_status, :hex)
     end
 
-    it 'includes structured_content with tx_status' do
-      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
-      expect(response.structured_content[:tx_status]).to eq('submitted')
+    it 'includes structured_content with txid and tx_status' do
+      response, result = call_tool
+      expect(response.structured_content).to include(txid: result[:txid], tx_status: 'RECEIVED')
     end
   end
 
@@ -190,59 +169,72 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
-  describe '.call when Arcade returns already submitted (idempotent re-submission)' do
-    before do
-      stub_woc(200, utxo_response_body)
-      stub_arc_resubmit
-    end
-
-    it 'returns a success response' do
-      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
-      expect(response.error?).to be false
-    end
-
-    it 'surfaces the txid from the re-submission response' do
-      result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
-        symbolize_names: true
-      )
-      expect(result[:txid]).to eq('deadbeef' * 8)
-    end
-
-    it 'surfaces the state from the re-submission response' do
-      result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
-        symbolize_names: true
-      )
-      expect(result[:state]).to eq('SEEN_ON_NETWORK')
-    end
-  end
-
-  describe '.call when ARC rejects the broadcast' do
+  describe '.call when the service rejects the broadcast with an HTTP error' do
     before do
       stub_woc(200, utxo_response_body)
       rejection_body = { 'title' => 'transaction rejected', 'detail' => 'transaction rejected', 'txStatus' => 'REJECTED' }.to_json
-      stub_arc_failure(422, rejection_body)
+      stub_broadcaster(422, rejection_body)
     end
 
-    it 'returns an error response' do
-      response = tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000)
+    it 'returns an error response carrying the computed txid' do
+      response, result = call_tool
+      expect(response.error?).to be true
+      expect(result[:error]).to include('Broadcast failed')
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+    end
+  end
+
+  describe '.call when a 2xx reply carries a rejected txStatus' do
+    before { stub_woc(200, utxo_response_body) }
+
+    %w[REJECTED DOUBLE_SPEND_ATTEMPTED INVALID MALFORMED MINED_IN_STALE_BLOCK ORPHANED].each do |status|
+      it "reports #{status} as an error with the computed txid" do
+        stub_broadcaster(200, broadcast_reply(status))
+        response, result = call_tool
+        expect(response.error?).to be true
+        expect(result[:error]).to include(status)
+        expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+      end
+    end
+
+    it 'reports a lower-case rejection too' do
+      stub_broadcaster(200, broadcast_reply('double_spend_attempted'))
+      response, = call_tool
       expect(response.error?).to be true
     end
+  end
 
-    it 'includes the broadcast failure message' do
-      result = JSON.parse(
-        tool.call(wif: wif, to_address: recipient_address, satoshis: 10_000).content.first.text,
-        symbolize_names: true
-      )
-      expect(result[:error]).to include('Broadcast failed')
+  describe '.call when the reply names a different txid' do
+    before do
+      stub_woc(200, utxo_response_body)
+      stub_broadcaster(200, broadcast_reply('RECEIVED', txid: 'ab' * 32))
+    end
+
+    it 'returns an error carrying the computed txid' do
+      response, result = call_tool
+      expect(response.error?).to be true
+      expect(result[:error]).to include('different txid')
+      expect(result[:txid]).not_to eq('ab' * 32)
+    end
+  end
+
+  describe '.call when the reply carries no txid' do
+    before do
+      stub_woc(200, utxo_response_body)
+      stub_broadcaster(200, { 'status' => 202, 'txStatus' => 'RECEIVED' }.to_json)
+    end
+
+    it 'still returns the computed txid' do
+      response, result = call_tool
+      expect(response.error?).to be false
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
     end
   end
 
   describe '.call with testnet' do
     before do
       stub_woc(200, utxo_response_body, network: :testnet)
-      stub_arc_success
+      stub_broadcaster(200, broadcast_reply('RECEIVED'))
     end
 
     let(:testnet_key) { BSV::Primitives::PrivateKey.generate }
@@ -252,7 +244,7 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     it 'uses testnet for WhatsOnChain and Arcade' do
       response = tool.call(wif: testnet_wif, to_address: testnet_recipient, satoshis: 10_000, network: 'testnet')
       result = JSON.parse(response.content.first.text, symbolize_names: true)
-      expect(result[:tx_status]).to eq('submitted')
+      expect(result[:tx_status]).to eq('RECEIVED')
     end
   end
 end
