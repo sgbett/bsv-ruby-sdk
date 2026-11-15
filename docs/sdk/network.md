@@ -140,12 +140,17 @@ arc = BSV::Network::Protocols::ARC.new(
   base_url: 'https://arc.taal.com',
   auth: { bearer: ENV['TAAL_KEY'] }
 )
-result = arc.call(:get_tx_status, 'abc123...')  # display-order hex at ARC boundary
+dtxid = '<64-character display-order hex txid>'  # a placeholder: use a real dtxid
+result = arc.call(:get_tx_status, dtxid)
 if result.http_success?
   puts result.data['txStatus']    #=> "MINED"
   puts result.data['blockHeight'] #=> 800123
 end
 ```
+
+`get_tx_status` on ARC and Arcade raises `ArgumentError`, sending nothing, for a txid that is not 64-character display-order hex, and treats a reply naming a different txid as a failure. Protocol `inspect` and `to_s` (and `LivePolicy`'s) never show credentials; `Protocol#authenticated?` reports whether one is configured.
+
+If a broadcast fails with an `error_message` ending "the request may have reached the service", the service may already hold the transaction. Resubmit the identical transaction or check its status; never rebuild it with different inputs.
 
 ### Callbacks
 

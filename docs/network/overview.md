@@ -42,10 +42,10 @@ The SDK ships these protocols:
 |----------|----------|---------|
 | `Protocols::ARC` | broadcast, broadcast_many, get_tx_status, get_policy, health | GorillaPool, TAAL |
 | `Protocols::Arcade` | broadcast, get_tx_status, get_policy, health | BSVAssociation (opt-in) |
-| `Protocols::WoCREST` | get_tx, get_utxos, is_utxo, current_height, valid_root, get_merkle_path, + 20 more | WhatsOnChain |
+| `Protocols::WoCREST` | get_tx, get_utxos, is_utxo, current_height, valid_root, get_merkle_path, + 48 more (54 in all) | WhatsOnChain |
 | `Protocols::Chaintracks` | get_block_header, current_height | (follow-up: see #778) |
-| `Protocols::Ordinals` | get_tx, get_merkle_path, get_utxos, ... | GorillaPool |
-| `Protocols::JungleBus` | current_height, get_block_header, get_address_txs, ... | GorillaPool |
+| `Protocols::Ordinals` | get_tx, get_merkle_path, get_utxos, + 5 more (8 in all) | GorillaPool |
+| `Protocols::JungleBus` | current_height, get_block_header, get_address_txs, + 3 more (6 in all) | GorillaPool |
 | `Protocols::TAALBinary` | broadcast | TAAL |
 
 The generated [protocol reference](protocols/index.md) lists every command.
@@ -59,6 +59,10 @@ The generated [protocol reference](protocols/index.md) lists every command.
 - **Headers.** Arcade understands only `X-CallbackUrl`, `X-CallbackToken` and `X-FullStatusUpdates`. It has no skip-validation or wait-for headers, so the `skip_fee_validation:` and `skip_script_validation:` options are gone.
 - **Errors.** Arcade errors are flat `{"error": "...", "reason": "..."}` objects, and a successful submission is HTTP 202, so `result.data['status']` is the integer `202`. On ARC, `data['status']` on an error is an ARC code. Neither is the string `'submitted'` that earlier Arcade responses carried; read `txStatus`.
 - **Backpressure.** Arcade answers 429 and 503 with `Retry-After`; the response is a failed `ProtocolResponse` that is `retryable?`, and a numeric `Retry-After` is included in its `error_message`.
+
+`get_tx_status` on ARC and Arcade validates its argument: anything other than a 64-character display-order hex txid raises `ArgumentError` and sends nothing. A reply that names a different txid from the one asked about is a failed `ProtocolResponse` (malformed reply), not a success.
+
+**Transport failures.** Every transport failure except those that happen before anything is sent (DNS failure, open timeout, connection refused, host or network unreachable) sets an `error_message` ending "the request may have reached the service". After a failed broadcast with that message, the service may hold the transaction. Resubmit the identical transaction, or query its status; never rebuild it with different inputs, which would risk a double spend.
 
 **Important:** status tracking is per instance, on both services. `:get_tx_status` only knows transactions that were submitted to that instance, and returns 404 for arbitrary txids, even known-mined ones. Use WhatsOnChain or JungleBus for general blockchain queries.
 
@@ -84,11 +88,13 @@ Each provider composes protocol instances with concrete URLs and credentials. Wh
 call `.default`, you get a ready-to-use provider pointed at the mainnet endpoints.
 Pass `testnet: true` for testnet.
 
-`TAAL.default` needs a key: without one, TAAL's ARC answers 401 on everything except `/v1/policy`. `BSVAssociation` needs no key (anonymous use is rate-limited per IP address) and is the only provider that is never a default: pick it deliberately.
+`TAAL.default` needs a key: without one, TAAL's ARC answers 401 on everything except `/v1/policy`. `BSVAssociation` needs no key (anonymous use is rate-limited per IP address) and, like TAAL, no SDK default uses it: pick it deliberately.
 
 A key given to a provider goes to every protocol it composes, so `GorillaPool.mainnet(auth: { bearer: 'token' })` sends it to the ARC, Ordinals and JungleBus hosts. Keys are never shared across providers.
 
 #### Auth and Rate Limit Metadata
+
+`inspect` and `to_s` on protocols (and on `LivePolicy`) never show credentials: a protocol prints only its class, the scheme, host and non-default port of its base URL, and whether it is authenticated. `Protocol#authenticated?` is true when an `auth:` (or legacy `api_key:`) credential is configured.
 
 Providers carry `auth` and `rate_limit` as metadata — they describe what credentials
 the provider is configured with and what request rate is appropriate. The SDK does not

@@ -79,13 +79,17 @@ bsv = BSV::Network::Providers::BSVAssociation.default   # or .default(testnet: t
 # Extended Format only: a transaction whose inputs lack source outputs, or a
 # string that is not Extended Format, raises ArgumentError and sends nothing.
 result = bsv.call(:broadcast, tx)
-puts result.data['txStatus'] if result.http_success?   # => "RECEIVED"
-puts result.data['status']                              # => 202 (the HTTP code, not a string)
+if result.http_success?
+  puts result.data['txStatus']   # => "RECEIVED"
+  puts result.data['status']     # => 202 (the HTTP code, not a string)
 
-# Status tracking is per instance: only transactions submitted to this
-# instance are known to it.
-result = bsv.call(:get_tx_status, result.data['txid'])
-puts result.data['txStatus']
+  # Status tracking is per instance: only transactions submitted to this
+  # instance are known to it.
+  status = bsv.call(:get_tx_status, result.data['txid'])
+  puts status.data['txStatus'] if status.http_success?
+else
+  puts result.error_message
+end
 
 # Fee policy
 puts bsv.call(:get_policy).data
