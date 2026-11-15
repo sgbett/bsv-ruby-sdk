@@ -63,4 +63,83 @@ RSpec.describe BSV::Network::Util do
       expect(described_class.resolve_tx_hex(tx)).to eq('raw-hex')
     end
   end
+
+  describe '.resolve_ef_hex' do
+    let(:ef_hex) { EfFixtures.ef_hex }
+
+    it 'serialises a transaction object to Extended Format hex' do
+      result = described_class.resolve_ef_hex(EfFixtures.ef_tx)
+      expect(result).to eq(ef_hex)
+      expect(result[8, 12]).to eq('0000000000ef')
+    end
+
+    it 'names Extended Format when the transaction lacks source data' do
+      expect { described_class.resolve_ef_hex(EfFixtures.tx_without_source_data) }
+        .to raise_error(ArgumentError, /\AExtended Format required: .*source/)
+    end
+
+    it 'passes Extended Format hex through' do
+      expect(described_class.resolve_ef_hex(ef_hex)).to eq(ef_hex)
+    end
+
+    it 'accepts upper-case hex' do
+      expect(described_class.resolve_ef_hex(ef_hex.upcase)).to eq(ef_hex.upcase)
+    end
+
+    it 'trims surrounding whitespace on hex' do
+      expect(described_class.resolve_ef_hex("#{ef_hex}\n")).to eq(ef_hex)
+    end
+
+    it 'converts binary Extended Format to hex' do
+      expect(described_class.resolve_ef_hex([ef_hex].pack('H*'))).to eq(ef_hex)
+    end
+
+    it 'does not trim binary strings' do
+      binary = EfFixtures.ef_tx.to_ef + "\n".b
+      expect(described_class.resolve_ef_hex(binary)).to eq("#{ef_hex}0a")
+    end
+
+    it 'rejects an empty string' do
+      expect { described_class.resolve_ef_hex('') }.to raise_error(ArgumentError, /empty/)
+    end
+
+    it 'rejects plain transaction hex' do
+      expect { described_class.resolve_ef_hex(EfFixtures.ef_tx.to_hex) }
+        .to raise_error(ArgumentError, /Extended Format/)
+    end
+
+    it 'rejects BEEF hex' do
+      expect { described_class.resolve_ef_hex("0100beef#{'00' * 40}") }
+        .to raise_error(ArgumentError, /Extended Format/)
+    end
+
+    it 'rejects a 10-byte plain transaction that happens to carry the marker at offset 4' do
+      expect { described_class.resolve_ef_hex('010000000000000000ef') }
+        .to raise_error(ArgumentError, /Extended Format/)
+    end
+  end
+
+  describe '.service_text' do
+    it 'is nil for non-Strings' do
+      expect(described_class.service_text(nil)).to be_nil
+      expect(described_class.service_text(5)).to be_nil
+      expect(described_class.service_text(['a'])).to be_nil
+    end
+
+    it 'is nil for blank strings' do
+      expect(described_class.service_text(" \n\t ")).to be_nil
+    end
+
+    it 'replaces control characters and ANSI escapes with spaces' do
+      expect(described_class.service_text("bad\e[31m red\x00\r\nline")).to eq('bad [31m red line')
+    end
+
+    it 'truncates to the limit' do
+      expect(described_class.service_text('a' * 20_000).length).to eq(8000)
+    end
+
+    it 'does not raise on invalid UTF-8' do
+      expect(described_class.service_text("ok \xFF\xFE end".b)).to eq('ok end')
+    end
+  end
 end
