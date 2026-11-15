@@ -149,18 +149,14 @@ module BSV
         end
 
         # Inspect a 2xx broadcast reply for signs that the transaction was not
-        # accepted. The Arcade parser only rejects +REJECTED+, so the wider ARC
-        # rejection set is checked here too.
+        # accepted. The broadcaster's own parser already fails a rejected reply;
+        # this backstop applies the same rule, so a broadcaster with a laxer
+        # parser can never report a rejection as a success.
         #
         # @return [String, nil] a description of the problem, or nil
         # @api private
         def self.broadcast_problem(data, computed_txid)
-          tx_status = data['txStatus'].to_s.upcase
-          orphan_marker = BSV::Network::Protocols::ARC::ORPHAN_MARKER
-          rejected = BSV::Network::Protocols::ARC::REJECTED_STATUSES.include?(tx_status) ||
-                     tx_status.include?(orphan_marker) ||
-                     data['extraInfo'].to_s.upcase.include?(orphan_marker)
-          return "Broadcast rejected: transaction status #{tx_status}" if rejected
+          return "Broadcast rejected: transaction status #{data['txStatus'].to_s.upcase}" if BSV::Network::Protocols::ARC.rejected?(data)
 
           reported = data['txid']
           return if reported.nil? || reported.to_s.downcase == computed_txid

@@ -215,6 +215,15 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       response, = call_tool
       expect(response.error?).to be true
     end
+
+    # ARC's parser fails these replies first; the backstop covers a laxer broadcaster.
+    it 'applies the shared ARC rejection rule in its backstop' do
+      txid = 'ab' * 32
+      problem = ->(data) { tool.send(:broadcast_problem, data, txid) }
+      expect(problem.call('txid' => txid, 'txStatus' => 'rejected')).to eq('Broadcast rejected: transaction status REJECTED')
+      expect(problem.call('txid' => txid, 'txStatus' => 'RECEIVED', 'extraInfo' => 'parent is ORPHAN')).to start_with('Broadcast rejected')
+      expect(problem.call('txid' => txid, 'txStatus' => 'SEEN_ON_NETWORK')).to be_nil
+    end
   end
 
   describe '.call when the reply names a different txid' do
@@ -237,10 +246,10 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       stub_broadcaster(200, broadcast_reply('RECEIVED', extraInfo: 'parent is ORPHAN'))
     end
 
-    it 'reports an error with the computed txid' do
+    it 'reports the status and extraInfo with the computed txid' do
       response, result = call_tool
       expect(response.error?).to be true
-      expect(result[:error]).to include('rejected')
+      expect(result[:error]).to eq('Broadcast failed: RECEIVED: parent is ORPHAN')
       expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
     end
   end
@@ -275,9 +284,11 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       stub_broadcaster(200, { 'status' => 202, 'txStatus' => 'RECEIVED' }.to_json)
     end
 
-    it 'still returns the computed txid' do
+    # ARC, the default broadcaster, treats a 2xx without a txid as malformed.
+    it 'is an error that still carries the computed txid' do
       response, result = call_tool
-      expect(response.error?).to be false
+      expect(response.error?).to be true
+      expect(result[:error]).to eq('Broadcast failed: ARC returned a malformed 2xx response')
       expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
     end
   end
