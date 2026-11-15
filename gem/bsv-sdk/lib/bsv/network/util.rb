@@ -95,12 +95,20 @@ module BSV
       def self.string_to_hex(tx)
         raise ArgumentError, 'tx cannot be empty — refusing to construct an empty broadcast' if tx.empty?
 
-        trimmed = tx.strip
-        return trimmed if !trimmed.empty? && trimmed.length.even? && trimmed.match?(/\A[0-9a-fA-F]+\z/)
+        # Inspect the bytes: a binary transaction tagged UTF-8 is not valid UTF-8,
+        # and matching a regex against it would raise.
+        bytes = tx.b
+        trimmed = bytes.strip
+        return trimmed.force_encoding(Encoding::US_ASCII) if even_length_hex?(trimmed)
 
-        tx.b.unpack1('H*')
+        bytes.unpack1('H*')
       end
       private_class_method :string_to_hex
+
+      def self.even_length_hex?(text)
+        !text.empty? && text.length.even? && text.match?(/\A[0-9a-fA-F]+\z/)
+      end
+      private_class_method :even_length_hex?
 
       def self.transaction_to_ef_hex(tx)
         tx.to_ef_hex

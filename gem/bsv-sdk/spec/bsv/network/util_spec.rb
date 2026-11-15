@@ -94,6 +94,11 @@ RSpec.describe BSV::Network::Util do
       expect(described_class.resolve_ef_hex([ef_hex].pack('H*'))).to eq(ef_hex)
     end
 
+    it 'converts binary Extended Format tagged UTF-8 (invalid as UTF-8) to hex' do
+      binary = [ef_hex].pack('H*').force_encoding(Encoding::UTF_8)
+      expect(described_class.resolve_ef_hex(binary)).to eq(ef_hex)
+    end
+
     it 'does not trim binary strings' do
       binary = EfFixtures.ef_tx.to_ef + "\n".b
       expect(described_class.resolve_ef_hex(binary)).to eq("#{ef_hex}0a")
