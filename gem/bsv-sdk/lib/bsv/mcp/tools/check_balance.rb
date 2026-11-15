@@ -16,14 +16,15 @@ module BSV
         description <<~DESC.strip
           Check the BSV balance for an address or WIF private key.
 
-          Accepts either a WIF-encoded private key (auto-derives the address)
-          or a P2PKH address string directly. The tool detects which was
+          Accepts either a compressed WIF-encoded private key (auto-derives the
+          address) or a P2PKH address string directly. The tool detects which was
           supplied automatically.
 
           Parameters:
           - address_or_wif: a BSV P2PKH address (mainnet starts with '1';
-            testnet starts with 'm' or 'n') OR a WIF private key (mainnet
-            starts with '5', 'K', or 'L'; testnet starts with '9' or 'c')
+            testnet starts with 'm' or 'n') OR a compressed WIF private
+            key (mainnet starts with 'K' or 'L'; testnet starts with 'c');
+            uncompressed WIFs are rejected
           - network: 'mainnet' or 'testnet' — overrides the server default
 
           Returns:
@@ -48,7 +49,7 @@ module BSV
             address_or_wif: {
               type: 'string',
               maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
-              description: 'BSV P2PKH address or WIF private key to check.'
+              description: 'BSV P2PKH address or compressed WIF private key to check.'
             },
             network: {
               type: 'string',

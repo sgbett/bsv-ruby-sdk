@@ -35,7 +35,8 @@ module BSV
           (BSV_ARC_URL) for calls on the server's own network.
 
           Parameters:
-          - wif: sender's private key in WIF format. The key is used only
+          - wif: sender's private key in compressed WIF format (uncompressed
+            WIFs are rejected). The key is used only
             for this call and is never stored by the server. It must be for
             the network being used.
           - to_address: recipient P2PKH address for the network being used
@@ -52,7 +53,7 @@ module BSV
           - hex: the raw transaction hex (plain format, not EF)
 
           Error conditions (returned as error responses, not raised):
-          - Invalid WIF key, or a WIF for a different network
+          - Invalid or uncompressed WIF key, or a WIF for a different network
           - Recipient that is not a P2PKH address for the network
           - No UTXOs found for sender
           - Insufficient funds (balance < satoshis + estimated fee)
@@ -75,7 +76,7 @@ module BSV
             wif: {
               type: 'string',
               maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
-              description: 'Sender private key in WIF format.'
+              description: 'Sender private key in compressed WIF format.'
             },
             to_address: {
               type: 'string',
@@ -101,11 +102,8 @@ module BSV
           net_sym = Helpers.resolve_network_sym(network, server_context)
           broadcaster = select_broadcaster(net_sym, server_context)
 
-          AddressInput.ensure_length!(wif, 'wif')
-          AddressInput.ensure_length!(to_address, 'to_address')
-          private_key = BSV::Primitives::PrivateKey.from_wif(wif)
-          ensure_wif_network(wif, net_sym)
-          recipient_lock = recipient_locking_script(to_address, net_sym)
+          private_key = AddressInput.private_key(wif, net_sym)
+          recipient_lock = BSV::Script::Script.p2pkh_lock(AddressInput.pubkey_hash(to_address, net_sym, name: 'to_address'))
           sender_address = private_key.public_key.address(network: net_sym)
 
           woc = BSV::Network::Providers::WhatsOnChain.default(network: net_sym)
@@ -126,7 +124,8 @@ module BSV
           selected = select_utxos(sorted, satoshis)
           return Helpers.error_response("Insufficient funds — available: #{all_utxos.sum(&:satoshis)} satoshis") if selected.nil?
 
-          tx = build_transaction(selected, satoshis, recipient_lock, sender_address, private_key)
+          sender_lock = BSV::Script::Script.p2pkh_lock(private_key.public_key.hash160)
+          tx = build_transaction(selected, satoshis, recipient_lock, sender_lock, private_key)
           txid = tx.txid_hex # MCP tool boundary: display-order hex for human consumption
 
           broadcast_result = broadcaster.call(:broadcast, tx)
@@ -200,11 +199,10 @@ module BSV
 
         # Build, fee-compute, and sign the transaction.
         # @api private
-        def self.build_transaction(selected_utxos, satoshis, recipient_lock, sender_address, private_key)
+        def self.build_transaction(selected_utxos, satoshis, recipient_lock, sender_lock, private_key)
           tx = BSV::Transaction::Tx.new
 
           # Wire inputs with EF metadata (source_satoshis + source_locking_script)
-          sender_lock = BSV::Script::Script.p2pkh_lock(sender_address)
           selected_utxos.each do |utxo|
             input = BSV::Transaction::TransactionInput.new(
               prev_wtxid: BSV::Transaction::TransactionInput.wtxid_from_hex(utxo.tx_hash),
@@ -245,31 +243,6 @@ module BSV
           tx
         end
         private_class_method :build_transaction
-
-        # Refuse a WIF whose prefix belongs to the other network, so a testnet
-        # key never signs a mainnet spend or the reverse. The message never
-        # includes the key.
-        # @api private
-        def self.ensure_wif_network(wif, net_sym)
-          expected = net_sym == :mainnet ? BSV::Primitives::PrivateKey::MAINNET_PREFIX : BSV::Primitives::PrivateKey::TESTNET_PREFIX
-          return if BSV::Primitives::Base58.check_decode(wif)[0] == expected
-
-          raise ArgumentError, "WIF private key is not for #{net_sym}"
-        end
-        private_class_method :ensure_wif_network
-
-        # Build the payment locking script, accepting only a P2PKH address for
-        # the call's network. +Script.p2pkh_lock+ also rejects P2SH addresses,
-        # which BSV does not support.
-        # @api private
-        def self.recipient_locking_script(to_address, net_sym)
-          expected = net_sym == :mainnet ? BSV::Primitives::PublicKey::MAINNET_PUBKEY_HASH : BSV::Primitives::PublicKey::TESTNET_PUBKEY_HASH
-          prefix = BSV::Primitives::Base58.check_decode(to_address, prefix_length: 1)[:prefix]
-          raise ArgumentError, "to_address is not a P2PKH address for #{net_sym}" unless prefix == expected
-
-          BSV::Script::Script.p2pkh_lock(to_address)
-        end
-        private_class_method :recipient_locking_script
 
         # Choose the protocol that broadcasts the transaction.
         #
