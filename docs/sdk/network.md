@@ -150,7 +150,7 @@ end
 
 `get_tx_status` on ARC and Arcade raises `ArgumentError`, sending nothing, for a txid that is not 64-character display-order hex, and treats a reply naming a different txid as a failure. Protocol `inspect` and `to_s` (and `LivePolicy`'s) never show credentials; `Protocol#authenticated?` reports whether one is configured.
 
-If a broadcast fails with an `error_message` ending "the request may have reached the service", the service may already hold the transaction. Resubmit the identical transaction or check its status; never rebuild it with different inputs.
+If a broadcast fails with an `error_message` ending "(the request may have reached the service)", the service may already hold the transaction. Resubmit the identical transaction or check its status; never rebuild it with different inputs.
 
 ### Callbacks
 

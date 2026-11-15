@@ -62,7 +62,7 @@ The generated [protocol reference](protocols/index.md) lists every command.
 
 `get_tx_status` on ARC and Arcade validates its argument: anything other than a 64-character display-order hex txid raises `ArgumentError` and sends nothing. A reply that names a different txid from the one asked about is a failed `ProtocolResponse` (malformed reply), not a success.
 
-**Transport failures.** Every transport failure except those that happen before anything is sent (DNS failure, open timeout, connection refused) sets an `error_message` ending "the request may have reached the service". After a failed broadcast with that message, the service may hold the transaction. Resubmit the identical transaction, or query its status; never rebuild it with different inputs, which would risk a double spend.
+**Transport failures.** Every transport failure except those that happen before anything is sent (DNS failure, open timeout, connection refused) sets an `error_message` ending "(the request may have reached the service)". After a failed broadcast with that message, the service may hold the transaction. Resubmit the identical transaction, or query its status; never rebuild it with different inputs, which would risk a double spend.
 
 **Important:** status tracking is per instance, on both services. `:get_tx_status` only knows transactions that were submitted to that instance, and returns 404 for arbitrary txids, even known-mined ones. Use WhatsOnChain or JungleBus for general blockchain queries.
 
