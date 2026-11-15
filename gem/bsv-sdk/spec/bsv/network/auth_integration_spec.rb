@@ -34,10 +34,11 @@ def arc_fake_http
   AuthIntegrationFakeHttpClient.new(AuthIntegrationFakeResponse.new('200', body))
 end
 
-# Builds a fake HTTP client that returns a minimal successful Arcade JSON response
-# ({"status":"submitted"}) and records the request.
+# Builds a fake HTTP client that returns a minimal successful BSV Broadcaster
+# (Arcade) submit response and records the request.
 def arcade_fake_http
-  AuthIntegrationFakeHttpClient.new(AuthIntegrationFakeResponse.new('200', '{"status":"submitted"}'))
+  body = %({"txid":"#{'ab' * 32}","status":202,"txStatus":"RECEIVED"})
+  AuthIntegrationFakeHttpClient.new(AuthIntegrationFakeResponse.new('202', body))
 end
 
 # Builds a fake HTTP client that returns a minimal successful WoC broadcast response.
