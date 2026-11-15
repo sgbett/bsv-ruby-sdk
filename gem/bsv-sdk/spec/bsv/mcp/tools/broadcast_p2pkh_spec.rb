@@ -243,6 +243,12 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect(problem.call('txid' => txid, 'txStatus' => 'SEEN_ON_NETWORK')).to be_nil
     end
 
+    it 'does not let a case-folding ligature stand in for hex in the reported txid' do
+      computed = "ff#{'ab' * 31}"
+      reported = "#{0xFB00.chr(Encoding::UTF_8)}#{'ab' * 31}"
+      expect(tool.send(:broadcast_problem, { 'txid' => reported }, computed)).to include('different txid')
+    end
+
     it 'describes a rejection whose txStatus is not valid UTF-8 without echoing its bytes' do
       txid = 'ab' * 32
       data = { 'txid' => txid, 'txStatus' => invalid_utf8('SEEN'), 'extraInfo' => 'parent is ORPHAN' }

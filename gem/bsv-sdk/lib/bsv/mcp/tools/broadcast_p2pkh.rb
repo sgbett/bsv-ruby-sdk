@@ -156,6 +156,8 @@ module BSV
         # Service strings may be invalid UTF-8 (the JSON parser admits it, and
         # +upcase+, +downcase+ and +match?+ raise on it), so a txid is compared
         # only when validly encoded and the status goes through +service_text+.
+        # The txid must also be 64 hex characters before +casecmp?+, whose
+        # Unicode case folding would let a ligature such as U+FB00 match "ff".
         #
         # @return [String, nil] a description of the problem, or nil
         # @api private
@@ -167,11 +169,18 @@ module BSV
 
           reported = data['txid']
           return if reported.nil?
-          return if reported.is_a?(String) && reported.valid_encoding? && reported.casecmp?(computed_txid)
+          return if reported_txid?(reported, computed_txid)
 
           'Broadcast service reported a different txid from the one computed for this transaction'
         end
         private_class_method :broadcast_problem
+
+        # @api private
+        def self.reported_txid?(reported, computed_txid)
+          reported.is_a?(String) && reported.valid_encoding? && reported.match?(/\A\h{64}\z/) &&
+            reported.casecmp?(computed_txid)
+        end
+        private_class_method :reported_txid?
 
         # The service-controlled status is returned only when it is a plain
         # token such as SEEN_ON_NETWORK, and never with the key or URL in it.

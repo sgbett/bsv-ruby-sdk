@@ -294,11 +294,14 @@ module BSV
           response
         end
 
-        # The encoding is checked first: the JSON parser admits invalid UTF-8
-        # inside strings, and +casecmp?+ raises on it.
+        # The encoding is checked first because the JSON parser admits invalid
+        # UTF-8 inside strings, which +match?+ raises on; the hex check comes
+        # before +casecmp?+, whose Unicode case folding would let a ligature
+        # such as U+FB00 stand in for "ff".
         def reply_for?(body, txid)
           reported = body.is_a?(Hash) ? body['txid'] : nil
-          reported.is_a?(String) && reported.valid_encoding? && reported.casecmp?(txid)
+          reported.is_a?(String) && reported.valid_encoding? && reported.match?(/\A\h{64}\z/) &&
+            reported.casecmp?(txid)
         end
 
         # A 2xx that default_call could not turn into data is a malformed reply;

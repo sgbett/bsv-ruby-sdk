@@ -661,6 +661,12 @@ RSpec.describe BSV::Network::Protocols::ARC do
         expect(result.data).to be_nil
       end
 
+      it 'does not let a case-folding ligature stand in for hex' do
+        requested = "ff#{'ab' * 31}"
+        stub_json_response(200, { 'txid' => "#{0xFB00.chr(Encoding::UTF_8)}#{'ab' * 31}", 'txStatus' => 'MINED' })
+        expect(arc.call(:get_tx_status, requested).error_message).to eq('ARC returned a malformed 2xx response')
+      end
+
       it 'treats a txid that is not valid UTF-8 as malformed rather than raising' do
         stub_response(200, %({"txid":"\xFF\xFE#{'ab' * 31}","txStatus":"MINED"}).b)
         result = arc.call(:get_tx_status, txid)
