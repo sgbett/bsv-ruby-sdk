@@ -13,11 +13,13 @@ The simplest path uses `.default` on provider and tracker classes. No configurat
 ### Broadcast a transaction
 
 ```ruby
-# GorillaPool Arcade (public endpoint, no auth required)
+# GorillaPool ARC (public endpoint, no auth required)
 provider = BSV::Network::Providers::GorillaPool.default
 result = provider.call(:broadcast, tx)
 puts result.data['txid'] if result.http_success?
 ```
+
+A broadcast that times out leaves the outcome unknown: the transaction may already have reached the service. Resubmit the identical transaction (safe, services treat it idempotently) and never rebuild it with different inputs.
 
 ### Fetch UTXOs for an address
 
@@ -57,15 +59,39 @@ protocols and exposes all their commands through a single `call` interface.
 ```ruby
 gp = BSV::Network::Providers::GorillaPool.default
 
-# Broadcasting (via Arcade protocol — response shape differs from ARC)
+# Broadcasting (via the ARC protocol)
 result = gp.call(:broadcast, tx)
-puts result.data['status'] if result.http_success?  # => "submitted"
+puts result.data['txStatus'] if result.http_success?  # => "SEEN_ON_NETWORK"
 
 # See what commands are available
 puts gp.commands.to_a.sort
-# => [:broadcast, :get_chain_tip, :get_merkle_path, :get_tx,
-#     :get_tx_status, :health, ...]
+# => [:broadcast, :broadcast_many, :current_height, :get_address_meta, ...,
+#     :get_tx_status, :get_utxos, :health]
 ```
+
+### BSV Broadcaster (opt-in)
+
+`Providers::BSVAssociation` points at the BSV Association's BSV Broadcaster (formerly Arcade). Nothing in the SDK defaults to it. It needs no key; anonymous use is rate-limited per IP address.
+
+```ruby
+bsv = BSV::Network::Providers::BSVAssociation.default   # or .default(testnet: true)
+
+# Extended Format only: a transaction whose inputs lack source outputs, or a
+# string that is not Extended Format, raises ArgumentError and sends nothing.
+result = bsv.call(:broadcast, tx)
+puts result.data['txStatus'] if result.http_success?   # => "RECEIVED"
+puts result.data['status']                              # => 202 (the HTTP code, not a string)
+
+# Status tracking is per instance: only transactions submitted to this
+# instance are known to it.
+result = bsv.call(:get_tx_status, result.data['txid'])
+puts result.data['txStatus']
+
+# Fee policy
+puts bsv.call(:get_policy).data
+```
+
+On 429 or 503 the response is a failed `ProtocolResponse` with `retryable?` true.
 
 ### WhatsOnChain provider
 
@@ -89,15 +115,15 @@ gp = BSV::Network::Providers::GorillaPool.default
 
 # Which protocol handles a specific command?
 proto = gp.protocol_for(:broadcast)
-puts proto.class  # => BSV::Network::Protocols::Arcade
+puts proto.class  # => BSV::Network::Protocols::ARC
 
 # Capability matrix — what each protocol serves
 gp.capability_matrix.each do |proto, commands|
   puts "#{proto.class.name.split('::').last}: #{commands.join(', ')}"
 end
-# Arcade: broadcast, get_tx_status, health
-# Ordinals: get_merkle_path, get_tx
-# JungleBus: ...
+# ARC: broadcast, broadcast_many, get_policy, get_tx_status, health
+# Ordinals: get_balance, get_chain_tip, get_merkle_path, get_spend, get_tx, get_tx_details, get_utxos
+# JungleBus: current_height, get_address_meta, get_address_txs, get_block_header, get_block_headers
 ```
 
 ## Custom Providers
@@ -105,7 +131,7 @@ end
 ### Point ARC at a different host
 
 ```ruby
-# Use TAAL's ARC instance instead of GorillaPool
+# Use TAAL's ARC instance (it requires a key)
 arc = BSV::Network::Protocols::ARC.new(
   base_url: 'https://arc.taal.com',
   api_key: 'my-taal-key'
@@ -138,14 +164,16 @@ result = my_provider.call(:is_utxo, txid, 0)  # → WoC
 ### Mix providers for failover
 
 ```ruby
-# Primary: GorillaPool Arcade for broadcasting
-# Fallback: TAAL ARC (note: response shapes differ — ARC returns txStatus, Arcade returns status)
+# Primary: GorillaPool ARC for broadcasting
+# Fallback: BSV Broadcaster (Arcade). Both return ARC-shaped bodies (txid, txStatus).
+# The fallback needs Extended Format, so the transaction's inputs must carry
+# their source outputs.
 primary = BSV::Network::Providers::GorillaPool.default
-fallback = BSV::Network::Providers::TAAL.default
+fallback = BSV::Network::Providers::BSVAssociation.default
 
 result = primary.call(:broadcast, tx)
 if !result.http_success? && result.retryable?
-  result = fallback.call(:broadcast, tx)  # try TAAL ARC
+  result = fallback.call(:broadcast, tx)  # same transaction, different service
 end
 ```
 
@@ -179,13 +207,13 @@ arc = BSV::Network::Protocols::ARC.new(
 result = arc.call(:broadcast, tx)
 # result is a ProtocolResponse; result.data['txStatus'] => "SEEN_ON_NETWORK"
 
-# GorillaPool Arcade — distinct protocol, different response shape
+# BSV Broadcaster (Arcade) — a distinct protocol: Extended Format only, root paths
 arcade = BSV::Network::Protocols::Arcade.new(
-  base_url: 'https://arcade.gorillapool.io'
+  base_url: 'https://arcade-v2-us-1.bsvblockchain.tech'
 )
 
 result = arcade.call(:broadcast, tx)
-# result.data['status'] => "submitted"  (not txStatus)
+# result.data['txStatus'] => "RECEIVED"; result.data['status'] => 202
 ```
 
 ### Result types
@@ -240,13 +268,15 @@ in at construction time.
 ### Bearer token
 
 Use `auth: { bearer: 'token' }` for services that expect `Authorization: Bearer <token>`.
-This is the standard form for GorillaPool Arcade and TAAL ARC.
+This is the standard form for TAAL ARC, GorillaPool and the BSV Broadcaster.
 
 ```ruby
-# GorillaPool with a bearer token
+# GorillaPool with a bearer token — sent to every GorillaPool host the
+# provider composes (ARC, Ordinals and JungleBus)
 gp = BSV::Network::Providers::GorillaPool.default(auth: { bearer: ENV['GP_TOKEN'] })
 
-# TAAL with a bearer token
+# TAAL with a bearer token — required: TAAL's ARC answers 401 without one,
+# except on /v1/policy
 taal = BSV::Network::Providers::TAAL.default(auth: { bearer: ENV['TAAL_TOKEN'] })
 ```
 
@@ -341,4 +371,5 @@ Default rate limits per provider (unauthenticated tier):
 |----------|---------------------|
 | `WhatsOnChain` | 3 req/s |
 | `GorillaPool` | 3 req/s |
+| `BSVAssociation` | `nil` (anonymous per-IP limit is not published) |
 | `TAAL` | `nil` (depends on subscription) |

@@ -11,13 +11,16 @@ module BSV
       #
       # ARC is registered first, so +:broadcast+ is served by ARC (first-registered wins).
       # TAALBinary registers its own +:broadcast+ command but will not win the index.
-      # To use TAALBinary directly, call +provider.protocol_for(:broadcast)+ on the
-      # TAALBinary instance via +provider.protocols.last+, or build a custom Provider.
+      # To reach TAALBinary, take the last of +provider.protocols+ (it is registered
+      # second) or build a custom Provider that registers it first.
       #
-      # TAAL requires an API key for production use. The default rate limit is +nil+
-      # (unconstrained) because the effective limit depends on the subscription tier.
+      # TAAL's ARC requires an API key on every endpoint except +/v1/policy+, so a
+      # provider built without one gets a 401 from the rest. The default rate limit
+      # is +nil+ (unconstrained) because the effective limit depends on the
+      # subscription tier.
       #
-      # There is no TAAL testnet default — TAAL does not publish a supported testnet ARC URL.
+      # Testnet composes ARC only, at +https://arc-test.taal.com+, which also
+      # requires a key.
       #
       # == Example
       #

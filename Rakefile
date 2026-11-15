@@ -279,7 +279,7 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
     FileUtils.mkdir_p(output_dir)
 
     # --- Canonical protocol order and display names ----------------------------
-    protocol_order = %w[ARC WoCREST Chaintracks Ordinals JungleBus TAALBinary]
+    protocol_order = %w[ARC Arcade WoCREST Chaintracks Ordinals JungleBus TAALBinary]
     protocol_display = {
       'ARC' => 'ARC',
       'WoCREST' => 'WoCREST',
@@ -293,6 +293,7 @@ namespace :docs do # rubocop:disable Metrics/BlockLength
     provider_display = {
       'Taal' => 'TAAL',
       'GorillaPool' => 'GorillaPool',
+      'BsvAssociation' => 'BSVAssociation',
       'WhatsOnChain' => 'WhatsOnChain'
     }
     protocol_file = {

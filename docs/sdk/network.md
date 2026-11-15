@@ -18,21 +18,25 @@ Broadcasting uses the `BSV::Network::Providers` layer. A provider composes one o
 wire protocols and routes commands through a single `call` interface, returning a
 `BSV::Network::ProtocolResponse`.
 
-### Default Broadcaster — GorillaPool (Arcade)
+### Default Broadcaster — GorillaPool (ARC)
 
 The simplest path uses `GorillaPool.default`, which points at GorillaPool's public
-Arcade endpoint:
+ARC endpoint (`arc.gorillapool.io`), as the default broadcaster of the TypeScript and
+Python SDKs does:
 
 ```ruby
 provider = BSV::Network::Providers::GorillaPool.default
 result = provider.call(:broadcast, tx)
 
 if result.http_success?
-  puts result.data['txid']    #=> "abc123..."
+  puts result.data['txid']      #=> "abc123..."
+  puts result.data['txStatus']  #=> "SEEN_ON_NETWORK"
 else
-  puts result.error_message   #=> rejection detail
+  puts result.error_message     #=> "REJECTED: <extraInfo>", or the transport error
 end
 ```
+
+Every request has explicit timeouts (10 s open, 30 s read, 30 s write) and is never retried. A transport failure comes back as a failed `ProtocolResponse`; it does not raise. If a broadcast times out, the transaction may already have reached the service, so resubmit the identical transaction (services treat it idempotently) and never rebuild it with different inputs.
 
 For testnet:
 
@@ -40,9 +44,26 @@ For testnet:
 provider = BSV::Network::Providers::GorillaPool.default(testnet: true)
 ```
 
+### BSV Broadcaster (opt-in)
+
+The BSV Association's BSV Broadcaster (formerly Arcade) is available as `Providers::BSVAssociation`. Nothing defaults to it, and it needs no key (anonymous use is rate-limited per IP address):
+
+```ruby
+provider = BSV::Network::Providers::BSVAssociation.default   # testnet: true for testnet
+result = provider.call(:broadcast, tx)
+
+if result.http_success?
+  puts result.data['txid']      #=> display-order hex
+  puts result.data['txStatus']  #=> "RECEIVED"
+  puts result.data['status']    #=> 202 (the HTTP code)
+end
+```
+
+It accepts Extended Format only: a transaction whose inputs lack source outputs, or a string that is not Extended Format, raises `ArgumentError` and nothing is sent. Status tracking is per instance, so `:get_tx_status` only knows transactions submitted to that instance. `:get_policy` returns its fee policy. On 429 and 503 the response is a failed `ProtocolResponse` with `retryable?` true.
+
 ### TAAL ARC
 
-To broadcast via TAAL's ARC endpoint instead:
+To broadcast via TAAL's ARC endpoint instead (TAAL requires a key on everything except `/v1/policy`):
 
 ```ruby
 provider = BSV::Network::Providers::TAAL.default(auth: { bearer: ENV['TAAL_KEY'] })
@@ -72,7 +93,7 @@ result = arc.call(:broadcast, tx)
 
 ```ruby
 result = arc.call(:broadcast, tx,
-  wait_for: 'SEEN_ON_NETWORK',   # hold connection until status reached
+  wait_for: 'SEEN_ON_NETWORK',   # hold connection until status reached (within the 30 s read timeout)
   skip_fee_validation: true,       # bypass minimum-fee check
   skip_script_validation: true     # bypass script correctness check
 )
@@ -80,7 +101,7 @@ result = arc.call(:broadcast, tx,
 
 | Option | Description |
 |--------|-------------|
-| `wait_for` | ARC wait condition: `RECEIVED`, `STORED`, `ANNOUNCED_TO_NETWORK`, `SEEN_ON_NETWORK`, or `MINED` |
+| `wait_for` | ARC wait condition: `RECEIVED`, `STORED`, `ANNOUNCED_TO_NETWORK`, `SEEN_ON_NETWORK`, or `MINED`. The response is held until it is reached, so it must fit within the 30 s read timeout |
 | `skip_fee_validation` | Bypass fee check (useful for zero-fee data transactions) |
 | `skip_script_validation` | Bypass script validation (useful during testing) |
 
@@ -128,7 +149,7 @@ end
 
 ### Callbacks
 
-Pass callback options when building the ARC protocol:
+Pass callback options when building the ARC (or Arcade) protocol:
 
 ```ruby
 arc = BSV::Network::Protocols::ARC.new(

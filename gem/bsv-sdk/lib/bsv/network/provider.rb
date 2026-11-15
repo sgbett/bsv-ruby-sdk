@@ -12,9 +12,9 @@ module BSV
     # == Example
     #
     #   gorillapool = BSV::Network::Provider.new('GorillaPool') do |p|
-    #     p.protocol Protocols::ARC,         base_url: 'https://arcade.gorillapool.io'
-    #     p.protocol Protocols::Chaintracks, base_url: 'https://arcade.gorillapool.io'
-    #     p.protocol Protocols::Ordinals,    base_url: 'https://ordinals.gorillapool.io'
+    #     p.protocol Protocols::ARC,       base_url: 'https://arc.gorillapool.io'
+    #     p.protocol Protocols::Ordinals,  base_url: 'https://ordinals.gorillapool.io'
+    #     p.protocol Protocols::JungleBus, base_url: 'https://junglebus.gorillapool.io'
     #   end
     #
     #   result = gorillapool.call(:broadcast, tx)
