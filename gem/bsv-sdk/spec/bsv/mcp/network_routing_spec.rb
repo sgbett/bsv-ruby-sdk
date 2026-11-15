@@ -159,6 +159,22 @@ RSpec.describe 'BSV MCP server — network and broadcaster routing' do
           end
         end
       end
+
+      # Script.p2pkh_lock would take this 20-character string (0x00 plus ten
+      # 0x11 bytes) as a raw hash and lock the payment to its ASCII bytes.
+      context "when a #{server_network} server is asked to pay a malformed 20-character recipient" do
+        let!(:recorder) { stub_all_hosts }
+        let(:server) { build_server(network: server_network) }
+
+        it 'returns an error and makes no request' do
+          args = broadcast_args(server_network, to_address: '17GuhfEA8T1Zvj872QAa')
+          result, payload = call_tool(server, 'broadcast_p2pkh', args)
+          expect(result[:isError]).to be true
+          expect(payload[:error]).to eq("to_address is not a P2PKH address for #{server_network}")
+          expect(recorder.entries).to be_empty
+          expect(recorder.unexpected_hosts).to be_empty
+        end
+      end
     end
 
     context 'when a key is configured without a URL' do

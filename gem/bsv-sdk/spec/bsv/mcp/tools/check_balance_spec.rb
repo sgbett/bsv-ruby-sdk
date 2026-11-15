@@ -181,4 +181,20 @@ RSpec.describe 'BSV::MCP::Tools::CheckBalance' do
       expect(result['address']).to eq(key.public_key.address(network: :testnet))
     end
   end
+
+  describe '.call with an uncompressed WIF' do
+    let(:key) { BSV::Primitives::PrivateKey.generate }
+    let(:uncompressed_wif) { BSV::Primitives::Base58.check_encode("\x80".b + key.to_bytes) }
+
+    before { allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_raise('nothing may be requested') }
+
+    it 'is rejected with a fixed message and no request' do
+      response = tool.call(address_or_wif: uncompressed_wif)
+      error = JSON.parse(response.content.first[:text])['error']
+      expect(response.error?).to be true
+      expect(error).to eq('input is an uncompressed WIF private key; only compressed WIFs are supported')
+      expect(uncompressed_wif.chars.each_cons(4).map(&:join).select { |run| error.include?(run) }).to be_empty
+      expect(BSV::Network::Providers::WhatsOnChain).not_to have_received(:default)
+    end
+  end
 end

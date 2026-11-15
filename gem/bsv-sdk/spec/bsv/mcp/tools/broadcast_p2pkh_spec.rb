@@ -285,39 +285,90 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
   describe '.call input validation' do
     let(:testnet_wif) { private_key.to_wif(network: :testnet) }
     let(:testnet_address) { private_key.public_key.address(network: :testnet) }
-    let(:p2sh_address) { BSV::Primitives::Base58.check_encode("\x05".b + ('11' * 20).then { |h| [h].pack('H*') }) }
+    let(:mainnet_message) { 'to_address is not a P2PKH address for mainnet' }
+    let(:testnet_message) { 'to_address is not a P2PKH address for testnet' }
+    let(:invalid_wif_message) { 'wif is not a valid WIF private key for mainnet' }
+    # U+0100, the first character past Base58::DECODE_MAP's 256 entries (TypeError path)
+    let(:beyond_latin1) { 0x100.chr(Encoding::UTF_8) }
+    # Ten 2-byte characters make a 20-byte String, which Script.p2pkh_lock would take as a raw hash
+    let(:twenty_byte_text) { 0xE9.chr(Encoding::UTF_8) * 10 }
 
-    before { allow(BSV::Network::Providers::WhatsOnChain).to receive(:default).and_raise('UTXOs must not be fetched') }
+    # Addresses with a valid checksum and the right version byte but a payload
+    # of +length+ bytes, so only the payload check can reject them.
+    def encoded(version, length)
+      BSV::Primitives::Base58.check_encode(version.b + ("\x11".b * length))
+    end
+
+    before do
+      stub_woc(200, utxo_response_body)
+      stub_broadcaster(200, broadcast_reply('RECEIVED'))
+    end
+
+    # Asserts the call is refused with exactly +message+, never echoes
+    # +echoed+, and never reaches the UTXO lookup.
+    def expect_rejection(message, echoed: nil, **opts)
+      response, result = call_tool(**opts)
+      expect(response.error?).to be true
+      expect(result[:error]).to eq(message)
+      expect(result[:error]).not_to include(echoed) if echoed
+      expect(BSV::Network::Providers::WhatsOnChain).not_to have_received(:default)
+    end
 
     it 'rejects a P2SH recipient' do
-      response, result = call_tool(to_address: p2sh_address)
-      expect(response.error?).to be true
-      expect(result[:error]).to include('not a P2PKH address for mainnet')
+      p2sh = encoded("\x05", 10)
+      expect(p2sh.length).to eq(20)
+      expect_rejection(mainnet_message, to_address: p2sh, echoed: p2sh)
     end
 
     it 'rejects a testnet recipient on a mainnet call' do
-      response, result = call_tool(to_address: testnet_address)
-      expect(response.error?).to be true
-      expect(result[:error]).to include('not a P2PKH address for mainnet')
+      expect_rejection(mainnet_message, to_address: testnet_address, echoed: testnet_address)
     end
 
     it 'rejects a mainnet recipient on a testnet call' do
-      response, result = call_tool(wif: testnet_wif, network: 'testnet')
-      expect(response.error?).to be true
-      expect(result[:error]).to include('not a P2PKH address for testnet')
+      expect_rejection(testnet_message, wif: testnet_wif, network: 'testnet', echoed: recipient_address)
     end
 
     it 'rejects a testnet WIF on a mainnet call without echoing it' do
-      response, result = call_tool(wif: testnet_wif)
-      expect(response.error?).to be true
-      expect(result[:error]).to include('not for mainnet')
-      expect(result[:error]).not_to include(testnet_wif)
+      expect_rejection('WIF private key is not for mainnet', wif: testnet_wif, echoed: testnet_wif)
+    end
+
+    it 'rejects an uncompressed WIF with a fixed message and no 4-character run of it' do
+      uncompressed_wif = BSV::Primitives::Base58.check_encode("\x80".b + private_key.to_bytes)
+      _, result = call_tool(wif: uncompressed_wif)
+      expect(result[:error]).to eq('wif is an uncompressed WIF private key; only compressed WIFs are supported')
+      expect(uncompressed_wif.chars.each_cons(4).map(&:join).select { |run| result[:error].include?(run) }).to be_empty
+      expect(BSV::Network::Providers::WhatsOnChain).not_to have_received(:default)
+    end
+
+    {
+      'an invalid Base58 character' => ->(key) { "0#{key[1..]}" },
+      'a bad checksum' => ->(key) { "#{key[0..-2]}#{key[-1] == '2' ? '3' : '2'}" },
+      'a character above U+00FF' => ->(key) { "#{0x100.chr(Encoding::UTF_8)}#{key[1..]}" },
+      'a short payload' => ->(_key) { BSV::Primitives::Base58.check_encode("\x80".b + ("\x11".b * 31)) },
+      'a bad compression flag' => ->(_key) { BSV::Primitives::Base58.check_encode("\x80".b + ("\x11".b * 33)) }
+    }.each do |label, mutate|
+      it "returns a fixed message for a WIF with #{label}" do
+        input = mutate.call(wif)
+        expect_rejection(invalid_wif_message, wif: input, echoed: input)
+      end
+    end
+
+    it 'echoes no character of a WIF with an invalid Base58 character' do
+      _, result = call_tool(wif: "0#{wif[1..]}")
+      expect(result[:error]).not_to include('0')
+    end
+
+    it 'echoes no character of a WIF with a character above U+00FF' do
+      _, result = call_tool(wif: "#{beyond_latin1}#{wif[1..]}")
+      expect(result[:error]).not_to include(beyond_latin1)
+    end
+
+    it 'returns the fixed message for a nil WIF' do
+      expect_rejection(invalid_wif_message, wif: nil)
     end
 
     it 'rejects a mainnet WIF on a testnet call' do
-      response, result = call_tool(to_address: testnet_address, network: 'testnet')
-      expect(response.error?).to be true
-      expect(result[:error]).to include('not for testnet')
+      expect_rejection('WIF private key is not for testnet', to_address: testnet_address, network: 'testnet')
     end
 
     it 'rejects a per-call network other than mainnet or testnet' do
@@ -327,8 +378,104 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
 
     it 'rejects a recipient with a bad checksum' do
-      response, = call_tool(to_address: "#{recipient_address[0..-2]}x")
-      expect(response.error?).to be true
+      bad = "#{recipient_address[0..-2]}x"
+      expect_rejection(mainnet_message, to_address: bad, echoed: bad)
+    end
+
+    it 'rejects a 20-character string of ones with a bad checksum' do
+      expect_rejection(mainnet_message, to_address: '1' * 20)
+    end
+
+    # 17GuhfEA8T1Zvj872QAa is 0x00 plus ten 0x11 bytes, 20 characters, which
+    # Script.p2pkh_lock would take as a raw hash of its ASCII bytes.
+    %w[17GuhfEA8T1Zvj872QAa 111111111111114xynwY].each do |short_address|
+      it "rejects the 20-character short-payload address #{short_address}" do
+        expect(short_address.length).to eq(20)
+        expect_rejection(mainnet_message, to_address: short_address, echoed: short_address)
+      end
+    end
+
+    [0, 9, 11, 19, 21, 33].each do |length|
+      it "rejects a mainnet recipient with a #{length}-byte payload" do
+        address = encoded("\x00", length)
+        expect_rejection(mainnet_message, to_address: address, echoed: address)
+      end
+    end
+
+    [0, 9, 10, 19, 21].each do |length|
+      it "rejects a testnet recipient with a #{length}-byte payload" do
+        address = encoded("\x6f", length)
+        expect_rejection(testnet_message, wif: testnet_wif, network: 'testnet', to_address: address, echoed: address)
+      end
+    end
+
+    it 'rejects a WIF given as the recipient without echoing it' do
+      expect_rejection(mainnet_message, to_address: wif, echoed: wif)
+    end
+
+    it 'rejects a paymail recipient' do
+      expect_rejection(mainnet_message, to_address: 'alice@example.com')
+    end
+
+    it 'rejects a recipient with surrounding whitespace' do
+      expect_rejection(mainnet_message, to_address: " #{recipient_address}")
+      expect_rejection(mainnet_message, to_address: "#{recipient_address}\n")
+    end
+
+    it 'rejects 20 raw binary bytes as the recipient' do
+      expect_rejection(mainnet_message, to_address: "\x11".b * 20)
+    end
+
+    it 'rejects non-ASCII text as the recipient' do
+      expect_rejection(mainnet_message, to_address: twenty_byte_text)
+    end
+
+    it 'rejects a character above U+00FF in the recipient' do
+      expect_rejection(mainnet_message, to_address: "#{recipient_address[0, 19]}#{beyond_latin1}")
+    end
+
+    [nil, 42, ['1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa']].each do |value|
+      it "rejects a #{value.class} recipient" do
+        expect_rejection(mainnet_message, to_address: value)
+      end
+    end
+  end
+
+  describe '.call with a valid recipient' do
+    let(:recipient_hash_hex) { '62e907b15cbf27d5425399ebf6f0fb50ebb88f18' }
+    let(:locked_hashes) { [] }
+
+    before do
+      stub_woc(200, utxo_response_body)
+      stub_broadcaster(200, broadcast_reply('RECEIVED'))
+      seen = locked_hashes
+      allow(BSV::Script::Script).to receive(:p2pkh_lock).and_wrap_original do |original, arg|
+        seen << arg
+        original.call(arg)
+      end
+    end
+
+    def output_script_hex(result, index)
+      BSV::Transaction::Tx.from_hex(result[:hex]).outputs[index].locking_script.to_hex
+    end
+
+    it 'locks the payment to the literal hash behind the address' do
+      _, result = call_tool
+      expect(output_script_hex(result, 0)).to eq("76a914#{recipient_hash_hex}88ac")
+    end
+
+    it 'locks the change to the sender key hash, which is the sender address hash' do
+      _, result = call_tool
+      sender_hash = BSV::Primitives::Base58.check_decode(sender_address)[1..]
+      expect(sender_hash).to eq(private_key.public_key.hash160)
+      expect(output_script_hex(result, 1)).to eq("76a914#{sender_hash.unpack1('H*')}88ac")
+    end
+
+    it 'passes Script.p2pkh_lock a binary hash, never an address string' do
+      call_tool
+      expect(locked_hashes.map(&:bytesize).uniq).to eq([20])
+      expect(locked_hashes.map(&:encoding).uniq).to eq([Encoding::BINARY])
+      expect(locked_hashes.map { |hash| hash.unpack1('H*') }).to include(recipient_hash_hex)
     end
   end
 

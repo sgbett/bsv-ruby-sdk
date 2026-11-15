@@ -125,7 +125,7 @@ The assistant calls `generate_key` with `network: testnet`. The WIF is returned 
 
 The assistant calls `broadcast_p2pkh`, which fetches UTXOs, builds and signs the transaction, and broadcasts it. On success it returns the txid it computed, the service's status as `tx_status` and the raw transaction hex.
 
-A status such as `RECEIVED` or `STORED` means the service has accepted the submission, not that the network has accepted the transaction. A 2xx response carrying a rejected status, or a txid that differs from the computed one, is reported as an error. The tool also rejects a recipient that is not a P2PKH address for the call's network (P2SH addresses included), and a WIF for the other network.
+A status such as `RECEIVED` or `STORED` means the service has accepted the submission, not that the network has accepted the transaction. A 2xx response carrying a rejected status, or a txid that differs from the computed one, is reported as an error. The tool also rejects a recipient that is not a P2PKH address for the call's network (P2SH addresses included), a WIF for the other network, and an uncompressed WIF (`broadcast_p2pkh` and `check_balance` accept only compressed WIFs).
 
 **Important:** `broadcast_p2pkh` spends real satoshis. Always confirm the network and amounts before authorising the call.
 
