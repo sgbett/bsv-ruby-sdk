@@ -74,10 +74,9 @@ module BSV
           error_message: overrides.fetch(:error_message, @error_message)
         )
 
-        BSV.logger&.debug do
-          changes = overrides.keys.map { |k| "#{k}=#{overrides[k].inspect[0, 40]}" }.join(' ')
-          "[ProtocolResponse] with(#{changes})"
-        end
+        # Only the keys: the values include service-supplied error text, which
+        # can reflect request headers such as the API key.
+        BSV.logger&.debug { "[ProtocolResponse] with(#{overrides.keys.join(' ')})" }
 
         derived
       end
