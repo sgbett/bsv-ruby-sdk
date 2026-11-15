@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'logger'
+require 'stringio'
+
 RSpec.describe BSV::Network::Protocols::Arcade do
   subject(:arcade) do
     described_class.new(
@@ -323,6 +326,18 @@ RSpec.describe BSV::Network::Protocols::Arcade do
   end
 
   describe '#call(:get_tx_status)' do
+    context 'with debug logging enabled' do
+      let(:log) { StringIO.new }
+
+      before { allow(BSV).to receive(:logger).and_return(Logger.new(log, level: Logger::DEBUG)) }
+
+      it 'does not log a credential reflected in an error body' do
+        stub_json_response(401, { 'error' => 'bad key', 'reason' => 'Bearer SEKRET' })
+        expect(arcade.call(:get_tx_status, txid).error_message).to include('SEKRET')
+        expect(log.string).not_to include('SEKRET')
+      end
+    end
+
     context 'when the transaction is mined without a merkle path' do
       before { stub_json_response(200, { 'txid' => txid, 'txStatus' => 'MINED', 'blockHeight' => 850_000 }) }
 
