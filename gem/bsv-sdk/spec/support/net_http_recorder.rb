@@ -35,16 +35,19 @@ class NetHttpRecorder
     end
   end
 
-  attr_reader :entries, :unexpected_hosts
+  attr_reader :entries, :unexpected_hosts, :start_options
 
   # @param responders [Hash{String => #call}] host => callable(request) -> [status, body]
   def initialize(responders)
     @responders = responders
     @entries = []
     @unexpected_hosts = []
+    @start_options = []
   end
 
-  def connect(host, use_ssl: false)
+  # @param options [Hash] the options +Net::HTTP.start+ was called with
+  def connect(host, use_ssl: false, options: {})
+    @start_options << options
     unless @responders.key?(host)
       @unexpected_hosts << host
       raise UnexpectedHost, "unexpected request to #{host}"
@@ -78,7 +81,7 @@ module NetHttpStubbing
   def stub_net_http(responders)
     recorder = NetHttpRecorder.new(responders)
     allow(Net::HTTP).to receive(:start) do |host, _port, **opts, &block|
-      block.call(recorder.connect(host, use_ssl: opts[:use_ssl]))
+      block.call(recorder.connect(host, use_ssl: opts[:use_ssl], options: opts))
     end
     recorder
   end
