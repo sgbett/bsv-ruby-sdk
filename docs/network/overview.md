@@ -157,8 +157,8 @@ The protocol layer returns `BSV::Network::ProtocolResponse` objects — check
 
 Every request has explicit timeouts (10 s to open the connection, 30 s to read, 30 s to write) and is never retried. A transport failure, such as a timeout or a refused connection, does not raise: it comes back as a failed `ProtocolResponse` with an `error_message`. A read or write timeout on a broadcast means the transaction may already have reached the service, so the outcome is unknown. Resubmit the identical transaction (services treat a repeat submission idempotently) and never rebuild it with different inputs, which could produce a conflicting double spend. ARC's `wait_for:` option holds the response open until the requested status is reached, so it must fit within the 30 s read timeout.
 
-> **Note on `ChainTrackers`:** `ChainTrackers::WhatsOnChain` is a legacy facade that
-> wraps WhatsOnChain's chain-info endpoint directly. It continues to work unchanged.
+> **Note on `ChainTrackers`:** `ChainTrackers::WhatsOnChain` is a `ChainTracker` backed
+> by the WoCREST protocol. It continues to work unchanged.
 > `ChainTrackers::Chaintracks` (the former Arcade Chaintracks wrapper) has been removed
 > and replaced by the provider-routed porcelain described below. If you were using
 > `ChainTrackers::Chaintracks` or `ChainTrackers.default`, migrate to
@@ -205,10 +205,11 @@ or any other ARC-compatible endpoint.
 
 **Providers are configuration.** A provider is a named bundle of protocol instances
 with URLs and credentials. Adding a new provider means creating a new configuration —
-no code changes to protocols or facades.
+no code changes to protocols or porcelain.
 
-**URLs live in one place.** Provider defaults are the single source of truth for
-endpoint URLs. No magic strings in protocols, facades, or application code.
+**URLs live in providers.** Provider defaults hold the endpoint URLs; protocols hold
+none. The one exception in the network porcelain is
+`FeeModels::LivePolicy::GORILLAPOOL_ARC_URL`, the endpoint `LivePolicy.default` reads.
 
 **Porcelain delegates its HTTP.** `ChainTracker` wraps a `Provider` and dispatches `:get_block_header` and `:current_height` through `Provider#call`, so a different provider can be substituted at construction; `ChainTracker.default` uses GorillaPool. `ChainTrackers::WhatsOnChain` is a `ChainTracker` that calls the WhatsOnChain provider's WoCREST protocol. `FeeModels::LivePolicy` fetches its fee policy through `Protocols::ARC`. None of them makes its own HTTP requests, so all inherit the protocol layer's timeouts, transport-error handling and credential-free `inspect`.
 
