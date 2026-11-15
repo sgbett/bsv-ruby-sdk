@@ -620,6 +620,59 @@ RSpec.describe BSV::Network::Protocols::ARC do
       end
     end
 
+    context 'when a 2xx reply names a different transaction' do
+      it 'fails as malformed' do
+        stub_json_response(200, { 'txid' => 'cd' * 32, 'txStatus' => 'MINED' })
+        result = arc.call(:get_tx_status, txid)
+        expect(result).not_to be_http_success
+        expect(result.error_message).to eq('ARC returned a malformed 2xx response')
+      end
+
+      it 'accepts the requested txid in a different case' do
+        stub_json_response(200, { 'txid' => txid.upcase, 'txStatus' => 'MINED' })
+        expect(arc.call(:get_tx_status, txid)).to be_http_success
+      end
+    end
+
+    context 'when a 2xx reply is not JSON' do
+      it 'reports a malformed 2xx without echoing the body' do
+        stub_response(200, "<html>\e[31mOK</html>")
+        result = arc.call(:get_tx_status, txid)
+        expect(result).not_to be_http_success
+        expect(result.error_message).to eq('ARC returned a malformed 2xx response')
+      end
+    end
+
+    context 'when a 404 carries a GorillaPool error body' do
+      before do
+        stub_response(404, '{"detail":"The requested resource could not be found","extraInfo":"transaction not found",' \
+                           '"instance":null,"status":404,"title":"Not found","txid":null,' \
+                           '"type":"https://bitcoin-sv.github.io/arc/#/errors?id=_404"}')
+      end
+
+      it 'reports the detail, not the raw body, and stays a not-found response' do
+        result = arc.call(:get_tx_status, txid)
+        expect(result).to be_http_not_found
+        expect(result.error_message).to eq('The requested resource could not be found')
+      end
+    end
+
+    context 'when a non-2xx body has only extraInfo' do
+      it 'falls back to extraInfo' do
+        stub_json_response(500, { 'extraInfo' => "boom\e[K" })
+        expect(arc.call(:get_tx_status, txid).error_message).to eq('boom [K')
+      end
+    end
+
+    context 'when a non-2xx body is not a JSON object' do
+      it 'reports the HTTP code rather than the body' do
+        stub_response(502, "<html>\e[31mBad gateway</html>")
+        result = arc.call(:get_tx_status, txid)
+        expect(result.error_message).to eq('HTTP 502')
+        expect(result).to be_retryable
+      end
+    end
+
     context 'when 2xx response is missing txid' do
       before do
         stub_json_response(200, { 'txStatus' => 'MINED' })

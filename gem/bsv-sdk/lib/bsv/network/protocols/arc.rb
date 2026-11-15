@@ -8,10 +8,14 @@ module BSV
     module Protocols
       # ARC protocol implementation for submitting transactions to the BSV network.
       #
-      # Extends Protocol with five endpoints and two escape hatches for broadcast
-      # logic: EF format preference, rejection detection, and custom headers.
+      # Extends Protocol with five endpoints and three escape hatches
+      # (+broadcast+, +broadcast_many+ and +get_tx_status+) for broadcast logic:
+      # EF format preference, rejection detection, custom headers and malformed
+      # reply detection.
       #
-      # The protocol returns ProtocolResponse objects (never raises).
+      # Transport and service failures come back as a failed ProtocolResponse.
+      # Invalid arguments (an empty transaction, a malformed txid) raise
+      # +ArgumentError+.
       #
       # == Example
       #
@@ -37,6 +41,8 @@ module BSV
 
         # Substring marker for orphan detection in txStatus or extraInfo fields.
         ORPHAN_MARKER = 'ORPHAN'
+
+        MALFORMED_2XX = 'ARC returned a malformed 2xx response'
 
         # Whether a +txStatus+ value means the transaction was not accepted.
         # Case-insensitive: ARC has a documented history of emitting values
@@ -214,7 +220,7 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body['detail'] || body['title'] || "HTTP #{code}",
+              error_message: service_message(body, code, %w[detail title]),
               data: body
             )
           end
@@ -232,7 +238,7 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body['detail'] || 'ARC returned a malformed 2xx response'
+              error_message: BSV::Network::Util.service_text(body['detail']) || 'ARC returned a malformed 2xx response'
             )
           end
 
@@ -251,7 +257,7 @@ module BSV
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}",
+              error_message: service_message(body, code, %w[detail title]),
               data: body.is_a?(Hash) || body.is_a?(Array) ? body : nil
             )
           end
@@ -267,8 +273,13 @@ module BSV
           ProtocolResponse.new(response, data: body)
         end
 
-        # Escape hatch for get_tx_status: checks for rejection status and missing
-        # txid (malformed 2xx). Returns raw JSON data (string keys).
+        # Escape hatch for get_tx_status: checks for rejection status, a missing
+        # or mismatched txid (malformed 2xx), and bounds the service text in
+        # failures. Returns raw JSON data (string keys).
+        #
+        # A reply naming a different transaction is rejected, as the TypeScript
+        # wallet-toolbox does, so a misrouted or spoofed reply is not taken as
+        # the status of the transaction asked about.
         #
         # @param txid [String] ARC API boundary: display-order hex transaction ID to query
         # @return [ProtocolResponse]
@@ -276,22 +287,46 @@ module BSV
         def call_get_tx_status(txid, **)
           BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'txid')
           response = default_call(:get_tx_status, txid)
-          return response unless response.http_success?
+          return response if response.code.nil?
+          return status_failure(response) unless response.http_success?
 
           body = response.data
 
-          return response.with(http_success: false, error_message: 'ARC returned a malformed 2xx response') unless body.is_a?(Hash)
+          return response.with(http_success: false, error_message: MALFORMED_2XX) unless body.is_a?(Hash)
 
           return response.with(http_success: false, error_message: self.class.rejection_message(body)) if self.class.rejected?(body)
 
-          unless body['txid']
-            return response.with(
-              http_success: false,
-              error_message: 'ARC returned a malformed 2xx response'
-            )
-          end
+          return response.with(http_success: false, error_message: MALFORMED_2XX) unless body['txid'].is_a?(String) && body['txid'].casecmp?(txid)
 
           response
+        end
+
+        # A 2xx that default_call could not turn into data is a malformed reply;
+        # any other failure carries a bounded message instead of the raw body.
+        def status_failure(response)
+          code = response.code.to_i
+          return response.with(error_message: MALFORMED_2XX) if (200..299).cover?(code)
+
+          response.with(error_message: service_message(safe_json_object(response.body), code, %w[detail title extraInfo]))
+        end
+
+        # The first usable field of a parsed error body, bounded; +"HTTP <code>"+
+        # when the body is not an object or has none. Non-JSON bodies are never echoed.
+        def service_message(body, code, fields)
+          if body.is_a?(Hash)
+            fields.each do |field|
+              text = BSV::Network::Util.service_text(body[field])
+              return text if text
+            end
+          end
+          "HTTP #{code}"
+        end
+
+        def safe_json_object(raw)
+          body = JSON.parse(raw.to_s)
+          body.is_a?(Hash) ? body : nil
+        rescue JSON::ParserError, EncodingError
+          nil
         end
 
         def safe_parse_json(raw)

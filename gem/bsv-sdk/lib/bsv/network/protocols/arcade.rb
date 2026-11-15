@@ -29,6 +29,10 @@ module BSV
         endpoint :get_policy,    :get,  '/policy',    response: :json
         endpoint :health,        :get,  '/health',    response: :json
 
+        MALFORMED_2XX = 'BSV Broadcaster returned a malformed 2xx response'
+
+        # The value is echoed into the error message, so only a plain integer of
+        # bounded length is accepted; an HTTP-date or free text is dropped.
         RETRY_AFTER_SECONDS = /\A\d{1,6}\z/
 
         # @param base_url    [String]      BSV Broadcaster base URL
@@ -74,7 +78,8 @@ module BSV
           parse_broadcast_response(execute(uri, request))
         end
 
-        # Fetches a transaction's status, reporting rejected statuses and malformed bodies as failed responses.
+        # Fetches a transaction's status, reporting rejected statuses, malformed bodies and replies naming a
+        # different transaction as failed responses.
         #
         # @param txid [String] display-order hex transaction ID
         # @return [ProtocolResponse]
@@ -83,9 +88,10 @@ module BSV
           BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'txid')
           response = default_call(:get_tx_status, txid)
           return response if response.code.nil?
-          return response.with(error_message: status_error_message(response)) unless response.http_success?
+          return validate_accepted_body(response, requested_txid: txid) if response.http_success?
+          return response.with(error_message: MALFORMED_2XX) if (200..299).cover?(response.code.to_i)
 
-          validate_accepted_body(response)
+          response.with(error_message: status_error_message(response))
         end
 
         def build_broadcast_headers(callback_url:, callback_token:, full_status_updates:)
@@ -125,21 +131,28 @@ module BSV
             service_text(body['title']) || "HTTP #{code}"
         end
 
-        # Applies the checks shared by broadcast and status 2xx responses: an object with a txid, then rejection.
+        # Applies the checks shared by broadcast and status 2xx responses: an object with a txid (the requested
+        # one, for a status reply) and a string or absent +txStatus+, then rejection.
         #
         # ARC's +extraInfo+ orphan heuristic is deliberately not applied. The Broadcaster writes free-text upstream
         # errors into +extraInfo+ on retryable +PENDING_RETRY+ rows and uses reorg wording on +MINED+ rows, so
         # matching on it would report accepted transactions as rejected.
-        def validate_accepted_body(response)
+        #
+        # @param requested_txid [String, nil] when given, a reply naming another transaction is malformed
+        def validate_accepted_body(response, requested_txid: nil)
           body = response.data
-          unless body.is_a?(Hash) && valid_txid?(body['txid'])
-            return response.with(http_success: false, data: nil,
-                                 error_message: 'BSV Broadcaster returned a malformed 2xx response')
-          end
+          return response.with(http_success: false, data: nil, error_message: MALFORMED_2XX) unless well_formed_body?(body, requested_txid)
 
           return response unless ARC.rejected_tx_status?(body['txStatus'])
 
           response.with(http_success: false, error_message: ARC.rejection_message(body))
+        end
+
+        def well_formed_body?(body, requested_txid)
+          return false unless body.is_a?(Hash) && valid_txid?(body['txid'])
+          return false unless body['txStatus'].nil? || body['txStatus'].is_a?(String)
+
+          requested_txid.nil? || body['txid'].casecmp?(requested_txid)
         end
 
         def status_error_message(response)

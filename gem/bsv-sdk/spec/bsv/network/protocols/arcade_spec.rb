@@ -112,6 +112,8 @@ RSpec.describe BSV::Network::Protocols::Arcade do
         'non-hex txid' => '{"txid":"not-a-txid","txStatus":"RECEIVED"}',
         'short txid' => '{"txid":"abcd","txStatus":"RECEIVED"}',
         'non-string txid' => '{"txid":5,"txStatus":"RECEIVED"}',
+        'array txStatus' => %({"txid":"#{'ab' * 32}","txStatus":["REJECTED"]}),
+        'numeric txStatus' => %({"txid":"#{'ab' * 32}","txStatus":7}),
         'array' => '[]',
         'null' => 'null',
         'HTML' => '<html>OK</html>'
@@ -380,6 +382,42 @@ RSpec.describe BSV::Network::Protocols::Arcade do
       ['[]', '5', 'null', '{"txStatus":"MINED"}', '{"txid":"nope","txStatus":"MINED"}'].each do |raw|
         it "fails for #{raw}" do
           stub_response(200, raw)
+          result = arcade.call(:get_tx_status, txid)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+        end
+      end
+    end
+
+    context 'when a 2xx status reply is not JSON' do
+      ['<html>OK</html>', ''].each do |raw|
+        it "reports a malformed 2xx for #{raw.inspect}" do
+          stub_response(200, raw)
+          result = arcade.call(:get_tx_status, txid)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+        end
+      end
+    end
+
+    context 'when a 2xx status reply names a different transaction' do
+      it 'fails as malformed' do
+        stub_json_response(200, { 'txid' => 'cd' * 32, 'txStatus' => 'MINED' })
+        result = arcade.call(:get_tx_status, txid)
+        expect(result).not_to be_http_success
+        expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+      end
+
+      it 'accepts the requested txid in a different case' do
+        stub_json_response(200, { 'txid' => txid.upcase, 'txStatus' => 'MINED' })
+        expect(arcade.call(:get_tx_status, txid)).to be_http_success
+      end
+    end
+
+    context 'when a 2xx status reply has a non-string txStatus' do
+      [['REJECTED'], 7].each do |status|
+        it "fails for #{status.inspect}" do
+          stub_json_response(200, { 'txid' => txid, 'txStatus' => status })
           result = arcade.call(:get_tx_status, txid)
           expect(result).not_to be_http_success
           expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
