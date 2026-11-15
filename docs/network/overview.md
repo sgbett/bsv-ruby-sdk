@@ -210,19 +210,14 @@ no code changes to protocols or facades.
 **URLs live in one place.** Provider defaults are the single source of truth for
 endpoint URLs. No magic strings in protocols, facades, or application code.
 
-**Facades preserve the public API.** `ARC.default`, `WhatsOnChain.new`, and
-`ChainTrackers::WhatsOnChain.new` continue to work as they always have. The internal
-implementation changed from imperative HTTP code to protocol delegation, but the
-public contract is unchanged. New porcelain classes (`ChainTracker`) route through
-a `Provider` rather than a fixed protocol, enabling provider substitution at
-construction time.
+**Porcelain delegates its HTTP.** `ChainTracker` wraps a `Provider` and dispatches `:get_block_header` and `:current_height` through `Provider#call`, so a different provider can be substituted at construction; `ChainTracker.default` uses GorillaPool. `ChainTrackers::WhatsOnChain` is a `ChainTracker` that calls the WhatsOnChain provider's WoCREST protocol. `FeeModels::LivePolicy` fetches its fee policy through `Protocols::ARC`. None of them makes its own HTTP requests, so all inherit the protocol layer's timeouts, transport-error handling and credential-free `inspect`.
 
 ## How It Fits Together
 
 ```
 Application code
     ↓ calls
-Facades / Porcelain (ARC, WhatsOnChain, ChainTrackers::WhatsOnChain, ChainTracker)
+Porcelain (ChainTracker, ChainTrackers::WhatsOnChain, FeeModels::LivePolicy)
     ↓ delegates to
 Protocols (ARC, Arcade, WoCREST, Chaintracks, JungleBus, ...)
     ↓ hosted by
