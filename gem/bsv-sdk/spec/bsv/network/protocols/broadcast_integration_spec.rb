@@ -1,12 +1,17 @@
 # frozen_string_literal: true
 
-# Live broadcast integration spec — exercises both TAAL ARC and GorillaPool Arcade
-# end-to-end with a real funded mainnet WIF.
+# Live broadcast integration spec — submits one signed transaction to the BSV
+# Association Broadcaster (Arcade), GorillaPool's ARC and, when a key is
+# available, TAAL's ARC, end-to-end with a real funded mainnet WIF.
+#
+# The Broadcaster goes first so its submit parsing sees a fresh submission; the
+# later services then report the transaction as already known, which they accept.
 #
 # Required env vars:
 #   BSV_LIVE_TEST_WIF — funded mainnet WIF (needs at least 1000 sats)
 # Optional env vars:
-#   TAAL_API_KEY — TAAL ARC API key (free tier works; unauthenticated may 429)
+#   TAAL_API_KEY — TAAL ARC API key; TAAL requires one on everything but
+#                  /v1/policy, so without it only the TAAL leg is skipped
 #
 # UTXO sourcing:
 #   Uses Providers::WhatsOnChain.mainnet.call(:get_utxos, address).
@@ -63,32 +68,50 @@ RSpec.describe 'Live broadcast', :integration do # rubocop:disable RSpec/Describ
     t.sign_all(private_key)
     t
   end
-  let(:taal) do
-    BSV::Network::Providers::TAAL.mainnet(api_key: ENV.fetch('TAAL_API_KEY', nil))
+  let(:taal_api_key) { ENV.fetch('TAAL_API_KEY', nil) }
+  let(:services) do
+    {
+      'BSV Association Broadcaster' => BSV::Network::Providers::BSVAssociation.mainnet,
+      'GorillaPool ARC' => BSV::Network::Providers::GorillaPool.mainnet,
+      'TAAL ARC' => (BSV::Network::Providers::TAAL.mainnet(api_key: taal_api_key) if taal_api_key)
+    }
   end
-  let(:gorilla_pool) { BSV::Network::Providers::GorillaPool.mainnet }
 
   before { skip 'set BSV_LIVE_TEST_WIF to run' unless wif }
 
-  it 'broadcasts via both providers and round-trips the txid' do
-    taal_result = taal.call(:broadcast, tx)
-    expect(taal_result).to be_http_success
-    expect(taal_result.data['txStatus']).to be_in(%w[SEEN_ON_NETWORK RECEIVED MINED])
+  def rejected?(result)
+    BSV::Network::Protocols::ARC.rejected_tx_status?(result.data['txStatus'])
+  end
 
-    arcade_result = gorilla_pool.call(:broadcast, tx)
-    expect(arcade_result).to be_http_success
-    expect(arcade_result.data['status']).to be_in(['submitted', 'already submitted'])
-
+  it 'broadcasts one transaction through every service and round-trips the txid' do
     txid = tx.txid_hex
+
+    services.each do |name, provider|
+      next warn("#{name} leg skipped: set TAAL_API_KEY to include it") unless provider
+
+      result = provider.call(:broadcast, tx)
+      skip "#{name} rate-limited (429)" if result.code == '429'
+
+      aggregate_failures("#{name} broadcast") do
+        expect(result).to be_http_success
+        expect(result.data['txid']).to eq(txid)
+        expect(rejected?(result)).to be(false)
+      end
+    end
+
     sleep 2
 
-    taal_status = taal.call(:get_tx_status, txid)
-    expect(taal_status).to be_http_success
-    expect(taal_status.data['txid']).to eq(txid)
-    expect(taal_status.data['txStatus']).to be_in(%w[RECEIVED SEEN_ON_NETWORK MINED])
+    services.each do |name, provider|
+      next unless provider
 
-    arcade_status = gorilla_pool.call(:get_tx_status, txid)
-    expect(arcade_status).to be_http_success
-    expect(arcade_status.data['txStatus']).to be_in(%w[RECEIVED SEEN_ON_NETWORK SEEN_ON_MULTIPLE_NODES MINED IMMUTABLE])
+      status = provider.call(:get_tx_status, txid)
+      skip "#{name} rate-limited (429)" if status.code == '429'
+
+      aggregate_failures("#{name} status") do
+        expect(status).to be_http_success
+        expect(status.data['txid']).to eq(txid)
+        expect(rejected?(status)).to be(false)
+      end
+    end
   end
 end

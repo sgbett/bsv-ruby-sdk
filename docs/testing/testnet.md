@@ -8,7 +8,7 @@ parent: Testing
 
 The SDK includes an integration test suite that exercises the full transaction
 lifecycle against the live BSV testnet — key derivation, transaction building,
-signing, broadcasting via Arcade (GorillaPool), status polling, and round-trip
+signing, broadcasting via GorillaPool's ARC, status polling, and round-trip
 serialisation verification via WhatsOnChain.
 
 These tests are tagged `:testnet` and skipped by default. They require a funded
@@ -36,13 +36,20 @@ testnet wallet.
 BSV_TESTNET_WIF='cXxx...' bundle exec rspec --tag testnet
 ```
 
-Optionally override the Arcade endpoint:
+Transactions are broadcast through GorillaPool's testnet ARC
+(`https://testnet.arc.gorillapool.io`), the broadcaster of
+`BSV::Network::Providers::GorillaPool.default(testnet: true)`. To use a
+different ARC endpoint, set `BSV_TESTNET_ARC_URL`:
 
 ```bash
-BSV_TESTNET_ARCADE_URL='https://testnet.arcade.gorillapool.io' \
+BSV_TESTNET_ARC_URL='https://testnet.arc.gorillapool.io' \
   BSV_TESTNET_WIF='cXxx...' \
   bundle exec rspec --tag testnet
 ```
+
+The override is spoken to as ARC (`POST /v1/tx`), so an Arcade URL, such as
+the BSV Association's testnet Broadcaster, fails loudly instead of being
+silently misread.
 
 ## What the tests cover
 
@@ -54,8 +61,9 @@ verifies the address format and UTXO availability.
 ### P2PKH transfer
 
 Builds a pay-to-public-key-hash transaction sending the dust limit (546 sats)
-back to the same address, with change. Signs, broadcasts via Arcade, and confirms
-the status response contains the expected status.
+back to the same address, with change. Signs, broadcasts via ARC, and confirms
+the response carries the transaction's `txid` and a `txStatus` that is not a
+rejection. The status query is checked the same way.
 
 ```ruby
 # The core flow, simplified
@@ -65,9 +73,12 @@ tx.add_output(payment)
 tx.add_output(change)
 tx.sign_all(private_key)
 
-response = arcade.call(:broadcast, tx)
+arc = BSV::Network::Providers::GorillaPool.default(testnet: true)
+
+response = arc.call(:broadcast, tx)
 response.http_success?       # => true
-response.data['status']      # => "submitted"
+response.data['txid']        # => tx.txid_hex
+response.data['txStatus']    # => e.g. "SEEN_ON_NETWORK"
 ```
 
 ### OP_RETURN attestation
