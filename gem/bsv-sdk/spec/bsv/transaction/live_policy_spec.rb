@@ -100,6 +100,10 @@ RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
       expect(rate_for(mining_fee(1_000_000, 1))).to eq(1_000_000_000)
     end
 
+    it 'accepts whole-number JSON floats, as the TypeScript SDK does' do
+      expect(rate_for(mining_fee(200.0, 1000.0))).to eq(200)
+    end
+
     {
       'zero satoshis' => [0, 1000],
       'fractional satoshis' => [0.5, 1000],

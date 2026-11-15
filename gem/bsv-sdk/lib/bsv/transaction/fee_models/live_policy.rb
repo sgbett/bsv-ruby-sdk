@@ -161,7 +161,7 @@ module BSV
 
           satoshis = mining_fee['satoshis']
           bytes = mining_fee['bytes']
-          return unless integer_within?(satoshis, MAX_POLICY_SATOSHIS) && integer_within?(bytes, MAX_POLICY_BYTES)
+          return unless whole_number_within?(satoshis, MAX_POLICY_SATOSHIS) && whole_number_within?(bytes, MAX_POLICY_BYTES)
 
           normalise_rate(satoshis * 1000.0 / bytes)
         end
@@ -175,8 +175,11 @@ module BSV
           nil
         end
 
-        def integer_within?(value, max)
-          value.is_a?(Integer) && value.between?(1, max)
+        # JSON +200.0+ parses as a Float; the TypeScript check
+        # (+Number.isSafeInteger+) accepts it, so whole-number Floats count.
+        def whole_number_within?(value, max)
+          whole = value.is_a?(Integer) || (value.is_a?(Float) && value.finite? && value == value.truncate)
+          whole && value.between?(1, max)
         end
 
         # A zero rate is invalid rather than clamped to 1, as in the TypeScript SDK.

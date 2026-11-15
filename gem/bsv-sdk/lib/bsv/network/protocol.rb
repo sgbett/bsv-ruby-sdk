@@ -434,10 +434,10 @@ module BSV
                    ProtocolResponse.new(response, error_message: response.body)
                  end
 
-        BSV.logger&.debug do
-          "[Protocol] HTTP #{response.code} → http_success=#{result.http_success?}" \
-            "#{" error=#{result.error_message[0, 80]}" if result.error_message}"
-        end
+        # The error text is not logged: it is the raw body, which a service may
+        # use to reflect request headers such as the API key, and which need
+        # not be valid UTF-8.
+        BSV.logger&.debug { "[Protocol] HTTP #{response.code} → http_success=#{result.http_success?}" }
 
         result
       end

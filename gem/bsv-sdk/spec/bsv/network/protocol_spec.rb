@@ -271,6 +271,19 @@ RSpec.describe 'BSV::Network::Protocol' do
       expect(output.string).not_to match(/secret|token/)
     end
 
+    it 'never logs an error body, which may reflect the API key or be invalid UTF-8' do
+      output = StringIO.new
+      logger = Logger.new(output, level: Logger::DEBUG, formatter: ->(_severity, _time, _prog, msg) { "#{msg}\n" })
+      allow(BSV).to receive(:logger).and_return(logger)
+      body     = "{\"error\":\"bad key: Bearer SEKRET\"} caf\xC3".b
+      instance = test_protocol_class.new(base_url: 'https://api.example.com', api_key: 'SEKRET',
+                                         http_client: ProtocolSpecFakeHttpClient.new(fake_http_response('401', body)))
+      result = instance.default_call(:get_tx, 'abc123')
+      expect(result).not_to be_http_success
+      expect(output.string).to include('[Protocol] HTTP 401 → http_success=false')
+      expect(output.string).not_to include('SEKRET')
+    end
+
     it 'interpolates multiple positional args in template order' do
       http     = ProtocolSpecFakeHttpClient.new(ok_response)
       instance = test_protocol_class.new(base_url: 'https://api.example.com', http_client: http)
