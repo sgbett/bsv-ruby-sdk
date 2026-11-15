@@ -19,8 +19,8 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.protocols.length).to eq(3)
     end
 
-    it 'registers Arcade as first protocol' do
-      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::Arcade)
+    it 'registers ARC as first protocol' do
+      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::ARC)
     end
 
     it 'registers Ordinals as second protocol' do
@@ -31,8 +31,8 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.protocols[2]).to be_a(BSV::Network::Protocols::JungleBus)
     end
 
-    it 'serves :broadcast via Arcade' do
-      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::Arcade)
+    it 'serves :broadcast via ARC' do
+      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
     end
 
     it 'serves :get_merkle_path via Ordinals' do
@@ -47,6 +47,10 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.commands).to include(:broadcast)
     end
 
+    it 'includes :get_policy and :broadcast_many in commands (via ARC)' do
+      expect(provider.commands).to include(:get_policy, :broadcast_many)
+    end
+
     it 'includes :current_height in commands (via JungleBus)' do
       expect(provider.commands).to include(:current_height)
     end
@@ -55,15 +59,15 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.commands).to include(:get_tx)
     end
 
-    it 'sets Arcade base_url to arcade.gorillapool.io' do
-      expect(provider.protocols[0].base_url).to eq('https://arcade.gorillapool.io')
+    it 'sets ARC base_url to arc.gorillapool.io' do
+      expect(provider.protocols[0].base_url).to eq('https://arc.gorillapool.io')
     end
 
     it 'sets Ordinals base_url to ordinals.gorillapool.io' do
       expect(provider.protocols[1].base_url).to eq('https://ordinals.gorillapool.io')
     end
 
-    it 'forwards api_key to Arcade protocol' do
+    it 'forwards api_key to ARC protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(api_key: 'test-key', http_client: http_client)
       expect(p.protocols[0].api_key).to eq('test-key')
     end
@@ -80,16 +84,20 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.protocols.length).to eq(2)
     end
 
-    it 'registers Arcade as first protocol' do
-      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::Arcade)
+    it 'registers ARC as first protocol' do
+      expect(provider.protocols[0]).to be_a(BSV::Network::Protocols::ARC)
     end
 
     it 'registers JungleBus as second protocol' do
       expect(provider.protocols[1]).to be_a(BSV::Network::Protocols::JungleBus)
     end
 
-    it 'serves :broadcast via Arcade' do
-      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::Arcade)
+    it 'serves :broadcast via ARC' do
+      expect(provider.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
+    end
+
+    it 'includes :get_policy and :broadcast_many in commands (via ARC)' do
+      expect(provider.commands).to include(:get_policy, :broadcast_many)
     end
 
     it 'serves :current_height via JungleBus' do
@@ -100,9 +108,9 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(provider.commands).to include(:current_height)
     end
 
-    it 'sets Arcade base_url to testnet.arcade.gorillapool.io' do
-      arcade = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::Arcade) }
-      expect(arcade.base_url).to eq('https://testnet.arcade.gorillapool.io')
+    it 'sets ARC base_url to testnet.arc.gorillapool.io' do
+      arc = provider.protocols.find { |p| p.is_a?(BSV::Network::Protocols::ARC) }
+      expect(arc.base_url).to eq('https://testnet.arc.gorillapool.io')
     end
 
     it 'sets JungleBus base_url to testnet.junglebus.gorillapool.io' do
@@ -166,17 +174,122 @@ RSpec.describe 'BSV::Network::Providers defaults' do
     end
   end
 
+  # ── BSVAssociation ────────────────────────────────────────────────────────────
+
+  describe 'BSVAssociation.mainnet' do
+    subject(:provider) { BSV::Network::Providers::BSVAssociation.mainnet(http_client: http_client) }
+
+    it 'returns a Provider named BSVAssociation' do
+      expect(provider.name).to eq('BSVAssociation')
+    end
+
+    it 'registers Arcade only' do
+      expect(provider.protocols.map(&:class)).to eq([BSV::Network::Protocols::Arcade])
+    end
+
+    it 'sets base_url to arcade-v2-us-1.bsvblockchain.tech' do
+      expect(provider.protocols[0].base_url).to eq('https://arcade-v2-us-1.bsvblockchain.tech')
+    end
+
+    it 'serves :broadcast and :get_tx_status via the Arcade instance' do
+      expect(provider.protocol_for(:broadcast)).to be(provider.protocols[0])
+      expect(provider.protocol_for(:get_tx_status)).to be(provider.protocols[0])
+    end
+
+    it 'has no rate limit by default' do
+      expect(provider.rate_limit).to be_nil
+    end
+
+    it 'is unauthenticated by default' do
+      expect(provider.auth).to eq(:none)
+      expect(provider.authenticated?).to be(false)
+    end
+
+    it 'forwards auth: to the Arcade protocol' do
+      p = BSV::Network::Providers::BSVAssociation.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.auth).to eq({ bearer: 'tok' })
+      expect(p.protocols[0].auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'treats legacy api_key: as bearer auth' do
+      p = BSV::Network::Providers::BSVAssociation.mainnet(api_key: 'k', http_client: http_client)
+      expect(p.auth).to eq({ bearer: 'k' })
+    end
+  end
+
+  describe 'BSVAssociation.testnet' do
+    subject(:provider) { BSV::Network::Providers::BSVAssociation.testnet(http_client: http_client) }
+
+    it 'returns a Provider named BSVAssociation' do
+      expect(provider.name).to eq('BSVAssociation')
+    end
+
+    it 'registers Arcade only' do
+      expect(provider.protocols.map(&:class)).to eq([BSV::Network::Protocols::Arcade])
+    end
+
+    it 'sets base_url to arcade-v2-testnet-us-1.bsvblockchain.tech' do
+      expect(provider.protocols[0].base_url).to eq('https://arcade-v2-testnet-us-1.bsvblockchain.tech')
+    end
+
+    it 'serves :broadcast and :get_tx_status via the Arcade instance' do
+      expect(provider.protocol_for(:broadcast)).to be(provider.protocols[0])
+      expect(provider.protocol_for(:get_tx_status)).to be(provider.protocols[0])
+    end
+
+    it 'forwards auth: to the Arcade protocol' do
+      p = BSV::Network::Providers::BSVAssociation.testnet(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.protocols[0].auth).to eq({ bearer: 'tok' })
+    end
+  end
+
+  describe 'BSVAssociation.default' do
+    it 'returns mainnet provider when testnet: false (default)' do
+      p = BSV::Network::Providers::BSVAssociation.default(http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://arcade-v2-us-1.bsvblockchain.tech')
+    end
+
+    it 'returns testnet provider when testnet: true' do
+      p = BSV::Network::Providers::BSVAssociation.default(testnet: true, http_client: http_client)
+      expect(p.protocols[0].base_url).to eq('https://arcade-v2-testnet-us-1.bsvblockchain.tech')
+    end
+
+    it 'forwards auth: to the provider' do
+      p = BSV::Network::Providers::BSVAssociation.default(auth: { bearer: 'tok' }, http_client: http_client)
+      expect(p.protocols[0].auth).to eq({ bearer: 'tok' })
+    end
+  end
+
+  describe 'opt-in status of BSVAssociation' do
+    [false, true].each do |testnet|
+      network = testnet ? 'testnet' : 'mainnet'
+      {
+        'GorillaPool' => ->(t, h) { BSV::Network::Providers::GorillaPool.default(testnet: t, http_client: h) },
+        'TAAL' => ->(t, h) { BSV::Network::Providers::TAAL.default(testnet: t, http_client: h) },
+        'WhatsOnChain' => ->(t, h) { BSV::Network::Providers::WhatsOnChain.default(testnet: t, http_client: h) },
+        'ChainTracker' => ->(t, _h) { BSV::Transaction::ChainTracker.default(testnet: t).provider }
+      }.each do |name, build|
+        it "#{name}.default (#{network}) uses no bsvblockchain.tech host" do
+          urls = build.call(testnet, http_client).protocols.map(&:base_url)
+          expect(urls.grep(/bsvblockchain\.tech/)).to be_empty
+        end
+      end
+    end
+  end
+
   # ── .default convenience methods ─────────────────────────────────────────────
 
   describe 'GorillaPool.default' do
     it 'returns mainnet provider when testnet: false (default)' do
       p = BSV::Network::Providers::GorillaPool.default(http_client: http_client)
-      expect(p.protocols[0].base_url).to eq('https://arcade.gorillapool.io')
+      expect(p.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
+      expect(p.protocols[0].base_url).to eq('https://arc.gorillapool.io')
     end
 
     it 'returns testnet provider when testnet: true' do
       p = BSV::Network::Providers::GorillaPool.default(testnet: true, http_client: http_client)
-      expect(p.protocols[0].base_url).to eq('https://testnet.arcade.gorillapool.io')
+      expect(p.protocol_for(:broadcast)).to be_a(BSV::Network::Protocols::ARC)
+      expect(p.protocols[0].base_url).to eq('https://testnet.arc.gorillapool.io')
     end
 
     it 'forwards opts to the provider' do
@@ -358,7 +471,7 @@ RSpec.describe 'BSV::Network::Providers defaults' do
       expect(p.authenticated?).to be(true)
     end
 
-    it 'forwards auth: to Arcade protocol' do
+    it 'forwards auth: to ARC protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
       expect(p.protocols[0].auth).to eq({ bearer: 'tok' })
     end
@@ -371,6 +484,11 @@ RSpec.describe 'BSV::Network::Providers defaults' do
     it 'forwards auth: to JungleBus protocol' do
       p = BSV::Network::Providers::GorillaPool.mainnet(auth: { bearer: 'tok' }, http_client: http_client)
       expect(p.protocols[2].auth).to eq({ bearer: 'tok' })
+    end
+
+    it 'forwards deployment_id: to ARC protocol' do
+      p = BSV::Network::Providers::GorillaPool.mainnet(deployment_id: 'dep-1', http_client: http_client)
+      expect(p.protocols[0].instance_variable_get(:@deployment_id)).to eq('dep-1')
     end
 
     it 'rate_limit: override replaces default' do

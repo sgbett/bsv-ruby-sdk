@@ -10,13 +10,14 @@ AuthIntegrationFakeResponse = Struct.new(:code, :body)
 # Injectable HTTP client that records the last request, returns a canned response.
 # Used to inspect auth headers set by the full factory → Provider → Protocol stack.
 class AuthIntegrationFakeHttpClient
-  attr_reader :last_request
+  attr_reader :last_request, :last_uri
 
   def initialize(response)
     @response = response
   end
 
-  def request(_uri, req)
+  def request(uri, req)
+    @last_uri = uri
     @last_request = req
     @response
   end
@@ -26,14 +27,17 @@ end
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Builds a fake HTTP client that returns a minimal successful Arcade JSON response
-# and records the request for header inspection.
-# GorillaPool now uses Arcade (not ARC); Arcade returns {"status":"submitted"} on broadcast.
-# TAAL still uses ARC so this helper serves both via duck typing — the auth header check
-# does not depend on the response body shape.
+# Builds a fake HTTP client that returns a minimal successful ARC JSON response
+# and records the request for header inspection. Serves GorillaPool and TAAL, both ARC.
 def arc_fake_http
-  body = '{"status":"submitted"}'
+  body = %({"txid":"#{'ab' * 32}","txStatus":"SEEN_ON_NETWORK"})
   AuthIntegrationFakeHttpClient.new(AuthIntegrationFakeResponse.new('200', body))
+end
+
+# Builds a fake HTTP client that returns a minimal successful Arcade JSON response
+# ({"status":"submitted"}) and records the request.
+def arcade_fake_http
+  AuthIntegrationFakeHttpClient.new(AuthIntegrationFakeResponse.new('200', '{"status":"submitted"}'))
 end
 
 # Builds a fake HTTP client that returns a minimal successful WoC broadcast response.
@@ -53,6 +57,21 @@ def dummy_tx
   allow(tx).to receive_messages(to_ef_hex: 'deadbeef', to_binary: "\xde\xad")
   allow(tx).to receive(:respond_to?).and_return(false)
   allow(tx).to receive(:respond_to?).with(:to_binary).and_return(true)
+  tx
+end
+
+# A real signed transaction whose inputs carry source data, so it serialises to
+# Extended Format — Arcade accepts nothing else.
+def extended_format_tx
+  priv = BSV::Primitives::PrivateKey.generate
+  lock_script = BSV::Script::Script.p2pkh_lock(priv.public_key.hash160)
+  tx = BSV::Transaction::Tx.new
+  input = BSV::Transaction::TransactionInput.new(prev_wtxid: "\x01".b * 32, prev_tx_out_index: 0)
+  input.source_satoshis = 50_000
+  input.source_locking_script = lock_script
+  tx.add_input(input)
+  tx.add_output(BSV::Transaction::TransactionOutput.new(satoshis: 49_000, locking_script: lock_script))
+  tx.sign(0, priv)
   tx
 end
 
@@ -108,9 +127,9 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
     end
   end
 
-  # ── Scenario 2: GorillaPool Arcade with auth: { bearer: } ─────────────────────
+  # ── Scenario 2: GorillaPool ARC with auth: { bearer: } ────────────────────────
   #
-  # GorillaPool Arcade uses Bearer token auth. The request now hits /tx (not /v1/tx).
+  # GorillaPool's ARC endpoint uses Bearer token auth and is hit at /v1/tx.
 
   describe 'GorillaPool with auth: { bearer: }' do
     it 'provider.auth is the bearer hash' do
@@ -129,13 +148,13 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
       expect(p.authenticated?).to be(true)
     end
 
-    it 'Arcade protocol receives auth: { bearer: }' do
+    it 'ARC protocol receives auth: { bearer: }' do
       p = BSV::Network::Providers::GorillaPool.mainnet(
         auth: { bearer: 'gp-bearer-token' },
         http_client: arc_fake_http
       )
-      arcade = p.protocols.find { |pr| pr.is_a?(BSV::Network::Protocols::Arcade) }
-      expect(arcade.auth).to eq({ bearer: 'gp-bearer-token' })
+      arc = p.protocols.find { |pr| pr.is_a?(BSV::Network::Protocols::ARC) }
+      expect(arc.auth).to eq({ bearer: 'gp-bearer-token' })
     end
 
     it 'HTTP request has Authorization: Bearer gp-bearer-token' do
@@ -149,7 +168,7 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
       expect(http.last_request['Authorization']).to eq('Bearer gp-bearer-token')
     end
 
-    it 'HTTP request hits /tx path (Arcade broadcast endpoint)' do
+    it 'HTTP request hits /v1/tx on arc.gorillapool.io (ARC broadcast endpoint)' do
       http = arc_fake_http
       p = BSV::Network::Providers::GorillaPool.mainnet(
         auth: { bearer: 'gp-bearer-token' },
@@ -157,11 +176,12 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
       )
       tx = dummy_tx
       p.call(:broadcast, tx)
-      expect(http.last_request.path).to eq('/tx')
+      expect(http.last_request.path).to eq('/v1/tx')
+      expect(http.last_uri.host).to eq('arc.gorillapool.io')
     end
   end
 
-  # ── Scenario 3: GorillaPool Arcade with custom header auth ─────────────────────
+  # ── Scenario 3: GorillaPool ARC with custom header auth ─────────────────────
   #
   # Custom header: auth: { api_key: 'key', header: 'Api-Key' } → Api-Key: key
 
@@ -185,6 +205,28 @@ RSpec.describe 'Provider auth mechanisms — end-to-end integration' do
       )
       tx = dummy_tx
       p.call(:broadcast, tx)
+      expect(http.last_request['Authorization']).to be_nil
+    end
+  end
+
+  # ── Scenario 3b: BSVAssociation Arcade ───────────────────────────────────────
+  #
+  # Opt-in provider. Credentials go only to its own Arcade host, at /tx.
+
+  describe 'BSVAssociation (Arcade)' do
+    it 'sends the bearer only to arcade-v2-us-1.bsvblockchain.tech at /tx' do
+      http = arcade_fake_http
+      p = BSV::Network::Providers::BSVAssociation.mainnet(auth: { bearer: 't' }, http_client: http)
+      p.call(:broadcast, extended_format_tx)
+      expect(http.last_uri.host).to eq('arcade-v2-us-1.bsvblockchain.tech')
+      expect(http.last_request.path).to eq('/tx')
+      expect(http.last_request['Authorization']).to eq('Bearer t')
+    end
+
+    it 'sends no Authorization header without auth' do
+      http = arcade_fake_http
+      p = BSV::Network::Providers::BSVAssociation.mainnet(http_client: http)
+      p.call(:broadcast, extended_format_tx)
       expect(http.last_request['Authorization']).to be_nil
     end
   end
