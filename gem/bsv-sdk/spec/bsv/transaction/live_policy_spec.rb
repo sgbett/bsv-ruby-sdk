@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'pp'
 
 RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
   let(:arc_url) { 'https://arc.example.com' }
@@ -18,10 +19,7 @@ RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
 
       def request(_uri, _request)
         @call_count += 1
-        response = Struct.new(:code, :body).new
-        response.code = @response_code.to_s
-        response.body = @response_body
-        response
+        FakeHttpResponse.fake_http_response(@response_code, @response_body)
       end
     end
   end
@@ -49,10 +47,10 @@ RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
     end
 
     it 'parses policy.fees.miningFee with satoshis/bytes' do
-      body = { 'policy' => { 'fees' => { 'miningFee' => { 'satoshis' => 100, 'bytes' => 1000 } } } }.to_json
+      body = { 'policy' => { 'fees' => { 'miningFee' => { 'satoshis' => 60, 'bytes' => 1000 } } } }.to_json
       h = mock_client.new(200, body)
       m = described_class.new(arc_url: arc_url, http_client: h)
-      expect(m.current_rate).to eq(100)
+      expect(m.current_rate).to eq(60)
     end
 
     it 'parses policy.miningFee directly' do
@@ -81,6 +79,95 @@ RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
       h = mock_client.new(200, body)
       m = described_class.new(arc_url: arc_url, http_client: h)
       expect(m.current_rate).to eq(1)
+    end
+  end
+
+  describe 'policy validation' do
+    def rate_for(policy, fallback: 7)
+      client = mock_client.new(200, { 'policy' => policy }.to_json)
+      described_class.new(arc_url: arc_url, http_client: client, fallback_rate: fallback).current_rate
+    end
+
+    def mining_fee(satoshis, bytes)
+      { 'miningFee' => { 'satoshis' => satoshis, 'bytes' => bytes } }
+    end
+
+    it 'scales the rate to sat/kB' do
+      expect(rate_for(mining_fee(50, 500))).to eq(100)
+    end
+
+    it 'accepts a rate of exactly 1_000_000_000 sat/kB' do
+      expect(rate_for(mining_fee(1_000_000, 1))).to eq(1_000_000_000)
+    end
+
+    {
+      'zero satoshis' => [0, 1000],
+      'fractional satoshis' => [0.5, 1000],
+      'huge satoshis' => [10**30, 1000],
+      'satoshis above 21e14' => [2_100_000_000_000_001, 1_000_000_000],
+      'string satoshis' => ['50', 1000],
+      'zero bytes' => [50, 0],
+      'tiny float bytes' => [50, 1e-300],
+      'bytes above 1e9' => [50, 1_000_000_001],
+      'rate above 1e9 sat/kB' => [1_000_001, 1]
+    }.each do |label, (satoshis, bytes)|
+      it "falls back for #{label}" do
+        expect(rate_for(mining_fee(satoshis, bytes))).to eq(7)
+      end
+    end
+
+    it 'falls back for a satPerKb of 5e9' do
+      expect(rate_for({ 'satPerKb' => 5_000_000_000 })).to eq(7)
+    end
+
+    it 'falls back for a zero satPerKb' do
+      expect(rate_for({ 'satPerKb' => 0 })).to eq(7)
+    end
+
+    it 'keeps the cached rate over the fallback when a later policy is invalid' do
+      m = described_class.new(arc_url: arc_url, http_client: http, cache_ttl: 0, fallback_rate: 1)
+      expect(m.current_rate).to eq(50)
+
+      http.response_body = { 'policy' => mining_fee(0, 1000) }.to_json
+      expect(m.current_rate).to eq(50)
+    end
+  end
+
+  describe 'request shape' do
+    let(:recorder) { stub_net_http('arc.gorillapool.io' => ->(_req) { [200, policy_response] }) }
+
+    it '.default targets GorillaPool' do
+      expect(described_class.default.arc_url).to eq('https://arc.gorillapool.io')
+    end
+
+    it '.default sends one unauthenticated GET to /v1/policy' do
+      recorder
+      expect(described_class.default.current_rate).to eq(50)
+
+      expect(recorder.entries.map(&:path)).to eq(['/v1/policy'])
+      expect(recorder.entries.first.request).to be_a(Net::HTTP::Get)
+      expect(recorder.authorisation_for('arc.gorillapool.io')).to eq([nil])
+    end
+
+    it '.default no longer accepts an api_key' do
+      expect { described_class.default(api_key: 'x') }.to raise_error(ArgumentError)
+    end
+  end
+
+  describe '#inspect' do
+    let(:keyed) { described_class.new(arc_url: 'https://arc.example.com/', api_key: 'SEKRET', http_client: http) }
+
+    it 'shows scheme, host, fallback rate and cache TTL' do
+      expected = '#<BSV::Transaction::FeeModels::LivePolicy scheme="https" host="arc.example.com" fallback_rate=100 cache_ttl=300>'
+      expect(keyed.inspect).to eq(expected)
+    end
+
+    it 'never shows the api_key via inspect, to_s or pp' do
+      keyed.current_rate
+
+      expect(keyed.inspect).not_to include('SEKRET')
+      expect(keyed.to_s).not_to include('SEKRET')
+      expect(PP.pp(keyed, +'')).not_to include('SEKRET')
     end
   end
 
@@ -146,7 +233,7 @@ RSpec.describe BSV::Transaction::FeeModels::LivePolicy do
         define_method(:initialize) { |reqs| @reqs = reqs }
         define_method(:request) do |_uri, req|
           @reqs << req
-          Struct.new(:code, :body).new('200', policy_response)
+          FakeHttpResponse.fake_http_response(200, policy_response)
         end
       end
 
