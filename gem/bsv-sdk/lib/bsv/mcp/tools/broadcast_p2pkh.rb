@@ -35,7 +35,8 @@ module BSV
           (BSV_ARC_URL) for calls on the server's own network.
 
           Parameters:
-          - wif: sender's private key in WIF format. The key is used only
+          - wif: sender's private key in compressed WIF format (uncompressed
+            WIFs are rejected). The key is used only
             for this call and is never stored by the server. It must be for
             the network being used.
           - to_address: recipient P2PKH address for the network being used
@@ -52,7 +53,7 @@ module BSV
           - hex: the raw transaction hex (plain format, not EF)
 
           Error conditions (returned as error responses, not raised):
-          - Invalid WIF key, or a WIF for a different network
+          - Invalid or uncompressed WIF key, or a WIF for a different network
           - Recipient that is not a P2PKH address for the network
           - No UTXOs found for sender
           - Insufficient funds (balance < satoshis + estimated fee)
@@ -75,7 +76,7 @@ module BSV
             wif: {
               type: 'string',
               maxLength: BSV::MCP::Tools::AddressInput::MAX_LENGTH,
-              description: 'Sender private key in WIF format.'
+              description: 'Sender private key in compressed WIF format.'
             },
             to_address: {
               type: 'string',

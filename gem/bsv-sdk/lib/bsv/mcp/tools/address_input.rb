@@ -61,16 +61,21 @@ module BSV
         # are, so that a mistyped key is never echoed back: Base58's own error
         # names the first invalid character.
         #
+        # Only compressed WIFs are accepted, as in the TS SDK. An uncompressed one
+        # stands for a different address from the compressed key's, which is the
+        # one the tools would use.
+        #
         # @param wif [Object]
         # @param net_sym [Symbol] :mainnet or :testnet
         # @param name [String] the argument's name, for the error message
         # @return [BSV::Primitives::PrivateKey]
-        # @raise [ArgumentError] with a fixed message, whether the WIF is invalid
-        #   or belongs to the other network (so a testnet key never signs a
-        #   mainnet spend, or the reverse)
+        # @raise [ArgumentError] with a fixed message, whether the WIF is invalid,
+        #   uncompressed (for either network) or belongs to the other network (so
+        #   a testnet key never signs a mainnet spend, or the reverse)
         def self.private_key(wif, net_sym, name: 'wif')
           ensure_length!(wif, name)
           payload = decode_base58check(wif)
+          reject_uncompressed_wif!(payload, name)
           key = payload && wif_private_key(payload)
           raise ArgumentError, "#{name} is not a valid WIF private key for #{net_sym}" unless key
           raise ArgumentError, "WIF private key is not for #{net_sym}" unless payload.byteslice(0, 1) == WIF_VERSIONS.fetch(net_sym)
@@ -85,7 +90,8 @@ module BSV
         # is returned as is; with +allow_wif+, a WIF private key for the network
         # yields its address. Anything else (bad characters or checksum, P2SH,
         # the other network, wrong length) raises an error that never includes
-        # the input, which may be a mistyped private key.
+        # the input, which may be a mistyped private key. A WIF must be
+        # compressed (see {private_key}).
         #
         # @param input [String]
         # @param net_sym [Symbol] :mainnet or :testnet
@@ -96,6 +102,7 @@ module BSV
         def self.resolve(input, net_sym, allow_wif: false, name: 'input')
           ensure_length!(input, name)
           payload = decode_base58check(input)
+          reject_uncompressed_wif!(payload, name) if allow_wif
           address = payload && address_from_payload(payload, net_sym, allow_wif)
           return address if address
 
@@ -147,10 +154,18 @@ module BSV
           BSV::Primitives::Base58.check_encode(payload)
         end
 
-        # The 32 key bytes of a WIF payload (uncompressed, or compressed with its flag).
+        # @raise [ArgumentError] when the payload is an uncompressed WIF's (a
+        #   32-byte key, with no compression flag); the message is fixed
+        # @api private
+        def self.reject_uncompressed_wif!(payload, name)
+          return unless payload && WIF_VERSIONS.value?(payload.byteslice(0, 1)) && payload.bytesize == 1 + 32
+
+          raise ArgumentError, "#{name} is an uncompressed WIF private key; only compressed WIFs are supported"
+        end
+
+        # The 32 key bytes of a compressed WIF payload: the key and its 0x01 flag.
         # @api private
         def self.wif_key_bytes(body)
-          return body if body.bytesize == 32
           return body[0, 32] if body.bytesize == 33 && body[32] == "\x01".b
 
           nil

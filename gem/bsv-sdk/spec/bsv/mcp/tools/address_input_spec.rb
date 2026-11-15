@@ -158,6 +158,12 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
     end
   end
 
+  # The fixed message, with no 4-character run of the input in it.
+  def expect_fixed_uncompressed_message(error, name, input)
+    expect(error.message).to eq("#{name} is an uncompressed WIF private key; only compressed WIFs are supported")
+    expect(input.chars.each_cons(4).map(&:join).select { |run| error.message.include?(run) }).to be_empty
+  end
+
   describe '.private_key' do
     let(:message) { 'wif is not a valid WIF private key for mainnet' }
 
@@ -173,9 +179,12 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
       expect(described_class.private_key(testnet_wif, :testnet).to_hex).to eq(private_key.to_hex)
     end
 
-    it 'accepts an uncompressed WIF' do
-      wif = wif_with_payload("\x80", private_key.to_bytes)
-      expect(described_class.private_key(wif, :mainnet).to_hex).to eq(private_key.to_hex)
+    it 'rejects an uncompressed WIF on either network without echoing it' do
+      { "\x80" => :mainnet, "\xef" => :testnet }.each do |version, net_sym|
+        wif = wif_with_payload(version, private_key.to_bytes)
+        expect { described_class.private_key(wif, net_sym) }
+          .to raise_error(ArgumentError) { |error| expect_fixed_uncompressed_message(error, 'wif', wif) }
+      end
     end
 
     it 'keeps the network-mismatch error' do
@@ -229,7 +238,7 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
 
     it 'rejects a zero key and one above the curve order' do
       [("\x00".b * 32), ("\xff".b * 32)].each do |bytes|
-        expect { described_class.private_key(wif_with_payload("\x80", bytes), :mainnet) }
+        expect { described_class.private_key(wif_with_payload("\x80", "#{bytes}\x01"), :mainnet) }
           .to raise_error(ArgumentError, message)
       end
     end
@@ -255,6 +264,20 @@ RSpec.describe BSV::MCP::Tools::AddressInput do
         .to eq(private_key.public_key.address(network: :mainnet))
       expect(described_class.resolve(testnet_wif, :testnet, allow_wif: true))
         .to eq(private_key.public_key.address(network: :testnet))
+    end
+
+    it 'rejects an uncompressed WIF on either network without echoing it' do
+      { "\x80" => :mainnet, "\xef" => :testnet }.each do |version, net_sym|
+        wif = BSV::Primitives::Base58.check_encode(version.b + private_key.to_bytes)
+        expect { described_class.resolve(wif, net_sym, allow_wif: true) }
+          .to raise_error(ArgumentError) { |error| expect_fixed_uncompressed_message(error, 'input', wif) }
+      end
+    end
+
+    it 'names the argument in the uncompressed WIF error' do
+      wif = BSV::Primitives::Base58.check_encode("\x80".b + private_key.to_bytes)
+      expect { described_class.resolve(wif, :mainnet, allow_wif: true, name: 'key') }
+        .to raise_error(ArgumentError, /\Akey is an uncompressed WIF/)
     end
 
     it 'rejects a WIF unless allowed' do

@@ -332,6 +332,14 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect_rejection('WIF private key is not for mainnet', wif: testnet_wif, echoed: testnet_wif)
     end
 
+    it 'rejects an uncompressed WIF with a fixed message and no 4-character run of it' do
+      uncompressed_wif = BSV::Primitives::Base58.check_encode("\x80".b + private_key.to_bytes)
+      _, result = call_tool(wif: uncompressed_wif)
+      expect(result[:error]).to eq('wif is an uncompressed WIF private key; only compressed WIFs are supported')
+      expect(uncompressed_wif.chars.each_cons(4).map(&:join).select { |run| result[:error].include?(run) }).to be_empty
+      expect(BSV::Network::Providers::WhatsOnChain).not_to have_received(:default)
+    end
+
     {
       'an invalid Base58 character' => ->(key) { "0#{key[1..]}" },
       'a bad checksum' => ->(key) { "#{key[0..-2]}#{key[-1] == '2' ? '3' : '2'}" },
