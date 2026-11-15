@@ -164,8 +164,10 @@ module BSV
           texts.join(': ') unless texts.empty?
         end
 
+        # The JSON parser admits invalid UTF-8 inside strings, and matching
+        # such a string raises, so the encoding is checked first.
         def valid_txid?(txid)
-          txid.is_a?(String) && txid.match?(/\A\h{64}\z/)
+          txid.is_a?(String) && txid.valid_encoding? && txid.match?(/\A\h{64}\z/)
         end
 
         def parse_json_object(raw)

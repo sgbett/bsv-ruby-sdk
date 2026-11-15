@@ -112,6 +112,7 @@ RSpec.describe BSV::Network::Protocols::Arcade do
         'non-hex txid' => '{"txid":"not-a-txid","txStatus":"RECEIVED"}',
         'short txid' => '{"txid":"abcd","txStatus":"RECEIVED"}',
         'non-string txid' => '{"txid":5,"txStatus":"RECEIVED"}',
+        'invalid UTF-8 txid' => %({"txid":"\xFF\xFE#{'ab' * 31}","txStatus":"RECEIVED"}).b,
         'array txStatus' => %({"txid":"#{'ab' * 32}","txStatus":["REJECTED"]}),
         'numeric txStatus' => %({"txid":"#{'ab' * 32}","txStatus":7}),
         'array' => '[]',
@@ -379,7 +380,8 @@ RSpec.describe BSV::Network::Protocols::Arcade do
     end
 
     context 'when a 2xx body is malformed' do
-      ['[]', '5', 'null', '{"txStatus":"MINED"}', '{"txid":"nope","txStatus":"MINED"}'].each do |raw|
+      ['[]', '5', 'null', '{"txStatus":"MINED"}', '{"txid":"nope","txStatus":"MINED"}',
+       %({"txid":"\xFF\xFE#{'ab' * 31}","txStatus":"MINED"}).b].each do |raw|
         it "fails for #{raw}" do
           stub_response(200, raw)
           result = arcade.call(:get_tx_status, txid)

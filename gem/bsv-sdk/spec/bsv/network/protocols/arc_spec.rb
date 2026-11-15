@@ -60,9 +60,19 @@ RSpec.describe BSV::Network::Protocols::ARC do
     it 'is false for nil' do
       expect(described_class.rejected_tx_status?(nil)).to be(false)
     end
+
+    it 'compares bytes, so invalid UTF-8 does not raise' do
+      expect(described_class.rejected_tx_status?("rejected\xFF".dup.force_encoding(Encoding::UTF_8))).to be(false)
+      expect(described_class.rejected_tx_status?("orphan\xFF".dup.force_encoding(Encoding::UTF_8))).to be(true)
+    end
   end
 
   describe '.rejected?' do
+    it 'reads an orphan marker in extraInfo that is not valid UTF-8' do
+      body = { 'txStatus' => 'RECEIVED', 'extraInfo' => "parent orphan\xFF".dup.force_encoding(Encoding::UTF_8) }
+      expect(described_class.rejected?(body)).to be(true)
+    end
+
     it 'is true for a rejected txStatus' do
       expect(described_class.rejected?('txStatus' => 'REJECTED')).to be(true)
     end
@@ -646,6 +656,12 @@ RSpec.describe BSV::Network::Protocols::ARC do
         result = arc.call(:get_tx_status, txid)
         expect(result.error_message).to eq('ARC returned a malformed 2xx response')
         expect(result.data).to be_nil
+      end
+
+      it 'treats a txid that is not valid UTF-8 as malformed rather than raising' do
+        stub_response(200, %({"txid":"\xFF\xFE#{'ab' * 31}","txStatus":"MINED"}).b)
+        result = arc.call(:get_tx_status, txid)
+        expect(result.error_message).to eq('ARC returned a malformed 2xx response')
       end
 
       it 'treats a rejection with no txid as malformed' do

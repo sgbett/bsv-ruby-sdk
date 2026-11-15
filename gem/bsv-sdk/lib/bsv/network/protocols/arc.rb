@@ -47,12 +47,14 @@ module BSV
         # Whether a +txStatus+ value means the transaction was not accepted.
         # Case-insensitive: ARC has a documented history of emitting values
         # outside its own OpenAPI enum, and the TypeScript SDK upcases both
-        # fields before comparing.
+        # fields before comparing. Compared as bytes: the JSON parser admits
+        # invalid UTF-8 inside strings, which +upcase+ would raise on, and the
+        # tokens that matter are ASCII.
         #
         # @param tx_status [Object] the +txStatus+ field of a response body
         # @return [Boolean]
         def self.rejected_tx_status?(tx_status)
-          status = tx_status.to_s.upcase
+          status = tx_status.to_s.b.upcase
           REJECTED_STATUSES.include?(status) || status.include?(ORPHAN_MARKER)
         end
 
@@ -64,7 +66,7 @@ module BSV
         def self.rejected?(body)
           return false unless body.is_a?(Hash)
 
-          rejected_tx_status?(body['txStatus']) || body['extraInfo'].to_s.upcase.include?(ORPHAN_MARKER)
+          rejected_tx_status?(body['txStatus']) || body['extraInfo'].to_s.b.upcase.include?(ORPHAN_MARKER)
         end
 
         # Describe a rejection as +"STATUS: extraInfo"+, or just the status
@@ -292,8 +294,11 @@ module BSV
           response
         end
 
+        # The encoding is checked first: the JSON parser admits invalid UTF-8
+        # inside strings, and +casecmp?+ raises on it.
         def reply_for?(body, txid)
-          body.is_a?(Hash) && body['txid'].is_a?(String) && body['txid'].casecmp?(txid)
+          reported = body.is_a?(Hash) ? body['txid'] : nil
+          reported.is_a?(String) && reported.valid_encoding? && reported.casecmp?(txid)
         end
 
         # A 2xx that default_call could not turn into data is a malformed reply;
