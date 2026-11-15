@@ -38,6 +38,41 @@ module BSV
         # Substring marker for orphan detection in txStatus or extraInfo fields.
         ORPHAN_MARKER = 'ORPHAN'
 
+        # Whether a +txStatus+ value means the transaction was not accepted.
+        # Case-insensitive: ARC has a documented history of emitting values
+        # outside its own OpenAPI enum, and the TypeScript SDK upcases both
+        # fields before comparing.
+        #
+        # @param tx_status [Object] the +txStatus+ field of a response body
+        # @return [Boolean]
+        def self.rejected_tx_status?(tx_status)
+          status = tx_status.to_s.upcase
+          REJECTED_STATUSES.include?(status) || status.include?(ORPHAN_MARKER)
+        end
+
+        # Whether a response body reports a rejected transaction, by +txStatus+
+        # or by an orphan marker in +extraInfo+.
+        #
+        # @param body [Object] parsed JSON response body
+        # @return [Boolean] false for anything other than a Hash
+        def self.rejected?(body)
+          return false unless body.is_a?(Hash)
+
+          rejected_tx_status?(body['txStatus']) || body['extraInfo'].to_s.upcase.include?(ORPHAN_MARKER)
+        end
+
+        # Describe a rejection as +"STATUS: extraInfo"+, or just the status
+        # when there is no extra information. The generic +title+ and +detail+
+        # fields are not used: on a 2xx they read "OK" or are empty.
+        #
+        # @param body [Hash] parsed JSON response body
+        # @return [String] +"REJECTED"+ stands in when +txStatus+ is unusable
+        def self.rejection_message(body)
+          status = BSV::Network::Util.service_text(body['txStatus']) || 'REJECTED'
+          extra_info = BSV::Network::Util.service_text(body['extraInfo'])
+          extra_info ? "#{status}: #{extra_info}" : status
+        end
+
         endpoint :broadcast,      :post, '/v1/tx',          response: :json
         endpoint :broadcast_many, :post, '/v1/txs',         response: :json_array
         endpoint :get_tx_status,  :get,  '/v1/tx/{txid}',   response: :json
@@ -143,7 +178,7 @@ module BSV
         def build_broadcast_headers(wait_for:, skip_fee_validation:, skip_script_validation:,
                                     skip_tx_validation:, callback_url:, callback_token:,
                                     callback_batch:)
-          headers = { 'XDeployment-ID' => @deployment_id }
+          headers = {}
           headers['X-WaitFor']              = wait_for                     if wait_for
           headers['X-CallbackUrl']          = callback_url                 if callback_url
           headers['X-CallbackToken']        = callback_token               if callback_token
@@ -184,11 +219,11 @@ module BSV
             )
           end
 
-          if rejected_status?(body)
+          if self.class.rejected?(body)
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body['detail'] || body['title'] || body['txStatus'],
+              error_message: self.class.rejection_message(body),
               data: body
             )
           end
@@ -237,18 +272,17 @@ module BSV
         #
         # @param txid [String] ARC API boundary: display-order hex transaction ID to query
         # @return [ProtocolResponse]
+        # @raise [ArgumentError] if +txid+ is not 64-char display-order hex
         def call_get_tx_status(txid, **)
+          BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'txid')
           response = default_call(:get_tx_status, txid)
           return response unless response.http_success?
 
           body = response.data
 
-          if rejected_status?(body)
-            return response.with(
-              http_success: false,
-              error_message: body['detail'] || body['title'] || body['txStatus']
-            )
-          end
+          return response.with(http_success: false, error_message: 'ARC returned a malformed 2xx response') unless body.is_a?(Hash)
+
+          return response.with(http_success: false, error_message: self.class.rejection_message(body)) if self.class.rejected?(body)
 
           unless body['txid']
             return response.with(
@@ -258,22 +292,6 @@ module BSV
           end
 
           response
-        end
-
-        # Determine whether an ARC response body represents a rejected transaction.
-        # Case-insensitive match — the TypeScript reference SDK explicitly uppercases
-        # both fields before membership / substring checks. ARC has a documented
-        # history of emitting values outside its own OpenAPI enum, so case
-        # normalisation is the defensive choice.
-        def rejected_status?(body)
-          tx_status = body['txStatus'].to_s.upcase
-          return true if REJECTED_STATUSES.include?(tx_status)
-          return true if tx_status.include?(ORPHAN_MARKER)
-
-          extra_info = body['extraInfo'].to_s.upcase
-          return true if extra_info.include?(ORPHAN_MARKER)
-
-          false
         end
 
         def safe_parse_json(raw)

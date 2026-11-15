@@ -43,6 +43,60 @@ RSpec.describe BSV::Network::Protocols::ARC do
     end
   end
 
+  describe '.rejected_tx_status?' do
+    %w[REJECTED rejected DOUBLE_SPEND_ATTEMPTED INVALID MALFORMED MINED_IN_STALE_BLOCK
+       SEEN_IN_ORPHAN_MEMPOOL].each do |status|
+      it "is true for #{status}" do
+        expect(described_class.rejected_tx_status?(status)).to be(true)
+      end
+    end
+
+    %w[RECEIVED SEEN_ON_NETWORK SEEN_MULTIPLE_NODES MINED PENDING_RETRY].each do |status|
+      it "is false for #{status}" do
+        expect(described_class.rejected_tx_status?(status)).to be(false)
+      end
+    end
+
+    it 'is false for nil' do
+      expect(described_class.rejected_tx_status?(nil)).to be(false)
+    end
+  end
+
+  describe '.rejected?' do
+    it 'is true for a rejected txStatus' do
+      expect(described_class.rejected?('txStatus' => 'REJECTED')).to be(true)
+    end
+
+    it 'is true for an orphan marker in extraInfo' do
+      expect(described_class.rejected?('txStatus' => 'SEEN_ON_NETWORK', 'extraInfo' => 'parent is ORPHAN')).to be(true)
+    end
+
+    it 'is false for an accepted status' do
+      expect(described_class.rejected?('txStatus' => 'MINED')).to be(false)
+    end
+
+    [[], 5, nil, 'REJECTED'].each do |body|
+      it "is false for the non-Hash #{body.inspect}" do
+        expect(described_class.rejected?(body)).to be(false)
+      end
+    end
+  end
+
+  describe '.rejection_message' do
+    it 'joins status and extraInfo' do
+      expect(described_class.rejection_message('txStatus' => 'REJECTED', 'extraInfo' => 'bad sig'))
+        .to eq('REJECTED: bad sig')
+    end
+
+    it 'is the bare status when extraInfo is blank' do
+      expect(described_class.rejection_message('txStatus' => 'INVALID', 'extraInfo' => '  ')).to eq('INVALID')
+    end
+
+    it 'falls back to REJECTED when txStatus is not a string' do
+      expect(described_class.rejection_message('extraInfo' => 'parent is ORPHAN')).to eq('REJECTED: parent is ORPHAN')
+    end
+  end
+
   describe '#call(:broadcast)' do
     context 'when EF format is available' do
       let(:tx) { make_tx(ef_hex: 'efhex123') }
@@ -179,6 +233,21 @@ RSpec.describe BSV::Network::Protocols::ARC do
       end
     end
 
+    context 'when a 2xx rejection carries generic title and detail' do
+      let(:tx) { make_tx(ef_hex: 'efhex') }
+
+      before do
+        stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'REJECTED', 'extraInfo' => 'bad sig',
+                                  'title' => 'OK', 'detail' => '' })
+      end
+
+      it 'reports the status and extraInfo' do
+        result = arc.call(:broadcast, tx)
+        expect(result.error_message).to eq('REJECTED: bad sig')
+        expect(result.data['extraInfo']).to eq('bad sig')
+      end
+    end
+
     context 'when txStatus contains ORPHAN substring' do
       let(:tx) { make_tx(ef_hex: 'efhex') }
 
@@ -198,6 +267,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
         stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'RECEIVED', 'extraInfo' => 'orphan detected' })
         result = arc.call(:broadcast, tx)
         expect(result).not_to be_http_success
+        expect(result.error_message).to eq('RECEIVED: orphan detected')
       end
 
       it 'is case-insensitive for ORPHAN detection in extraInfo' do
@@ -272,10 +342,10 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
       before { stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'RECEIVED' }) }
 
-      it 'sends XDeployment-ID header' do
+      it 'sends the XDeployment-ID header exactly once' do
         arc.call(:broadcast, tx)
         expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['XDeployment-ID']).to eq('test-deployment')
+          expect(req.get_fields('XDeployment-ID')).to eq(['test-deployment'])
         end
       end
 
@@ -489,10 +559,12 @@ RSpec.describe BSV::Network::Protocols::ARC do
   end
 
   describe '#call(:get_tx_status)' do
+    let(:txid) { 'ab' * 32 }
+
     context 'when transaction exists' do
       before do
         stub_json_response(200, {
-                             'txid' => 'abc123',
+                             'txid' => txid,
                              'txStatus' => 'MINED',
                              'title' => 'Transaction mined',
                              'extraInfo' => nil,
@@ -504,9 +576,9 @@ RSpec.describe BSV::Network::Protocols::ARC do
       end
 
       it 'returns success with raw JSON string keys' do
-        result = arc.call(:get_tx_status, 'abc123')
+        result = arc.call(:get_tx_status, txid)
         expect(result).to be_http_success
-        expect(result.data['txid']).to eq('abc123')
+        expect(result.data['txid']).to eq(txid)
         expect(result.data['txStatus']).to eq('MINED')
         expect(result.data['title']).to eq('Transaction mined')
         expect(result.data['extraInfo']).to be_nil
@@ -521,7 +593,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
       before { stub_response(404, 'Not found') }
 
       it 'returns not_found' do
-        result = arc.call(:get_tx_status, 'unknowntxid')
+        result = arc.call(:get_tx_status, txid)
         expect(result).to be_http_not_found
       end
     end
@@ -530,7 +602,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
       before { stub_response(500, 'Internal server error') }
 
       it 'returns retryable error' do
-        result = arc.call(:get_tx_status, 'abc123')
+        result = arc.call(:get_tx_status, txid)
         expect(result).not_to be_http_success
         expect(result.retryable?).to be(true)
       end
@@ -538,11 +610,11 @@ RSpec.describe BSV::Network::Protocols::ARC do
 
     context 'when transaction has a rejected status' do
       before do
-        stub_json_response(200, { 'txid' => 'abc123', 'txStatus' => 'REJECTED' })
+        stub_json_response(200, { 'txid' => txid, 'txStatus' => 'REJECTED' })
       end
 
       it 'returns error' do
-        result = arc.call(:get_tx_status, 'abc123')
+        result = arc.call(:get_tx_status, txid)
         expect(result).not_to be_http_success
         expect(result.error_message).to include('REJECTED')
       end
@@ -554,9 +626,40 @@ RSpec.describe BSV::Network::Protocols::ARC do
       end
 
       it 'returns error for malformed response' do
-        result = arc.call(:get_tx_status, 'abc123')
+        result = arc.call(:get_tx_status, txid)
         expect(result).not_to be_http_success
         expect(result.error_message).to include('malformed')
+      end
+    end
+
+    context 'when a 2xx rejection carries generic title and detail' do
+      before do
+        stub_json_response(200, { 'txid' => txid, 'txStatus' => 'REJECTED', 'extraInfo' => 'bad sig',
+                                  'title' => 'OK', 'detail' => '' })
+      end
+
+      it 'reports the status and extraInfo' do
+        expect(arc.call(:get_tx_status, txid).error_message).to eq('REJECTED: bad sig')
+      end
+    end
+
+    [[], 5, nil].each do |malformed|
+      context "when a 2xx body is #{malformed.inspect}" do
+        before { stub_response(200, JSON.generate(malformed)) }
+
+        it 'returns a failed response without raising' do
+          result = arc.call(:get_tx_status, txid)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('ARC returned a malformed 2xx response')
+        end
+      end
+    end
+
+    ['../policy', "#{'ab' * 31}a", ['ab' * 32].pack('H*')].each do |bad|
+      it "raises ArgumentError before any request for #{bad.length}-char #{bad.encoding} txid" do
+        allow(http_client).to receive(:request)
+        expect { arc.call(:get_tx_status, bad) }.to raise_error(ArgumentError, /txid/)
+        expect(http_client).not_to have_received(:request)
       end
     end
   end
