@@ -670,13 +670,9 @@ RSpec.describe 'BSV::Network::Protocol' do
       Net::HTTPHeaderSyntaxError.new('bad header'),
       Errno::ETIMEDOUT.new
     ].each do |error|
-      it "treats #{error.class} by the not-sent rule" do
+      it "says the request may have reached the service for #{error.class}" do
         message = build_with_error(error).call(:get_raw).error_message
-        if [Errno::EHOSTUNREACH, Errno::ENETUNREACH].include?(error.class)
-          expect(message).not_to include('may have reached')
-        else
-          expect(message).to end_with('(the request may have reached the service)')
-        end
+        expect(message).to end_with('(the request may have reached the service)')
       end
     end
 

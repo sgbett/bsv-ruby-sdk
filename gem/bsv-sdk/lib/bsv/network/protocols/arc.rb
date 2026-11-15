@@ -209,12 +209,7 @@ module BSV
         # @return [ProtocolResponse]
         def parse_single_broadcast_response(response)
           code = response.code.to_i
-          body = safe_parse_json(response.body)
-
-          unless body.is_a?(Hash)
-            return ProtocolResponse.new(response, http_success: false,
-                                                  error_message: "ARC returned #{body.class}, expected Hash")
-          end
+          body = safe_json_object(response.body)
 
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
@@ -225,6 +220,8 @@ module BSV
             )
           end
 
+          return ProtocolResponse.new(response, http_success: false, error_message: MALFORMED_2XX) unless body
+
           if self.class.rejected?(body)
             return ProtocolResponse.new(
               response,
@@ -234,13 +231,7 @@ module BSV
             )
           end
 
-          unless body['txid']
-            return ProtocolResponse.new(
-              response,
-              http_success: false,
-              error_message: BSV::Network::Util.service_text(body['detail']) || 'ARC returned a malformed 2xx response'
-            )
-          end
+          return ProtocolResponse.new(response, http_success: false, error_message: MALFORMED_2XX) unless body['txid']
 
           ProtocolResponse.new(response, data: body)
         end
@@ -251,7 +242,7 @@ module BSV
         # @return [ProtocolResponse]
         def parse_batch_broadcast_response(response)
           code = response.code.to_i
-          body = safe_parse_json(response.body)
+          body = safe_json(response.body)
 
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
@@ -292,13 +283,17 @@ module BSV
 
           body = response.data
 
-          return response.with(http_success: false, error_message: MALFORMED_2XX) unless body.is_a?(Hash)
+          # The txid binding comes before the rejection check, so a rejection is
+          # never attributed to a transaction the reply does not name.
+          return response.with(http_success: false, data: nil, error_message: MALFORMED_2XX) unless reply_for?(body, txid)
 
           return response.with(http_success: false, error_message: self.class.rejection_message(body)) if self.class.rejected?(body)
 
-          return response.with(http_success: false, error_message: MALFORMED_2XX) unless body['txid'].is_a?(String) && body['txid'].casecmp?(txid)
-
           response
+        end
+
+        def reply_for?(body, txid)
+          body.is_a?(Hash) && body['txid'].is_a?(String) && body['txid'].casecmp?(txid)
         end
 
         # A 2xx that default_call could not turn into data is a malformed reply;
@@ -323,14 +318,16 @@ module BSV
         end
 
         def safe_json_object(raw)
-          body = JSON.parse(raw.to_s)
+          body = safe_json(raw)
           body.is_a?(Hash) ? body : nil
-        rescue JSON::ParserError, EncodingError
-          nil
         end
 
-        def safe_parse_json(raw)
-          BSV::Network::Util.safe_parse_json(raw)
+        # Parsed JSON, or nil for a body that is not JSON. Unlike
+        # Util.safe_parse_json, a non-JSON body is never wrapped for echoing.
+        def safe_json(raw)
+          JSON.parse(raw.to_s)
+        rescue JSON::ParserError, EncodingError
+          nil
         end
       end
     end

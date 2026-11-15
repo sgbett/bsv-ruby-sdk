@@ -124,10 +124,10 @@ module BSV
       # a mid-stream TLS error, a read or write timeout) may arrive after the
       # service has received the request, so the default is to say the outcome
       # is unknown: that matters to callers that submit data, and wrongly
-      # claiming "not delivered" is the costlier mistake.
-      NOT_SENT_ERRORS = [
-        SocketError, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ENETUNREACH
-      ].freeze
+      # claiming "not delivered" is the costlier mistake. EHOSTUNREACH and
+      # ENETUNREACH are left out because they can surface on a connection that
+      # is already open.
+      NOT_SENT_ERRORS = [SocketError, Net::OpenTimeout, Errno::ECONNREFUSED].freeze
 
       attr_reader :base_url, :api_key, :auth, :network
 

@@ -297,6 +297,7 @@ RSpec.describe BSV::Network::Protocols::ARC do
         stub_response(200, 'not json at all')
         result = arc.call(:broadcast, tx)
         expect(result).not_to be_http_success
+        expect(result.error_message).to eq('ARC returned a malformed 2xx response')
       end
 
       it 'returns error when JSON parses to a non-Hash (e.g. Array)' do
@@ -314,6 +315,13 @@ RSpec.describe BSV::Network::Protocols::ARC do
         result = arc.call(:broadcast, tx)
         expect(result).not_to be_http_success
         expect(result.retryable?).to be(false)
+      end
+
+      it 'never echoes a body that is not JSON' do
+        stub_response(502, '<html>Authorization=Bearer SEKRET</html>')
+        result = arc.call(:broadcast, tx)
+        expect(result.error_message).to eq('HTTP 502')
+        expect(result.data).to be_nil
       end
 
       it 'returns retryable error for 500' do
@@ -631,6 +639,20 @@ RSpec.describe BSV::Network::Protocols::ARC do
       it 'accepts the requested txid in a different case' do
         stub_json_response(200, { 'txid' => txid.upcase, 'txStatus' => 'MINED' })
         expect(arc.call(:get_tx_status, txid)).to be_http_success
+      end
+
+      it 'does not attribute its rejection to the requested transaction' do
+        stub_json_response(200, { 'txid' => 'cd' * 32, 'txStatus' => 'REJECTED', 'extraInfo' => 'x' })
+        result = arc.call(:get_tx_status, txid)
+        expect(result.error_message).to eq('ARC returned a malformed 2xx response')
+        expect(result.data).to be_nil
+      end
+
+      it 'treats a rejection with no txid as malformed' do
+        stub_json_response(200, { 'txStatus' => 'DOUBLE_SPEND_ATTEMPTED' })
+        result = arc.call(:get_tx_status, txid)
+        expect(result.error_message).to eq('ARC returned a malformed 2xx response')
+        expect(result.data).to be_nil
       end
     end
 
