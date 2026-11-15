@@ -40,9 +40,9 @@ RSpec.describe 'Live broadcast', :integration do # rubocop:disable RSpec/Describ
       woc = BSV::Network::Providers::WhatsOnChain.mainnet
       result = woc.call(:get_utxos, address)
       skip 'WoC rate-limited — set BSV_LIVE_TEST_PREVOUT to bypass' if result.code == '429'
-      raise "WoC UTXO fetch failed: #{result.error_message}" unless result.http_success?
+      raise "WoC UTXO fetch failed: #{result.error_message}" unless result.http_success? || result.http_not_found?
 
-      candidates = result.data.select { |u| u['value'] >= 1000 }
+      candidates = result.http_success? ? result.data.select { |u| u['value'] >= 1000 } : []
       skip "No UTXOs >= 1000 sats for #{address} — fund the address first" if candidates.empty?
 
       candidates.max_by { |u| u['value'] }

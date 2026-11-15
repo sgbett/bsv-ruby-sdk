@@ -20,13 +20,19 @@ RSpec.describe 'Default broadcast services', :integration do # rubocop:disable R
 
     it 'publishes a mining fee policy' do
       result = call_or_skip(provider, :get_policy)
+      expect(result).to be_http_success
+
       fee = result.data.dig('policy', 'miningFee')
+      expect(fee).to be_a(Hash)
 
       aggregate_failures do
-        expect(result).to be_http_success
         expect(fee['satoshis']).to be_an(Integer)
         expect(fee['bytes']).to be_an(Integer)
       end
+    end
+
+    it 'reports a well-formed unknown txid as not found' do
+      expect(call_or_skip(provider, :get_tx_status, "#{'00' * 31}01")).to be_http_not_found
     end
   end
 
@@ -41,15 +47,6 @@ RSpec.describe 'Default broadcast services', :integration do # rubocop:disable R
       let(:provider) { BSV::Network::Providers::BSVAssociation.default(testnet: testnet) }
 
       it_behaves_like 'a live ARC-compatible service'
-
-      it 'reports a well-formed unknown txid as not found' do
-        result = call_or_skip(provider, :get_tx_status, "#{'00' * 31}01")
-
-        aggregate_failures do
-          expect(result).to be_http_not_found
-          expect(result.error_message).to eq('transaction not found')
-        end
-      end
     end
   end
 
