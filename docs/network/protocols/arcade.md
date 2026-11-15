@@ -31,5 +31,5 @@ Submits an Extended Format transaction, reporting backpressure, validation failu
 
 ### `get_tx_status`
 
-Fetches a transaction's status, reporting rejected statuses and malformed bodies as failed responses.
+Fetches a transaction's status, reporting rejected statuses, malformed bodies and replies naming a different transaction as failed responses.
 
