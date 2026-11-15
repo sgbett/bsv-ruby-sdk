@@ -5,34 +5,33 @@ require 'json'
 module BSV
   module Network
     module Protocols
-      # Arcade protocol implementation for submitting transactions to the BSV network.
+      # BSV Broadcaster (formerly Arcade) client for submitting Extended Format transactions and tracking their status.
       #
-      # Arcade is a sibling to ARC — both subclass Protocol directly. The request
-      # and response shapes diverge enough to rule out a shared abstract base:
-      # Arcade uses a narrower status taxonomy and a different broadcast response
-      # structure (no txid on fresh submission; idempotent re-submit returns
-      # status plus txid plus state).
+      # Written against BSV Broadcaster v0.21. The service was renamed from Arcade in v0.19.0; the Ruby class keeps
+      # the old name. It is a sibling of {ARC} rather than a subclass: the response schema is now ARC-compatible, but
+      # the request side differs. Paths sit at the root (no +/v1+), only Extended Format is accepted (never plain
+      # hex or BEEF), the header set is smaller, errors are flat +{error, reason}+ objects, and 503 and 429 signal
+      # backpressure. Sharing a base class would hide those differences behind conditionals.
       #
       # == Example
       #
-      #   arcade = BSV::Network::Protocols::Arcade.new(
-      #     base_url: 'https://arcade.gorillapool.io'
+      #   broadcaster = BSV::Network::Protocols::Arcade.new(
+      #     base_url: 'https://arcade-v2-us-1.bsvblockchain.tech'
       #   )
-      #   result = arcade.call(:broadcast, tx)
+      #   result = broadcaster.call(:broadcast, tx)
       #   result.http_success? # => true
-      #   result.data['status'] # => "submitted"
+      #   result.data['txStatus'] # => "RECEIVED"
       #
-      # @see https://github.com/bsv-blockchain/arcade Arcade repository
+      # @see https://github.com/bsv-blockchain/broadcaster BSV Broadcaster repository
       class Arcade < Protocol
-        # Arcade response statuses that indicate a transaction was NOT accepted.
-        # Narrower than ARC's taxonomy — Arcade has a single explicit rejection signal.
-        REJECTED_STATUSES = %w[REJECTED].freeze
-
         endpoint :broadcast,     :post, '/tx',        response: :json
         endpoint :get_tx_status, :get,  '/tx/{txid}', response: :json
+        endpoint :get_policy,    :get,  '/policy',    response: :json
         endpoint :health,        :get,  '/health',    response: :json
 
-        # @param base_url    [String]      Arcade base URL
+        RETRY_AFTER_SECONDS = /\A\d{1,6}\z/
+
+        # @param base_url    [String]      BSV Broadcaster base URL
         # @param api_key     [String, nil] legacy bearer token shorthand
         # @param auth        [Hash, Symbol, nil] auth config; takes precedence over +api_key:+
         # @param network     [String, nil] network name for base URL interpolation
@@ -48,115 +47,119 @@ module BSV
 
         private
 
-        # Broadcast escape hatch: Arcade-specific headers and response shape.
+        # Submits an Extended Format transaction, reporting backpressure, validation failures and rejections as failed responses.
         #
-        # @param tx [#to_ef_hex, #to_hex, String] transaction object, hex string,
-        #   or binary string
-        # @param callback_url          [String, nil]
-        # @param callback_token        [String, nil]
-        # @param full_status_updates   [Boolean, nil]
-        # @param skip_fee_validation   [Boolean, nil]
-        # @param skip_script_validation [Boolean, nil]
+        # No trailing +**+: the former +skip_fee_validation:+ and +skip_script_validation:+ keywords are no longer
+        # accepted by the service and raise +ArgumentError+ here.
+        #
+        # @param tx [#to_ef_hex, String] transaction object, Extended Format hex or binary Extended Format
+        # @param callback_url          [String, nil] overrides the constructor value
+        # @param callback_token        [String, nil] overrides the constructor value
+        # @param full_status_updates   [Boolean, nil] request a callback for every status change
         # @return [ProtocolResponse]
-        def call_broadcast(tx, callback_url: nil, callback_token: nil,
-                           full_status_updates: nil, skip_fee_validation: nil,
-                           skip_script_validation: nil, **)
-          hex  = BSV::Network::Util.resolve_tx_hex(tx)
-          body = JSON.generate(rawTx: hex)
+        # @raise [ArgumentError] if +tx+ is not in Extended Format; nothing is sent
+        def call_broadcast(tx, callback_url: nil, callback_token: nil, full_status_updates: nil)
+          body = JSON.generate(rawTx: BSV::Network::Util.resolve_ef_hex(tx))
 
           extra_headers = build_broadcast_headers(
             callback_url: callback_url || @callback_url,
             callback_token: callback_token || @callback_token,
-            full_status_updates: full_status_updates,
-            skip_fee_validation: skip_fee_validation,
-            skip_script_validation: skip_script_validation
+            full_status_updates: full_status_updates
           )
 
-          path     = self.class.endpoints[:broadcast][:path]
-          uri      = URI("#{@base_url}#{path}")
-          request  = build_request(:post, uri, body)
+          uri     = URI("#{@base_url}#{self.class.endpoints[:broadcast][:path]}")
+          request = build_request(:post, uri, body)
           extra_headers.each { |k, v| request[k] = v }
-          response = execute(uri, request)
 
-          parse_broadcast_response(response)
+          parse_broadcast_response(execute(uri, request))
         end
 
-        # get_tx_status: pass-through to default_call plus rejection check.
+        # Fetches a transaction's status, reporting rejected statuses and malformed bodies as failed responses.
         #
         # @param txid [String] display-order hex transaction ID
         # @return [ProtocolResponse]
-        def call_get_tx_status(txid, **)
+        # @raise [ArgumentError] if +txid+ is not 64-char display-order hex
+        def call_get_tx_status(txid)
+          BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'txid')
           response = default_call(:get_tx_status, txid)
-          return response unless response.http_success?
+          return response if response.code.nil?
+          return response.with(error_message: status_error_message(response)) unless response.http_success?
 
-          body = response.data
-          return response unless body.is_a?(Hash)
-
-          if rejected_status?(body)
-            return response.with(
-              http_success: false,
-              error_message: body['txStatus'] || 'REJECTED'
-            )
-          end
-
-          response
+          validate_accepted_body(response)
         end
 
-        def build_broadcast_headers(callback_url:, callback_token:, full_status_updates:,
-                                    skip_fee_validation:, skip_script_validation:)
+        def build_broadcast_headers(callback_url:, callback_token:, full_status_updates:)
           headers = {}
-          headers['X-CallbackUrl']          = callback_url    if callback_url
-          headers['X-CallbackToken']        = callback_token  if callback_token
-          headers['X-FullStatusUpdates']    = 'true'          if full_status_updates
-          headers['X-SkipFeeValidation']    = 'true'          if skip_fee_validation
-          headers['X-SkipScriptValidation'] = 'true'          if skip_script_validation
+          headers['X-CallbackUrl']       = callback_url   if callback_url
+          headers['X-CallbackToken']     = callback_token if callback_token
+          headers['X-FullStatusUpdates'] = 'true'         if full_status_updates
           headers
         end
 
         def parse_broadcast_response(response)
           code = response.code.to_i
+          body = parse_json_object(response.body)
 
-          if code == 503
-            retry_after = response['Retry-After']
-            msg = retry_after ? "Arcade backpressure; retry after #{retry_after}s" : 'Arcade backpressure'
-            return ProtocolResponse.new(response, http_success: false, error_message: msg)
-          end
+          return backpressure_response(response, code, body) if [429, 503].include?(code)
 
           unless (200..299).cover?(code)
-            body = BSV::Network::Util.safe_parse_json(response.body)
-            return ProtocolResponse.new(
-              response,
-              http_success: false,
-              error_message: body.is_a?(Hash) ? (body['reason'] || body['detail'] || "HTTP #{code}") : "HTTP #{code}",
-              data: body.is_a?(Hash) ? body : nil
-            )
+            return ProtocolResponse.new(response, http_success: false,
+                                                  error_message: http_error_message(code, body), data: body)
           end
 
-          body = BSV::Network::Util.safe_parse_json(response.body)
-
-          unless body.is_a?(Hash)
-            return ProtocolResponse.new(
-              response,
-              http_success: false,
-              error_message: 'Arcade returned a malformed 2xx response'
-            )
-          end
-
-          status = body['status']
-          unless status
-            return ProtocolResponse.new(
-              response,
-              http_success: false,
-              error_message: 'Arcade returned a malformed 2xx response'
-            )
-          end
-
-          ProtocolResponse.new(response, data: body)
+          validate_accepted_body(ProtocolResponse.new(response, data: body))
         end
 
-        def rejected_status?(body)
-          tx_status = body['txStatus'].to_s.upcase
-          REJECTED_STATUSES.include?(tx_status)
+        def backpressure_response(response, code, body)
+          message = code == 503 ? 'BSV Broadcaster backpressure (HTTP 503)' : 'BSV Broadcaster rate limit (HTTP 429)'
+          retry_after = response['Retry-After'].to_s.strip
+          message += "; retry after #{retry_after}s" if retry_after.match?(RETRY_AFTER_SECONDS)
+          ProtocolResponse.new(response, http_success: false, error_message: message, data: body)
+        end
+
+        # Non-2xx bodies are +{error, reason}+ objects; anything else (an HTML error page, say) is never echoed.
+        def http_error_message(code, body)
+          return "HTTP #{code}" unless body
+
+          service_text(body['error'], body['reason']) || service_text(body['detail']) ||
+            service_text(body['title']) || "HTTP #{code}"
+        end
+
+        # Applies the checks shared by broadcast and status 2xx responses: an object with a txid, then rejection.
+        #
+        # ARC's +extraInfo+ orphan heuristic is deliberately not applied. The Broadcaster writes free-text upstream
+        # errors into +extraInfo+ on retryable +PENDING_RETRY+ rows and uses reorg wording on +MINED+ rows, so
+        # matching on it would report accepted transactions as rejected.
+        def validate_accepted_body(response)
+          body = response.data
+          unless body.is_a?(Hash) && valid_txid?(body['txid'])
+            return response.with(http_success: false, data: nil,
+                                 error_message: 'BSV Broadcaster returned a malformed 2xx response')
+          end
+
+          return response unless ARC.rejected_tx_status?(body['txStatus'])
+
+          response.with(http_success: false, error_message: ARC.rejection_message(body))
+        end
+
+        def status_error_message(response)
+          http_error_message(response.code, parse_json_object(response.body))
+        end
+
+        def service_text(*parts)
+          texts = parts.filter_map { |part| BSV::Network::Util.service_text(part) }
+          texts.join(': ') unless texts.empty?
+        end
+
+        def valid_txid?(txid)
+          txid.is_a?(String) && txid.match?(/\A\h{64}\z/)
+        end
+
+        def parse_json_object(raw)
+          body = JSON.parse(raw.to_s)
+          body.is_a?(Hash) ? body : nil
+        rescue JSON::ParserError, EncodingError
+          nil
         end
       end
     end

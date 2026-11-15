@@ -56,12 +56,12 @@ RSpec.describe 'BSV::Network::Protocols integration' do
     describe 'Arcade' do
       subject(:commands) { BSV::Network::Protocols::Arcade.commands }
 
-      it 'has 3 commands' do
-        expect(commands.size).to eq(3)
+      it 'has 4 commands' do
+        expect(commands.size).to eq(4)
       end
 
       it 'includes exactly the expected commands' do
-        expect(commands).to eq(Set.new(%i[broadcast get_tx_status health]))
+        expect(commands).to eq(Set.new(%i[broadcast get_tx_status get_policy health]))
       end
 
       it 'has no duplicate command names' do
