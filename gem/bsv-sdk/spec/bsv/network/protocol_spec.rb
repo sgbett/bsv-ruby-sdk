@@ -702,6 +702,14 @@ RSpec.describe 'BSV::Network::Protocol' do
       expect(message).to start_with('transport error: EOFError: EOFError')
     end
 
+    it 'logs only the error class, never server bytes from the message' do
+      output = StringIO.new
+      allow(BSV).to receive(:logger).and_return(Logger.new(output, level: Logger::DEBUG))
+      build_with_error(Net::HTTPBadResponse.new('wrong status line: Bearer SEKRET')).call(:hatch)
+      expect(output.string).to include('[Protocol] transport error: Net::HTTPBadResponse')
+      expect(output.string).not_to include('SEKRET')
+    end
+
     it 'lets ArgumentError from an escape hatch propagate' do
       instance = build_with_error(EOFError.new)
       expect { instance.call(:invalid) }.to raise_error(ArgumentError, 'bad input')

@@ -258,9 +258,10 @@ module BSV
       def rescuing_transport_errors
         yield
       rescue *TRANSPORT_ERRORS => e
-        message = transport_error_message(e)
-        BSV.logger&.debug { "[Protocol] #{message}" }
-        ProtocolResponse.new(nil, http_success: false, error_message: message)
+        # Only the class is logged: a parser error's message carries server
+        # bytes, which a hostile server could use to reflect request headers.
+        BSV.logger&.debug { "[Protocol] transport error: #{e.class}" }
+        ProtocolResponse.new(nil, http_success: false, error_message: transport_error_message(e))
       end
 
       # The error text is sanitised because +Net::HTTPBadResponse+ and similar
