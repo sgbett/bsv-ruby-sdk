@@ -19,8 +19,8 @@ module BSV
       # - ARC at +https://testnet.arc.gorillapool.io+
       # - JungleBus at +https://testnet.junglebus.gorillapool.io+
       #
-      # Any credentials supplied are forwarded to every protocol, so all three
-      # GorillaPool hosts receive the caller's key.
+      # Any credentials supplied are forwarded to every protocol, so every
+      # GorillaPool host the provider composes receives the caller's key.
       #
       # == Example
       #

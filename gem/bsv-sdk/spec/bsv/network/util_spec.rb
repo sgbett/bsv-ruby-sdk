@@ -104,6 +104,11 @@ RSpec.describe BSV::Network::Util do
       expect(described_class.resolve_ef_hex(binary)).to eq("#{ef_hex}0a")
     end
 
+    it 'rejects nil and objects that are not transactions with ArgumentError' do
+      expect { described_class.resolve_ef_hex(nil) }.to raise_error(ArgumentError, /to_ef_hex.*NilClass/)
+      expect { described_class.resolve_ef_hex(Object.new) }.to raise_error(ArgumentError, /Object/)
+    end
+
     it 'rejects an empty string' do
       expect { described_class.resolve_ef_hex('') }.to raise_error(ArgumentError, /empty/)
     end
@@ -137,6 +142,26 @@ RSpec.describe BSV::Network::Util do
 
     it 'replaces control characters and ANSI escapes with spaces' do
       expect(described_class.service_text("bad\e[31m red\x00\r\nline")).to eq('bad [31m red line')
+    end
+
+    {
+      'U+202E bidi override' => "a\u202Eb",
+      'U+200B zero-width space' => "a\u200Bb",
+      'U+FEFF byte order mark' => "a\uFEFFb",
+      'U+2028 line separator' => "a\u2028b",
+      'U+2029 paragraph separator' => "a\u2029b"
+    }.each do |label, input|
+      it "replaces #{label} with a space" do
+        expect(described_class.service_text(input)).to eq('a b')
+      end
+    end
+
+    it 'keeps ordinary non-ASCII text' do
+      expect(described_class.service_text("caf\u00E9 \u65E5\u672C")).to eq("caf\u00E9 \u65E5\u672C")
+    end
+
+    it 'handles inputs far larger than the limit' do
+      expect(described_class.service_text('é' * 100_000).length).to eq(8000)
     end
 
     it 'truncates to the limit' do

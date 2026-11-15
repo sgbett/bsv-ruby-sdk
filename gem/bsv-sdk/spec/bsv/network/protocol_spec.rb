@@ -18,6 +18,8 @@ class ProtocolSpecFakeHttpClient
   end
 end
 
+require 'logger'
+
 RSpec.describe 'BSV::Network::Protocol' do
   let(:base_protocol) do
     Class.new(BSV::Network::Protocol) do
@@ -256,6 +258,17 @@ RSpec.describe 'BSV::Network::Protocol' do
       instance = test_protocol_class.new(base_url: 'https://api.example.com', http_client: http)
       instance.default_call(:get_tx, 'abc123')
       expect(http.last_uri.to_s).to eq('https://api.example.com/v1/tx/abc123')
+    end
+
+    it 'logs the origin and path of the request, never userinfo or query' do
+      output = StringIO.new
+      logger = Logger.new(output, level: Logger::DEBUG, formatter: ->(_severity, _time, _prog, msg) { "#{msg}\n" })
+      allow(BSV).to receive(:logger).and_return(logger)
+      http     = ProtocolSpecFakeHttpClient.new(ok_response)
+      instance = test_protocol_class.new(base_url: 'https://user:secret@api.example.com/base?token=abc', http_client: http)
+      instance.default_call(:get_tx, 'abc123')
+      expect(output.string.lines.map(&:chomp)).to include('[Protocol] GET https://api.example.com/v1/tx/abc123')
+      expect(output.string).not_to match(/secret|token/)
     end
 
     it 'interpolates multiple positional args in template order' do
@@ -640,13 +653,44 @@ RSpec.describe 'BSV::Network::Protocol' do
 
         it 'flags whether the request may have reached the service' do
           message = build_with_error(error).call(:get_raw).error_message
-          if error.is_a?(Net::ReadTimeout) || error.is_a?(Net::WriteTimeout)
-            expect(message).to end_with('(the request may have reached the service)')
-          else
+          not_sent = [SocketError, Net::OpenTimeout, Errno::ECONNREFUSED].any? { |klass| error.is_a?(klass) }
+          if not_sent
             expect(message).not_to include('may have reached')
+          else
+            expect(message).to end_with('(the request may have reached the service)')
           end
         end
       end
+    end
+
+    [
+      Errno::EHOSTUNREACH.new,
+      Errno::ENETUNREACH.new,
+      Net::HTTPBadResponse.new('wrong status line'),
+      Net::HTTPHeaderSyntaxError.new('bad header'),
+      Errno::ETIMEDOUT.new
+    ].each do |error|
+      it "treats #{error.class} by the not-sent rule" do
+        message = build_with_error(error).call(:get_raw).error_message
+        if [Errno::EHOSTUNREACH, Errno::ENETUNREACH].include?(error.class)
+          expect(message).not_to include('may have reached')
+        else
+          expect(message).to end_with('(the request may have reached the service)')
+        end
+      end
+    end
+
+    it 'strips control characters from the transport error text' do
+      error = Net::HTTPBadResponse.new("wrong chunk size line: \e[K\r[WRN] x")
+      message = build_with_error(error).call(:get_raw).error_message
+      expect(message).to eq('transport error: Net::HTTPBadResponse: wrong chunk size line: [K [WRN] x ' \
+                            '(the request may have reached the service)')
+      expect(message).not_to match(/[[:cntrl:]]/)
+    end
+
+    it 'falls back to the class name when the error text is blank' do
+      message = build_with_error(EOFError.new("\r\n")).call(:get_raw).error_message
+      expect(message).to start_with('transport error: EOFError: EOFError')
     end
 
     it 'lets ArgumentError from an escape hatch propagate' do

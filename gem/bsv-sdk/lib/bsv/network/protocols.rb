@@ -3,8 +3,8 @@
 module BSV
   module Network
     # Protocols is a namespace module for concrete Protocol subclasses.
-    # Each class maps a service's commands to HTTP endpoints: ARC, Arcade (the
-    # BSV Broadcaster protocol, formerly Arcade), Chaintracks, JungleBus, Ordinals,
+    # Each class maps a service's commands to HTTP endpoints: ARC, Arcade
+    # (BSV Broadcaster, formerly named Arcade), Chaintracks, JungleBus, Ordinals,
     # TAALBinary, and WoCREST.
     module Protocols
       autoload :ARC,         'bsv/network/protocols/arc'

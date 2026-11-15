@@ -51,6 +51,11 @@ module BSV
       # Longest service-supplied string kept in an error message (py-sdk uses the same bound).
       SERVICE_TEXT_LIMIT = 8000
 
+      # Control (Cc), format (Cf, e.g. bidi overrides and zero-width characters)
+      # and line/paragraph separator (Zl, Zp) characters, which can reorder or
+      # hide text in a terminal or log.
+      UNSAFE_TEXT = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/
+
       # Smallest possible Extended Format transaction: version, marker, two
       # zero counts and lock time.
       EF_MIN_BYTES = 16
@@ -68,9 +73,14 @@ module BSV
       #
       # @param tx [String, #to_ef_hex] transaction object, hex string or binary string
       # @return [String] Extended Format hex (surrounding whitespace trimmed for hex input)
-      # @raise [ArgumentError] if the input is empty, cannot be serialised as
-      #   Extended Format, or is not in Extended Format
+      # @raise [ArgumentError] if the input is neither a String nor a
+      #   transaction, is empty, cannot be serialised as Extended Format, or is
+      #   not in Extended Format
       def self.resolve_ef_hex(tx)
+        unless tx.is_a?(String) || tx.respond_to?(:to_ef_hex)
+          raise ArgumentError, "expected a transaction (responding to to_ef_hex) or a String, got #{tx.class}"
+        end
+
         hex = tx.is_a?(String) ? string_to_hex(tx) : transaction_to_ef_hex(tx)
         return hex if extended_format_hex?(hex)
 
@@ -86,8 +96,10 @@ module BSV
       def self.service_text(value)
         return unless value.is_a?(String)
 
-        text = value.dup.force_encoding(Encoding::UTF_8).scrub(' ')
-        text = text.gsub(/[[:cntrl:]]/, ' ').squeeze(' ').strip
+        # Bounded before scrubbing so a huge input costs bounded work; four bytes
+        # per character is the UTF-8 maximum.
+        text = value.byteslice(0, SERVICE_TEXT_LIMIT * 4).force_encoding(Encoding::UTF_8).scrub(' ')
+        text = text.gsub(UNSAFE_TEXT, ' ').squeeze(' ').strip
         text = text[0, SERVICE_TEXT_LIMIT]
         text.empty? ? nil : text
       end

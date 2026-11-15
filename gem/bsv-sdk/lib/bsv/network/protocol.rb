@@ -119,6 +119,16 @@ module BSV
         Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError
       ].freeze
 
+      # Failures that can only happen before any request bytes are sent. Every
+      # other transport failure (a reset, a broken pipe, EOF, a malformed reply,
+      # a mid-stream TLS error, a read or write timeout) may arrive after the
+      # service has received the request, so the default is to say the outcome
+      # is unknown: that matters to callers that submit data, and wrongly
+      # claiming "not delivered" is the costlier mistake.
+      NOT_SENT_ERRORS = [
+        SocketError, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ENETUNREACH
+      ].freeze
+
       attr_reader :base_url, :api_key, :auth, :network
 
       # An injected client replaces +Net::HTTP+ entirely, so it is also the way to
@@ -204,7 +214,7 @@ module BSV
         uri        = URI("#{@base_url}#{path}")
         request    = build_request(defn[:method], uri, body)
 
-        BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{uri}" }
+        BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{origin}#{path}" }
 
         rescuing_transport_errors { build_response(execute(uri, request), defn[:response]) }
       end
@@ -248,15 +258,17 @@ module BSV
       def rescuing_transport_errors
         yield
       rescue *TRANSPORT_ERRORS => e
-        BSV.logger&.debug { "[Protocol] transport error: #{e.class}: #{e.message}" }
-        ProtocolResponse.new(nil, http_success: false, error_message: transport_error_message(e))
+        message = transport_error_message(e)
+        BSV.logger&.debug { "[Protocol] #{message}" }
+        ProtocolResponse.new(nil, http_success: false, error_message: message)
       end
 
-      # A read or write timeout leaves the outcome unknown, which matters to
-      # callers that submit data.
+      # The error text is sanitised because +Net::HTTPBadResponse+ and similar
+      # embed raw bytes from the server.
       def transport_error_message(error)
-        message = "transport error: #{error.class}: #{error.message}"
-        return message unless error.is_a?(Net::ReadTimeout) || error.is_a?(Net::WriteTimeout)
+        text = BSV::Network::Util.service_text(error.message) || error.class.name
+        message = "transport error: #{error.class}: #{text}"
+        return message if NOT_SENT_ERRORS.any? { |klass| error.is_a?(klass) }
 
         "#{message} (the request may have reached the service)"
       end
