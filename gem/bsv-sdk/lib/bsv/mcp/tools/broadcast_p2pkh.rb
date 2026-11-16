@@ -149,32 +149,45 @@ module BSV
         end
 
         # Inspect a 2xx broadcast reply for signs that the transaction was not
-        # accepted. The Arcade parser only rejects +REJECTED+, so the wider ARC
-        # rejection set is checked here too.
+        # accepted. The broadcaster's own parser already fails a rejected reply;
+        # this backstop applies the same rule, so a broadcaster with a laxer
+        # parser can never report a rejection as a success.
+        #
+        # Service strings may be invalid UTF-8 (the JSON parser admits it, and
+        # +upcase+, +downcase+ and +match?+ raise on it), so a txid is compared
+        # only when validly encoded and the status goes through +service_text+.
+        # The txid must also be 64 hex characters before +casecmp?+, whose
+        # Unicode case folding would let a ligature such as U+FB00 match "ff".
         #
         # @return [String, nil] a description of the problem, or nil
         # @api private
         def self.broadcast_problem(data, computed_txid)
-          tx_status = data['txStatus'].to_s.upcase
-          orphan_marker = BSV::Network::Protocols::ARC::ORPHAN_MARKER
-          rejected = BSV::Network::Protocols::ARC::REJECTED_STATUSES.include?(tx_status) ||
-                     tx_status.include?(orphan_marker) ||
-                     data['extraInfo'].to_s.upcase.include?(orphan_marker)
-          return "Broadcast rejected: transaction status #{tx_status}" if rejected
+          if BSV::Network::Protocols::ARC.rejected?(data)
+            status = BSV::Network::Util.service_text(data['txStatus'])&.upcase || 'REJECTED'
+            return "Broadcast rejected: transaction status #{status}"
+          end
 
           reported = data['txid']
-          return if reported.nil? || reported.to_s.downcase == computed_txid
+          return if reported.nil?
+          return if reported_txid?(reported, computed_txid)
 
           'Broadcast service reported a different txid from the one computed for this transaction'
         end
         private_class_method :broadcast_problem
+
+        # @api private
+        def self.reported_txid?(reported, computed_txid)
+          reported.is_a?(String) && reported.valid_encoding? && reported.match?(/\A\h{64}\z/) &&
+            reported.casecmp?(computed_txid)
+        end
+        private_class_method :reported_txid?
 
         # The service-controlled status is returned only when it is a plain
         # token such as SEEN_ON_NETWORK, and never with the key or URL in it.
         # @return [String, nil]
         # @api private
         def self.reportable_status(tx_status, server_context)
-          return unless tx_status.is_a?(String) && tx_status.match?(/\A[A-Z_]+\z/i)
+          return unless tx_status.is_a?(String) && tx_status.valid_encoding? && tx_status.match?(/\A[A-Z_]+\z/i)
 
           scrubbed = Helpers.scrub(tx_status, server_context)
           scrubbed unless scrubbed.include?(Secret::REDACTED)

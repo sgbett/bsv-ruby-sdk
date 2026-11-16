@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'logger'
+require 'stringio'
 
 RSpec.describe BSV::Network::ProtocolResponse do
   let(:ok_response)         { fake_http_response(200, '{"txid":"abc"}', content_type: 'application/json') }
@@ -185,6 +187,14 @@ RSpec.describe BSV::Network::ProtocolResponse do
     it 'returns a frozen instance' do
       derived = original.with(data: 'new')
       expect(derived).to be_frozen
+    end
+
+    it 'logs only the overridden keys, never their values' do
+      output = StringIO.new
+      allow(BSV).to receive(:logger).and_return(Logger.new(output, level: Logger::DEBUG))
+      original.with(http_success: false, error_message: 'Bearer SEKRET rejected')
+      expect(output.string).to include('[ProtocolResponse] with(http_success error_message)')
+      expect(output.string).not_to include('SEKRET')
     end
   end
 

@@ -8,9 +8,9 @@ parent: Protocol Reference
 
 # Arcade
 
-Arcade protocol implementation for submitting transactions to the BSV network.
+BSV Broadcaster (formerly Arcade) client for submitting Extended Format transactions and tracking their status.
 
-**External docs:** [Arcade repository](https://github.com/bsv-blockchain/arcade)
+**External docs:** [BSV Broadcaster repository](https://github.com/bsv-blockchain/broadcaster)
 
 ## Commands
 
@@ -18,6 +18,7 @@ Arcade protocol implementation for submitting transactions to the BSV network.
 |---------|--------|------|----------|--------------|
 | `broadcast` | POST | `/tx` | :json | yes |
 | `get_tx_status` | GET | `/tx/{txid}` | :json | yes |
+| `get_policy` | GET | `/policy` | :json |  |
 | `health` | GET | `/health` | :json |  |
 
 ## Escape Hatches
@@ -26,9 +27,9 @@ These commands use custom dispatch logic rather than the default HTTP template.
 
 ### `broadcast`
 
-Broadcast escape hatch: Arcade-specific headers and response shape.
+Submits an Extended Format transaction, reporting backpressure, validation failures and rejections as failed responses.
 
 ### `get_tx_status`
 
-get_tx_status: pass-through to default_call plus rejection check.
+Fetches a transaction's status, reporting rejected statuses, malformed bodies and replies naming a different transaction as failed responses.
 

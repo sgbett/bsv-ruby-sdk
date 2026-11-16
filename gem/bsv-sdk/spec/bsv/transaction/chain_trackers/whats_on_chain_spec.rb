@@ -80,6 +80,24 @@ RSpec.describe BSV::Transaction::ChainTrackers::WhatsOnChain do
         expect(req['Authorization']).to eq('my-key')
       end
     end
+
+    it 'sends no Authorization header without an API key' do
+      allow(http_client).to receive(:request).and_return(mock_response(200, header_json))
+
+      tracker.valid_root_for_height?(merkle_root, 0)
+
+      expect(http_client).to have_received(:request) { |_uri, req| expect(req['Authorization']).to be_nil }
+    end
+
+    it 'no longer defines RawAuthClient' do
+      expect(described_class.const_defined?(:RawAuthClient, false)).to be false
+    end
+
+    it 'does not show the API key when inspected' do
+      keyed_tracker = described_class.new(api_key: 'SEKRET', http_client: http_client)
+
+      expect(keyed_tracker.inspect).not_to include('SEKRET')
+    end
   end
 
   describe '#current_height' do

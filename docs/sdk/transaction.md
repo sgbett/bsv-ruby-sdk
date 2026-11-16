@@ -182,11 +182,12 @@ model = BSV::Transaction::FeeModels::SatoshisPerKilobyte.new(value: 50)
 fee   = model.compute_fee(tx)  #=> Integer (satoshis)
 ```
 
-**`FeeModels::LivePolicy`** — fetches the current mining fee rate from an ARC `/v1/policy` endpoint. The fetched rate is cached for a configurable TTL (default `300` seconds) so repeated calls to `compute_fee` do not repeatedly query the API. On fetch failure the model falls back to the last cached rate, or to `fallback_rate` if nothing has been cached yet:
+**`FeeModels::LivePolicy`** — fetches the current mining fee rate from an ARC `/v1/policy` endpoint through `Protocols::ARC#call(:get_policy)`. The fetched rate is cached for a configurable TTL (default `300` seconds) so repeated calls to `compute_fee` do not repeatedly query the API. On fetch failure the model falls back to the last cached rate, or to `fallback_rate` if nothing has been cached yet:
 
 ```ruby
 model = BSV::Transaction::FeeModels::LivePolicy.new(
   arc_url:      'https://arc.taal.com',
+  api_key:      ENV['TAAL_KEY'],   # optional Bearer token for the endpoint
   fallback_rate: 100,       # sat/kB used when fetch fails and no cached rate
   cache_ttl:     60         # override the default 300-second TTL
 )
@@ -195,7 +196,7 @@ fee = model.compute_fee(tx)
 BSV::Transaction::FeeModels::LivePolicy::DEFAULT_CACHE_TTL  #=> 300
 ```
 
-`LivePolicy.default` returns a policy backed by TAAL's public ARC instance with a 100 sat/kB fallback. Pass `api_key:` for authenticated access.
+`LivePolicy.default` returns a policy backed by GorillaPool's public ARC instance (`https://arc.gorillapool.io/v1/policy`, which needs no credentials) with a 100 sat/kB fallback, as the TypeScript SDK's does. It takes no arguments: use `LivePolicy.new(arc_url:, api_key:)` for another endpoint. A policy that fails validation (no usable mining fee rate, or an out-of-range one) is treated like a failed fetch and falls back. Each instance has its own cache and `LivePolicy.default` builds a new instance on every call, so build one and reuse it rather than calling `.default` per transaction.
 
 Custom fee models implement one method: `compute_fee(transaction) -> Integer`.
 

@@ -47,6 +47,94 @@ module BSV
           tx.to_hex
         end
       end
+
+      # Longest service-supplied string kept in an error message (py-sdk uses the same bound).
+      SERVICE_TEXT_LIMIT = 8000
+
+      # Control (Cc), format (Cf, e.g. bidi overrides and zero-width characters)
+      # and line/paragraph separator (Zl, Zp) characters, which can reorder or
+      # hide text in a terminal or log.
+      UNSAFE_TEXT = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/
+
+      # Smallest possible Extended Format transaction: version, marker, two
+      # zero counts and lock time.
+      EF_MIN_BYTES = 16
+
+      EF_MARKER_HEX = BSV::Transaction::Tx::EF_MARKER.unpack1('H*').freeze
+
+      # Coerce a transaction input to Extended Format (BRC-30) hex, with no
+      # fallback to plain serialisation.
+      #
+      # A String is taken as hex when it is (after trimming surrounding
+      # whitespace) non-empty, even-length hex; otherwise it is treated as
+      # binary and never trimmed, because its last bytes may legitimately be
+      # 0x20 or 0x0a. Plain transactions and BEEF are rejected: the services
+      # that need Extended Format refuse them.
+      #
+      # @param tx [String, #to_ef_hex] transaction object, hex string or binary string
+      # @return [String] Extended Format hex (surrounding whitespace trimmed for hex input)
+      # @raise [ArgumentError] if the input is neither a String nor a
+      #   transaction, is empty, cannot be serialised as Extended Format, or is
+      #   not in Extended Format
+      def self.resolve_ef_hex(tx)
+        unless tx.is_a?(String) || tx.respond_to?(:to_ef_hex)
+          raise ArgumentError, "expected a transaction (responding to to_ef_hex) or a String, got #{tx.class}"
+        end
+
+        hex = tx.is_a?(String) ? string_to_hex(tx) : transaction_to_ef_hex(tx)
+        return hex if extended_format_hex?(hex)
+
+        raise ArgumentError, 'Extended Format (BRC-30) transaction required; got a plain transaction or BEEF'
+      end
+
+      # Reduce a string from a remote service to bounded, printable text for
+      # use in error messages. The input may be binary or invalid UTF-8.
+      #
+      # @param value [Object] candidate text
+      # @return [String, nil] cleaned text, or nil unless +value+ is a String
+      #   with printable content
+      def self.service_text(value)
+        return unless value.is_a?(String)
+
+        # Bounded before scrubbing so a huge input costs bounded work; four bytes
+        # per character is the UTF-8 maximum.
+        text = value.byteslice(0, SERVICE_TEXT_LIMIT * 4).force_encoding(Encoding::UTF_8).scrub(' ')
+        text = text.gsub(UNSAFE_TEXT, ' ').squeeze(' ').strip
+        text = text[0, SERVICE_TEXT_LIMIT]
+        text.empty? ? nil : text
+      end
+
+      def self.string_to_hex(tx)
+        raise ArgumentError, 'tx cannot be empty — refusing to construct an empty broadcast' if tx.empty?
+
+        # Inspect the bytes: a binary transaction tagged UTF-8 is not valid UTF-8,
+        # and matching a regex against it would raise.
+        bytes = tx.b
+        trimmed = bytes.strip
+        return trimmed.force_encoding(Encoding::US_ASCII) if even_length_hex?(trimmed)
+
+        bytes.unpack1('H*')
+      end
+      private_class_method :string_to_hex
+
+      def self.even_length_hex?(text)
+        !text.empty? && text.length.even? && text.match?(/\A[0-9a-fA-F]+\z/)
+      end
+      private_class_method :even_length_hex?
+
+      def self.transaction_to_ef_hex(tx)
+        tx.to_ef_hex
+      rescue ArgumentError => e
+        raise ArgumentError, "Extended Format required: #{e.message}"
+      end
+      private_class_method :transaction_to_ef_hex
+
+      # A 10-byte plain transaction with no inputs or outputs and lock time
+      # 0xEF000000 also carries the marker at offset 4, so length matters.
+      def self.extended_format_hex?(hex)
+        hex.length >= EF_MIN_BYTES * 2 && hex[8, 12].casecmp?(EF_MARKER_HEX)
+      end
+      private_class_method :extended_format_hex?
     end
   end
 end

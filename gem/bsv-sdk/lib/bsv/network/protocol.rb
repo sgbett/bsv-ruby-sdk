@@ -103,7 +103,37 @@ module BSV
       @endpoints     = {}
       @subscriptions = {}
 
-      attr_reader :base_url, :api_key, :auth, :network, :http_client
+      # Seconds. These bound individual socket operations, not the whole request:
+      # +open_timeout+ applies separately to the TCP connect and the TLS handshake,
+      # and +read_timeout+ to each socket read, so a slow but steadily trickling
+      # response can outlast them.
+      OPEN_TIMEOUT  = 10
+      READ_TIMEOUT  = 30
+      WRITE_TIMEOUT = 30
+
+      # Failures of the transport itself, as opposed to the service or the caller.
+      # +Timeout::Error+ covers the Net::*Timeout classes, +IOError+ covers
+      # +EOFError+ and +SystemCallError+ covers every +Errno::*+.
+      TRANSPORT_ERRORS = [
+        Timeout::Error, IOError, SystemCallError, SocketError, OpenSSL::SSL::SSLError,
+        Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError
+      ].freeze
+
+      # Failures that can only happen before any request bytes are sent. Every
+      # other transport failure (a reset, a broken pipe, EOF, a malformed reply,
+      # a mid-stream TLS error, a read or write timeout) may arrive after the
+      # service has received the request, so the default is to say the outcome
+      # is unknown: that matters to callers that submit data, and wrongly
+      # claiming "not delivered" is the costlier mistake. EHOSTUNREACH and
+      # ENETUNREACH are left out because they can surface on a connection that
+      # is already open.
+      NOT_SENT_ERRORS = [SocketError, Net::OpenTimeout, Errno::ECONNREFUSED].freeze
+
+      attr_reader :base_url, :api_key, :auth, :network
+
+      # An injected client replaces +Net::HTTP+ entirely, so it is also the way to
+      # customise timeouts or other transport behaviour.
+      attr_reader :http_client
 
       # @param base_url    [String] base URL, may contain +{network}+ placeholder
       # @param api_key     [String, nil] legacy API key — sends +Authorization: Bearer <key>+
@@ -131,6 +161,9 @@ module BSV
       #
       # Subscriptions are not callable; calling one raises +NotImplementedError+.
       #
+      # Transport failures (see +TRANSPORT_ERRORS+) never raise: they come back as
+      # a failed +ProtocolResponse+.
+      #
       # @param command_name [Symbol, String] command to invoke
       # @param *      [Array]  positional arguments forwarded to path interpolation
       # @param kwargs [Hash]   keyword arguments forwarded to path interpolation
@@ -147,7 +180,7 @@ module BSV
         escape = :"call_#{name}"
         if respond_to?(escape, true)
           BSV.logger&.debug { "[Protocol] #{self.class.name} :#{name} → escape hatch" }
-          return kwargs.empty? ? send(escape, *) : send(escape, *, **kwargs)
+          return rescuing_transport_errors { kwargs.empty? ? send(escape, *) : send(escape, *, **kwargs) }
         end
 
         default_call(name, *, **kwargs)
@@ -161,6 +194,9 @@ module BSV
       #
       # POST body is taken from +kwargs.delete(:body)+ (removed before path
       # interpolation).
+      #
+      # Transport failures (see +TRANSPORT_ERRORS+) are returned as a failed
+      # +ProtocolResponse+ rather than raised.
       #
       # @param command_name [Symbol] registered command name
       # @param args   [Array]  positional path parameters
@@ -178,24 +214,65 @@ module BSV
         uri        = URI("#{@base_url}#{path}")
         request    = build_request(defn[:method], uri, body)
 
-        BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{uri}" }
+        BSV.logger&.debug { "[Protocol] #{defn[:method].upcase} #{origin}#{path}" }
 
-        begin
-          response = execute(uri, request)
-        rescue SocketError, Errno::ECONNREFUSED, Errno::ETIMEDOUT,
-               Errno::EHOSTUNREACH, Errno::ENETUNREACH,
-               Net::OpenTimeout, Net::ReadTimeout,
-               Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError,
-               OpenSSL::SSL::SSLError => e
-          BSV.logger&.debug { "[Protocol] transport error: #{e.class}: #{e.message}" }
-          return ProtocolResponse.new(nil, http_success: false,
-                                           error_message: "transport error: #{e.class}: #{e.message}")
-        end
-
-        build_response(response, defn[:response])
+        rescuing_transport_errors { build_response(execute(uri, request), defn[:response]) }
       end
 
+      # Whether a credential is configured, via +auth:+ or the legacy +api_key:+.
+      #
+      # @return [Boolean]
+      def authenticated?
+        return true if @auth != :none
+
+        !@api_key.to_s.empty?
+      end
+
+      # Describes the protocol without exposing credentials. Built from an
+      # allow-list (class, origin, auth status) because the path and query of a
+      # base URL, and subclass state such as callback tokens, can carry secrets.
+      #
+      # @return [String]
+      def to_s
+        "#<#{self.class} origin=#{origin.inspect} auth=#{authenticated? ? 'authenticated' : 'unauthenticated'}>"
+      end
+      alias inspect to_s
+
       private
+
+      # Scheme, host and non-default port of the base URL; never userinfo, path
+      # or query.
+      def origin
+        uri = URI.parse(@base_url)
+        return '(unparseable)' unless uri.scheme && uri.host
+
+        port = uri.port == uri.default_port ? '' : ":#{uri.port}"
+        "#{uri.scheme}://#{uri.host}#{port}"
+      rescue URI::InvalidURIError
+        '(unparseable)'
+      end
+
+      # Converts transport failures raised by the block into a failed
+      # +ProtocolResponse+. +ArgumentError+ and other caller or programmer errors
+      # are not in +TRANSPORT_ERRORS+ and propagate.
+      def rescuing_transport_errors
+        yield
+      rescue *TRANSPORT_ERRORS => e
+        # Only the class is logged: a parser error's message carries server
+        # bytes, which a hostile server could use to reflect request headers.
+        BSV.logger&.debug { "[Protocol] transport error: #{e.class}" }
+        ProtocolResponse.new(nil, http_success: false, error_message: transport_error_message(e))
+      end
+
+      # The error text is sanitised because +Net::HTTPBadResponse+ and similar
+      # embed raw bytes from the server.
+      def transport_error_message(error)
+        text = BSV::Network::Util.service_text(error.message) || error.class.name
+        message = "transport error: #{error.class}: #{text}"
+        return message if NOT_SENT_ERRORS.any? { |klass| error.is_a?(klass) }
+
+        "#{message} (the request may have reached the service)"
+      end
 
       # Resolves the final base URL by interpolating +{network}+ and stripping
       # any trailing slash.
@@ -321,7 +398,13 @@ module BSV
         if @http_client
           @http_client.request(uri, request)
         else
-          Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
+          # max_retries: 0 because Net::HTTP re-sends an idempotent request (GET) once
+          # after a read timeout, doubling the wait. That retry exists for stale
+          # keep-alive connections, which cannot occur here: every request opens a
+          # fresh connection.
+          Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https',
+                                                  open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT,
+                                                  write_timeout: WRITE_TIMEOUT, max_retries: 0) do |http|
             http.request(request)
           end
         end
@@ -352,10 +435,10 @@ module BSV
                    ProtocolResponse.new(response, error_message: response.body)
                  end
 
-        BSV.logger&.debug do
-          "[Protocol] HTTP #{response.code} → http_success=#{result.http_success?}" \
-            "#{" error=#{result.error_message[0, 80]}" if result.error_message}"
-        end
+        # The error text is not logged: it is the raw body, which a service may
+        # use to reflect request headers such as the API key, and which need
+        # not be valid UTF-8.
+        BSV.logger&.debug { "[Protocol] HTTP #{response.code} → http_success=#{result.http_success?}" }
 
         result
       end

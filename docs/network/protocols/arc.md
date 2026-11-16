@@ -36,5 +36,5 @@ Broadcast-many escape hatch: batch broadcast with raw JSON array result.
 
 ### `get_tx_status`
 
-Escape hatch for get_tx_status: checks for rejection status and missing txid (malformed 2xx). Returns raw JSON data (string keys).
+Escape hatch for get_tx_status: checks for rejection status, a missing or mismatched txid (malformed 2xx), and bounds the service text in failures. Returns raw JSON data (string keys).
 

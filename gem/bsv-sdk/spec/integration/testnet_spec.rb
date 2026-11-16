@@ -15,10 +15,6 @@ require 'spec_helper'
 # Each test group consumes a UTXO. Change returns to the same address,
 # so the wallet stays funded across runs.
 RSpec.describe 'Testnet integration', :testnet do
-  def arc_url
-    ENV.fetch('BSV_TESTNET_ARCADE_URL', 'https://testnet.arcade.gorillapool.io')
-  end
-
   def dust_limit
     546
   end
@@ -40,19 +36,26 @@ RSpec.describe 'Testnet integration', :testnet do
     skip "No UTXOs for #{@address} — fund via #{TestnetWallet::FAUCET_URL}" if @utxos.empty?
   end
 
-  let(:arc_protocol) do
-    BSV::Network::Protocols::Arcade.new(base_url: arc_url)
+  let(:broadcast_protocol) do
+    url = ENV.fetch('BSV_TESTNET_ARC_URL', nil)
+    next BSV::Network::Protocols::ARC.new(base_url: url) if url
+
+    BSV::Network::Providers::GorillaPool.default(testnet: true).protocol_for(:broadcast)
+  end
+
+  def rejected?(result)
+    BSV::Network::Protocols::ARC.rejected_tx_status?(result.data['txStatus'])
   end
 
   def arc_broadcast!(tx)
-    result = arc_protocol.call(:broadcast, tx)
+    result = broadcast_protocol.call(:broadcast, tx)
     raise "Broadcast failed: #{result.message}" unless result.http_success?
 
     result
   end
 
   def arc_status!(txid)
-    result = arc_protocol.call(:get_tx_status, txid)
+    result = broadcast_protocol.call(:get_tx_status, txid)
     raise "Status query failed: #{result.message}" unless result.http_success?
 
     result
@@ -101,13 +104,14 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
-      # Arcade does not return txid on fresh submission — txid is locally computable
       expect(result).to be_http_success
-      expect(result.data['status']).to be_in(['submitted', 'already submitted'])
+      expect(result.data['txid']).to eq(tx.txid_hex)
+      expect(rejected?(result)).to be(false)
 
       status = arc_status!(tx.txid_hex)
       expect(status).to be_http_success
       expect(status.data['txid']).to eq(tx.txid_hex)
+      expect(rejected?(status)).to be(false)
     end
   end
 
@@ -126,9 +130,9 @@ RSpec.describe 'Testnet integration', :testnet do
 
       result = arc_broadcast!(tx)
 
-      # Arcade does not return txid on fresh submission
       expect(result).to be_http_success
-      expect(result.data['status']).to be_in(['submitted', 'already submitted'])
+      expect(result.data['txid']).to eq(tx.txid_hex)
+      expect(rejected?(result)).to be(false)
     end
   end
 

@@ -16,6 +16,7 @@ Auto-generated from source. Run `bundle exec rake docs:providers` to regenerate.
 | Protocol | Endpoints | Detail |
 |----------|-----------|--------|
 | ARC | 5 | [ARC](arc.md) |
+| Arcade | 4 | [Arcade](arcade.md) |
 | WoCREST | 54 | [WoCREST](woc_rest.md) |
 | Chaintracks | 2 | [Chaintracks](chaintracks.md) |
 | Ordinals | 8 | [Ordinals](ordinals.md) |
@@ -26,24 +27,36 @@ Auto-generated from source. Run `bundle exec rake docs:providers` to regenerate.
 
 Each cell shows the networks on which the provider composes that protocol.
 
-| Provider | ARC | WoCREST | Chaintracks | Ordinals | JungleBus | TAALBinary |
-| --- | --- | --- | --- | --- | --- | --- |
-| GorillaPool |  |  |  | mainnet | mainnet, testnet |  |
-| TAAL | mainnet, testnet |  |  |  |  | mainnet |
-| WhatsOnChain |  | mainnet, testnet, stn |  |  |  |  |
+| Provider | ARC | Arcade | WoCREST | Chaintracks | Ordinals | JungleBus | TAALBinary |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BSVAssociation |  | mainnet, testnet |  |  |  |  |  |
+| GorillaPool | mainnet, testnet |  |  |  | mainnet | mainnet, testnet |  |
+| TAAL | mainnet, testnet |  |  |  |  |  | mainnet |
+| WhatsOnChain |  |  | mainnet, testnet, stn |  |  |  |  |
 
 ## Provider Details
+
+### BSVAssociation
+
+**Available networks:** mainnet, testnet
+
+**Total commands:** 4 (across all composed protocols)
+
+| Network | Protocols |
+|---------|-----------|
+| mainnet | [Arcade](arcade.md) |
+| testnet | [Arcade](arcade.md) |
 
 ### GorillaPool
 
 **Available networks:** mainnet, testnet
 
-**Total commands:** 14 (across all composed protocols)
+**Total commands:** 19 (across all composed protocols)
 
 | Network | Protocols |
 |---------|-----------|
-| mainnet | [Arcade](arcade.md), [Ordinals](ordinals.md), [JungleBus](jungle_bus.md) |
-| testnet | [Arcade](arcade.md), [JungleBus](jungle_bus.md) |
+| mainnet | [ARC](arc.md), [Ordinals](ordinals.md), [JungleBus](jungle_bus.md) |
+| testnet | [ARC](arc.md), [JungleBus](jungle_bus.md) |
 
 ### TAAL
 
@@ -74,15 +87,16 @@ Commands that appear in more than one protocol. The first-registered protocol wi
 
 | Command | Protocols |
 |---------|-----------|
-| `broadcast` | [ARC](arc.md), [WoCREST](woc_rest.md), [TAALBinary](taal_binary.md) |
+| `broadcast` | [ARC](arc.md), [Arcade](arcade.md), [WoCREST](woc_rest.md), [TAALBinary](taal_binary.md) |
 | `current_height` | [WoCREST](woc_rest.md), [Chaintracks](chaintracks.md), [JungleBus](jungle_bus.md) |
 | `get_balance` | [WoCREST](woc_rest.md), [Ordinals](ordinals.md) |
 | `get_block_header` | [WoCREST](woc_rest.md), [Chaintracks](chaintracks.md), [JungleBus](jungle_bus.md) |
 | `get_block_headers` | [WoCREST](woc_rest.md), [JungleBus](jungle_bus.md) |
 | `get_merkle_path` | [WoCREST](woc_rest.md), [Ordinals](ordinals.md) |
+| `get_policy` | [ARC](arc.md), [Arcade](arcade.md) |
 | `get_tx` | [WoCREST](woc_rest.md), [Ordinals](ordinals.md), [JungleBus](jungle_bus.md) |
 | `get_tx_details` | [WoCREST](woc_rest.md), [Ordinals](ordinals.md) |
-| `get_tx_status` | [ARC](arc.md), [WoCREST](woc_rest.md), [Ordinals](ordinals.md) |
+| `get_tx_status` | [ARC](arc.md), [Arcade](arcade.md), [WoCREST](woc_rest.md), [Ordinals](ordinals.md) |
 | `get_utxos` | [WoCREST](woc_rest.md), [Ordinals](ordinals.md) |
-| `health` | [ARC](arc.md), [WoCREST](woc_rest.md) |
+| `health` | [ARC](arc.md), [Arcade](arcade.md), [WoCREST](woc_rest.md) |
 

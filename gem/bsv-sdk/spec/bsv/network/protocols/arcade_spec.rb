@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'logger'
+require 'stringio'
+
 RSpec.describe BSV::Network::Protocols::Arcade do
   subject(:arcade) do
     described_class.new(
@@ -10,32 +13,48 @@ RSpec.describe BSV::Network::Protocols::Arcade do
 
   # rubocop:disable-next RSpec/VerifiedDoubles
   let(:http_client) { double('HttpClient') }
+  let(:txid) { 'ab' * 32 }
+  let(:ef_tx) { EfFixtures.ef_tx }
+  let(:ef_hex) { ef_tx.to_ef_hex }
 
-  def stub_response(code, body)
+  def stub_response(code, body, headers: {})
     response = fake_http_response(code, body)
+    headers.each { |name, value| response[name] = value }
     allow(http_client).to receive(:request).and_return(response)
     response
   end
 
-  def stub_json_response(code, data)
-    stub_response(code, JSON.generate(data))
+  def stub_json_response(code, data, headers: {})
+    stub_response(code, JSON.generate(data), headers: headers)
   end
 
-  def make_tx(ef_hex: nil, hex: 'deadbeef')
-    tx = instance_double(BSV::Transaction::Tx)
-    if ef_hex
-      allow(tx).to receive(:to_ef_hex).and_return(ef_hex)
-    else
-      allow(tx).to receive(:to_ef_hex).and_raise(ArgumentError, 'source data missing')
-    end
-    allow(tx).to receive(:to_hex).and_return(hex)
-    tx
+  def sent_request
+    request = nil
+    expect(http_client).to have_received(:request) { |_uri, req| request = req }
+    request
+  end
+
+  def sent_raw_tx
+    JSON.parse(sent_request.body)['rawTx']
+  end
+
+  def accepted(extra = {})
+    { 'txid' => txid, 'status' => 202, 'txStatus' => 'RECEIVED' }.merge(extra)
   end
 
   describe '.commands' do
-    it 'declares exactly the expected 3 endpoints' do
+    it 'declares exactly the expected 4 endpoints' do
       expect(described_class.commands).to eq(
-        Set.new(%i[broadcast get_tx_status health])
+        Set.new(%i[broadcast get_tx_status get_policy health])
+      )
+    end
+
+    it 'routes endpoints at the service root' do
+      expect(described_class.endpoints.transform_values { |defn| [defn[:method], defn[:path]] }).to eq(
+        broadcast: [:post, '/tx'],
+        get_tx_status: [:get, '/tx/{txid}'],
+        get_policy: [:get, '/policy'],
+        health: [:get, '/health']
       )
     end
   end
@@ -51,409 +70,413 @@ RSpec.describe BSV::Network::Protocols::Arcade do
   end
 
   describe '#call(:broadcast)' do
-    context 'when transaction submits fresh (happy path)' do
-      let(:tx) { make_tx(ef_hex: 'efhex123') }
+    context 'when the service accepts the transaction' do
+      before { stub_json_response(202, accepted) }
 
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'returns success' do
-        result = arcade.call(:broadcast, tx)
+      it 'returns success with the parsed body' do
+        result = arcade.call(:broadcast, ef_tx)
         expect(result).to be_http_success
+        expect(result.data['txid']).to eq(txid)
+        expect(result.data['status']).to eq(202)
+        expect(result.data['txStatus']).to eq('RECEIVED')
       end
 
-      it 'returns the status field' do
-        result = arcade.call(:broadcast, tx)
-        expect(result.data['status']).to eq('submitted')
-      end
-
-      it 'sends EF hex in the rawTx body field' do
-        arcade.call(:broadcast, tx)
+      it 'POSTs to /tx' do
+        arcade.call(:broadcast, ef_tx)
         expect(http_client).to have_received(:request) do |_uri, req|
-          body = JSON.parse(req.body)
-          expect(body['rawTx']).to eq('efhex123')
+          expect(req.path).to eq('/tx')
+          expect(req.method).to eq('POST')
+        end
+      end
+
+      it 'sends Extended Format hex as rawTx' do
+        arcade.call(:broadcast, ef_tx)
+        expect(sent_raw_tx).to eq(ef_hex)
+        expect(sent_raw_tx[8, 12]).to eq('0000000000ef')
+      end
+    end
+
+    context 'when the status is not echoed' do
+      it 'accepts SEEN_MULTIPLE_NODES without a status field' do
+        stub_json_response(200, { 'txid' => txid, 'txStatus' => 'SEEN_MULTIPLE_NODES' })
+        expect(arcade.call(:broadcast, ef_tx)).to be_http_success
+      end
+
+      it 'accepts a body with no txStatus' do
+        stub_json_response(200, { 'txid' => txid })
+        expect(arcade.call(:broadcast, ef_tx)).to be_http_success
+      end
+    end
+
+    context 'when a 2xx body is malformed' do
+      {
+        'legacy status-only body' => '{"status":"submitted"}',
+        'missing txid' => '{"txStatus":"RECEIVED","status":202}',
+        'non-hex txid' => '{"txid":"not-a-txid","txStatus":"RECEIVED"}',
+        'short txid' => '{"txid":"abcd","txStatus":"RECEIVED"}',
+        'non-string txid' => '{"txid":5,"txStatus":"RECEIVED"}',
+        'invalid UTF-8 txid' => %({"txid":"\xFF\xFE#{'ab' * 31}","txStatus":"RECEIVED"}).b,
+        'array txStatus' => %({"txid":"#{'ab' * 32}","txStatus":["REJECTED"]}),
+        'numeric txStatus' => %({"txid":"#{'ab' * 32}","txStatus":7}),
+        'array' => '[]',
+        'null' => 'null',
+        'HTML' => '<html>OK</html>'
+      }.each do |label, raw|
+        it "fails for #{label}" do
+          stub_response(200, raw)
+          result = arcade.call(:broadcast, ef_tx)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
         end
       end
     end
 
-    context 'when transaction is resubmitted (idempotent)' do
+    context 'when the status is a rejection' do
+      %w[REJECTED rejected DOUBLE_SPEND_ATTEMPTED].each do |status|
+        it "fails for #{status} and keeps the body" do
+          stub_json_response(202, accepted('txStatus' => status, 'extraInfo' => 'bad sig', 'title' => 'OK'))
+          result = arcade.call(:broadcast, ef_tx)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq("#{status}: bad sig")
+          expect(result.data['txid']).to eq(txid)
+        end
+      end
+
+      it 'reports the bare status when extraInfo is absent' do
+        stub_json_response(200, accepted('txStatus' => 'REJECTED'))
+        expect(arcade.call(:broadcast, ef_tx).error_message).to eq('REJECTED')
+      end
+    end
+
+    context 'when extraInfo mentions an orphan' do
+      %w[PENDING_RETRY MINED].each do |status|
+        it "does not treat a #{status} row as rejected" do
+          stub_json_response(200, accepted('txStatus' => status, 'extraInfo' => 'upstream said: orphan block'))
+          expect(arcade.call(:broadcast, ef_tx)).to be_http_success
+        end
+      end
+    end
+
+    context 'when the service reports a validation failure' do
       before do
-        stub_json_response(200, {
-                             'status' => 'already submitted',
-                             'txid' => 'abc123def456',
-                             'state' => 'SEEN_ON_NETWORK'
+        stub_json_response(400, {
+                             'error' => 'transaction failed validation',
+                             'reason' => 'script evaluation failed',
+                             'txid' => txid,
+                             'status' => 461,
+                             'title' => 'Unlocking scripts are invalid',
+                             'detail' => 'input 0',
+                             'type' => 'https://example.com/errors/461'
                            })
       end
 
-      it 'returns success' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).to be_http_success
-      end
-
-      it 'preserves txid in data' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.data['txid']).to eq('abc123def456')
-      end
-
-      it 'preserves state in data' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.data['state']).to eq('SEEN_ON_NETWORK')
-      end
-    end
-
-    context 'when Arcade returns 200 with status only and no txid' do
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'returns success without requiring txid' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).to be_http_success
-      end
-    end
-
-    context 'when EF serialisation is unavailable (fallback to raw hex)' do
-      let(:tx) { make_tx(ef_hex: nil, hex: 'rawhex456') }
-
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'falls back to raw hex' do
-        arcade.call(:broadcast, tx)
-        expect(http_client).to have_received(:request) do |_uri, req|
-          body = JSON.parse(req.body)
-          expect(body['rawTx']).to eq('rawhex456')
-        end
-      end
-    end
-
-    context 'when tx is a hex string' do
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'passes the hex string through as rawTx' do
-        arcade.call(:broadcast, 'aabbccdd')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          body = JSON.parse(req.body)
-          expect(body['rawTx']).to eq('aabbccdd')
-        end
-      end
-    end
-
-    context 'when tx is a binary string' do
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'converts binary to hex for rawTx' do
-        arcade.call(:broadcast, "\xDE\xAD\xBE\xEF".b)
-        expect(http_client).to have_received(:request) do |_uri, req|
-          body = JSON.parse(req.body)
-          expect(body['rawTx']).to eq('deadbeef')
-        end
-      end
-    end
-
-    context 'when Arcade returns 400 with a reason' do
-      before { stub_json_response(400, { 'reason' => 'transaction is invalid' }) }
-
-      it 'returns failure' do
-        result = arcade.call(:broadcast, 'deadbeef')
+      it 'joins error and reason and keeps the ARC code in data' do
+        result = arcade.call(:broadcast, ef_tx)
         expect(result).not_to be_http_success
-      end
-
-      it 'surfaces the reason in error_message' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.error_message).to include('transaction is invalid')
-      end
-
-      it 'is not retryable' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.retryable?).to be(false)
-      end
-
-      it 'preserves the parsed body in data so callers can read it' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.data).to eq('reason' => 'transaction is invalid')
+        expect(result.error_message).to eq('transaction failed validation: script evaluation failed')
+        expect(result.data['status']).to eq(461)
+        expect(result.data['txid']).to eq(txid)
       end
     end
 
-    context 'when Arcade returns 4xx with txStatus and extraInfo (terminal rejection shape)' do
-      before { stub_json_response(400, { 'txStatus' => 'REJECTED', 'extraInfo' => 'double spend' }) }
+    context 'when the service returns other non-2xx bodies' do
+      [401, 403].each do |code|
+        it "reports the error text for #{code}" do
+          stub_json_response(code, { 'error' => 'invalid credentials' })
+          result = arcade.call(:broadcast, ef_tx)
+          expect(result.error_message).to eq('invalid credentials')
+        end
+      end
 
-      it 'exposes txStatus and extraInfo via data so callers can detect rejection' do
-        result = arcade.call(:broadcast, 'deadbeef')
+      it 'falls back to detail when there is no error' do
+        stub_json_response(422, { 'detail' => 'unprocessable' })
+        expect(arcade.call(:broadcast, ef_tx).error_message).to eq('unprocessable')
+      end
+
+      it 'never echoes a non-JSON body' do
+        stub_response(500, '<html>Internal secret stack trace</html>')
+        result = arcade.call(:broadcast, ef_tx)
+        expect(result.error_message).to eq('HTTP 500')
+        expect(result.data).to be_nil
+      end
+
+      it 'cleans control characters out of service text' do
+        stub_json_response(400, { 'error' => "bad\e[31m input\nline" })
+        expect(arcade.call(:broadcast, ef_tx).error_message).to eq('bad [31m input line')
+      end
+    end
+
+    context 'when the service signals backpressure' do
+      it 'reports 503 with an integer Retry-After' do
+        stub_json_response(503, { 'error' => 'busy' }, headers: { 'Retry-After' => '1' })
+        result = arcade.call(:broadcast, ef_tx)
         expect(result).not_to be_http_success
-        expect(result.data['txStatus']).to eq('REJECTED')
-        expect(result.data['extraInfo']).to eq('double spend')
-      end
-    end
-
-    context 'when Arcade returns 503 with Retry-After header' do
-      before do
-        response = fake_http_response(503, '')
-        response['Retry-After'] = '30'
-        allow(http_client).to receive(:request).and_return(response)
+        expect(result.error_message).to eq('BSV Broadcaster backpressure (HTTP 503); retry after 1s')
+        expect(result.data).to eq('error' => 'busy')
+        expect(result).to be_retryable
       end
 
-      it 'returns failure' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).not_to be_http_success
+      it 'reports 429 with an integer Retry-After' do
+        stub_json_response(429, { 'error' => 'slow down' }, headers: { 'Retry-After' => '30' })
+        expect(arcade.call(:broadcast, ef_tx).error_message)
+          .to eq('BSV Broadcaster rate limit (HTTP 429); retry after 30s')
       end
 
-      it 'is retryable' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.retryable?).to be(true)
-      end
-
-      it 'includes retry delay in error_message' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.error_message).to include('retry after 30s')
-      end
-    end
-
-    context 'when Arcade returns 503 without Retry-After header' do
-      before { stub_response(503, '') }
-
-      it 'is retryable' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.retryable?).to be(true)
-      end
-
-      it 'omits retry delay from error_message' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.error_message).not_to include('retry after')
-      end
-    end
-
-    context 'when Arcade returns 500' do
-      before { stub_json_response(500, { 'detail' => 'internal error' }) }
-
-      it 'returns failure' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).not_to be_http_success
-      end
-
-      it 'is retryable' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.retryable?).to be(true)
-      end
-    end
-
-    context 'when Arcade returns a malformed 2xx (missing status)' do
-      before { stub_json_response(200, { 'txid' => 'somehex' }) }
-
-      it 'returns failure' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).not_to be_http_success
-      end
-
-      it 'reports malformed in error_message' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.error_message).to include('malformed')
-      end
-    end
-
-    context 'when Arcade returns a non-JSON 2xx body' do
-      before { stub_response(200, 'not json at all') }
-
-      it 'returns failure' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).not_to be_http_success
-      end
-
-      it 'reports malformed in error_message' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.error_message).to include('malformed')
-      end
-    end
-
-    context 'when Arcade returns a 2xx with JSON that is not a Hash (Array)' do
-      before { stub_response(200, JSON.generate([{ 'status' => 'submitted' }])) }
-
-      it 'returns failure' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result).not_to be_http_success
-      end
-
-      it 'reports malformed in error_message' do
-        result = arcade.call(:broadcast, 'deadbeef')
-        expect(result.error_message).to include('malformed')
-      end
-    end
-
-    context 'with Arcade-specific optional headers' do
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'sends X-CallbackUrl when specified' do
-        arcade.call(:broadcast, 'deadbeef', callback_url: 'https://cb.example.com')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-CallbackUrl']).to eq('https://cb.example.com')
+      ['soon', 'Wed, 21 Oct 2026 07:28:00 GMT', '-5', '1234567', ''].each do |junk|
+        it "omits a Retry-After of #{junk.inspect}" do
+          stub_response(503, '<html>busy</html>', headers: { 'Retry-After' => junk })
+          result = arcade.call(:broadcast, ef_tx)
+          expect(result.error_message).to eq('BSV Broadcaster backpressure (HTTP 503)')
+          expect(result.data).to be_nil
         end
       end
 
-      it 'sends X-CallbackToken when specified' do
-        arcade.call(:broadcast, 'deadbeef', callback_token: 'secret-token')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-CallbackToken']).to eq('secret-token')
-        end
+      it 'omits retry after when the header is absent' do
+        stub_response(503, '')
+        expect(arcade.call(:broadcast, ef_tx).error_message).to eq('BSV Broadcaster backpressure (HTTP 503)')
+      end
+    end
+
+    context 'with the transaction in different forms' do
+      before { stub_json_response(202, accepted) }
+
+      it 'accepts upper-case Extended Format hex' do
+        expect(arcade.call(:broadcast, ef_hex.upcase)).to be_http_success
+        expect(sent_raw_tx).to eq(ef_hex.upcase)
       end
 
-      it 'sends X-FullStatusUpdates when truthy' do
-        arcade.call(:broadcast, 'deadbeef', full_status_updates: true)
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-FullStatusUpdates']).to eq('true')
-        end
+      it 'accepts binary Extended Format and sends it as hex' do
+        expect(arcade.call(:broadcast, ef_tx.to_ef)).to be_http_success
+        expect(sent_raw_tx).to eq(ef_hex)
       end
 
-      it 'sends X-SkipFeeValidation when truthy' do
-        arcade.call(:broadcast, 'deadbeef', skip_fee_validation: true)
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-SkipFeeValidation']).to eq('true')
-        end
+      it 'accepts Extended Format hex with a trailing newline' do
+        expect(arcade.call(:broadcast, "#{ef_hex}\n")).to be_http_success
+        expect(sent_raw_tx).to eq(ef_hex)
       end
+    end
 
-      it 'sends X-SkipScriptValidation when truthy' do
-        arcade.call(:broadcast, 'deadbeef', skip_script_validation: true)
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-SkipScriptValidation']).to eq('true')
-        end
-      end
-
-      it 'does not send XDeployment-ID (ARC-only header)' do
-        arcade.call(:broadcast, 'deadbeef')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['XDeployment-ID']).to be_nil
-        end
-      end
-
-      it 'does not send X-SkipTxValidation (ARC-only header)' do
-        arcade.call(:broadcast, 'deadbeef')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-SkipTxValidation']).to be_nil
-        end
-      end
-
-      it 'does not send X-CallbackBatch (ARC-only header)' do
-        arcade.call(:broadcast, 'deadbeef')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-CallbackBatch']).to be_nil
+    context 'when the transaction is not in Extended Format' do
+      {
+        'plain hex' => -> { EfFixtures.ef_tx.to_hex },
+        'BEEF hex' => -> { "0100beef#{'00' * 40}" },
+        'a 10-byte plain transaction' => -> { '010000000000000000ef' },
+        'an empty string' => -> { '' },
+        'a transaction without source data' => -> { EfFixtures.tx_without_source_data }
+      }.each do |label, build|
+        it "raises ArgumentError naming Extended Format for #{label} and sends nothing" do
+          allow(http_client).to receive(:request)
+          message = label == 'an empty string' ? /empty/ : /Extended Format/
+          expect { arcade.call(:broadcast, build.call) }.to raise_error(ArgumentError, message)
+          expect(http_client).not_to have_received(:request)
         end
       end
     end
 
-    context 'with constructor-level callback configuration' do
-      let(:arcade_with_callbacks) do
-        described_class.new(
-          base_url: 'https://arcade.example.com',
-          callback_url: 'https://my-callback.example.com',
-          callback_token: 'cb-token',
-          http_client: http_client
-        )
-      end
-
-      before { stub_json_response(200, { 'status' => 'submitted' }) }
-
-      it 'sends X-CallbackUrl from constructor' do
-        arcade_with_callbacks.call(:broadcast, 'deadbeef')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-CallbackUrl']).to eq('https://my-callback.example.com')
+    context 'with the removed validation keywords' do
+      %i[skip_fee_validation skip_script_validation].each do |keyword|
+        it "raises ArgumentError for #{keyword}" do
+          allow(http_client).to receive(:request)
+          expect { arcade.call(:broadcast, ef_tx, keyword => true) }.to raise_error(ArgumentError)
+          expect(http_client).not_to have_received(:request)
         end
       end
+    end
 
-      it 'sends X-CallbackToken from constructor' do
-        arcade_with_callbacks.call(:broadcast, 'deadbeef')
-        expect(http_client).to have_received(:request) do |_uri, req|
-          expect(req['X-CallbackToken']).to eq('cb-token')
-        end
+    context 'with headers' do
+      before { stub_json_response(202, accepted) }
+
+      def sent_header_names
+        sent_request.each_name.to_a
+      end
+
+      it 'sends neither skip headers nor XDeployment-ID by default' do
+        arcade.call(:broadcast, ef_tx)
+        names = sent_header_names
+        expect(names.grep(/skip/i)).to be_empty
+        expect(names).not_to include('xdeployment-id')
+        expect(names).not_to include('x-callbackurl', 'x-callbacktoken', 'x-fullstatusupdates')
+      end
+
+      it 'sends the per-call callback headers and full status updates' do
+        arcade.call(:broadcast, ef_tx, callback_url: 'https://cb.example.com', callback_token: 'tok',
+                                       full_status_updates: true)
+        request = sent_request
+        expect(request['X-CallbackUrl']).to eq('https://cb.example.com')
+        expect(request['X-CallbackToken']).to eq('tok')
+        expect(request['X-FullStatusUpdates']).to eq('true')
+      end
+
+      it 'sends callback headers from the constructor' do
+        configured = described_class.new(base_url: 'https://arcade.example.com', http_client: http_client,
+                                         callback_url: 'https://ctor.example.com', callback_token: 'ctor-tok')
+        configured.call(:broadcast, ef_tx)
+        request = sent_request
+        expect(request['X-CallbackUrl']).to eq('https://ctor.example.com')
+        expect(request['X-CallbackToken']).to eq('ctor-tok')
+      end
+
+      it 'lets per-call callback values override the constructor' do
+        configured = described_class.new(base_url: 'https://arcade.example.com', http_client: http_client,
+                                         callback_url: 'https://ctor.example.com')
+        configured.call(:broadcast, ef_tx, callback_url: 'https://call.example.com')
+        expect(sent_request['X-CallbackUrl']).to eq('https://call.example.com')
       end
     end
   end
 
   describe '#call(:get_tx_status)' do
-    context 'when transaction exists and is mined' do
-      before do
-        stub_json_response(200, {
-                             'txid' => 'abc',
-                             'txStatus' => 'MINED',
-                             'status' => 200,
-                             'timestamp' => '2026-05-29T00:00:00Z',
-                             'blockHash' => 'bh',
-                             'blockHeight' => 800_000,
-                             'merklePath' => 'mp_hex',
-                             'extraInfo' => nil,
-                             'competingTxs' => nil
-                           })
+    context 'with debug logging enabled' do
+      let(:log) { StringIO.new }
+
+      before { allow(BSV).to receive(:logger).and_return(Logger.new(log, level: Logger::DEBUG)) }
+
+      it 'does not log a credential reflected in an error body' do
+        stub_json_response(401, { 'error' => 'bad key', 'reason' => 'Bearer SEKRET' })
+        expect(arcade.call(:get_tx_status, txid).error_message).to include('SEKRET')
+        expect(log.string).not_to include('SEKRET')
       end
+    end
+
+    context 'when the transaction is mined without a merkle path' do
+      before { stub_json_response(200, { 'txid' => txid, 'txStatus' => 'MINED', 'blockHeight' => 850_000 }) }
 
       it 'returns success' do
-        result = arcade.call(:get_tx_status, 'abc')
+        result = arcade.call(:get_tx_status, txid)
         expect(result).to be_http_success
-      end
-
-      it 'exposes the txStatus field' do
-        result = arcade.call(:get_tx_status, 'abc')
         expect(result.data['txStatus']).to eq('MINED')
       end
+
+      it 'GETs /tx/{txid}' do
+        arcade.call(:get_tx_status, txid)
+        expect(sent_request.path).to eq("/tx/#{txid}")
+      end
     end
 
-    context 'when transaction is not found' do
-      before { stub_response(404, '{"error":"transaction not found"}') }
+    context 'when the transaction is not found' do
+      before { stub_json_response(404, { 'error' => 'transaction not found' }) }
 
-      it 'returns failure' do
-        result = arcade.call(:get_tx_status, 'unknown_txid')
+      it 'reports the error text and stays a not-found response' do
+        result = arcade.call(:get_tx_status, txid)
         expect(result).not_to be_http_success
-      end
-
-      it 'is marked http_not_found' do
-        result = arcade.call(:get_tx_status, 'unknown_txid')
         expect(result).to be_http_not_found
+        expect(result.error_message).to eq('transaction not found')
       end
     end
 
-    context 'when transaction has a rejected status' do
-      before { stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'REJECTED' }) }
+    context 'when the service fails with a non-JSON body' do
+      before { stub_response(500, '<html>boom</html>') }
 
-      it 'returns failure' do
-        result = arcade.call(:get_tx_status, 'abc')
-        expect(result).not_to be_http_success
-      end
-
-      it 'surfaces the REJECTED status in error_message' do
-        result = arcade.call(:get_tx_status, 'abc')
-        expect(result.error_message).to include('REJECTED')
+      it 'reports the HTTP code and stays retryable' do
+        result = arcade.call(:get_tx_status, txid)
+        expect(result.error_message).to eq('HTTP 500')
+        expect(result).to be_retryable
       end
     end
 
-    context 'when txStatus is lowercase rejected (case-insensitive)' do
-      before { stub_json_response(200, { 'txid' => 'abc', 'txStatus' => 'rejected' }) }
+    context 'when the transport fails' do
+      before { allow(http_client).to receive(:request).and_raise(Errno::ECONNREFUSED) }
 
-      it 'returns failure' do
-        result = arcade.call(:get_tx_status, 'abc')
+      it 'passes the transport failure through unchanged' do
+        result = arcade.call(:get_tx_status, txid)
         expect(result).not_to be_http_success
+        expect(result.error_message).to start_with('transport error: Errno::ECONNREFUSED')
       end
     end
 
-    context 'when server returns 500' do
-      before { stub_response(500, 'Internal server error') }
+    context 'when the status is a rejection' do
+      before { stub_json_response(200, { 'txid' => txid, 'txStatus' => 'REJECTED', 'extraInfo' => 'bad sig' }) }
 
-      it 'returns retryable error' do
-        result = arcade.call(:get_tx_status, 'abc')
+      it 'fails with the status and extraInfo' do
+        result = arcade.call(:get_tx_status, txid)
         expect(result).not_to be_http_success
-        expect(result.retryable?).to be(true)
+        expect(result.error_message).to eq('REJECTED: bad sig')
+      end
+    end
+
+    context 'when a 2xx body is malformed' do
+      ['[]', '5', 'null', '{"txStatus":"MINED"}', '{"txid":"nope","txStatus":"MINED"}',
+       %({"txid":"\xFF\xFE#{'ab' * 31}","txStatus":"MINED"}).b].each do |raw|
+        it "fails for #{raw.inspect}" do
+          stub_response(200, raw)
+          result = arcade.call(:get_tx_status, txid)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+        end
+      end
+    end
+
+    context 'when a 2xx status reply is not JSON' do
+      ['<html>OK</html>', ''].each do |raw|
+        it "reports a malformed 2xx for #{raw.inspect}" do
+          stub_response(200, raw)
+          result = arcade.call(:get_tx_status, txid)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+        end
+      end
+    end
+
+    context 'when a 2xx status reply names a different transaction' do
+      it 'fails as malformed' do
+        stub_json_response(200, { 'txid' => 'cd' * 32, 'txStatus' => 'MINED' })
+        result = arcade.call(:get_tx_status, txid)
+        expect(result).not_to be_http_success
+        expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+      end
+
+      it 'accepts the requested txid in a different case' do
+        stub_json_response(200, { 'txid' => txid.upcase, 'txStatus' => 'MINED' })
+        expect(arcade.call(:get_tx_status, txid)).to be_http_success
+      end
+    end
+
+    context 'when a 2xx status reply has a non-string txStatus' do
+      [['REJECTED'], 7].each do |status|
+        it "fails for #{status.inspect}" do
+          stub_json_response(200, { 'txid' => txid, 'txStatus' => status })
+          result = arcade.call(:get_tx_status, txid)
+          expect(result).not_to be_http_success
+          expect(result.error_message).to eq('BSV Broadcaster returned a malformed 2xx response')
+        end
+      end
+    end
+
+    context 'when the txid is invalid' do
+      ['../policy', "#{'ab' * 31}a", ['ab' * 32].pack('H*')].each do |bad|
+        it "raises ArgumentError before any request for a #{bad.length}-character txid" do
+          allow(http_client).to receive(:request)
+          expect { arcade.call(:get_tx_status, bad) }.to raise_error(ArgumentError, /txid/)
+          expect(http_client).not_to have_received(:request)
+        end
       end
     end
   end
 
-  describe '#call(:health)' do
-    before do
-      stub_json_response(200, {
-                           'status' => 'ok',
-                           'datahub_urls' => [{ 'url' => 'wss://example.com', 'healthy' => true }]
-                         })
+  describe '#call(:get_policy)' do
+    let(:policy) do
+      {
+        'policy' => { 'miningFee' => { 'satoshis' => 100, 'bytes' => 1000 }, 'maxTxSize' => 4_294_967_296 },
+        'timestamp' => '2026-11-15T00:00:00Z'
+      }
     end
 
-    it 'returns success' do
+    before { stub_json_response(200, policy) }
+
+    it 'GETs /policy and returns the parsed body' do
+      result = arcade.call(:get_policy)
+      expect(result).to be_http_success
+      expect(result.data['policy']['miningFee']).to eq('satoshis' => 100, 'bytes' => 1000)
+      expect(sent_request.path).to eq('/policy')
+    end
+  end
+
+  describe '#call(:health)' do
+    it 'GETs /health' do
+      stub_json_response(200, { 'status' => 'ok' })
       result = arcade.call(:health)
       expect(result).to be_http_success
-    end
-
-    it 'exposes datahub_urls as an Array' do
-      result = arcade.call(:health)
-      expect(result.data['datahub_urls']).to be_an(Array)
+      expect(sent_request.path).to eq('/health')
     end
   end
 end

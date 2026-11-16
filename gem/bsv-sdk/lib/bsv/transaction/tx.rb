@@ -26,6 +26,9 @@ module BSV
       # Estimated size of an unsigned P2PKH input in bytes.
       UNSIGNED_P2PKH_INPUT_SIZE = 148
 
+      # The six bytes that follow the version in Extended Format (BRC-30).
+      EF_MARKER = "\x00\x00\x00\x00\x00\xEF".b.freeze
+
       # Lookup table for benford_number calculation.
       # we want float values for log10(1 + (1.0 / i)) for the 9 integers 0 < i < 10
       # in ruby this becomes: (1..9).to_a.collect{|d| Math.log10(1 + (1.0 / d)) }
@@ -237,7 +240,7 @@ module BSV
       #   source_locking_script via either mechanism
       def to_ef
         buf = [@version].pack('V')
-        buf << "\x00\x00\x00\x00\x00\xEF".b
+        buf << EF_MARKER
         buf << VarInt.encode(@inputs.length)
         @inputs.each_with_index do |input, idx|
           source_output = ef_source_output(input, idx)
@@ -324,7 +327,7 @@ module BSV
         offset += 4
 
         marker = data.byteslice(offset, 6)
-        raise ArgumentError, 'invalid EF marker' unless marker == "\x00\x00\x00\x00\x00\xEF".b
+        raise ArgumentError, 'invalid EF marker' unless marker == EF_MARKER
 
         offset += 6
 

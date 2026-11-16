@@ -101,7 +101,7 @@ tx.add_output(BSV::Transaction::TransactionOutput.new(
 # Sign the input
 tx.sign(0, private_key)
 
-# Broadcast via GorillaPool (Arcade protocol, public endpoint)
+# Broadcast via GorillaPool (ARC, public endpoint)
 provider = BSV::Network::Providers::GorillaPool.default
 result = provider.call(:broadcast, tx)
 puts result.data['txid'] if result.http_success?  # display-order hex (ARC API boundary)

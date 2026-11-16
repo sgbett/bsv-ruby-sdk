@@ -69,6 +69,24 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
     end
   end
 
+  # A byte that is never valid UTF-8, built by a method call so no invalid
+  # literal sits in the source.
+  def invalid_byte
+    0xFF.chr
+  end
+
+  # +text+ followed by an invalid byte, tagged UTF-8 as JSON.parse returns it.
+  def invalid_utf8(text)
+    (text.b + invalid_byte).force_encoding(Encoding::UTF_8)
+  end
+
+  # A JSON object of string fields written by hand, because JSON.generate
+  # refuses invalid UTF-8 and the services' bytes are not bound by that.
+  def raw_reply(fields)
+    members = fields.map { |key, value| "\"#{key}\":\"#{value.b}\"" }
+    "{#{members.join(',')}}"
+  end
+
   # Inject the fake HTTP client but keep the network the tool asked for, so
   # the requested URIs show which network was really used.
   def stub_woc(code, body)
@@ -215,6 +233,29 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       response, = call_tool
       expect(response.error?).to be true
     end
+
+    # ARC's parser fails these replies first; the backstop covers a laxer broadcaster.
+    it 'applies the shared ARC rejection rule in its backstop' do
+      txid = 'ab' * 32
+      problem = ->(data) { tool.send(:broadcast_problem, data, txid) }
+      expect(problem.call('txid' => txid, 'txStatus' => 'rejected')).to eq('Broadcast rejected: transaction status REJECTED')
+      expect(problem.call('txid' => txid, 'txStatus' => 'RECEIVED', 'extraInfo' => 'parent is ORPHAN')).to start_with('Broadcast rejected')
+      expect(problem.call('txid' => txid, 'txStatus' => 'SEEN_ON_NETWORK')).to be_nil
+    end
+
+    it 'does not let a case-folding ligature stand in for hex in the reported txid' do
+      computed = "ff#{'ab' * 31}"
+      reported = "#{0xFB00.chr(Encoding::UTF_8)}#{'ab' * 31}"
+      expect(tool.send(:broadcast_problem, { 'txid' => reported }, computed)).to include('different txid')
+    end
+
+    it 'describes a rejection whose txStatus is not valid UTF-8 without echoing its bytes' do
+      txid = 'ab' * 32
+      data = { 'txid' => txid, 'txStatus' => invalid_utf8('SEEN'), 'extraInfo' => 'parent is ORPHAN' }
+      problem = tool.send(:broadcast_problem, data, txid)
+      expect(problem).to eq('Broadcast rejected: transaction status SEEN')
+      expect(problem.b).not_to include(invalid_byte)
+    end
   end
 
   describe '.call when the reply names a different txid' do
@@ -229,6 +270,15 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect(result[:error]).to include('different txid')
       expect(result[:txid]).not_to eq('ab' * 32)
     end
+
+    it 'treats a reported txid that is not valid UTF-8 as a different txid' do
+      stub_broadcaster(200, ->(_req) { raw_reply('txid' => invalid_utf8('ab' * 31), 'txStatus' => 'RECEIVED') })
+      response, result = call_tool
+      expect(response.error?).to be true
+      expect(result[:error]).to include('different txid')
+      expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
+      expect(response.content.first[:text].b).not_to include(invalid_byte)
+    end
   end
 
   describe '.call when the reply carries an orphan marker in extraInfo' do
@@ -237,10 +287,10 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       stub_broadcaster(200, broadcast_reply('RECEIVED', extraInfo: 'parent is ORPHAN'))
     end
 
-    it 'reports an error with the computed txid' do
+    it 'reports the status and extraInfo with the computed txid' do
       response, result = call_tool
       expect(response.error?).to be true
-      expect(result[:error]).to include('rejected')
+      expect(result[:error]).to eq('Broadcast failed: RECEIVED: parent is ORPHAN')
       expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
     end
   end
@@ -261,6 +311,14 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       expect(result).not_to have_key(:tx_status)
     end
 
+    it 'omits a status that is not valid UTF-8 and still reports success' do
+      stub_broadcaster(200, ->(req) { raw_reply('txid' => submitted_txid(req), 'txStatus' => invalid_utf8('SEEN_ON_NETWORK')) })
+      response, result = call_tool
+      expect(response.error?).to be false
+      expect(result).not_to have_key(:tx_status)
+      expect(response.content.first[:text].b).not_to include(invalid_byte)
+    end
+
     it 'omits a status equal to the configured key' do
       stub_broadcaster(200, broadcast_reply('S3CRETKEY'))
       context = { arc_api_key: BSV::MCP::Secret.new('S3CRETKEY') }
@@ -275,9 +333,11 @@ RSpec.describe 'BSV::MCP::Tools::BroadcastP2pkh' do
       stub_broadcaster(200, { 'status' => 202, 'txStatus' => 'RECEIVED' }.to_json)
     end
 
-    it 'still returns the computed txid' do
+    # ARC, the default broadcaster, treats a 2xx without a txid as malformed.
+    it 'is an error that still carries the computed txid' do
       response, result = call_tool
-      expect(response.error?).to be false
+      expect(response.error?).to be true
+      expect(result[:error]).to eq('Broadcast failed: ARC returned a malformed 2xx response')
       expect(result[:txid]).to match(/\A[0-9a-f]{64}\z/)
     end
   end

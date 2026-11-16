@@ -17,6 +17,7 @@ module BSV
     #   provider = BSV::Network::Providers::TAAL.mainnet(api_key: 'my-key')
     #   result   = provider.call(:broadcast, tx)
     module Providers
+      autoload :BSVAssociation, 'bsv/network/providers/bsv_association'
       autoload :GorillaPool,   'bsv/network/providers/gorilla_pool'
       autoload :WhatsOnChain,  'bsv/network/providers/whats_on_chain'
       autoload :TAAL,          'bsv/network/providers/taal'

@@ -8,10 +8,14 @@ module BSV
     module Protocols
       # ARC protocol implementation for submitting transactions to the BSV network.
       #
-      # Extends Protocol with five endpoints and two escape hatches for broadcast
-      # logic: EF format preference, rejection detection, and custom headers.
+      # Extends Protocol with five endpoints and three escape hatches
+      # (+broadcast+, +broadcast_many+ and +get_tx_status+) for broadcast logic:
+      # EF format preference, rejection detection, custom headers and malformed
+      # reply detection.
       #
-      # The protocol returns ProtocolResponse objects (never raises).
+      # Transport and service failures come back as a failed ProtocolResponse.
+      # Invalid arguments (an empty transaction, a malformed txid) raise
+      # +ArgumentError+.
       #
       # == Example
       #
@@ -37,6 +41,45 @@ module BSV
 
         # Substring marker for orphan detection in txStatus or extraInfo fields.
         ORPHAN_MARKER = 'ORPHAN'
+
+        MALFORMED_2XX = 'ARC returned a malformed 2xx response'
+
+        # Whether a +txStatus+ value means the transaction was not accepted.
+        # Case-insensitive: ARC has a documented history of emitting values
+        # outside its own OpenAPI enum, and the TypeScript SDK upcases both
+        # fields before comparing. Compared as bytes: the JSON parser admits
+        # invalid UTF-8 inside strings, which +upcase+ would raise on, and the
+        # tokens that matter are ASCII.
+        #
+        # @param tx_status [Object] the +txStatus+ field of a response body
+        # @return [Boolean]
+        def self.rejected_tx_status?(tx_status)
+          status = tx_status.to_s.b.upcase
+          REJECTED_STATUSES.include?(status) || status.include?(ORPHAN_MARKER)
+        end
+
+        # Whether a response body reports a rejected transaction, by +txStatus+
+        # or by an orphan marker in +extraInfo+.
+        #
+        # @param body [Object] parsed JSON response body
+        # @return [Boolean] false for anything other than a Hash
+        def self.rejected?(body)
+          return false unless body.is_a?(Hash)
+
+          rejected_tx_status?(body['txStatus']) || body['extraInfo'].to_s.b.upcase.include?(ORPHAN_MARKER)
+        end
+
+        # Describe a rejection as +"STATUS: extraInfo"+, or just the status
+        # when there is no extra information. The generic +title+ and +detail+
+        # fields are not used: on a 2xx they read "OK" or are empty.
+        #
+        # @param body [Hash] parsed JSON response body
+        # @return [String] +"REJECTED"+ stands in when +txStatus+ is unusable
+        def self.rejection_message(body)
+          status = BSV::Network::Util.service_text(body['txStatus']) || 'REJECTED'
+          extra_info = BSV::Network::Util.service_text(body['extraInfo'])
+          extra_info ? "#{status}: #{extra_info}" : status
+        end
 
         endpoint :broadcast,      :post, '/v1/tx',          response: :json
         endpoint :broadcast_many, :post, '/v1/txs',         response: :json_array
@@ -143,7 +186,7 @@ module BSV
         def build_broadcast_headers(wait_for:, skip_fee_validation:, skip_script_validation:,
                                     skip_tx_validation:, callback_url:, callback_token:,
                                     callback_batch:)
-          headers = { 'XDeployment-ID' => @deployment_id }
+          headers = {}
           headers['X-WaitFor']              = wait_for                     if wait_for
           headers['X-CallbackUrl']          = callback_url                 if callback_url
           headers['X-CallbackToken']        = callback_token               if callback_token
@@ -168,38 +211,29 @@ module BSV
         # @return [ProtocolResponse]
         def parse_single_broadcast_response(response)
           code = response.code.to_i
-          body = safe_parse_json(response.body)
-
-          unless body.is_a?(Hash)
-            return ProtocolResponse.new(response, http_success: false,
-                                                  error_message: "ARC returned #{body.class}, expected Hash")
-          end
+          body = safe_json_object(response.body)
 
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body['detail'] || body['title'] || "HTTP #{code}",
+              error_message: service_message(body, code, %w[detail title]),
               data: body
             )
           end
 
-          if rejected_status?(body)
+          return ProtocolResponse.new(response, http_success: false, error_message: MALFORMED_2XX) unless body
+
+          if self.class.rejected?(body)
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body['detail'] || body['title'] || body['txStatus'],
+              error_message: self.class.rejection_message(body),
               data: body
             )
           end
 
-          unless body['txid']
-            return ProtocolResponse.new(
-              response,
-              http_success: false,
-              error_message: body['detail'] || 'ARC returned a malformed 2xx response'
-            )
-          end
+          return ProtocolResponse.new(response, http_success: false, error_message: MALFORMED_2XX) unless body['txid']
 
           ProtocolResponse.new(response, data: body)
         end
@@ -210,13 +244,13 @@ module BSV
         # @return [ProtocolResponse]
         def parse_batch_broadcast_response(response)
           code = response.code.to_i
-          body = safe_parse_json(response.body)
+          body = safe_json(response.body)
 
           unless (200..299).cover?(code)
             return ProtocolResponse.new(
               response,
               http_success: false,
-              error_message: body.is_a?(Hash) ? (body['detail'] || body['title'] || "HTTP #{code}") : "HTTP #{code}",
+              error_message: service_message(body, code, %w[detail title]),
               data: body.is_a?(Hash) || body.is_a?(Array) ? body : nil
             )
           end
@@ -232,52 +266,76 @@ module BSV
           ProtocolResponse.new(response, data: body)
         end
 
-        # Escape hatch for get_tx_status: checks for rejection status and missing
-        # txid (malformed 2xx). Returns raw JSON data (string keys).
+        # Escape hatch for get_tx_status: checks for rejection status, a missing
+        # or mismatched txid (malformed 2xx), and bounds the service text in
+        # failures. Returns raw JSON data (string keys).
+        #
+        # A reply naming a different transaction is rejected, as the TypeScript
+        # wallet-toolbox does, so a misrouted or spoofed reply is not taken as
+        # the status of the transaction asked about.
         #
         # @param txid [String] ARC API boundary: display-order hex transaction ID to query
         # @return [ProtocolResponse]
+        # @raise [ArgumentError] if +txid+ is not 64-char display-order hex
         def call_get_tx_status(txid, **)
+          BSV::Primitives::Hex.validate_dtxid_hex!(txid, name: 'txid')
           response = default_call(:get_tx_status, txid)
-          return response unless response.http_success?
+          return response if response.code.nil?
+          return status_failure(response) unless response.http_success?
 
           body = response.data
 
-          if rejected_status?(body)
-            return response.with(
-              http_success: false,
-              error_message: body['detail'] || body['title'] || body['txStatus']
-            )
-          end
+          # The txid binding comes before the rejection check, so a rejection is
+          # never attributed to a transaction the reply does not name.
+          return response.with(http_success: false, data: nil, error_message: MALFORMED_2XX) unless reply_for?(body, txid)
 
-          unless body['txid']
-            return response.with(
-              http_success: false,
-              error_message: 'ARC returned a malformed 2xx response'
-            )
-          end
+          return response.with(http_success: false, error_message: self.class.rejection_message(body)) if self.class.rejected?(body)
 
           response
         end
 
-        # Determine whether an ARC response body represents a rejected transaction.
-        # Case-insensitive match — the TypeScript reference SDK explicitly uppercases
-        # both fields before membership / substring checks. ARC has a documented
-        # history of emitting values outside its own OpenAPI enum, so case
-        # normalisation is the defensive choice.
-        def rejected_status?(body)
-          tx_status = body['txStatus'].to_s.upcase
-          return true if REJECTED_STATUSES.include?(tx_status)
-          return true if tx_status.include?(ORPHAN_MARKER)
-
-          extra_info = body['extraInfo'].to_s.upcase
-          return true if extra_info.include?(ORPHAN_MARKER)
-
-          false
+        # The encoding is checked first because the JSON parser admits invalid
+        # UTF-8 inside strings, which +match?+ raises on; the hex check comes
+        # before +casecmp?+, whose Unicode case folding would let a ligature
+        # such as U+FB00 stand in for "ff".
+        def reply_for?(body, txid)
+          reported = body.is_a?(Hash) ? body['txid'] : nil
+          reported.is_a?(String) && reported.valid_encoding? && reported.match?(/\A\h{64}\z/) &&
+            reported.casecmp?(txid)
         end
 
-        def safe_parse_json(raw)
-          BSV::Network::Util.safe_parse_json(raw)
+        # A 2xx that default_call could not turn into data is a malformed reply;
+        # any other failure carries a bounded message instead of the raw body.
+        def status_failure(response)
+          code = response.code.to_i
+          return response.with(error_message: MALFORMED_2XX) if (200..299).cover?(code)
+
+          response.with(error_message: service_message(safe_json_object(response.body), code, %w[detail title extraInfo]))
+        end
+
+        # The first usable field of a parsed error body, bounded; +"HTTP <code>"+
+        # when the body is not an object or has none. Non-JSON bodies are never echoed.
+        def service_message(body, code, fields)
+          if body.is_a?(Hash)
+            fields.each do |field|
+              text = BSV::Network::Util.service_text(body[field])
+              return text if text
+            end
+          end
+          "HTTP #{code}"
+        end
+
+        def safe_json_object(raw)
+          body = safe_json(raw)
+          body.is_a?(Hash) ? body : nil
+        end
+
+        # Parsed JSON, or nil for a body that is not JSON. Unlike
+        # Util.safe_parse_json, a non-JSON body is never wrapped for echoing.
+        def safe_json(raw)
+          JSON.parse(raw.to_s)
+        rescue JSON::ParserError, EncodingError
+          nil
         end
       end
     end

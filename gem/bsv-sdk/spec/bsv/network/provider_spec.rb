@@ -118,7 +118,7 @@ RSpec.describe 'BSV::Network::Provider' do
   describe '#protocol' do
     it 'registers a protocol instance in the block' do
       p = provider.new('GorillaPool') do |pr|
-        pr.protocol arc_class, base_url: 'https://arcade.gorillapool.io', http_client: http_client
+        pr.protocol arc_class, base_url: 'https://arc.gorillapool.io', http_client: http_client
       end
       expect(p.protocols.length).to eq(1)
       expect(p.protocols.first).to be_a(arc_class)

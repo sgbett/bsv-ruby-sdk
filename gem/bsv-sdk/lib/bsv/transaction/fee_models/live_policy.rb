@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'net/http'
-require 'json'
 require 'uri'
 
 module BSV
@@ -10,13 +8,17 @@ module BSV
       # Dynamic fee model that fetches the live mining fee rate from an ARC
       # policy endpoint.
       #
-      # The fetched rate is cached for a configurable TTL (default 5 minutes)
-      # so repeated calls to {#compute_fee} do not repeatedly query the API.
-      # If a fetch fails, the model falls back to a configurable default rate.
+      # The policy is fetched through {BSV::Network::Protocols::ARC}, so it
+      # inherits that layer's timeouts, transport-error handling and
+      # credential-free +inspect+. The fetched rate is cached for a
+      # configurable TTL (default 5 minutes) so repeated calls to
+      # {#compute_fee} do not repeatedly query the API. If a fetch fails or
+      # the policy is implausible, the model returns the last cached rate, or
+      # failing that a configurable fallback.
       #
       # @example
       #   model = BSV::Transaction::FeeModels::LivePolicy.new(
-      #     arc_url: 'https://arc.taal.com',
+      #     arc_url: 'https://arc.gorillapool.io',
       #     fallback_rate: 50
       #   )
       #   fee = model.compute_fee(transaction)
@@ -34,20 +36,32 @@ module BSV
 
         DEFAULT_FALLBACK_RATE = 100
 
-        # TAAL still runs a public ARC instance that serves /v1/policy.
-        # Full policy access may require a TAAL API key.
-        TAAL_ARC_URL = 'https://arc.taal.com'
+        # GorillaPool's public ARC instance, which serves /v1/policy without
+        # credentials. Matches the TypeScript SDK's +LivePolicy+.
+        GORILLAPOOL_ARC_URL = 'https://arc.gorillapool.io'
 
-        # Returns a LivePolicy using TAAL ARC for fee policy, 100 sat/kB fallback,
-        # and a 5-minute cache.
+        # Sanity bounds for a fetched policy, so a hostile or broken endpoint
+        # cannot dictate an absurd fee.
+        # Attribution: ts-stack packages/sdk/src/transaction/fee-models/LivePolicy.ts
+        MAX_POLICY_SATOSHIS = 2_100_000_000_000_000 # 21e14
+        MAX_POLICY_BYTES = 1_000_000_000
+        MAX_RATE_SAT_PER_KB = 1_000_000_000
+
+        # Alternative policy keys that carry a sat/kB rate directly.
+        DIRECT_RATE_KEYS = %w[satPerKb sat_per_kb satoshisPerKb].freeze
+
+        # Returns a LivePolicy using GorillaPool's ARC for fee policy, a
+        # 100 sat/kB fallback, and a 5-minute cache.
         #
-        # @param api_key [String, nil] optional TAAL API key for authenticated policy access
+        # GorillaPool needs no credentials, so no key is accepted: use
+        # +LivePolicy.new(arc_url:, api_key:)+ for a keyed policy endpoint.
+        #
         # @return [LivePolicy]
-        def self.default(api_key: nil)
-          new(arc_url: TAAL_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE, api_key: api_key)
+        def self.default
+          new(arc_url: GORILLAPOOL_ARC_URL, fallback_rate: DEFAULT_FALLBACK_RATE)
         end
 
-        # @param arc_url [String] ARC base URL (e.g. 'https://arc.taal.com')
+        # @param arc_url [String] ARC base URL (e.g. 'https://arc.gorillapool.io')
         # @param fallback_rate [Integer] sat/kB to use when fetch fails (default: 100)
         # @param cache_ttl [Integer] seconds to cache a fetched rate (default: 300)
         # @param api_key [String, nil] optional Bearer token for ARC authentication
@@ -57,8 +71,7 @@ module BSV
           @arc_url = arc_url.chomp('/')
           @fallback_rate = fallback_rate
           @cache_ttl = cache_ttl
-          @api_key = api_key
-          @http_client = http_client
+          @protocol = BSV::Network::Protocols::ARC.new(base_url: @arc_url, api_key: api_key, http_client: http_client)
           @cached_rate = nil
           @cached_at = nil
           @mutex = Mutex.new
@@ -95,24 +108,36 @@ module BSV
           end
         end
 
+        # Built from an allow-list so the ARC credential can never leak
+        # through logs or +pp+.
+        #
+        # @return [String]
+        def inspect
+          uri = parsed_arc_uri
+          "#<#{self.class.name} scheme=#{uri&.scheme.inspect} host=#{uri&.host.inspect} " \
+            "fallback_rate=#{@fallback_rate} cache_ttl=#{@cache_ttl}>"
+        end
+        alias to_s inspect
+
         private
+
+        def parsed_arc_uri
+          URI.parse(@arc_url)
+        rescue URI::InvalidURIError
+          nil
+        end
 
         def cache_valid?
           @cached_rate && @cached_at && (Time.now - @cached_at) < @cache_ttl
         end
 
         def fetch_rate
-          uri = URI("#{@arc_url}/v1/policy")
-          request = Net::HTTP::Get.new(uri)
-          request['Accept'] = 'application/json'
-          request['Authorization'] = "Bearer #{@api_key}" if @api_key
+          response = @protocol.call(:get_policy)
+          return unless response.http_success?
 
-          response = execute(uri, request)
-          return unless (200..299).cover?(response.code.to_i)
-
-          payload = JSON.parse(response.body)
+          payload = response.data
           # Some endpoints wrap the policy in a 'data' key
-          payload = payload['data'] if payload.is_a?(Hash) && payload.key?('data') && payload['data'].is_a?(Hash)
+          payload = payload['data'] if payload.is_a?(Hash) && payload['data'].is_a?(Hash)
 
           extract_rate(payload)
         rescue StandardError
@@ -123,34 +148,45 @@ module BSV
           policy = payload.is_a?(Hash) ? payload['policy'] : nil
           return unless policy.is_a?(Hash)
 
-          # Primary: policy.fees.miningFee { satoshis: x, bytes: y }
+          mining_fee_rate(policy) || direct_rate(policy)
+        end
+
+        # GorillaPool serves policy.miningFee; policy.fees.miningFee is the
+        # shape some other ARC deployments use.
+        def mining_fee_rate(policy)
           fees = policy['fees']
           mining_fee = fees.is_a?(Hash) ? fees['miningFee'] : nil
           mining_fee ||= policy['miningFee']
+          return unless mining_fee.is_a?(Hash)
 
-          if mining_fee.is_a?(Hash)
-            satoshis = mining_fee['satoshis']
-            bytes = mining_fee['bytes']
-            return [1, (satoshis.to_f / bytes * 1000).round].max if satoshis.is_a?(Numeric) && bytes.is_a?(Numeric) && bytes.positive?
-          end
+          satoshis = mining_fee['satoshis']
+          bytes = mining_fee['bytes']
+          return unless whole_number_within?(satoshis, MAX_POLICY_SATOSHIS) && whole_number_within?(bytes, MAX_POLICY_BYTES)
 
-          # Fallback: direct sat/kB keys
-          %w[satPerKb sat_per_kb satoshisPerKb].each do |key|
-            value = policy[key]
-            return [1, value.round].max if value.is_a?(Numeric) && value.positive?
+          normalise_rate(satoshis * 1000.0 / bytes)
+        end
+
+        def direct_rate(policy)
+          DIRECT_RATE_KEYS.each do |key|
+            rate = normalise_rate(policy[key])
+            return rate if rate
           end
 
           nil
         end
 
-        def execute(uri, request)
-          if @http_client
-            @http_client.request(uri, request)
-          else
-            Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-              http.request(request)
-            end
-          end
+        # JSON +200.0+ parses as a Float; the TypeScript check
+        # (+Number.isSafeInteger+) accepts it, so whole-number Floats count.
+        def whole_number_within?(value, max)
+          whole = value.is_a?(Integer) || (value.is_a?(Float) && value.finite? && value == value.truncate)
+          whole && value.between?(1, max)
+        end
+
+        # A zero rate is invalid rather than clamped to 1, as in the TypeScript SDK.
+        def normalise_rate(value)
+          return unless value.is_a?(Numeric) && value.finite? && value.positive? && value <= MAX_RATE_SAT_PER_KB
+
+          [1, value.round].max
         end
       end
     end

@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'pp'
+require 'socket'
+
 # Fake injectable HTTP client — records the last request, returns a canned response.
 class ProtocolSpecFakeHttpClient
   attr_reader :last_uri, :last_request
@@ -14,6 +17,8 @@ class ProtocolSpecFakeHttpClient
     @response
   end
 end
+
+require 'logger'
 
 RSpec.describe 'BSV::Network::Protocol' do
   let(:base_protocol) do
@@ -253,6 +258,30 @@ RSpec.describe 'BSV::Network::Protocol' do
       instance = test_protocol_class.new(base_url: 'https://api.example.com', http_client: http)
       instance.default_call(:get_tx, 'abc123')
       expect(http.last_uri.to_s).to eq('https://api.example.com/v1/tx/abc123')
+    end
+
+    it 'logs the origin and path of the request, never userinfo or query' do
+      output = StringIO.new
+      logger = Logger.new(output, level: Logger::DEBUG, formatter: ->(_severity, _time, _prog, msg) { "#{msg}\n" })
+      allow(BSV).to receive(:logger).and_return(logger)
+      http     = ProtocolSpecFakeHttpClient.new(ok_response)
+      instance = test_protocol_class.new(base_url: 'https://user:secret@api.example.com/base?token=abc', http_client: http)
+      instance.default_call(:get_tx, 'abc123')
+      expect(output.string.lines.map(&:chomp)).to include('[Protocol] GET https://api.example.com/v1/tx/abc123')
+      expect(output.string).not_to match(/secret|token/)
+    end
+
+    it 'never logs an error body, which may reflect the API key or be invalid UTF-8' do
+      output = StringIO.new
+      logger = Logger.new(output, level: Logger::DEBUG, formatter: ->(_severity, _time, _prog, msg) { "#{msg}\n" })
+      allow(BSV).to receive(:logger).and_return(logger)
+      body     = "{\"error\":\"bad key: Bearer SEKRET\"} caf\xC3".b
+      instance = test_protocol_class.new(base_url: 'https://api.example.com', api_key: 'SEKRET',
+                                         http_client: ProtocolSpecFakeHttpClient.new(fake_http_response('401', body)))
+      result = instance.default_call(:get_tx, 'abc123')
+      expect(result).not_to be_http_success
+      expect(output.string).to include('[Protocol] HTTP 401 → http_success=false')
+      expect(output.string).not_to include('SEKRET')
     end
 
     it 'interpolates multiple positional args in template order' do
@@ -566,6 +595,266 @@ RSpec.describe 'BSV::Network::Protocol' do
         http_client: raising_client.new(RuntimeError.new('boom'))
       )
       expect { instance.default_call(:get_raw) }.to raise_error(RuntimeError, 'boom')
+    end
+  end
+
+  describe 'transport errors across dispatch paths' do
+    let(:escape_hatch_class) do
+      Class.new(BSV::Network::Protocol) do
+        endpoint :get_raw, :get, '/v1/raw'
+
+        def call_hatch(*)
+          execute(URI("#{base_url}/v1/hatch"), Net::HTTP::Get.new('/v1/hatch'))
+          BSV::Network::ProtocolResponse.new(nil, data: 'unreachable')
+        end
+
+        def call_invalid(*)
+          raise ArgumentError, 'bad input'
+        end
+
+        def call_delegating(*)
+          default_call(:get_raw)
+        end
+      end
+    end
+
+    let(:raising_client) do
+      Class.new do
+        def initialize(error)
+          @error = error
+        end
+
+        def request(_uri, _request)
+          raise @error
+        end
+      end
+    end
+
+    def build_with_error(error)
+      escape_hatch_class.new(base_url: 'https://api.example.com', http_client: raising_client.new(error))
+    end
+
+    [
+      Net::OpenTimeout.new('execution expired'),
+      Net::ReadTimeout.new('Net::ReadTimeout'),
+      Net::WriteTimeout.new('Net::WriteTimeout'),
+      Errno::ECONNREFUSED.new,
+      Errno::ECONNRESET.new,
+      Errno::EPIPE.new,
+      EOFError.new('end of file reached'),
+      SocketError.new('getaddrinfo failed'),
+      OpenSSL::SSL::SSLError.new('certificate verify failed')
+    ].each do |error|
+      context "when the transport raises #{error.class}" do
+        it 'returns a failed response from a default_call command' do
+          result = build_with_error(error).call(:get_raw)
+          expect(result.http_success?).to be(false)
+          expect(result.error_message).to start_with("transport error: #{error.class}: ")
+        end
+
+        it 'returns a failed response from an escape hatch that calls execute' do
+          result = build_with_error(error).call(:hatch)
+          expect(result.http_success?).to be(false)
+          expect(result.error_message).to start_with("transport error: #{error.class}: ")
+        end
+
+        it 'returns a failed response from an escape hatch that delegates to default_call' do
+          result = build_with_error(error).call(:delegating)
+          expect(result.http_success?).to be(false)
+          expect(result.error_message).to start_with("transport error: #{error.class}: ")
+        end
+
+        it 'flags whether the request may have reached the service' do
+          message = build_with_error(error).call(:get_raw).error_message
+          not_sent = [SocketError, Net::OpenTimeout, Errno::ECONNREFUSED].any? { |klass| error.is_a?(klass) }
+          if not_sent
+            expect(message).not_to include('may have reached')
+          else
+            expect(message).to end_with('(the request may have reached the service)')
+          end
+        end
+      end
+    end
+
+    [
+      Errno::EHOSTUNREACH.new,
+      Errno::ENETUNREACH.new,
+      Net::HTTPBadResponse.new('wrong status line'),
+      Net::HTTPHeaderSyntaxError.new('bad header'),
+      Errno::ETIMEDOUT.new
+    ].each do |error|
+      it "says the request may have reached the service for #{error.class}" do
+        message = build_with_error(error).call(:get_raw).error_message
+        expect(message).to end_with('(the request may have reached the service)')
+      end
+    end
+
+    it 'strips control characters from the transport error text' do
+      error = Net::HTTPBadResponse.new("wrong chunk size line: \e[K\r[WRN] x")
+      message = build_with_error(error).call(:get_raw).error_message
+      expect(message).to eq('transport error: Net::HTTPBadResponse: wrong chunk size line: [K [WRN] x ' \
+                            '(the request may have reached the service)')
+      expect(message).not_to match(/[[:cntrl:]]/)
+    end
+
+    it 'falls back to the class name when the error text is blank' do
+      message = build_with_error(EOFError.new("\r\n")).call(:get_raw).error_message
+      expect(message).to start_with('transport error: EOFError: EOFError')
+    end
+
+    it 'logs only the error class, never server bytes from the message' do
+      output = StringIO.new
+      allow(BSV).to receive(:logger).and_return(Logger.new(output, level: Logger::DEBUG))
+      build_with_error(Net::HTTPBadResponse.new('wrong status line: Bearer SEKRET')).call(:hatch)
+      expect(output.string).to include('[Protocol] transport error: Net::HTTPBadResponse')
+      expect(output.string).not_to include('SEKRET')
+    end
+
+    it 'lets ArgumentError from an escape hatch propagate' do
+      instance = build_with_error(EOFError.new)
+      expect { instance.call(:invalid) }.to raise_error(ArgumentError, 'bad input')
+    end
+  end
+
+  describe 'HTTP timeouts' do
+    let(:escape_hatch_class) do
+      Class.new(BSV::Network::Protocol) do
+        endpoint :get_raw, :get, '/v1/raw'
+
+        def call_hatch(*)
+          response = execute(URI("#{base_url}/v1/hatch"), Net::HTTP::Get.new('/v1/hatch'))
+          BSV::Network::ProtocolResponse.new(response, data: response.body)
+        end
+      end
+    end
+
+    let(:expected_options) do
+      hash_including(open_timeout: 10, read_timeout: 30, write_timeout: 30, max_retries: 0, use_ssl: true)
+    end
+
+    it 'passes named timeouts and disables retries for a default_call command' do
+      recorder = stub_net_http('api.example.com' => ->(_req) { [200, 'ok'] })
+      escape_hatch_class.new(base_url: 'https://api.example.com').call(:get_raw)
+      expect(recorder.start_options).to contain_exactly(expected_options)
+    end
+
+    it 'passes the same options for an escape hatch that calls execute directly' do
+      recorder = stub_net_http('api.example.com' => ->(_req) { [200, 'ok'] })
+      escape_hatch_class.new(base_url: 'https://api.example.com').call(:hatch)
+      expect(recorder.start_options).to contain_exactly(expected_options)
+    end
+
+    context 'with a server that accepts but never replies' do
+      let(:server) { TCPServer.new('127.0.0.1', 0) }
+      let(:accepted) { [] }
+      let!(:acceptor) do
+        Thread.new do
+          loop { accepted << server.accept }
+        rescue IOError
+          nil
+        end
+      end
+
+      after do
+        server.close
+        acceptor.join(1)
+        accepted.each(&:close)
+      end
+
+      it 'returns a failed response after one read timeout without retrying' do
+        stub_const('BSV::Network::Protocol::READ_TIMEOUT', 0.2)
+        instance = escape_hatch_class.new(base_url: "http://127.0.0.1:#{server.addr[1]}")
+
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        result = instance.call(:get_raw)
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+        expect(result.http_success?).to be(false)
+        expect(result.error_message).to include('Net::ReadTimeout')
+        expect(elapsed).to be < 0.4
+        expect(accepted.size).to eq(1)
+      end
+    end
+  end
+
+  describe 'credential-free inspection' do
+    let(:secrets) { %w[SEKRET pw tok apikey] }
+
+    def renderings(object)
+      [object.inspect, object.to_s, PP.pp(object, +''), [object].inspect]
+    end
+
+    {
+      'legacy api_key' => { base_url: 'https://host.example', api_key: 'SEKRET' },
+      'bearer auth' => { base_url: 'https://host.example', auth: { bearer: 'SEKRET' } },
+      'header api_key auth' => { base_url: 'https://host.example', auth: { api_key: 'SEKRET', header: 'X-Api' } },
+      'userinfo, path and query in the URL' => { base_url: 'https://user:pw@host.example/tok?apikey=q' }
+    }.each do |label, options|
+      it "never reveals secrets for #{label}" do
+        instance = base_protocol.new(**options)
+        renderings(instance).each do |text|
+          secrets.each { |secret| expect(text).not_to include(secret) }
+          expect(text).to include('host.example')
+        end
+      end
+    end
+
+    it 'shows the class, origin and auth status' do
+      instance = test_protocol_class.new(base_url: 'https://api.example.com:8443/v1', api_key: 'SEKRET')
+      expect(instance.inspect).to eq(
+        "#<#{test_protocol_class} origin=\"https://api.example.com:8443\" auth=authenticated>"
+      )
+    end
+
+    it 'omits the default port' do
+      instance = test_protocol_class.new(base_url: 'https://api.example.com:443')
+      expect(instance.inspect).to eq("#<#{test_protocol_class} origin=\"https://api.example.com\" auth=unauthenticated>")
+    end
+
+    it 'does not raise for an unparseable base URL' do
+      instance = test_protocol_class.new(base_url: 'not a url')
+      expect(instance.inspect).to include('(unparseable)')
+    end
+
+    describe '#authenticated?' do
+      it 'is true for the legacy api_key' do
+        expect(base_protocol.new(base_url: 'https://h.example', api_key: 'k').authenticated?).to be(true)
+      end
+
+      it 'is true for bearer auth' do
+        expect(base_protocol.new(base_url: 'https://h.example', auth: { bearer: 'k' }).authenticated?).to be(true)
+      end
+
+      it 'is true for api_key auth' do
+        expect(base_protocol.new(base_url: 'https://h.example', auth: { api_key: 'k' }).authenticated?).to be(true)
+      end
+
+      it 'is false with no auth, an empty api_key or auth: :none' do
+        expect(base_protocol.new(base_url: 'https://h.example').authenticated?).to be(false)
+        expect(base_protocol.new(base_url: 'https://h.example', api_key: '').authenticated?).to be(false)
+        expect(base_protocol.new(base_url: 'https://h.example', auth: :none).authenticated?).to be(false)
+      end
+    end
+
+    protocol_classes = BSV::Network::Protocols.constants.filter_map do |name|
+      klass = BSV::Network::Protocols.const_get(name)
+      [name, klass] if klass.is_a?(Class) && klass < BSV::Network::Protocol
+    end
+
+    protocol_classes.each do |name, klass|
+      it "never reveals secrets for #{name}" do
+        accepted = klass.instance_method(:initialize).parameters.map(&:last)
+        options = { base_url: 'https://host.example/path', api_key: 'SEKRET' }
+        options[:callback_token] = 'SEKRET' if accepted.include?(:callback_token)
+        options[:callback_url] = 'https://hook.example/tok' if accepted.include?(:callback_url)
+        options[:deployment_id] = 'SEKRET' if accepted.include?(:deployment_id)
+        instance = klass.new(**options)
+
+        renderings(instance).each do |text|
+          expect(text).not_to include('SEKRET')
+          expect(text).not_to include('tok')
+        end
+      end
     end
   end
 end

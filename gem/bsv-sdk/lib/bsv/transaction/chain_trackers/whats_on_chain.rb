@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'net/http'
-
 module BSV
   module Transaction
     module ChainTrackers
@@ -36,8 +34,7 @@ module BSV
           if protocol
             @protocol = protocol
           else
-            wrapped_client = api_key ? RawAuthClient.new(api_key, http_client) : http_client
-            provider = BSV::Network::Providers::WhatsOnChain.default(network: network, http_client: wrapped_client)
+            provider = BSV::Network::Providers::WhatsOnChain.default(network: network, api_key: api_key, http_client: http_client)
             @protocol = provider.protocol_for(:valid_root)
           end
         end
@@ -66,27 +63,6 @@ module BSV
           return result.data if result.http_success?
 
           raise result.message.to_s
-        end
-
-        # Wraps an injectable HTTP client to set a raw Authorization header value
-        # before forwarding the request. This preserves the WoC convention of
-        # sending the API key without a Bearer prefix.
-        class RawAuthClient
-          def initialize(api_key, inner_client)
-            @api_key = api_key
-            @inner_client = inner_client
-          end
-
-          def request(uri, req)
-            req['Authorization'] = @api_key
-            if @inner_client
-              @inner_client.request(uri, req)
-            else
-              Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-                http.request(req)
-              end
-            end
-          end
         end
       end
     end

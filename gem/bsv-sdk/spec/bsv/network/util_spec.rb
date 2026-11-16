@@ -63,4 +63,113 @@ RSpec.describe BSV::Network::Util do
       expect(described_class.resolve_tx_hex(tx)).to eq('raw-hex')
     end
   end
+
+  describe '.resolve_ef_hex' do
+    let(:ef_hex) { EfFixtures.ef_hex }
+
+    it 'serialises a transaction object to Extended Format hex' do
+      result = described_class.resolve_ef_hex(EfFixtures.ef_tx)
+      expect(result).to eq(ef_hex)
+      expect(result[8, 12]).to eq('0000000000ef')
+    end
+
+    it 'names Extended Format when the transaction lacks source data' do
+      expect { described_class.resolve_ef_hex(EfFixtures.tx_without_source_data) }
+        .to raise_error(ArgumentError, /\AExtended Format required: .*source/)
+    end
+
+    it 'passes Extended Format hex through' do
+      expect(described_class.resolve_ef_hex(ef_hex)).to eq(ef_hex)
+    end
+
+    it 'accepts upper-case hex' do
+      expect(described_class.resolve_ef_hex(ef_hex.upcase)).to eq(ef_hex.upcase)
+    end
+
+    it 'trims surrounding whitespace on hex' do
+      expect(described_class.resolve_ef_hex("#{ef_hex}\n")).to eq(ef_hex)
+    end
+
+    it 'converts binary Extended Format to hex' do
+      expect(described_class.resolve_ef_hex([ef_hex].pack('H*'))).to eq(ef_hex)
+    end
+
+    it 'converts binary Extended Format tagged UTF-8 (invalid as UTF-8) to hex' do
+      binary = [ef_hex].pack('H*').force_encoding(Encoding::UTF_8)
+      expect(described_class.resolve_ef_hex(binary)).to eq(ef_hex)
+    end
+
+    it 'does not trim binary strings' do
+      binary = EfFixtures.ef_tx.to_ef + "\n".b
+      expect(described_class.resolve_ef_hex(binary)).to eq("#{ef_hex}0a")
+    end
+
+    it 'rejects nil and objects that are not transactions with ArgumentError' do
+      expect { described_class.resolve_ef_hex(nil) }.to raise_error(ArgumentError, /to_ef_hex.*NilClass/)
+      expect { described_class.resolve_ef_hex(Object.new) }.to raise_error(ArgumentError, /Object/)
+    end
+
+    it 'rejects an empty string' do
+      expect { described_class.resolve_ef_hex('') }.to raise_error(ArgumentError, /empty/)
+    end
+
+    it 'rejects plain transaction hex' do
+      expect { described_class.resolve_ef_hex(EfFixtures.ef_tx.to_hex) }
+        .to raise_error(ArgumentError, /Extended Format/)
+    end
+
+    it 'rejects BEEF hex' do
+      expect { described_class.resolve_ef_hex("0100beef#{'00' * 40}") }
+        .to raise_error(ArgumentError, /Extended Format/)
+    end
+
+    it 'rejects a 10-byte plain transaction that happens to carry the marker at offset 4' do
+      expect { described_class.resolve_ef_hex('010000000000000000ef') }
+        .to raise_error(ArgumentError, /Extended Format/)
+    end
+  end
+
+  describe '.service_text' do
+    it 'is nil for non-Strings' do
+      expect(described_class.service_text(nil)).to be_nil
+      expect(described_class.service_text(5)).to be_nil
+      expect(described_class.service_text(['a'])).to be_nil
+    end
+
+    it 'is nil for blank strings' do
+      expect(described_class.service_text(" \n\t ")).to be_nil
+    end
+
+    it 'replaces control characters and ANSI escapes with spaces' do
+      expect(described_class.service_text("bad\e[31m red\x00\r\nline")).to eq('bad [31m red line')
+    end
+
+    {
+      'U+202E bidi override' => "a\u202Eb",
+      'U+200B zero-width space' => "a\u200Bb",
+      'U+FEFF byte order mark' => "a\uFEFFb",
+      'U+2028 line separator' => "a\u2028b",
+      'U+2029 paragraph separator' => "a\u2029b"
+    }.each do |label, input|
+      it "replaces #{label} with a space" do
+        expect(described_class.service_text(input)).to eq('a b')
+      end
+    end
+
+    it 'keeps ordinary non-ASCII text' do
+      expect(described_class.service_text("caf\u00E9 \u65E5\u672C")).to eq("caf\u00E9 \u65E5\u672C")
+    end
+
+    it 'handles inputs far larger than the limit' do
+      expect(described_class.service_text('é' * 100_000).length).to eq(8000)
+    end
+
+    it 'truncates to the limit' do
+      expect(described_class.service_text('a' * 20_000).length).to eq(8000)
+    end
+
+    it 'does not raise on invalid UTF-8' do
+      expect(described_class.service_text("ok \xFF\xFE end".b)).to eq('ok end')
+    end
+  end
 end
