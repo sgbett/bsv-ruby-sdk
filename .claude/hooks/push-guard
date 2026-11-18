@@ -1,0 +1,25 @@
+#!/bin/sh
+# vendored from sgbett/dotfiles-claude profiles/git-workflow/hooks/push-guard
+# A PreToolUse hook on Bash: it denies --force or -f in any company and any
+# rewrite or deletion of a base branch, asks before a lease push over another
+# author's commits and on a command it cannot read, and never answers allow.
+# Known limits: text the prefilter cannot see (pu''sh, a quoted or escaped word), a push inside a script, Makefile or alias; the ruleset is the control.
+# The default branch's ruleset is the server-side control; project and release branches have this hook until a repository adds a ruleset for them.
+input=$(cat)
+case $input in
+  *push*) ;;
+  *) exit 0 ;;
+esac
+ask() {
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"push-guard: %s, so the push could not be checked"}}\n' "$1"
+}
+if ! command -v ruby >/dev/null 2>&1; then
+  ask 'ruby is not installed'
+  exit 0
+fi
+# A ruby that cannot start (a version manager's shim with nothing behind it) exits non-zero saying nothing, and Claude Code then lets the tool proceed.
+if ! output=$(printf '%s' "$input" | ruby "$(dirname -- "$0")/push-guard.rb"); then
+  output=$(ask 'ruby failed')
+fi
+[ -z "$output" ] || printf '%s\n' "$output"
+exit 0

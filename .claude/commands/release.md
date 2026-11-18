@@ -1,6 +1,6 @@
 # Release a Gem
 
-Guided release workflow for a single gem from this monorepo. Releases one gem per invocation.
+Guided release workflow for a single gem from this monorepo. Releases one gem per invocation, in two runs: the first opens the release PR, the second, once that PR is merged, tags and publishes. The default branch takes changes only by PR (2026-11-18, sgbett/dotfiles-claude#30), so the version bump lands by PR and the tag alone is pushed direct.
 
 **Gem key:** `$ARGUMENTS`
 
@@ -71,7 +71,7 @@ Once a valid gem key is confirmed, set these variables (conceptually) for the re
 
 ## Step 2: Pre-flight Checks
 
-Run all four checks. Abort on any failure.
+Run all four checks. Abort on any failure. Both parts start from a clean, current `master`.
 
 **Check 1 — gh CLI authenticated:**
 ```bash
@@ -112,36 +112,22 @@ Display: "Pre-flight checks passed."
 
 ---
 
-## Step 3: Already-Released Checks
+## Step 3: Which Part
 
-**Check 1 — Tag does not already exist:**
+The tag for the version on master says where the release stands:
+
 ```bash
 git tag | grep "^${TAG_PREFIX}${CURRENT_VERSION}$"
 ```
-Abort if tag exists:
-> Already-released check failed: tag `${TAG_PREFIX}${CURRENT_VERSION}` already exists.
->
-> This version has already been tagged. If you need to release again, bump the version first.
->
-> Recovery: no changes have been made.
 
-**Check 2 — Version not already on RubyGems** (soft check — warn on timeout or unavailability):
-```bash
-gem search --remote --exact "$GEM_NAME" 2>&1
-```
-If output contains `$CURRENT_VERSION`, abort:
-> Already-released check failed: `$GEM_NAME $CURRENT_VERSION` is already published on RubyGems.
->
-> Bump the version in `$VERSION_FILE` to release a new version.
->
-> Recovery: no changes have been made.
+- **Tag exists:** `$CURRENT_VERSION` is released. Continue with **Part 1** to prepare the next release.
+- **Tag absent:** master carries an unreleased version, the merged release PR. Continue with **Part 2** to tag and publish it.
 
-If the command times out or fails, warn and continue:
-> Warning: could not check RubyGems availability (network issue or gem not yet published). Continuing with caution.
-
-Display: "Already-released checks passed. Current version `$CURRENT_VERSION` is not yet released."
+If the tag is absent and no release PR for `${TAG_PREFIX}${CURRENT_VERSION}` was ever merged (the gem has never been released), continue with Part 1 instead.
 
 ---
+
+# Part 1: Prepare the Release PR
 
 ## Step 4: Determine Last Tag
 
@@ -210,6 +196,35 @@ Confirm version? [suggested] or enter a custom version:
 ```
 
 Wait for user to confirm the suggested version or provide a custom one. Store as `NEW_VERSION`.
+
+**Already-released checks on `$NEW_VERSION`.**
+
+**Check 1 — Tag does not already exist:**
+```bash
+git tag | grep "^${TAG_PREFIX}${NEW_VERSION}$"
+```
+Abort if tag exists:
+> Already-released check failed: tag `${TAG_PREFIX}${NEW_VERSION}` already exists.
+>
+> This version has already been tagged. Choose another version.
+>
+> Recovery: no changes have been made.
+
+**Check 2 — Version not already on RubyGems** (soft check — warn on timeout or unavailability):
+```bash
+gem search --remote --exact "$GEM_NAME" 2>&1
+```
+If output contains `$NEW_VERSION`, abort:
+> Already-released check failed: `$GEM_NAME $NEW_VERSION` is already published on RubyGems.
+>
+> Choose another version.
+>
+> Recovery: no changes have been made.
+
+If the command times out or fails, warn and continue:
+> Warning: could not check RubyGems availability (network issue or gem not yet published). Continuing with caution.
+
+Display: "Already-released checks passed. `$NEW_VERSION` is not yet released."
 
 ---
 
@@ -320,7 +335,19 @@ Store the confirmed changelog section as `CHANGELOG_ENTRY`.
 
 ---
 
-## Step 8: Bump Version File
+## Step 8: Create the Release Branch
+
+The bump is a change like any other, so it goes on its own branch and lands by PR.
+
+```bash
+git switch -c "release/${TAG_PREFIX}${NEW_VERSION}"
+```
+
+Store the branch name as `RELEASE_BRANCH`.
+
+---
+
+## Step 9: Bump Version File
 
 Show what will change:
 ```
@@ -335,7 +362,7 @@ On confirmation, edit the version file — replace the `VERSION = '...'` line wi
 
 ---
 
-## Step 9: Update CHANGELOG.md
+## Step 10: Update CHANGELOG.md
 
 The changelog lives at `$GEM_DIR/CHANGELOG.md`.
 
@@ -354,7 +381,7 @@ On confirmation, update the file.
 
 ---
 
-## Step 10: Commit
+## Step 11: Commit
 
 Show the staged diff:
 ```bash
@@ -364,89 +391,172 @@ git diff HEAD $GEM_DIR/lib $GEM_DIR/CHANGELOG.md
 Wait for confirmation, then commit:
 ```bash
 git add "$VERSION_FILE" "$GEM_DIR/CHANGELOG.md"
-git commit -m "chore: release $GEM_NAME v$NEW_VERSION"
+git commit -m "chore(release): $GEM_NAME ${TAG_PREFIX}${NEW_VERSION}"
 ```
 
 Display the resulting commit hash.
 
 Recovery guidance if this step fails:
 > Commit failed. Your version file and changelog have been modified but not committed.
-> To roll back: `git checkout -- $VERSION_FILE $GEM_DIR/CHANGELOG.md`
+> To roll back: `git checkout -- $VERSION_FILE $GEM_DIR/CHANGELOG.md`, then `git switch master && git branch -D $RELEASE_BRANCH`
 > To retry: fix the issue and re-run `/release $GEM_KEY`.
 
 ---
 
-## Step 11: Create Tag
+## Step 12: Push the Branch and Open the PR
 
 ```
-Will create tag: ${TAG_PREFIX}${NEW_VERSION}
+Ready to push $RELEASE_BRANCH and open the release PR. This will:
+
+  git push -u origin $RELEASE_BRANCH
+  gh pr create --title "chore(release): ${TAG_PREFIX}${NEW_VERSION}"
+
+Confirm? [y/N]
+```
+
+On confirmation, with the branch name written out in full (the push-guard hook asks about any push whose refspec holds an unexpanded `$`):
+```bash
+git push -u origin "$RELEASE_BRANCH"
+gh pr create --base master --head "$RELEASE_BRANCH" \
+  --title "chore(release): ${TAG_PREFIX}${NEW_VERSION}" \
+  --body "$CHANGELOG_ENTRY"
+```
+
+Display the PR URL.
+
+Recovery guidance if the user declines or this fails:
+> The release commit exists on $RELEASE_BRANCH but the PR is not open.
+>
+> To push and open it manually:
+>   git push -u origin $RELEASE_BRANCH
+>   gh pr create --base master --head $RELEASE_BRANCH --title "chore(release): ${TAG_PREFIX}${NEW_VERSION}"
+>
+> To roll back locally:
+>   git switch master
+>   git branch -D $RELEASE_BRANCH
+
+---
+
+## Step 13: Stop Until the PR Is Merged
+
+Display:
+```
+Release PR opened: <url>
+
+The release continues once the PR is merged. Merging is your call, and the ruleset requires the PR.
+After the merge, run `/release $GEM_KEY` again from master: it tags the merge commit, builds the gem and publishes.
+```
+
+Stop here. Nothing in Part 2 runs in this invocation.
+
+---
+
+# Part 2: Tag and Publish
+
+Run after the release PR is merged. `$CURRENT_VERSION` is now the version to release.
+
+## Step 14: Confirm the Merge
+
+Find the merge commit of the release PR, the first-parent commit on master that last changed the version file:
+
+```bash
+git log --first-parent --format='%H %s' -1 -- "$VERSION_FILE"
+```
+
+Store the hash as `MERGE_SHA`. Display it and confirm it is the merge of `release/${TAG_PREFIX}${CURRENT_VERSION}`:
+```
+Release PR merged as:
+
+  <sha> Merge pull request #N from sgbett/release/${TAG_PREFIX}${CURRENT_VERSION}
+
+Tag this commit as ${TAG_PREFIX}${CURRENT_VERSION}? [y/N]
+```
+
+Read the `## $CURRENT_VERSION` block at the top of `$GEM_DIR/CHANGELOG.md` and store it as `CHANGELOG_ENTRY`; it is the release notes.
+
+**Version not already on RubyGems** (soft check — warn on timeout or unavailability):
+```bash
+gem search --remote --exact "$GEM_NAME" 2>&1
+```
+If output contains `$CURRENT_VERSION`, abort:
+> Already-released check failed: `$GEM_NAME $CURRENT_VERSION` is already published on RubyGems.
+>
+> Bump the version in `$VERSION_FILE` to release a new version.
+>
+> Recovery: no changes have been made.
+
+If the command times out or fails, warn and continue:
+> Warning: could not check RubyGems availability (network issue or gem not yet published). Continuing with caution.
+
+---
+
+## Step 15: Create Tag
+
+```
+Will create tag: ${TAG_PREFIX}${CURRENT_VERSION} at $MERGE_SHA
 
 Confirm? [y/N]
 ```
 
 On confirmation:
 ```bash
-git tag "${TAG_PREFIX}${NEW_VERSION}"
+git tag "${TAG_PREFIX}${CURRENT_VERSION}" "$MERGE_SHA"
 ```
 
 Recovery guidance if this step fails:
-> Tag creation failed. The release commit exists but no tag has been created.
-> To tag manually: `git tag ${TAG_PREFIX}${NEW_VERSION}`
-> To roll back entirely: `git reset HEAD~1` (unstaged), then `git checkout -- $VERSION_FILE $GEM_DIR/CHANGELOG.md`
+> Tag creation failed. The release is merged but no tag has been created.
+> To tag manually: `git tag ${TAG_PREFIX}${CURRENT_VERSION} $MERGE_SHA`
 
 ---
 
-## Step 12: Push to Origin
+## Step 16: Push the Tag
 
-**This step requires explicit user approval.** Pushing is irreversible without a force-push.
+**This step requires explicit user approval.** A pushed tag is public, and the gem release follows from it.
 
 ```
-Ready to push to origin/master. This will:
+Ready to push the tag to origin. This will:
 
-  git push origin master
-  git push origin ${TAG_PREFIX}${NEW_VERSION}
+  git push origin ${TAG_PREFIX}${CURRENT_VERSION}
 
-After pushing, the release commit and tag will be public.
 Type YES to push, or anything else to stop here.
 ```
 
 Only proceed if the user types `YES` (case-sensitive).
 
-On confirmation:
+On confirmation, with the tag written out in full (the push-guard hook asks about any push whose refspec holds an unexpanded `$`):
 ```bash
-git push origin master
-git push origin "${TAG_PREFIX}${NEW_VERSION}"
+git push origin "${TAG_PREFIX}${CURRENT_VERSION}"
 ```
 
 Recovery guidance if the user declines or push fails:
-> Push skipped (or failed). The release commit and tag exist locally but have not been pushed.
+> Push skipped (or failed). The tag exists locally but has not been pushed.
 >
 > To push manually:
->   git push origin master
->   git push origin ${TAG_PREFIX}${NEW_VERSION}
+>   git push origin ${TAG_PREFIX}${CURRENT_VERSION}
 >
-> To roll back locally:
->   git tag -d ${TAG_PREFIX}${NEW_VERSION}
->   git reset HEAD~1
+> To drop it locally:
+>   git tag -d ${TAG_PREFIX}${CURRENT_VERSION}
 
 ---
 
-## Step 13: Build the Gem
+## Step 17: Build the Gem
+
+Build from the tagged commit. If `HEAD` is not `$MERGE_SHA`, master has moved on since the release merge: `git checkout ${TAG_PREFIX}${CURRENT_VERSION}` first and `git checkout master` after the build.
 
 The gemspec uses `Dir.chdir(__dir__)` for file globbing, so build must run
 from inside the gem directory. Use `--output` to place the `.gem` file at a
 known location relative to the repo root:
 
 ```bash
-cd $GEM_DIR && gem build $GEM_NAME.gemspec --output $GEM_NAME-$NEW_VERSION.gem && cd -
-mv $GEM_DIR/$GEM_NAME-$NEW_VERSION.gem ./$GEM_NAME-$NEW_VERSION.gem 2>/dev/null || true
+cd $GEM_DIR && gem build $GEM_NAME.gemspec --output $GEM_NAME-$CURRENT_VERSION.gem && cd -
+mv $GEM_DIR/$GEM_NAME-$CURRENT_VERSION.gem ./$GEM_NAME-$CURRENT_VERSION.gem 2>/dev/null || true
 ```
 
-The gem file will be at `./$GEM_NAME-$NEW_VERSION.gem` (repo root).
+The gem file will be at `./$GEM_NAME-$CURRENT_VERSION.gem` (repo root).
 
 **Sanity check** — inspect the `.gem` contents:
 ```bash
-tar -tzf $GEM_NAME-$NEW_VERSION.gem
+tar -tzf $GEM_NAME-$CURRENT_VERSION.gem
 ```
 
 Verify:
@@ -459,7 +569,7 @@ If anything looks wrong, warn the user and ask whether to continue or abort.
 
 ---
 
-## Step 14: Prompt User to Push to RubyGems
+## Step 18: Prompt User to Push to RubyGems
 
 The skill cannot push to RubyGems — credentials are yours to control.
 
@@ -467,11 +577,11 @@ Display:
 ```
 The gem has been built at:
 
-  $GEM_NAME-$NEW_VERSION.gem
+  $GEM_NAME-$CURRENT_VERSION.gem
 
 To publish to RubyGems, run this command yourself:
 
-  gem push $GEM_NAME-$NEW_VERSION.gem
+  gem push $GEM_NAME-$CURRENT_VERSION.gem
 
 This requires your RubyGems API key (run `gem signin` if not already authenticated).
 
@@ -482,27 +592,27 @@ Wait for the user to confirm.
 
 ---
 
-## Step 15: Create GitHub Release
+## Step 19: Create GitHub Release
 
 ```bash
-gh release create "${TAG_PREFIX}${NEW_VERSION}" \
-  --title "$RELEASE_TITLE $NEW_VERSION" \
+gh release create "${TAG_PREFIX}${CURRENT_VERSION}" \
+  --title "$RELEASE_TITLE $CURRENT_VERSION" \
   --notes "$CHANGELOG_ENTRY" \
   --target master
 
-gh release upload "${TAG_PREFIX}${NEW_VERSION}" \
-  "$GEM_NAME-$NEW_VERSION.gem"
+gh release upload "${TAG_PREFIX}${CURRENT_VERSION}" \
+  "$GEM_NAME-$CURRENT_VERSION.gem"
 ```
 
 Recovery guidance if this fails:
 > GitHub release creation failed. The gem has been pushed to RubyGems (if you confirmed that step).
 > To create the release manually:
->   gh release create ${TAG_PREFIX}${NEW_VERSION} --title "$RELEASE_TITLE $NEW_VERSION" --notes "..."
->   gh release upload ${TAG_PREFIX}${NEW_VERSION} $GEM_NAME-$NEW_VERSION.gem
+>   gh release create ${TAG_PREFIX}${CURRENT_VERSION} --title "$RELEASE_TITLE $CURRENT_VERSION" --notes "..."
+>   gh release upload ${TAG_PREFIX}${CURRENT_VERSION} $GEM_NAME-$CURRENT_VERSION.gem
 
 ---
 
-## Step 16: Summary
+## Step 20: Summary
 
 Display a summary table:
 
@@ -510,11 +620,11 @@ Display a summary table:
 Release complete!
 
   Gem:             $GEM_NAME
-  Version:         $NEW_VERSION
-  Tag:             ${TAG_PREFIX}${NEW_VERSION}
-  Commit:          <sha>
-  RubyGems:        https://rubygems.org/gems/$GEM_NAME/versions/$NEW_VERSION
-  GitHub release:  https://github.com/sgbett/bsv-ruby-sdk/releases/tag/${TAG_PREFIX}${NEW_VERSION}
+  Version:         $CURRENT_VERSION
+  Tag:             ${TAG_PREFIX}${CURRENT_VERSION}
+  Commit:          $MERGE_SHA
+  RubyGems:        https://rubygems.org/gems/$GEM_NAME/versions/$CURRENT_VERSION
+  GitHub release:  https://github.com/sgbett/bsv-ruby-sdk/releases/tag/${TAG_PREFIX}${CURRENT_VERSION}
 
 Next steps:
   - If you released sdk or wallet, check whether downstream gems need a matching release
@@ -529,12 +639,14 @@ Next steps:
 | Step failed | State | Recovery |
 |-------------|-------|----------|
 | Pre-flight | Nothing changed | Fix issue, run `/release $GEM_KEY` again |
-| Already-released | Nothing changed | Bump version, run `/release $GEM_KEY` again |
+| Already-released | Nothing changed | Choose another version, run `/release $GEM_KEY` again |
 | Downstream checks | Nothing changed | Fix gaps or override, rerun |
-| Version bump / changelog | Files modified, not committed | `git checkout -- $VERSION_FILE $GEM_DIR/CHANGELOG.md` |
+| Version bump / changelog | Files modified on the release branch, not committed | `git checkout -- $VERSION_FILE $GEM_DIR/CHANGELOG.md`, then `git switch master && git branch -D $RELEASE_BRANCH` |
 | Commit | Files modified, not committed | Fix issue and re-stage, or `git checkout --` to discard |
-| Tag | Committed, not tagged | `git tag ${TAG_PREFIX}${NEW_VERSION}` manually |
-| Push | Local only | `git push origin master && git push origin ${TAG_PREFIX}${NEW_VERSION}` |
-| Build | Committed, tagged, pushed | `cd $GEM_DIR && gem build $GEM_NAME.gemspec && mv $GEM_NAME-$NEW_VERSION.gem ../..` |
-| RubyGems push | Built, not on RubyGems | `gem push $GEM_NAME-$NEW_VERSION.gem` |
+| Branch push / PR | Committed on the release branch, PR not open | `git push -u origin $RELEASE_BRANCH && gh pr create ...` manually |
+| Merge | PR open | Merge it, then run `/release $GEM_KEY` again from master |
+| Tag | Merged, not tagged | `git tag ${TAG_PREFIX}${CURRENT_VERSION} $MERGE_SHA` manually |
+| Tag push | Tagged locally only | `git push origin ${TAG_PREFIX}${CURRENT_VERSION}` |
+| Build | Tagged, pushed | `cd $GEM_DIR && gem build $GEM_NAME.gemspec && mv $GEM_NAME-$CURRENT_VERSION.gem ../..` |
+| RubyGems push | Built, not on RubyGems | `gem push $GEM_NAME-$CURRENT_VERSION.gem` |
 | GitHub release | On RubyGems, no GH release | `gh release create ...` manually |

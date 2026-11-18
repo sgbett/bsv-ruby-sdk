@@ -18,6 +18,14 @@ The [BSV Hub protocol documentation](https://hub.bsvblockchain.org/bitcoin-proto
 
 Licence: Open BSV License Version 5.
 
+## Git
+
+Git tier: collaborative
+
+Git rules: `.claude/rules/git-workflow.md`, vendored from sgbett/dotfiles-claude; this repository's differences are below.
+
+- Releases: the version bump lands by PR and the tag is pushed after the merge; `/release <key>` runs in two parts (see Releasing Gems).
+
 ## Commands
 
 ```bash
@@ -165,7 +173,7 @@ Changes to these areas always get a security review, however small:
 - RuboCop targets Ruby 3.3; single-quoted strings preferred
 ## Releasing Gems
 
-Use `/release <key>` as the canonical release mechanism. The skill guides you through pre-flight checks, version bumping, changelog generation, tagging, pushing, gem build, RubyGems push, and GitHub release creation — one gem at a time.
+Use `/release <key>` as the canonical release mechanism. The skill guides you through pre-flight checks, version bumping, changelog generation, the release PR, tagging, gem build, RubyGems push, and GitHub release creation — one gem at a time, in two runs: the first opens the release PR, the second, once it is merged, tags the merge commit and publishes.
 
 The repo ships two gems:
 
