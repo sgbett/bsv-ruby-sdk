@@ -108,7 +108,7 @@ Tag conventions:
 | `bsv-sdk` | `v` | `v0.10.0` |
 | `bsv-attest` | `attest-v` | `attest-v0.1.0` |
 
-PRs do not bump versions or add CHANGELOG entries — both are handled at release time.
+Feature PRs do not bump versions or add CHANGELOG entries — both are handled at release time, in the release PR.
 
 ## Reporting security issues
 
