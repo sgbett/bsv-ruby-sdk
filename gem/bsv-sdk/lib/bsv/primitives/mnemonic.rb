@@ -124,12 +124,7 @@ module BSV
       #
       # @return [String] the entropy bytes
       def to_entropy
-        indices = @words.map { |w| ENGLISH_WORD_MAP[w] }
-        all_bits = indices.map { |i| i.to_s(2).rjust(11, '0') }.join
-
-        entropy_bit_count = (@words.length * 11 * 32) / 33
-        entropy_bits = all_bits[0, entropy_bit_count]
-
+        entropy_bits, = decode_bits
         entropy_bits.chars.each_slice(8).map { |byte| byte.join.to_i(2) }.pack('C*')
       end
 
@@ -140,14 +135,7 @@ module BSV
         return false unless [12, 15, 18, 21, 24].include?(@words.length)
         return false if @words.any? { |w| !ENGLISH_WORD_MAP.key?(w) }
 
-        indices = @words.map { |w| ENGLISH_WORD_MAP[w] }
-        all_bits = indices.map { |i| i.to_s(2).rjust(11, '0') }.join
-
-        entropy_bit_count = (@words.length * 11 * 32) / 33
-        checksum_bit_count = entropy_bit_count / 32
-
-        entropy_bits = all_bits[0, entropy_bit_count]
-        checksum_bits = all_bits[entropy_bit_count, checksum_bit_count]
+        entropy_bits, checksum_bits = decode_bits
 
         entropy_bytes = entropy_bits.chars.each_slice(8).map { |byte| byte.join.to_i(2) }.pack('C*')
         expected_checksum = self.class.send(:checksum_for, entropy_bytes)
@@ -180,6 +168,19 @@ module BSV
       end
 
       private
+
+      # Decode the mnemonic words into entropy and checksum bit strings.
+      #
+      # @return [Array(String, String)] entropy bits and checksum bits
+      def decode_bits
+        indices = @words.map { |w| ENGLISH_WORD_MAP[w] }
+        all_bits = indices.map { |i| i.to_s(2).rjust(11, '0') }.join
+
+        entropy_bit_count = (@words.length * 11 * 32) / 33
+        checksum_bit_count = entropy_bit_count / 32
+
+        [all_bits[0, entropy_bit_count], all_bits[entropy_bit_count, checksum_bit_count]]
+      end
 
       def initialize(phrase)
         @phrase = phrase.freeze

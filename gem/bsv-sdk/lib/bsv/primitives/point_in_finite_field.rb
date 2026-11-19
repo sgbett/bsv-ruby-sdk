@@ -17,6 +17,8 @@ module BSV
     #   str   = point.to_s   #=> "C.N"
     #   back  = PointInFiniteField.from_string(str)
     class PointInFiniteField
+      include FieldMath
+
       # The secp256k1 field prime P.
       P = OpenSSL::BN.new('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F', 16).freeze
 
@@ -55,12 +57,6 @@ module BSV
       end
 
       private
-
-      # Unsigned modulo — always returns a non-negative result in [0, m).
-      def umod(n, m)
-        result = n % m
-        result.negative? ? result + m : result
-      end
 
       # Convert an OpenSSL::BN to a big-endian binary string, stripping the
       # sign byte that OpenSSL::BN#to_s(2) sometimes prepends.
